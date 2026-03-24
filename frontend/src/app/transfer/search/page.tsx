@@ -72,14 +72,14 @@ const TransferSearchContent: React.FC = () => {
     const [isEditModalVisible, setIsEditModalVisible] = useState(false);
     const [form] = Form.useForm();
 
-    const pickup = searchParams.get('pickup');
-    const dropoff = searchParams.get('dropoff');
-    const date = searchParams.get('date');
-    const time = searchParams.get('time');
-    const passengers = searchParams.get('passengers');
+    const pickup = searchParams.get('pickup') || '';
+    const dropoff = searchParams.get('dropoff') || '';
+    const date = searchParams.get('date') || '';
+    const time = searchParams.get('time') || '';
+    const passengers = searchParams.get('passengers') || '1';
     const type = searchParams.get('type') || 'ONE_WAY';
-    const pickupLat = searchParams.get('pickupLat');
-    const pickupLng = searchParams.get('pickupLng');
+    const pickupLat = searchParams.get('pickupLat') || '';
+    const pickupLng = searchParams.get('pickupLng') || '';
 
     useEffect(() => {
         if (pickup && dropoff && date) {

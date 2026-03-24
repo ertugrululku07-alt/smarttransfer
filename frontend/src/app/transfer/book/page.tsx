@@ -95,9 +95,9 @@ const TransferBookingContent: React.FC = () => {
     const [bookingSuccess, setBookingSuccess] = useState(false);
     const [bookingNumber, setBookingNumber] = useState<string | null>(null);
 
-    const vehicleId = searchParams.get('vehicleId');
-    const pickup = searchParams.get('pickup');
-    const dropoff = searchParams.get('dropoff');
+    const vehicleId = searchParams.get('vehicleId') || '';
+    const pickup = searchParams.get('pickup') || '';
+    const dropoff = searchParams.get('dropoff') || '';
     const date = searchParams.get('date');
     const time = searchParams.get('time');
     const passengers = searchParams.get('passengers');
