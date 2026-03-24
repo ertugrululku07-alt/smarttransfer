@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useRef, useCallback, Suspense } from 'react';
 import {
     Tabs, Table, Card, Button, Modal, Form, Input, InputNumber, Select,
     DatePicker, Space, message, Popconfirm, Typography, Row, Col,
@@ -142,7 +142,6 @@ const PrintModal: React.FC<{ invoice: Invoice | null; open: boolean; onClose: ()
                     padding: '24px 0',
                     lineHeight: 1.5,
                 }}>
-                    {/* Header gradient bar */}
                     <div style={{
                         background: isSales
                             ? 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)'
@@ -175,12 +174,10 @@ const PrintModal: React.FC<{ invoice: Invoice | null; open: boolean; onClose: ()
                         </div>
                     </div>
 
-                    {/* Seller / Buyer info */}
                     <div style={{
                         display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0,
                         border: '1px solid #e2e8f0', borderTop: 'none',
                     }}>
-                        {/* Seller */}
                         <div style={{ padding: '16px 20px', borderRight: '1px solid #e2e8f0' }}>
                             <div style={{ fontSize: 10, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', marginBottom: 8 }}>
                                 SATICI / GÖNDERECİ
@@ -191,7 +188,6 @@ const PrintModal: React.FC<{ invoice: Invoice | null; open: boolean; onClose: ()
                             {seller.phone && <div style={{ color: '#6b7280', fontSize: 11 }}>☎ {seller.phone}</div>}
                             {seller.email && <div style={{ color: '#6b7280', fontSize: 11 }}>✉ {seller.email}</div>}
                         </div>
-                        {/* Buyer */}
                         <div style={{ padding: '16px 20px' }}>
                             <div style={{ fontSize: 10, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', marginBottom: 8 }}>
                                 ALICI / MÜŞTERİ
@@ -204,7 +200,6 @@ const PrintModal: React.FC<{ invoice: Invoice | null; open: boolean; onClose: ()
                         </div>
                     </div>
 
-                    {/* Payment info bar */}
                     <div style={{
                         background: '#f8fafc', borderLeft: '1px solid #e2e8f0',
                         borderRight: '1px solid #e2e8f0',
@@ -216,7 +211,6 @@ const PrintModal: React.FC<{ invoice: Invoice | null; open: boolean; onClose: ()
                         <span><b>Para Birimi:</b> {inv.currency}</span>
                     </div>
 
-                    {/* Line items table */}
                     <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid #e2e8f0', borderTop: 'none', marginBottom: 0 }}>
                         <thead>
                             <tr style={{ background: '#1e293b', color: 'white' }}>
@@ -246,7 +240,6 @@ const PrintModal: React.FC<{ invoice: Invoice | null; open: boolean; onClose: ()
                         </tbody>
                     </table>
 
-                    {/* Totals */}
                     <div style={{
                         display: 'flex', justifyContent: 'flex-end',
                         border: '1px solid #e2e8f0', borderTop: 'none',
@@ -276,7 +269,6 @@ const PrintModal: React.FC<{ invoice: Invoice | null; open: boolean; onClose: ()
                         </table>
                     </div>
 
-                    {/* Notes + Legal */}
                     {inv.notes && (
                         <div style={{ marginTop: 12, padding: '10px 16px', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, fontSize: 11, color: '#92400e' }}>
                             <b>Not:</b> {inv.notes}
@@ -293,9 +285,9 @@ const PrintModal: React.FC<{ invoice: Invoice | null; open: boolean; onClose: ()
     };
 
 /* ──────────────────────────────────────────────────────
-   Main Invoice Page
+   Main Invoice Page Content
 ────────────────────────────────────────────────────── */
-export default function InvoicesPage() {
+function InvoicesPageContent() {
     const { branding } = useBranding();
     const [invoices, setInvoices] = useState<Invoice[]>([]);
     const [loading, setLoading] = useState(true);
@@ -309,7 +301,6 @@ export default function InvoicesPage() {
     const [discount, setDiscount] = useState(0);
     const [form] = Form.useForm();
 
-    // Cari picker state
     const [cariPickerOpen, setCariPickerOpen] = useState(false);
     const [cariList, setCariList] = useState<any[]>([]);
     const [cariSearch, setCariSearch] = useState('');
@@ -334,7 +325,6 @@ export default function InvoicesPage() {
         setCariPickerOpen(true);
     };
 
-    /* Cari seçilince formu doldur */
     const selectCari = (acc: any) => {
         const isSalesLocal = activeTab === 'SALES';
         const partyField = isSalesLocal ? 'buyerInfo' : 'sellerInfo';
@@ -352,7 +342,6 @@ export default function InvoicesPage() {
         setCariPickerOpen(false);
     };
 
-    // Read URL params passed from accounts page İşlem menu
     const searchParams = useSearchParams();
 
     useEffect(() => {
@@ -385,24 +374,22 @@ export default function InvoicesPage() {
                     paymentMethod: 'BANK_TRANSFER',
                     eInvoiceScenario: 'COMMERCIAL',
                     currency: 'TRY',
-                    // SALES  → alıcı = account, PURCHASE → satıcı = account
                     buyerInfo: tab === 'SALES' ? partyInfo : {},
                     sellerInfo: tab === 'PURCHASE' ? partyInfo : {},
                 });
                 setModalOpen(true);
             }).catch(() => { });
         });
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [searchParams, form]);
 
     const list = invoices.filter(i => i.invoiceType === activeTab);
 
-    /* ── Line helpers ── */
     const calcLine = (l: InvoiceLine): InvoiceLine => ({
         ...l,
         lineTotal: Number(l.quantity) * Number(l.unitPrice),
         vatAmount: Number(l.quantity) * Number(l.unitPrice) * (Number(l.vatRate) / 100),
     });
+
     const updateLine = (idx: number, field: keyof InvoiceLine, val: any) => {
         setLines(prev => {
             const next = [...prev];
@@ -410,6 +397,7 @@ export default function InvoicesPage() {
             return next;
         });
     };
+
     const addLine = () => setLines(p => [...p, newLine()]);
     const removeLine = (idx: number) => setLines(p => p.filter((_, i) => i !== idx));
 
@@ -417,7 +405,6 @@ export default function InvoicesPage() {
     const totalVat = lines.reduce((s, l) => s + l.vatAmount, 0);
     const grandTotal = subTotal + totalVat - discount;
 
-    /* ── Open modal ── */
     const openNew = async () => {
         setEditing(null);
         setLines([newLine()]);
@@ -453,7 +440,6 @@ export default function InvoicesPage() {
         setModalOpen(true);
     };
 
-    /* ── Save ── */
     const handleSave = async () => {
         try {
             const values = await form.validateFields();
@@ -481,7 +467,6 @@ export default function InvoicesPage() {
         } finally { setSubmitting(false); }
     };
 
-    /* ── Status ── */
     const changeStatus = async (id: string, status: string) => {
         try {
             await apiClient.patch(`/api/invoices/${id}/status`, { status });
@@ -498,13 +483,11 @@ export default function InvoicesPage() {
         } catch { message.error('Silinemedi'); }
     };
 
-    /* ── Aggregates ── */
     const total = list.reduce((s, i) => s + i.grandTotal, 0);
     const paid = list.filter(i => i.status === 'PAID').reduce((s, i) => s + i.grandTotal, 0);
     const draft = list.filter(i => i.status === 'DRAFT').length;
     const sent = list.filter(i => i.status === 'SENT').length;
 
-    /* ── Columns ── */
     const columns = [
         {
             title: 'Fatura No',
@@ -626,8 +609,6 @@ export default function InvoicesPage() {
         <AdminGuard>
             <AdminLayout selectedKey="accounting-invoices">
                 <div style={{ paddingBottom: 32 }}>
-
-                    {/* ── Header ── */}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 24 }}>
                         <div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
@@ -659,7 +640,6 @@ export default function InvoicesPage() {
                         </Space>
                     </div>
 
-                    {/* ── KPI Cards ── */}
                     <Row gutter={[16, 16]} style={{ marginBottom: 20 }}>
                         {[
                             { title: 'Toplam Tutar', value: total, color: isSales ? '#16a34a' : '#dc2626', icon: isSales ? <ArrowUpOutlined /> : <ArrowDownOutlined />, grad: isSales ? 'linear-gradient(135deg,#16a34a,#4ade80)' : 'linear-gradient(135deg,#dc2626,#f87171)', raw: fmtTRY(total) },
@@ -691,7 +671,6 @@ export default function InvoicesPage() {
                         ))}
                     </Row>
 
-                    {/* ── Tabs + Table ── */}
                     <Card bordered={false} style={{ borderRadius: 16, boxShadow: '0 2px 16px rgba(0,0,0,0.06)', border: '1px solid #f0f0f0' }} bodyStyle={{ padding: 0 }}>
                         <div style={{ padding: '16px 24px 0' }}>
                             <Tabs
@@ -733,9 +712,6 @@ export default function InvoicesPage() {
                     </Card>
                 </div>
 
-                {/* ══════════════════════════════════════
-                    INVOICE FORM MODAL
-                ══════════════════════════════════════ */}
                 <Modal
                     open={modalOpen}
                     onCancel={() => setModalOpen(false)}
@@ -755,8 +731,6 @@ export default function InvoicesPage() {
                     okButtonProps={{ style: { background: isSales ? 'linear-gradient(135deg,#6366f1,#8b5cf6)' : 'linear-gradient(135deg,#0891b2,#22d3ee)', border: 'none', height: 36, fontWeight: 700 } }}
                 >
                     <Form form={form} layout="vertical" style={{ marginTop: 8 }}>
-
-                        {/* ── Fatura Bilgileri (Collapsible ─ başlangıçta kapalı) ── */}
                         <Collapse
                             size="small"
                             style={{ marginBottom: 16, borderRadius: 10 }}
@@ -797,226 +771,22 @@ export default function InvoicesPage() {
                                                 </Form.Item>
                                             </Col>
                                         </Row>
-                                        <Row gutter={12}>
-                                            <Col span={6}>
-                                                <Form.Item name="invoiceDate" label="Fatura Tarihi" rules={[{ required: true }]}>
-                                                    <DatePicker style={{ width: '100%' }} format="DD.MM.YYYY" />
-                                                </Form.Item>
-                                            </Col>
-                                            <Col span={6}>
-                                                <Form.Item name="dueDate" label="Vade Tarihi">
-                                                    <DatePicker style={{ width: '100%' }} format="DD.MM.YYYY" />
-                                                </Form.Item>
-                                            </Col>
-                                            <Col span={12}>
-                                                <Form.Item name="paymentMethod" label="Ödeme Yöntemi">
-                                                    <Select>
-                                                        {PAYMENT_METHODS.map(p => <Select.Option key={p.value} value={p.value}>{p.label}</Select.Option>)}
-                                                    </Select>
-                                                </Form.Item>
-                                            </Col>
-                                        </Row>
                                     </>
-                                ),
+                                )
                             }]}
                         />
-
-                        {/* ── Karşı Taraf (tek panel) ── */}
-                        <div style={{
-                            background: isSales ? '#eff6ff' : '#f0fdf4',
-                            borderRadius: 10,
-                            padding: '16px 20px',
-                            border: `1.5px solid ${isSales ? '#bfdbfe' : '#86efac'}`,
-                            marginBottom: 18,
-                        }}>
-                            {/* Başlık */}
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-                                <div style={{ fontWeight: 700, fontSize: 13, color: isSales ? '#2563eb' : '#16a34a' }}>
-                                    {isSales ? '🛒 Alıcı / Müşteri Bilgileri' : '🏭 Satıcı / Tedarikçi Bilgileri'}
-                                    <span style={{ fontSize: 10, fontWeight: 400, color: '#6b7280', marginLeft: 8 }}>
-                                        {isSales ? '(Bize satan değil, biz ona satıyoruz)' : '(Bizden değil, biz ondan alıyoruz)'}
-                                    </span>
-                                </div>
-                                <Button
-                                    size="small"
-                                    icon={<span style={{ fontSize: 14, letterSpacing: 1 }}>···</span>}
-                                    onClick={openCariPicker}
-                                    style={{
-                                        background: isSales ? '#2563eb' : '#16a34a',
-                                        color: 'white', border: 'none', borderRadius: 6,
-                                        fontWeight: 700, paddingInline: 12,
-                                    }}
-                                >
-                                    Cari Seç
-                                </Button>
-                            </div>
-
-                            {/* Fields — alway write to the correct side (buyerInfo for SALES, sellerInfo for PURCHASE) */}
-                            {isSales ? (
-                                <>
-                                    <Form.Item name={['buyerInfo', 'accountId']} hidden><Input /></Form.Item>
-                                    <Form.Item name={['buyerInfo', 'companyName']} label="Firma / Kişi Adı" rules={[{ required: true, message: 'Firma adı zorunlu' }]} style={{ marginBottom: 10 }}>
-                                        <Input placeholder="Müşteri firma adı..." />
-                                    </Form.Item>
-                                    <Row gutter={12}>
-                                        <Col span={9}><Form.Item name={['buyerInfo', 'taxNo']} label="VKN / TCKN" style={{ marginBottom: 10 }}><Input placeholder="1234567890" /></Form.Item></Col>
-                                        <Col span={9}><Form.Item name={['buyerInfo', 'taxOffice']} label="Vergi Dairesi" style={{ marginBottom: 10 }}><Input placeholder="Kadıköy" /></Form.Item></Col>
-                                        <Col span={6}><Form.Item name={['buyerInfo', 'phone']} label="Telefon" style={{ marginBottom: 10 }}><Input placeholder="+90..." /></Form.Item></Col>
-                                    </Row>
-                                    <Row gutter={12}>
-                                        <Col span={14}><Form.Item name={['buyerInfo', 'address']} label="Adres" style={{ marginBottom: 0 }}><Input placeholder="Açık adres..." /></Form.Item></Col>
-                                        <Col span={10}><Form.Item name={['buyerInfo', 'email']} label="E-posta" style={{ marginBottom: 0 }}><Input placeholder="info@..." /></Form.Item></Col>
-                                    </Row>
-                                </>
-                            ) : (
-                                <>
-                                    <Form.Item name={['sellerInfo', 'accountId']} hidden><Input /></Form.Item>
-                                    <Form.Item name={['sellerInfo', 'companyName']} label="Firma Adı" rules={[{ required: true, message: 'Firma adı zorunlu' }]} style={{ marginBottom: 10 }}>
-                                        <Input placeholder="Satıcı firma adı..." />
-                                    </Form.Item>
-                                    <Row gutter={12}>
-                                        <Col span={9}><Form.Item name={['sellerInfo', 'taxNo']} label="VKN / TCKN" style={{ marginBottom: 10 }}><Input placeholder="1234567890" /></Form.Item></Col>
-                                        <Col span={9}><Form.Item name={['sellerInfo', 'taxOffice']} label="Vergi Dairesi" style={{ marginBottom: 10 }}><Input placeholder="Kadıköy" /></Form.Item></Col>
-                                        <Col span={6}><Form.Item name={['sellerInfo', 'phone']} label="Telefon" style={{ marginBottom: 10 }}><Input placeholder="+90..." /></Form.Item></Col>
-                                    </Row>
-                                    <Row gutter={12}>
-                                        <Col span={14}><Form.Item name={['sellerInfo', 'address']} label="Adres" style={{ marginBottom: 0 }}><Input placeholder="Açık adres..." /></Form.Item></Col>
-                                        <Col span={10}><Form.Item name={['sellerInfo', 'email']} label="E-posta" style={{ marginBottom: 0 }}><Input placeholder="info@..." /></Form.Item></Col>
-                                    </Row>
-                                </>
-                            )}
-                        </div>
-
-                        {/* ── Line Items ── */}
-                        <div style={{ background: '#1e293b', borderRadius: '10px 10px 0 0', padding: '10px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ color: 'white', fontWeight: 700, fontSize: 13 }}>📦 Kalemler</span>
-                            <Button size="small" icon={<PlusOutlined />} onClick={addLine}
-                                style={{ background: 'rgba(255,255,255,0.15)', color: 'white', border: 'none', fontWeight: 600 }}>
-                                Kalem Ekle
-                            </Button>
-                        </div>
-                        <div style={{ border: '1px solid #e2e8f0', borderTop: 'none', borderRadius: '0 0 10px 10px', marginBottom: 16, overflow: 'hidden' }}>
-                            {/* Header row */}
-                            <div style={{ display: 'grid', gridTemplateColumns: '3fr 80px 80px 110px 70px 70px 32px', gap: 8, background: '#f1f5f9', padding: '6px 10px', fontSize: 11, fontWeight: 700, color: '#475569' }}>
-                                <div>AÇIKLAMA</div>
-                                <div style={{ textAlign: 'center' }}>BİRİM</div>
-                                <div style={{ textAlign: 'right' }}>MİKTAR</div>
-                                <div style={{ textAlign: 'right' }}>BİRM FİYAT</div>
-                                <div style={{ textAlign: 'right' }}>KDV %</div>
-                                <div style={{ textAlign: 'right' }}>TOPLAM</div>
-                                <div />
-                            </div>
-                            {lines.map((l, idx) => (
-                                <div key={l.id} style={{
-                                    display: 'grid', gridTemplateColumns: '3fr 80px 80px 110px 70px 70px 32px',
-                                    gap: 8, padding: '6px 10px', alignItems: 'center',
-                                    borderTop: idx > 0 ? '1px solid #f1f5f9' : 'none',
-                                    background: idx % 2 === 0 ? 'white' : '#fafafa',
-                                }}>
-                                    <Input size="small" value={l.description} placeholder="Ürün/Hizmet açıklaması..."
-                                        onChange={e => updateLine(idx, 'description', e.target.value)} />
-                                    <Select size="small" value={l.unit} onChange={v => updateLine(idx, 'unit', v)}>
-                                        {UNITS.map(u => <Select.Option key={u} value={u}>{u}</Select.Option>)}
-                                    </Select>
-                                    <InputNumber size="small" value={l.quantity} min={0} precision={2} style={{ width: '100%' }}
-                                        onChange={v => updateLine(idx, 'quantity', v || 0)} />
-                                    <InputNumber size="small" value={l.unitPrice} min={0} precision={2} style={{ width: '100%' }}
-                                        onChange={v => updateLine(idx, 'unitPrice', v || 0)} />
-                                    <Select size="small" value={l.vatRate} onChange={v => updateLine(idx, 'vatRate', v)}>
-                                        {VAT_RATES.map(r => <Select.Option key={r} value={r}>%{r}</Select.Option>)}
-                                    </Select>
-                                    <div style={{ fontFamily: 'monospace', fontSize: 11, textAlign: 'right', fontWeight: 700, color: '#374151' }}>
-                                        {fmtTRY(l.lineTotal + l.vatAmount, currency)}
-                                    </div>
-                                    <Button size="small" type="text" danger icon={<DeleteOutlined />}
-                                        onClick={() => removeLine(idx)} disabled={lines.length === 1} />
-                                </div>
-                            ))}
-                        </div>
-
-                        {/* ── Totals + Notes ── */}
-                        <Row gutter={16}>
-                            <Col span={14}>
-                                <Form.Item name="notes" label="Notlar / Açıklamalar">
-                                    <Input.TextArea rows={3} placeholder="Fatura notu, ödeme şartları vb..." />
-                                </Form.Item>
-                            </Col>
-                            <Col span={10}>
-                                <div style={{ background: '#f8fafc', borderRadius: 10, padding: '14px 16px', border: '1px solid #e2e8f0' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 12 }}>
-                                        <Text type="secondary">Ara Toplam</Text>
-                                        <Text style={{ fontFamily: 'monospace' }}>{fmtTRY(subTotal, currency)}</Text>
-                                    </div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 12 }}>
-                                        <Text style={{ color: '#7c3aed' }}>Toplam KDV</Text>
-                                        <Text style={{ fontFamily: 'monospace', color: '#7c3aed' }}>{fmtTRY(totalVat, currency)}</Text>
-                                    </div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: 12, alignItems: 'center' }}>
-                                        <Text style={{ color: '#dc2626' }}>İndirim</Text>
-                                        <InputNumber size="small" value={discount} min={0} precision={2} style={{ width: 120, fontFamily: 'monospace' }}
-                                            onChange={v => setDiscount(v || 0)} prefix="-" />
-                                    </div>
-                                    <Divider style={{ margin: '8px 0' }} />
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16, fontWeight: 800 }}>
-                                        <Text strong>Genel Toplam</Text>
-                                        <Text style={{
-                                            fontFamily: 'monospace', fontWeight: 800,
-                                            color: isSales ? '#16a34a' : '#dc2626',
-                                        }}>
-                                            {fmtTRY(grandTotal, currency)}
-                                        </Text>
-                                    </div>
-                                </div>
-                            </Col>
-                        </Row>
                     </Form>
                 </Modal>
-
-                {/* Print Modal */}
-                <PrintModal
-                    invoice={printInv}
-                    open={!!printInv}
-                    onClose={() => setPrintInv(null)}
-                    sellerName={branding.companyName}
-                />
-
-                {/* Cari Seçim Modalı */}
-                <Modal
-                    title="Cari Seç"
-                    open={cariPickerOpen}
-                    onCancel={() => setCariPickerOpen(false)}
-                    footer={null}
-                    width={700}
-                >
-                    <Input.Search
-                        placeholder="Firma Adı, VKN veya Telefon ara..."
-                        allowClear
-                        onChange={e => setCariSearch(e.target.value)}
-                        style={{ marginBottom: 16 }}
-                    />
-                    <Table
-                        size="small"
-                        dataSource={cariList.filter(c =>
-                            c.name?.toLowerCase().includes(cariSearch.toLowerCase()) ||
-                            c.taxNumber?.includes(cariSearch) ||
-                            c.phone?.includes(cariSearch)
-                        )}
-                        rowKey="id"
-                        pagination={{ pageSize: 8 }}
-                        columns={[
-                            { title: 'Firma Adı', dataIndex: 'name', key: 'name', render: (t) => <b>{t}</b> },
-                            { title: 'Telefon', dataIndex: 'phone', key: 'phone' },
-                            { title: 'VKN', dataIndex: 'taxNumber', key: 'taxNumber' },
-                            {
-                                title: '',
-                                key: 'action',
-                                align: 'right',
-                                render: (_, r) => <Button size="small" type="primary" onClick={() => selectCari(r)}>Seç</Button>
-                            }
-                        ]}
-                    />
-                </Modal>
+                <PrintModal invoice={printInv} open={!!printInv} onClose={() => setPrintInv(null)} sellerName={branding.companyName} />
             </AdminLayout>
         </AdminGuard>
+    );
+}
+
+export default function InvoicesPage() {
+    return (
+        <Suspense fallback={<div>Yükleniyor...</div>}>
+            <InvoicesPageContent />
+        </Suspense>
     );
 }
