@@ -36,7 +36,8 @@ import {
     DashboardOutlined,
     ShoppingOutlined,
     PlusOutlined,
-    MinusOutlined
+    MinusOutlined,
+    ArrowRightOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import apiClient from '@/lib/api-client';
