@@ -1,7 +1,7 @@
 // API client with authentication
 import axios from 'axios';
 
-const rawApiUrl = (process.env.NEXT_PUBLIC_API_URL || 'https://smarttransfer-backend-production.up.railway.app').replace(/[\r\n]+/g, '').trim();
+const rawApiUrl = (process.env.NEXT_PUBLIC_API_URL || 'https://backend-production-69e7.up.railway.app').replace(/[\r\n]+/g, '').trim();
 const rawTenantSlug = process.env.NEXT_PUBLIC_TENANT_SLUG || 'smarttravel-demo';
 
 const API_URL = rawApiUrl.replace(/[\r\n]+/g, '').trim();
