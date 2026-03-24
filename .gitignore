@@ -1,0 +1,55 @@
+# Dependencies
+node_modules/
+backend/node_modules/
+frontend/node_modules/
+driver-app/node_modules/
+
+# Next.js / Frontend builds
+.next/
+out/
+build/
+dist/
+frontend/.next/
+frontend/out/
+frontend/build/
+driver-app/.next/
+driver-app/out/
+driver-app/build/
+driver-app/dist/
+driver-app/web-build/
+
+# Environment variables
+.env
+.env*
+backend/.env
+frontend/.env
+driver-app/.env
+
+# Prisma
+backend/generated/prisma/
+backend/prisma/migrations/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+ngrok.log
+ngrok_err.log
+
+# Expo / Driver App
+driver-app/.expo/
+driver-app/ios/
+driver-app/android/
+
+# Misc
+.DS_Store
+*.pem
+.vercel/
+/tmp/
+backend_deploy.tar.gz
+backend_deploy_final.tar.gz
+ngrok_url.txt
+.agent/
+.git_backup/

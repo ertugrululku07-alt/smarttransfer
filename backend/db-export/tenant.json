@@ -1,0 +1,62 @@
+[
+  {
+    "id": "00000000-0000-0000-0000-000000000001",
+    "slug": "smarttravel-demo",
+    "name": "SmartTravel Demo",
+    "legalName": null,
+    "taxNumber": null,
+    "status": "ACTIVE",
+    "plan": "PREMIUM",
+    "trialEndsAt": null,
+    "subscriptionEndsAt": null,
+    "transferEnabled": true,
+    "tourEnabled": true,
+    "hotelEnabled": true,
+    "flightEnabled": false,
+    "carEnabled": false,
+    "cruiseEnabled": false,
+    "logo": null,
+    "heroImages": [],
+    "primaryColor": "#667eea",
+    "secondaryColor": "#764ba2",
+    "accentColor": "#f5576c",
+    "activeThemeId": null,
+    "customTheme": null,
+    "paymentProviders": {
+      "paytr": {
+        "enabled": false,
+        "testMode": true
+      }
+    },
+    "supportedCurrencies": [
+      "TRY",
+      "EUR",
+      "USD"
+    ],
+    "defaultCurrency": "TRY",
+    "commissionRate": "0.15",
+    "defaultLocale": "tr",
+    "supportedLocales": [
+      "tr",
+      "en"
+    ],
+    "timezone": "Europe/Istanbul",
+    "email": null,
+    "phone": null,
+    "address": null,
+    "settings": {
+      "googleMaps": {
+        "apiKey": "AIzaSyD-OBlI4AmjCvCQjzPAePi_bEogTXuScq0",
+        "country": "tr"
+      },
+      "heroBackground": {
+        "type": "video",
+        "videoUrl": "X-Z12VYZNec"
+      }
+    },
+    "metadata": null,
+    "createdAt": "2026-01-16T22:18:23.392Z",
+    "updatedAt": "2026-02-19T23:36:03.484Z",
+    "deletedAt": null
+  }
+]

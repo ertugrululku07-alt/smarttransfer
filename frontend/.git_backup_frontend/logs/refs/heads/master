@@ -1,0 +1,15 @@
+0000000000000000000000000000000000000000 363de5ca3c3a4dab8d7b7030e45e52085068d37a Admin <admin@smarttravel.com> 1771800155 +0300	commit (initial): Initial commit for frontend deployment
+363de5ca3c3a4dab8d7b7030e45e52085068d37a aeecf8f5e2738475a9023de21375ecfb912d41ff Admin <admin@smarttravel.com> 1771801652 +0300	commit: chore: Upgrade next.js to fix CVE railway security deployment block
+aeecf8f5e2738475a9023de21375ecfb912d41ff 1bd23e3d7485291565d9a718fa559f0268fe44dc Admin <admin@smarttravel.com> 1771802101 +0300	commit: fix: replace hardcoded localhost urls with valid railway api endpoints globally
+1bd23e3d7485291565d9a718fa559f0268fe44dc 9f4b695e73cf06161dbbb78f8cdfa6bc97f0c697 Admin <admin@smarttravel.com> 1771802403 +0300	commit: fix: sanitize API URL environment variables globally against trailing newlines
+9f4b695e73cf06161dbbb78f8cdfa6bc97f0c697 460b74282ba78f34d9a016d7c69006a4e62952c2 Admin <admin@smarttravel.com> 1772329016 +0300	commit: feat(ui): update invoices, driver chat, vouchers and layout
+460b74282ba78f34d9a016d7c69006a4e62952c2 162bdb89394aea6e430704a29c754a36dca62b77 Admin <admin@smarttravel.com> 1772329592 +0300	commit: fix(transfers): show agency name instead of Direkt for b2b bookings
+162bdb89394aea6e430704a29c754a36dca62b77 ad3ea06d96fd408659cd6b430e7ca7205a58f131 Admin <admin@smarttravel.com> 1772330291 +0300	commit: fix(transfers): update agency mapping on frontend list
+ad3ea06d96fd408659cd6b430e7ca7205a58f131 91550fd9ff2369a8e169db19bdf3d0d5d22edfc5 Admin <admin@smarttravel.com> 1772331636 +0300	commit: fix(UI): resolve AntD Select bordered deprecation and add Table rowKey in operations
+91550fd9ff2369a8e169db19bdf3d0d5d22edfc5 c3ce3dbd2af41415136622a61fe915d674d26740 Admin <admin@smarttravel.com> 1772331988 +0300	commit: feat(invoices): add accountId to forms and apply balance to cari on approval
+c3ce3dbd2af41415136622a61fe915d674d26740 f7da37249b3d61677491756c3b26aba9654dd959 Admin <admin@smarttravel.com> 1772552301 +0300	commit: fix: image urls
+f7da37249b3d61677491756c3b26aba9654dd959 4ddbff4daeae3c174e0ff13ea89cc062c1e2eac8 Admin <admin@smarttravel.com> 1772564298 +0300	commit: fix: resolve duplicate dayjs and missing imports in personnel page lint errors
+4ddbff4daeae3c174e0ff13ea89cc062c1e2eac8 6e6fb594d766ef41141ea8e2f4a0663f0b8d9278 Admin <admin@smarttravel.com> 1772565456 +0300	commit: fix: resolve antd deprecation warnings and gmaps double loading
+6e6fb594d766ef41141ea8e2f4a0663f0b8d9278 1760c33dcc136ab667d691e8fd0db3e8239a325b Admin <admin@smarttravel.com> 1772566221 +0300	commit: fix: use apiClient instead of axios for tenant settings API calls to fix 401 Unauthorized errors
+1760c33dcc136ab667d691e8fd0db3e8239a325b 8749a50607dd23ed9d275458dea0cdbbd4673f89 Admin <admin@smarttravel.com> 1772566716 +0300	commit: fix(frontend): resolve Ant Design deprecation warnings in AccountsPage and SiteSettingsPage
+8749a50607dd23ed9d275458dea0cdbbd4673f89 d4dbcb264eebc6a2ec09bf50fe011a5f2c78f794 Admin <admin@smarttravel.com> 1772579464 +0300	commit: Add Kasa module and fix dates

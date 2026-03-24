@@ -1,0 +1,13 @@
+[
+  {
+    "id": "ba876998-4ff1-4e79-915c-18c67a464eb3",
+    "tenantId": "00000000-0000-0000-0000-000000000001",
+    "name": "Garanti",
+    "code": "01",
+    "logo": null,
+    "website": null,
+    "status": true,
+    "createdAt": "2026-02-20T00:10:15.463Z",
+    "updatedAt": "2026-02-20T00:10:15.463Z"
+  }
+]

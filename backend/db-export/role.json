@@ -1,0 +1,50 @@
+[
+  {
+    "id": "1375f4c4-36a9-4eba-ae3d-aa7057ead0ff",
+    "tenantId": null,
+    "name": "Super Admin",
+    "code": "SUPER_ADMIN",
+    "type": "SUPER_ADMIN",
+    "description": null,
+    "isActive": true,
+    "isSystem": true,
+    "createdAt": "2026-01-16T22:18:23.409Z",
+    "updatedAt": "2026-01-16T22:18:23.409Z"
+  },
+  {
+    "id": "c83456d4-9ce4-41a3-a64f-63fbd0a9d530",
+    "tenantId": "00000000-0000-0000-0000-000000000001",
+    "name": "Customer",
+    "code": "CUSTOMER",
+    "type": "CUSTOMER",
+    "description": null,
+    "isActive": true,
+    "isSystem": true,
+    "createdAt": "2026-01-16T22:18:23.418Z",
+    "updatedAt": "2026-01-16T22:18:23.418Z"
+  },
+  {
+    "id": "c5cafcd2-c220-478e-bab5-5e7987a75215",
+    "tenantId": "00000000-0000-0000-0000-000000000001",
+    "name": "Sürücü (Partner)",
+    "code": "PARTNER",
+    "type": "PARTNER",
+    "description": "External driver partner",
+    "isActive": true,
+    "isSystem": true,
+    "createdAt": "2026-01-17T00:23:33.392Z",
+    "updatedAt": "2026-01-17T00:23:33.392Z"
+  },
+  {
+    "id": "0ebfb69b-d00f-43ba-800f-949e9f4bc2a3",
+    "tenantId": "00000000-0000-0000-0000-000000000001",
+    "name": "Sürücü",
+    "code": "DRIVER",
+    "type": "TENANT_STAFF",
+    "description": null,
+    "isActive": true,
+    "isSystem": false,
+    "createdAt": "2026-02-15T21:24:09.348Z",
+    "updatedAt": "2026-02-15T21:24:09.348Z"
+  }
+]

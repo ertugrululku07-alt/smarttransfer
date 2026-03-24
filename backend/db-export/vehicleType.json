@@ -1,0 +1,74 @@
+[
+  {
+    "id": "254613f4-535d-4ef9-94ad-c0777afbf391",
+    "tenantId": "00000000-0000-0000-0000-000000000001",
+    "name": "Sedan",
+    "slug": "sedan",
+    "category": "SEDAN",
+    "capacity": 3,
+    "luggage": 2,
+    "description": null,
+    "features": [
+      "ac",
+      "wifi"
+    ],
+    "image": "http://localhost:4000/uploads/1771362784132-745078790.png"
+  },
+  {
+    "id": "6d601dec-e3a5-4498-9835-638622d9d645",
+    "tenantId": "00000000-0000-0000-0000-000000000001",
+    "name": "Vip Minibüs",
+    "slug": "vip-minibs-1771362333976",
+    "category": "MINIBUS",
+    "capacity": 6,
+    "luggage": 6,
+    "description": null,
+    "features": [],
+    "image": "http://localhost:4000/uploads/1771362913082-740369419.png"
+  },
+  {
+    "id": "750e83b7-290b-4055-a66b-266ad77d903c",
+    "tenantId": "00000000-0000-0000-0000-000000000001",
+    "name": "Minibüs (Sprinter)",
+    "slug": "minibus",
+    "category": "MINIBUS",
+    "capacity": 16,
+    "luggage": 10,
+    "description": "Minibüs (Sprinter)",
+    "features": [
+      "ac",
+      "wifi"
+    ],
+    "image": "http://localhost:4000/uploads/1771362843834-419094829.png"
+  },
+  {
+    "id": "99e193c2-27aa-45aa-8bc3-e6ff72d42912",
+    "tenantId": "00000000-0000-0000-0000-000000000001",
+    "name": "Lüx Sedn",
+    "slug": "lx-sedn-1771362045902",
+    "category": "SEDAN",
+    "capacity": 3,
+    "luggage": 3,
+    "description": null,
+    "features": [
+      "wif",
+      "kamera"
+    ],
+    "image": "http://localhost:4000/uploads/1771362775779-931390342.png"
+  },
+  {
+    "id": "aed2dcbe-5cb7-4033-a38c-b7e80ed2774e",
+    "tenantId": "00000000-0000-0000-0000-000000000001",
+    "name": "Otobüs",
+    "slug": "bus",
+    "category": "BUS",
+    "capacity": 45,
+    "luggage": 45,
+    "description": "Otobüs",
+    "features": [
+      "ac",
+      "wifi"
+    ],
+    "image": "http://localhost:4000/uploads/1771362857278-10985355.png"
+  }
+]

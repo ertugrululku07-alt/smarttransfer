@@ -1,0 +1,39 @@
+# SmartTravel Platform - Robots.txt
+# Allow all search engines to index our site
+
+# User-agent: * means this applies to all search engine bots
+User-agent: *
+
+# Allow all pages
+Allow: /
+
+# Disallow admin and private areas
+Disallow: /admin/
+Disallow: /api/
+Disallow: /private/
+Disallow: /_next/
+Disallow: /static/
+
+# Sitemap location
+Sitemap: https://smarttravel.com/sitemap.xml
+
+# Crawl delay (optional, in seconds)
+Crawl-delay: 1
+
+# Specific rules for Google
+User-agent: Googlebot
+Allow: /
+Disallow: /admin/
+Disallow: /api/
+
+# Specific rules for Bing
+User-agent: Bingbot
+Allow: /
+Disallow: /admin/
+Disallow: /api/
+
+# Specific rules for Yandex (popular in Turkey)
+User-agent: Yandex
+Allow: /
+Disallow: /admin/
+Disallow: /api/

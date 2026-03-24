@@ -1,0 +1,29 @@
+{
+    "project_info": {
+        "project_number": "444570155817",
+        "project_id": "smarttransfer-b4f67",
+        "storage_bucket": "smarttransfer-b4f67.firebasestorage.app"
+    },
+    "client": [
+        {
+            "client_info": {
+                "mobilesdk_app_id": "1:444570155817:android:343b9d644d0e7f9d035538",
+                "android_client_info": {
+                    "package_name": "com.smarttransfer.driverapp"
+                }
+            },
+            "oauth_client": [],
+            "api_key": [
+                {
+                    "current_key": "AIzaSyCVVINwCpTLm8RGGZ-y4aMOXYtZbVH4tNo"
+                }
+            ],
+            "services": {
+                "appinvite_service": {
+                    "other_platform_oauth_client": []
+                }
+            }
+        }
+    ],
+    "configuration_version": "1"
+}

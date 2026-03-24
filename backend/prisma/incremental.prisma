@@ -1,0 +1,86 @@
+﻿// ============================================================================
+// SMART TRAVEL PLATFORM - ENTERPRISE DATABASE SCHEMA
+// Multi-Tenant SaaS Architecture
+// Version: 2.0.0
+// ============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+model Tenant {
+  id              String    @id @default(uuid())
+  slug            String    @unique // URL identifier: acme-travel
+  name            String
+  legalName       String?
+  taxNumber       String?
+  
+  // Status & Subscription
+  status          TenantStatus @default(TRIAL)
+  plan            SubscriptionPlan @default(BASIC)
+  trialEndsAt     DateTime?
+  subscriptionEndsAt DateTime?
+  
+  // Module Configuration
+  transferEnabled Boolean   @default(true)
+  tourEnabled     Boolean   @default(false)
+  hotelEnabled    Boolean   @default(false)
+  flightEnabled   Boolean   @default(false)
+  carEnabled      Boolean   @default(false)
+  cruiseEnabled   Boolean   @default(false)
+  
+  // Branding
+  logo            String?
+  heroImages      String[]  @default([])
+  primaryColor    String    @default("#667eea")
+  secondaryColor  String    @default("#764ba2")
+  accentColor     String    @default("#f5576c")
+  
+  // Theme
+  activeThemeId   String?
+  customTheme     Json?     // Full theme override
+  
+  // Payment Configuration
+  paymentProviders Json?    // {iyzico: {apiKey, ...}, paytr: {...}}
+  supportedCurrencies String[] @default(["TRY", "EUR", "USD"])
+  defaultCurrency String    @default("TRY")
+  commissionRate  Decimal   @default(0.15) // Platform commission %
+  
+  // Localization
+  defaultLocale   String    @default("tr")
+  supportedLocales String[] @default(["tr", "en"])
+  timezone        String    @default("Europe/Istanbul")
+  
+  // Contact
+  email           String?
+  phone           String?
+  address         Json?     // {street, city, country, postal}
+  
+  // Settings
+  settings        Json?     // Additional settings
+  
+  // Relations
+  users           User[]
+  personnel       Personnel[]
+  products        Product[]
+  bookings        Booking[]
+  payments        Payment[]
+  themes          Theme[]
+  roles           Role[]
+  accounts        Account[]
+  banks           Bank[]
+  
+  // Metadata
+  metadata        Json?
+  createdAt       DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt       DateTime? // Soft delete
+  
+  @@index([status])
+  @@index([slug])
+}
+

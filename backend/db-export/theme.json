@@ -1,0 +1,30 @@
+[
+  {
+    "id": "443a7bc3-b277-4113-b125-e05bb2d98519",
+    "tenantId": null,
+    "name": "Default Light",
+    "code": "default-light",
+    "category": "DEFAULT",
+    "activeFrom": null,
+    "activeTo": null,
+    "autoActivate": false,
+    "config": {
+      "meta": {
+        "name": "Default",
+        "version": "1.0.0"
+      },
+      "colors": {
+        "primary": {
+          "DEFAULT": "#667eea"
+        }
+      }
+    },
+    "thumbnail": null,
+    "preview": [],
+    "isActive": true,
+    "isDefault": true,
+    "isPublic": true,
+    "createdAt": "2026-01-16T22:18:23.503Z",
+    "updatedAt": "2026-01-16T22:18:23.503Z"
+  }
+]

@@ -1,0 +1,582 @@
+[
+  {
+    "id": "b4dd1623-6dff-4abf-9ba4-5b2f8a89931d",
+    "tenantId": "00000000-0000-0000-0000-000000000001",
+    "senderId": "6c02d2fc-3459-4638-9613-5416c49d951d",
+    "receiverId": "6c02d2fc-3459-4638-9613-5416c49d951d",
+    "bookingId": null,
+    "content": "http://localhost:4000/uploads/1771611298439-158391806.jpg",
+    "format": "IMAGE",
+    "isRead": false,
+    "readAt": null,
+    "createdAt": "2026-02-20T18:14:59.020Z",
+    "updatedAt": "2026-02-20T18:14:59.020Z",
+    "sender": {
+      "id": "6c02d2fc-3459-4638-9613-5416c49d951d",
+      "email": "sofor@test.com",
+      "role": {
+        "type": "TENANT_STAFF",
+        "code": "DRIVER"
+      }
+    },
+    "receiver": {
+      "id": "6c02d2fc-3459-4638-9613-5416c49d951d",
+      "email": "sofor@test.com",
+      "role": {
+        "type": "TENANT_STAFF",
+        "code": "DRIVER"
+      }
+    }
+  },
+  {
+    "id": "954645ee-8e26-4378-9dc5-e2e8181bd0a1",
+    "tenantId": "00000000-0000-0000-0000-000000000001",
+    "senderId": "6c02d2fc-3459-4638-9613-5416c49d951d",
+    "receiverId": "6c02d2fc-3459-4638-9613-5416c49d951d",
+    "bookingId": null,
+    "content": "Drr",
+    "format": "TEXT",
+    "isRead": false,
+    "readAt": null,
+    "createdAt": "2026-02-20T14:31:32.417Z",
+    "updatedAt": "2026-02-20T14:31:32.417Z",
+    "sender": {
+      "id": "6c02d2fc-3459-4638-9613-5416c49d951d",
+      "email": "sofor@test.com",
+      "role": {
+        "type": "TENANT_STAFF",
+        "code": "DRIVER"
+      }
+    },
+    "receiver": {
+      "id": "6c02d2fc-3459-4638-9613-5416c49d951d",
+      "email": "sofor@test.com",
+      "role": {
+        "type": "TENANT_STAFF",
+        "code": "DRIVER"
+      }
+    }
+  },
+  {
+    "id": "fec99622-550a-436a-9f7a-a95c8f3d698e",
+    "tenantId": "00000000-0000-0000-0000-000000000001",
+    "senderId": "6c02d2fc-3459-4638-9613-5416c49d951d",
+    "receiverId": "6c02d2fc-3459-4638-9613-5416c49d951d",
+    "bookingId": null,
+    "content": "Sss",
+    "format": "TEXT",
+    "isRead": false,
+    "readAt": null,
+    "createdAt": "2026-02-20T14:31:26.213Z",
+    "updatedAt": "2026-02-20T14:31:26.213Z",
+    "sender": {
+      "id": "6c02d2fc-3459-4638-9613-5416c49d951d",
+      "email": "sofor@test.com",
+      "role": {
+        "type": "TENANT_STAFF",
+        "code": "DRIVER"
+      }
+    },
+    "receiver": {
+      "id": "6c02d2fc-3459-4638-9613-5416c49d951d",
+      "email": "sofor@test.com",
+      "role": {
+        "type": "TENANT_STAFF",
+        "code": "DRIVER"
+      }
+    }
+  },
+  {
+    "id": "4bbe2098-1230-4aa0-a98c-32ab4337ccdd",
+    "tenantId": "00000000-0000-0000-0000-000000000001",
+    "senderId": "062644b3-3b6d-4929-a971-45ef20021f59",
+    "receiverId": "6c02d2fc-3459-4638-9613-5416c49d951d",
+    "bookingId": null,
+    "content": "lll",
+    "format": "TEXT",
+    "isRead": false,
+    "readAt": null,
+    "createdAt": "2026-02-20T14:31:19.931Z",
+    "updatedAt": "2026-02-20T14:31:19.931Z",
+    "sender": {
+      "id": "062644b3-3b6d-4929-a971-45ef20021f59",
+      "email": "admin@smarttravel.com",
+      "role": {
+        "type": "SUPER_ADMIN",
+        "code": "SUPER_ADMIN"
+      }
+    },
+    "receiver": {
+      "id": "6c02d2fc-3459-4638-9613-5416c49d951d",
+      "email": "sofor@test.com",
+      "role": {
+        "type": "TENANT_STAFF",
+        "code": "DRIVER"
+      }
+    }
+  },
+  {
+    "id": "83253527-5f8e-4499-94ef-32777a19fc02",
+    "tenantId": "00000000-0000-0000-0000-000000000001",
+    "senderId": "062644b3-3b6d-4929-a971-45ef20021f59",
+    "receiverId": "6c02d2fc-3459-4638-9613-5416c49d951d",
+    "bookingId": null,
+    "content": "şşş",
+    "format": "TEXT",
+    "isRead": false,
+    "readAt": null,
+    "createdAt": "2026-02-20T14:31:16.807Z",
+    "updatedAt": "2026-02-20T14:31:16.807Z",
+    "sender": {
+      "id": "062644b3-3b6d-4929-a971-45ef20021f59",
+      "email": "admin@smarttravel.com",
+      "role": {
+        "type": "SUPER_ADMIN",
+        "code": "SUPER_ADMIN"
+      }
+    },
+    "receiver": {
+      "id": "6c02d2fc-3459-4638-9613-5416c49d951d",
+      "email": "sofor@test.com",
+      "role": {
+        "type": "TENANT_STAFF",
+        "code": "DRIVER"
+      }
+    }
+  },
+  {
+    "id": "febfa5c6-f13c-422f-945a-b4bc777db536",
+    "tenantId": "00000000-0000-0000-0000-000000000001",
+    "senderId": "6c02d2fc-3459-4638-9613-5416c49d951d",
+    "receiverId": "6c02d2fc-3459-4638-9613-5416c49d951d",
+    "bookingId": null,
+    "content": "Ddd",
+    "format": "TEXT",
+    "isRead": false,
+    "readAt": null,
+    "createdAt": "2026-02-20T14:30:54.991Z",
+    "updatedAt": "2026-02-20T14:30:54.991Z",
+    "sender": {
+      "id": "6c02d2fc-3459-4638-9613-5416c49d951d",
+      "email": "sofor@test.com",
+      "role": {
+        "type": "TENANT_STAFF",
+        "code": "DRIVER"
+      }
+    },
+    "receiver": {
+      "id": "6c02d2fc-3459-4638-9613-5416c49d951d",
+      "email": "sofor@test.com",
+      "role": {
+        "type": "TENANT_STAFF",
+        "code": "DRIVER"
+      }
+    }
+  },
+  {
+    "id": "fbef87ff-a6a8-42a2-9b41-baed33453010",
+    "tenantId": "00000000-0000-0000-0000-000000000001",
+    "senderId": "6c02d2fc-3459-4638-9613-5416c49d951d",
+    "receiverId": "6c02d2fc-3459-4638-9613-5416c49d951d",
+    "bookingId": null,
+    "content": "Şşş",
+    "format": "TEXT",
+    "isRead": false,
+    "readAt": null,
+    "createdAt": "2026-02-20T14:18:15.373Z",
+    "updatedAt": "2026-02-20T14:18:15.373Z",
+    "sender": {
+      "id": "6c02d2fc-3459-4638-9613-5416c49d951d",
+      "email": "sofor@test.com",
+      "role": {
+        "type": "TENANT_STAFF",
+        "code": "DRIVER"
+      }
+    },
+    "receiver": {
+      "id": "6c02d2fc-3459-4638-9613-5416c49d951d",
+      "email": "sofor@test.com",
+      "role": {
+        "type": "TENANT_STAFF",
+        "code": "DRIVER"
+      }
+    }
+  },
+  {
+    "id": "a2574b21-376a-4b26-80eb-f8731114327a",
+    "tenantId": "00000000-0000-0000-0000-000000000001",
+    "senderId": "062644b3-3b6d-4929-a971-45ef20021f59",
+    "receiverId": "6c02d2fc-3459-4638-9613-5416c49d951d",
+    "bookingId": null,
+    "content": "lllk",
+    "format": "TEXT",
+    "isRead": false,
+    "readAt": null,
+    "createdAt": "2026-02-20T12:21:19.050Z",
+    "updatedAt": "2026-02-20T12:21:19.050Z",
+    "sender": {
+      "id": "062644b3-3b6d-4929-a971-45ef20021f59",
+      "email": "admin@smarttravel.com",
+      "role": {
+        "type": "SUPER_ADMIN",
+        "code": "SUPER_ADMIN"
+      }
+    },
+    "receiver": {
+      "id": "6c02d2fc-3459-4638-9613-5416c49d951d",
+      "email": "sofor@test.com",
+      "role": {
+        "type": "TENANT_STAFF",
+        "code": "DRIVER"
+      }
+    }
+  },
+  {
+    "id": "48568e0e-520e-4c1b-8626-bbb4eeee0cba",
+    "tenantId": "00000000-0000-0000-0000-000000000001",
+    "senderId": "062644b3-3b6d-4929-a971-45ef20021f59",
+    "receiverId": "6c02d2fc-3459-4638-9613-5416c49d951d",
+    "bookingId": null,
+    "content": "ll",
+    "format": "TEXT",
+    "isRead": false,
+    "readAt": null,
+    "createdAt": "2026-02-20T12:20:43.891Z",
+    "updatedAt": "2026-02-20T12:20:43.891Z",
+    "sender": {
+      "id": "062644b3-3b6d-4929-a971-45ef20021f59",
+      "email": "admin@smarttravel.com",
+      "role": {
+        "type": "SUPER_ADMIN",
+        "code": "SUPER_ADMIN"
+      }
+    },
+    "receiver": {
+      "id": "6c02d2fc-3459-4638-9613-5416c49d951d",
+      "email": "sofor@test.com",
+      "role": {
+        "type": "TENANT_STAFF",
+        "code": "DRIVER"
+      }
+    }
+  },
+  {
+    "id": "ddf2ed30-8586-4102-8012-d83c5a63b4ac",
+    "tenantId": "00000000-0000-0000-0000-000000000001",
+    "senderId": "062644b3-3b6d-4929-a971-45ef20021f59",
+    "receiverId": "6c02d2fc-3459-4638-9613-5416c49d951d",
+    "bookingId": null,
+    "content": "asdasd",
+    "format": "TEXT",
+    "isRead": false,
+    "readAt": null,
+    "createdAt": "2026-02-20T12:14:35.500Z",
+    "updatedAt": "2026-02-20T12:14:35.500Z",
+    "sender": {
+      "id": "062644b3-3b6d-4929-a971-45ef20021f59",
+      "email": "admin@smarttravel.com",
+      "role": {
+        "type": "SUPER_ADMIN",
+        "code": "SUPER_ADMIN"
+      }
+    },
+    "receiver": {
+      "id": "6c02d2fc-3459-4638-9613-5416c49d951d",
+      "email": "sofor@test.com",
+      "role": {
+        "type": "TENANT_STAFF",
+        "code": "DRIVER"
+      }
+    }
+  },
+  {
+    "id": "28c1303b-51d1-4559-b2de-2147572fbfe8",
+    "tenantId": "00000000-0000-0000-0000-000000000001",
+    "senderId": "6c02d2fc-3459-4638-9613-5416c49d951d",
+    "receiverId": "6c02d2fc-3459-4638-9613-5416c49d951d",
+    "bookingId": null,
+    "content": "Jjj",
+    "format": "TEXT",
+    "isRead": false,
+    "readAt": null,
+    "createdAt": "2026-02-20T12:14:24.061Z",
+    "updatedAt": "2026-02-20T12:14:24.061Z",
+    "sender": {
+      "id": "6c02d2fc-3459-4638-9613-5416c49d951d",
+      "email": "sofor@test.com",
+      "role": {
+        "type": "TENANT_STAFF",
+        "code": "DRIVER"
+      }
+    },
+    "receiver": {
+      "id": "6c02d2fc-3459-4638-9613-5416c49d951d",
+      "email": "sofor@test.com",
+      "role": {
+        "type": "TENANT_STAFF",
+        "code": "DRIVER"
+      }
+    }
+  },
+  {
+    "id": "441f2c03-78cf-4970-ab77-9b90c6025970",
+    "tenantId": "00000000-0000-0000-0000-000000000001",
+    "senderId": "6c02d2fc-3459-4638-9613-5416c49d951d",
+    "receiverId": "6c02d2fc-3459-4638-9613-5416c49d951d",
+    "bookingId": null,
+    "content": "Jjj",
+    "format": "TEXT",
+    "isRead": false,
+    "readAt": null,
+    "createdAt": "2026-02-20T12:12:21.493Z",
+    "updatedAt": "2026-02-20T12:12:21.493Z",
+    "sender": {
+      "id": "6c02d2fc-3459-4638-9613-5416c49d951d",
+      "email": "sofor@test.com",
+      "role": {
+        "type": "TENANT_STAFF",
+        "code": "DRIVER"
+      }
+    },
+    "receiver": {
+      "id": "6c02d2fc-3459-4638-9613-5416c49d951d",
+      "email": "sofor@test.com",
+      "role": {
+        "type": "TENANT_STAFF",
+        "code": "DRIVER"
+      }
+    }
+  },
+  {
+    "id": "c3576b6d-c782-4385-86df-e68f6b08fab0",
+    "tenantId": "00000000-0000-0000-0000-000000000001",
+    "senderId": "062644b3-3b6d-4929-a971-45ef20021f59",
+    "receiverId": "6c02d2fc-3459-4638-9613-5416c49d951d",
+    "bookingId": null,
+    "content": "sdad",
+    "format": "TEXT",
+    "isRead": false,
+    "readAt": null,
+    "createdAt": "2026-02-20T12:12:12.698Z",
+    "updatedAt": "2026-02-20T12:12:12.698Z",
+    "sender": {
+      "id": "062644b3-3b6d-4929-a971-45ef20021f59",
+      "email": "admin@smarttravel.com",
+      "role": {
+        "type": "SUPER_ADMIN",
+        "code": "SUPER_ADMIN"
+      }
+    },
+    "receiver": {
+      "id": "6c02d2fc-3459-4638-9613-5416c49d951d",
+      "email": "sofor@test.com",
+      "role": {
+        "type": "TENANT_STAFF",
+        "code": "DRIVER"
+      }
+    }
+  },
+  {
+    "id": "baa2d9e2-96b6-45cd-8ceb-4b84e8de1762",
+    "tenantId": "00000000-0000-0000-0000-000000000001",
+    "senderId": "6c02d2fc-3459-4638-9613-5416c49d951d",
+    "receiverId": "6c02d2fc-3459-4638-9613-5416c49d951d",
+    "bookingId": null,
+    "content": "Tyyh",
+    "format": "TEXT",
+    "isRead": false,
+    "readAt": null,
+    "createdAt": "2026-02-20T12:12:03.686Z",
+    "updatedAt": "2026-02-20T12:12:03.686Z",
+    "sender": {
+      "id": "6c02d2fc-3459-4638-9613-5416c49d951d",
+      "email": "sofor@test.com",
+      "role": {
+        "type": "TENANT_STAFF",
+        "code": "DRIVER"
+      }
+    },
+    "receiver": {
+      "id": "6c02d2fc-3459-4638-9613-5416c49d951d",
+      "email": "sofor@test.com",
+      "role": {
+        "type": "TENANT_STAFF",
+        "code": "DRIVER"
+      }
+    }
+  },
+  {
+    "id": "4af13f38-c48d-471e-9f73-1b889b7ffbe0",
+    "tenantId": "00000000-0000-0000-0000-000000000001",
+    "senderId": "062644b3-3b6d-4929-a971-45ef20021f59",
+    "receiverId": "6c02d2fc-3459-4638-9613-5416c49d951d",
+    "bookingId": null,
+    "content": "selam",
+    "format": "TEXT",
+    "isRead": false,
+    "readAt": null,
+    "createdAt": "2026-02-20T12:11:52.408Z",
+    "updatedAt": "2026-02-20T12:11:52.408Z",
+    "sender": {
+      "id": "062644b3-3b6d-4929-a971-45ef20021f59",
+      "email": "admin@smarttravel.com",
+      "role": {
+        "type": "SUPER_ADMIN",
+        "code": "SUPER_ADMIN"
+      }
+    },
+    "receiver": {
+      "id": "6c02d2fc-3459-4638-9613-5416c49d951d",
+      "email": "sofor@test.com",
+      "role": {
+        "type": "TENANT_STAFF",
+        "code": "DRIVER"
+      }
+    }
+  },
+  {
+    "id": "376c1992-4b55-4088-98ce-fe5480beeb79",
+    "tenantId": "00000000-0000-0000-0000-000000000001",
+    "senderId": "6c02d2fc-3459-4638-9613-5416c49d951d",
+    "receiverId": "6c02d2fc-3459-4638-9613-5416c49d951d",
+    "bookingId": null,
+    "content": "Ddd",
+    "format": "TEXT",
+    "isRead": false,
+    "readAt": null,
+    "createdAt": "2026-02-20T10:40:50.765Z",
+    "updatedAt": "2026-02-20T10:40:50.765Z",
+    "sender": {
+      "id": "6c02d2fc-3459-4638-9613-5416c49d951d",
+      "email": "sofor@test.com",
+      "role": {
+        "type": "TENANT_STAFF",
+        "code": "DRIVER"
+      }
+    },
+    "receiver": {
+      "id": "6c02d2fc-3459-4638-9613-5416c49d951d",
+      "email": "sofor@test.com",
+      "role": {
+        "type": "TENANT_STAFF",
+        "code": "DRIVER"
+      }
+    }
+  },
+  {
+    "id": "9e9ee0a3-497c-42c5-9619-254e4a8f5578",
+    "tenantId": "00000000-0000-0000-0000-000000000001",
+    "senderId": "062644b3-3b6d-4929-a971-45ef20021f59",
+    "receiverId": "6c02d2fc-3459-4638-9613-5416c49d951d",
+    "bookingId": null,
+    "content": "kk",
+    "format": "TEXT",
+    "isRead": false,
+    "readAt": null,
+    "createdAt": "2026-02-20T10:40:43.527Z",
+    "updatedAt": "2026-02-20T10:40:43.527Z",
+    "sender": {
+      "id": "062644b3-3b6d-4929-a971-45ef20021f59",
+      "email": "admin@smarttravel.com",
+      "role": {
+        "type": "SUPER_ADMIN",
+        "code": "SUPER_ADMIN"
+      }
+    },
+    "receiver": {
+      "id": "6c02d2fc-3459-4638-9613-5416c49d951d",
+      "email": "sofor@test.com",
+      "role": {
+        "type": "TENANT_STAFF",
+        "code": "DRIVER"
+      }
+    }
+  },
+  {
+    "id": "f0faa60a-3150-44d9-9693-76ea816d477e",
+    "tenantId": "00000000-0000-0000-0000-000000000001",
+    "senderId": "062644b3-3b6d-4929-a971-45ef20021f59",
+    "receiverId": "6c02d2fc-3459-4638-9613-5416c49d951d",
+    "bookingId": null,
+    "content": "ll",
+    "format": "TEXT",
+    "isRead": false,
+    "readAt": null,
+    "createdAt": "2026-02-20T10:36:04.422Z",
+    "updatedAt": "2026-02-20T10:36:04.422Z",
+    "sender": {
+      "id": "062644b3-3b6d-4929-a971-45ef20021f59",
+      "email": "admin@smarttravel.com",
+      "role": {
+        "type": "SUPER_ADMIN",
+        "code": "SUPER_ADMIN"
+      }
+    },
+    "receiver": {
+      "id": "6c02d2fc-3459-4638-9613-5416c49d951d",
+      "email": "sofor@test.com",
+      "role": {
+        "type": "TENANT_STAFF",
+        "code": "DRIVER"
+      }
+    }
+  },
+  {
+    "id": "9e2ee1a1-78e0-4e80-987d-868df902f55f",
+    "tenantId": "00000000-0000-0000-0000-000000000001",
+    "senderId": "062644b3-3b6d-4929-a971-45ef20021f59",
+    "receiverId": "6c02d2fc-3459-4638-9613-5416c49d951d",
+    "bookingId": null,
+    "content": "ll",
+    "format": "TEXT",
+    "isRead": false,
+    "readAt": null,
+    "createdAt": "2026-02-20T10:28:41.582Z",
+    "updatedAt": "2026-02-20T10:28:41.582Z",
+    "sender": {
+      "id": "062644b3-3b6d-4929-a971-45ef20021f59",
+      "email": "admin@smarttravel.com",
+      "role": {
+        "type": "SUPER_ADMIN",
+        "code": "SUPER_ADMIN"
+      }
+    },
+    "receiver": {
+      "id": "6c02d2fc-3459-4638-9613-5416c49d951d",
+      "email": "sofor@test.com",
+      "role": {
+        "type": "TENANT_STAFF",
+        "code": "DRIVER"
+      }
+    }
+  },
+  {
+    "id": "a6b85a76-7748-49fa-a5de-0f8defe626ba",
+    "tenantId": "00000000-0000-0000-0000-000000000001",
+    "senderId": "062644b3-3b6d-4929-a971-45ef20021f59",
+    "receiverId": "6c02d2fc-3459-4638-9613-5416c49d951d",
+    "bookingId": null,
+    "content": "ll",
+    "format": "TEXT",
+    "isRead": false,
+    "readAt": null,
+    "createdAt": "2026-02-20T10:24:32.456Z",
+    "updatedAt": "2026-02-20T10:24:32.456Z",
+    "sender": {
+      "id": "062644b3-3b6d-4929-a971-45ef20021f59",
+      "email": "admin@smarttravel.com",
+      "role": {
+        "type": "SUPER_ADMIN",
+        "code": "SUPER_ADMIN"
+      }
+    },
+    "receiver": {
+      "id": "6c02d2fc-3459-4638-9613-5416c49d951d",
+      "email": "sofor@test.com",
+      "role": {
+        "type": "TENANT_STAFF",
+        "code": "DRIVER"
+      }
+    }
+  }
+]

@@ -1,0 +1,53 @@
+[
+  {
+    "id": "f8ecdc89-33d4-41d7-951d-652bb1c0fb52",
+    "tenantId": null,
+    "vehicleId": "13b4004e-62b2-4ac2-ab0c-45088fb8c498",
+    "fromName": "İstanbul Havalimanı (IST)",
+    "toName": "Taksim",
+    "scheduleType": "DAILY",
+    "departureTimes": [
+      "00:00",
+      "23:45"
+    ],
+    "customStartDate": null,
+    "customEndDate": null,
+    "weeklyDays": [],
+    "pricePerSeat": "10",
+    "maxSeats": 12,
+    "isActive": true,
+    "createdAt": "2026-02-08T21:40:09.606Z",
+    "updatedAt": "2026-02-08T21:40:09.606Z"
+  },
+  {
+    "id": "0ed3201f-bf3a-452a-8c6c-c5a5b36b5ec6",
+    "tenantId": null,
+    "vehicleId": "13b4004e-62b2-4ac2-ab0c-45088fb8c498",
+    "fromName": "Harita Üzerinde Seçili Alan (Polygon)",
+    "toName": "Antalya",
+    "scheduleType": "DAILY",
+    "departureTimes": [
+      "00:00",
+      "00:01",
+      "01:00",
+      "02:00",
+      "06:15",
+      "06:30",
+      "06:45",
+      "07:00",
+      "07:15",
+      "07:30",
+      "07:45",
+      "08:00",
+      "23:59"
+    ],
+    "customStartDate": null,
+    "customEndDate": null,
+    "weeklyDays": [],
+    "pricePerSeat": "8",
+    "maxSeats": 15,
+    "isActive": true,
+    "createdAt": "2026-02-17T22:15:51.776Z",
+    "updatedAt": "2026-02-18T21:46:54.174Z"
+  }
+]

@@ -1,0 +1,1 @@
+HIT! Route coordinate index 556 is INSIDE the MAHMUTLAR polygon!\nhitEnd: true, distFromEnd: 0.00 km

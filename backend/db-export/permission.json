@@ -1,0 +1,32 @@
+[
+  {
+    "id": "e29a097c-d83c-44df-8845-91e74c49ab6d",
+    "module": "transfer",
+    "resource": "product",
+    "action": "read",
+    "scope": "TENANT",
+    "conditions": null,
+    "name": "View Transfers",
+    "description": null
+  },
+  {
+    "id": "b968dcd2-b7bc-47e0-9aea-2471386cb9ce",
+    "module": "booking",
+    "resource": "booking",
+    "action": "create",
+    "scope": "ALL",
+    "conditions": null,
+    "name": "Create Booking",
+    "description": null
+  },
+  {
+    "id": "dbb0b099-18bb-435b-8494-d1aa6a5f4cd7",
+    "module": "booking",
+    "resource": "booking",
+    "action": "read",
+    "scope": "OWN",
+    "conditions": null,
+    "name": "View Own Bookings",
+    "description": null
+  }
+]

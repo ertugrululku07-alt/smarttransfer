@@ -1,0 +1,1140 @@
+// ============================================================================
+// SMART TRAVEL PLATFORM - ENTERPRISE DATABASE SCHEMA
+// Multi-Tenant SaaS Architecture
+// Version: 2.0.0
+// ============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+  previewFeatures = ["fullTextSearch", "fullTextIndex"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// CORE: MULTI-TENANCY & ORGANIZATION
+// ============================================================================
+
+model Tenant {
+  id              String    @id @default(uuid())
+  slug            String    @unique // URL identifier: acme-travel
+  name            String
+  legalName       String?
+  taxNumber       String?
+  
+  // Status & Subscription
+  status          TenantStatus @default(TRIAL)
+  plan            SubscriptionPlan @default(BASIC)
+  trialEndsAt     DateTime?
+  subscriptionEndsAt DateTime?
+  
+  // Module Configuration
+  transferEnabled Boolean   @default(true)
+  tourEnabled     Boolean   @default(false)
+  hotelEnabled    Boolean   @default(false)
+  
+  // Branding
+  logo            String?
+  primaryColor    String    @default("#667eea")
+  secondaryColor  String    @default("#764ba2")
+  accentColor     String    @default("#f5576c")
+  
+  // Theme
+  activeThemeId   String?
+  customTheme     Json?     // Full theme override
+  
+  // Payment Configuration
+  paymentProviders Json?    // {iyzico: {apiKey, ...}, paytr: {...}}
+  supportedCurrencies String[] @default(["TRY", "EUR", "USD"])
+  defaultCurrency String    @default("TRY")
+  commissionRate  Decimal   @default(0.15) // Platform commission %
+  
+  // Localization
+  defaultLocale   String    @default("tr")
+  supportedLocales String[] @default(["tr", "en"])
+  timezone        String    @default("Europe/Istanbul")
+  
+  // Contact
+  email           String?
+  phone           String?
+  address         Json?     // {street, city, country, postal}
+  
+  // Settings
+  settings        Json?     // Additional settings
+  
+  // Relations
+  users           User[]
+  personnel       Personnel[]
+  products        Product[]
+  bookings        Booking[]
+  payments        Payment[]
+  themes          Theme[]
+  roles           Role[]
+  
+  // Metadata
+  metadata        Json?
+  createdAt       DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt       DateTime? // Soft delete
+  
+  @@index([status])
+  @@index([slug])
+}
+
+enum TenantStatus {
+  TRIAL
+  ACTIVE
+  SUSPENDED
+  EXPIRED
+  CANCELLED
+}
+
+enum SubscriptionPlan {
+  FREE          // Limited features
+  BASIC         // Transfer only
+  STANDARD      // Transfer + Tour
+  PREMIUM       // Full package (Transfer + Tour + Hotel)
+  ENTERPRISE    // Custom
+}
+
+// ============================================================================
+// AUTH: USERS, ROLES & PERMISSIONS
+// ============================================================================
+
+model User {
+  id              String    @id @default(uuid())
+  tenantId        String
+  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  // Authentication
+  email           String
+  passwordHash    String
+  emailVerified   Boolean   @default(false)
+  emailVerifiedAt DateTime?
+  
+  // Profile
+  firstName       String
+  lastName        String
+  fullName        String    // Computed: firstName + lastName
+  phone           String?
+  avatar          String?
+  
+  // Status
+  status          UserStatus @default(ACTIVE)
+  locale          String    @default("tr")
+  timezone        String    @default("Europe/Istanbul")
+  
+  // Role & Permissions
+  roleId          String
+  role            Role      @relation(fields: [roleId], references: [id])
+  customPermissions Json?   // Override/extend role permissions
+  
+  // Security
+  twoFactorEnabled Boolean  @default(false)
+  twoFactorSecret  String?
+  lastPasswordChange DateTime?
+
+  // Partner Documents
+  licenseDocument String?
+  srcDocument     String?
+  tursabDocument  String?
+  
+  // Session Management
+  refreshTokens   RefreshToken[]
+  sessions        Session[]
+  
+  // Activity
+  lastLoginAt     DateTime?
+  lastLoginIp     String?
+  loginCount      Int       @default(0)
+  
+  // Relations
+  bookingsAsCustomer Booking[] @relation("CustomerBookings")
+  bookingsAsAgent    Booking[] @relation("AgentBookings")
+  payments        Payment[]
+  personnel       Personnel?
+  
+  // Metadata
+  metadata        Json?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime? // Soft delete
+  
+  @@unique([tenantId, email])
+  @@index([tenantId, status])
+  @@index([email])
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  DELETED
+}
+
+model Role {
+  id              String    @id @default(uuid())
+  tenantId        String?   // null = global/platform role
+  tenant          Tenant?   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  name            String
+  code            String    // SUPER_ADMIN, TENANT_ADMIN, OPERATOR, etc.
+  type            RoleType
+  description     String?
+  
+  // Permissions
+  permissions     RolePermission[]
+  
+  // Users
+  users           User[]
+  
+  // Status
+  isActive        Boolean   @default(true)
+  isSystem        Boolean   @default(false) // Cannot be deleted
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  @@unique([tenantId, code])
+}
+
+enum RoleType {
+  SUPER_ADMIN     // Platform owner
+  PLATFORM_OPS    // Platform operations
+  TENANT_ADMIN    // Company owner
+  TENANT_MANAGER  // Department manager
+  TENANT_STAFF    // Regular employee
+  CUSTOMER        // End user
+  PARTNER         // External partner
+}
+
+model Permission {
+  id              String    @id @default(uuid())
+  
+  // Permission Definition
+  module          String    // transfer, tour, hotel, booking, user, payment
+  resource        String    // booking, vehicle, user, payment
+  action          String    // create, read, update, delete, approve, refund
+  
+  // Scope
+  scope           PermissionScope @default(OWN)
+  
+  // Conditions (Advanced)
+  conditions      Json?     // {status: ["PENDING"], amount: {"<": 1000}}
+  
+  // Description
+  name            String
+  description     String?
+  
+  // Relations
+  roles           RolePermission[]
+  
+  @@unique([module, resource, action, scope])
+}
+
+enum PermissionScope {
+  ALL             // All records across platform
+  TENANT          // All tenant records
+  DEPARTMENT      // Department records
+  OWN             // Own records only
+}
+
+model RolePermission {
+  roleId          String
+  role            Role      @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  
+  permissionId    String
+  permission      Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  
+  // Override conditions
+  conditions      Json?
+  
+  @@id([roleId, permissionId])
+}
+
+model RefreshToken {
+  id              String    @id @default(uuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  token           String    @unique
+  expiresAt       DateTime
+  
+  // Device info
+  deviceId        String?
+  deviceName      String?
+  
+  createdAt       DateTime  @default(now())
+  
+  @@index([userId])
+  @@index([token])
+}
+
+model Session {
+  id              String    @id @default(uuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Session Data
+  ipAddress       String
+  userAgent       String
+  
+  // Activity
+  lastActivity    DateTime  @default(now())
+  expiresAt       DateTime
+  
+  createdAt       DateTime  @default(now())
+  
+  @@index([userId])
+}
+
+// ============================================================================
+// THEME SYSTEM
+// ============================================================================
+
+model Theme {
+  id              String    @id @default(uuid())
+  tenantId        String?   // null = global theme
+  tenant          Tenant?   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  name            String
+  code            String    @unique // christmas-2024, summer-vibes
+  category        ThemeCategory
+  
+  // Active Period
+  activeFrom      DateTime?
+  activeTo        DateTime?
+  autoActivate    Boolean   @default(false)
+  
+  // Theme Configuration (Design Tokens)
+  config          Json      // Full design system
+  
+  // Preview
+  thumbnail       String?
+  preview         String[]  // Screenshots
+  
+  // Status
+  isActive        Boolean   @default(false)
+  isDefault       Boolean   @default(false)
+  isPublic        Boolean   @default(false) // Available to all tenants
+  
+  // Metadata
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  @@index([category])
+  @@index([isActive])
+}
+
+enum ThemeCategory {
+  SEASONAL        // Christmas, Spring, Summer, Fall
+  PROMOTIONAL     // Black Friday, Campaign
+  CUSTOM          // Client specific
+  DEFAULT         // Standard
+}
+
+// ============================================================================
+// PRODUCTS: UNIFIED BASE MODEL
+// ============================================================================
+
+model Product {
+  id              String    @id @default(uuid())
+  tenantId        String
+  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  type            ProductType
+  
+  // Basic Info (Multi-language)
+  name            Json      // {tr: "...", en: "..."}
+  slug            String
+  description     Json
+  shortDescription Json?
+  
+  // Media
+  images          String[]
+  videos          String[]
+  thumbnail       String?
+  
+  // Pricing
+  basePrice       Decimal   @db.Decimal(10, 2)
+  currency        String    @default("TRY")
+  
+  // Availability
+  status          ProductStatus @default(DRAFT)
+  publishedAt     DateTime?
+  
+  // SEO
+  metaTitle       Json?
+  metaDescription Json?
+  keywords        String[]
+  
+  // Stats
+  viewCount       Int       @default(0)
+  bookingCount    Int       @default(0)
+  rating          Decimal?  @db.Decimal(3, 2)
+  reviewCount     Int       @default(0)
+  
+  // AI
+  aiGenerated     Boolean   @default(false)
+  aiModel         String?
+  aiGeneratedAt   DateTime?
+  
+  // Specific Product Data
+  transferData    TransferData?
+  tourData        TourData?
+  hotelData       HotelData?
+  
+  // Relations
+  bookings        Booking[]
+  reviews         Review[]
+  
+  // Metadata
+  metadata        Json?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+  
+  @@unique([tenantId, slug])
+  @@index([tenantId, type, status])
+  @@index([status])
+  @@fulltext([slug])
+}
+
+enum ProductType {
+  TRANSFER
+  TOUR
+  HOTEL
+}
+
+enum ProductStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+  OUT_OF_STOCK
+}
+
+// ============================================================================
+// TRANSFER MODULE
+// ============================================================================
+
+model TransferData {
+  id              String    @id @default(uuid())
+  productId       String    @unique
+  product         Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  
+  // Vehicle
+  vehicleTypeId   String
+  vehicleType     VehicleType @relation(fields: [vehicleTypeId], references: [id])
+  
+  capacity        Int
+  luggage         Int
+  
+  // Route
+  pickupZones     Json      // [{name, lat, lng}, ...]
+  dropoffZones    Json
+  
+  // Features
+  features        String[]  // wifi, ac, childSeat, meetGreet
+  
+  // Pricing Rules
+  pricingRules    Json?     // Complex pricing logic
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+model VehicleType {
+  id              String    @id @default(uuid())
+  tenantId        String
+  
+  name            String
+  slug            String
+  category        VehicleCategory
+  
+  capacity        Int
+  luggage         Int
+  
+  // Specs
+  description     String?
+  features        String[]
+  
+  // Media
+  image           String?
+  
+  // Relations
+  transfers       TransferData[]
+  vehicles        Vehicle[]
+  
+  @@unique([tenantId, slug])
+}
+
+enum VehicleCategory {
+  SEDAN
+  VAN
+  MINIBUS
+  BUS
+  LUXURY
+  VIP
+}
+
+model Vehicle {
+  id              String    @id @default(uuid())
+  tenantId        String
+  
+  vehicleTypeId   String
+  vehicleType     VehicleType @relation(fields: [vehicleTypeId], references: [id])
+  
+  // Details
+  plateNumber     String
+  brand           String
+  model           String
+  year            Int
+  color           String
+  
+  // Status
+  status          VehicleStatus @default(ACTIVE)
+  isOwned         Boolean   @default(true) // vs partner
+  
+  // Maintenance
+  lastService     DateTime?
+  nextService     DateTime?
+  
+  // Metadata
+  metadata        Json?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  @@unique([tenantId, plateNumber])
+}
+
+enum VehicleStatus {
+  ACTIVE
+  IN_SERVICE
+  INACTIVE
+  RETIRED
+}
+
+// ============================================================================
+// TOUR MODULE
+// ============================================================================
+
+model TourData {
+  id              String    @id @default(uuid())
+  productId       String    @unique
+  product         Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  
+  // Duration
+  duration        Int       // in hours
+  durationType    DurationType
+  
+  // Itinerary
+  itinerary       Json      // [{day, title, description, activities}]
+  
+  // Inclusions
+  inclusions      String[]
+  exclusions      String[]
+  
+  // Capacity
+  minParticipants Int
+  maxParticipants Int
+  
+  // Difficulty
+  difficulty      TourDifficulty
+  
+  // Categories
+  categories      Json      // ["adventure", "cultural", "family"]
+  
+  // Pricing Options
+  pricingOptions  Json      // [{type: "adult", price: 100}, {type: "child", price: 50}]
+  
+  // Schedule
+  schedules       TourSchedule[]
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+enum DurationType {
+  HOURS
+  DAYS
+  WEEKS
+}
+
+enum TourDifficulty {
+  EASY
+  MODERATE
+  CHALLENGING
+  DIFFICULT
+}
+
+model TourSchedule {
+  id              String    @id @default(uuid())
+  tourDataId      String
+  tourData        TourData  @relation(fields: [tourDataId], references: [id], onDelete: Cascade)
+  
+  date            DateTime  @db.Date
+  
+  // Availability
+  totalSeats      Int
+  bookedSeats     Int       @default(0)
+  
+  // Pricing
+  priceOverride   Decimal?  @db.Decimal(10, 2)
+  
+  // Status
+  status          ScheduleStatus @default(AVAILABLE)
+  
+  // Guide
+  guideId         String?
+  
+  @@unique([tourDataId, date])
+}
+
+enum ScheduleStatus {
+  AVAILABLE
+  LIMITED
+  SOLD_OUT
+  CANCELLED
+}
+
+// ============================================================================
+// HOTEL MODULE
+// ============================================================================
+
+model HotelData {
+  id              String    @id @default(uuid())
+  productId       String    @unique
+  product         Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  
+  // Location
+  address         Json      // {street, city, country, postal, lat, lng}
+  
+  // Contact
+  phone           String
+  email           String
+  website         String?
+  
+  // Classification
+  starRating      Int       // 1-5
+  hotelType       HotelType
+  
+  // Facilities
+  facilities      String[]  // pool, gym, spa, restaurant, wifi, parking
+  
+  // Policies
+  checkInTime     String    // "14:00"
+  checkOutTime    String    // "12:00"
+  cancellationPolicy Json
+  
+  // Rooms
+  rooms           Room[]
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+enum HotelType {
+  HOTEL
+  RESORT
+  APARTMENT
+  VILLA
+  HOSTEL
+  BOUTIQUE
+}
+
+model Room {
+  id              String    @id @default(uuid())
+  hotelDataId     String
+  hotelData       HotelData @relation(fields: [hotelDataId], references: [id], onDelete: Cascade)
+  
+  // Info
+  name            Json      // {tr: "Standart Oda", en: "Standard Room"}
+  type            RoomType
+  
+  // Capacity
+  maxOccupancy    Int
+  beds            Json      // {double: 1, single: 0}
+  size            Decimal?  @db.Decimal(6, 2) // m²
+  
+  // Amenities
+  amenities       String[]  // tv, minibar, safe, balcony
+  
+  // Pricing
+  basePrice       Decimal   @db.Decimal(10, 2)
+  
+  // Inventory
+  totalRooms      Int
+  
+  // Media
+  images          String[]
+  
+  // Availability
+  availability    RoomAvailability[]
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+enum RoomType {
+  STANDARD
+  DELUXE
+  SUITE
+  EXECUTIVE
+  PRESIDENTIAL
+}
+
+model RoomAvailability {
+  id              String    @id @default(uuid())
+  roomId          String
+  room            Room      @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  
+  date            DateTime  @db.Date
+  
+  // Inventory
+  totalAvailable  Int
+  booked          Int       @default(0)
+  blocked         Int       @default(0)
+  
+  // Dynamic Pricing
+  price           Decimal   @db.Decimal(10, 2)
+  
+  // Status
+  status          AvailabilityStatus @default(AVAILABLE)
+  
+  @@unique([roomId, date])
+  @@index([date])
+}
+
+enum AvailabilityStatus {
+  AVAILABLE
+  LIMITED
+  SOLD_OUT
+  BLOCKED
+}
+
+// ============================================================================
+// BOOKING SYSTEM
+// ============================================================================
+
+model Booking {
+  id              String    @id @default(uuid())
+  tenantId        String
+  tenant          Tenant    @relation(fields: [tenantId], references: [id])
+  
+  // Reference
+  bookingNumber   String    @unique
+  
+  // Product
+  productId       String
+  product         Product   @relation(fields: [productId], references: [id])
+  productType     ProductType
+  
+  // Customer
+  customerId      String
+  customer        User      @relation("CustomerBookings", fields: [customerId], references: [id])
+  
+  // Agent (optional)
+  agentId         String?
+  agent           User?     @relation("AgentBookings", fields: [agentId], references: [id])
+  
+  // Dates
+  startDate       DateTime
+  endDate         DateTime?
+  
+  // Participants
+  adults          Int
+  children        Int       @default(0)
+  infants         Int       @default(0)
+  
+  // Pricing
+  subtotal        Decimal   @db.Decimal(10, 2)
+  tax             Decimal   @db.Decimal(10, 2)
+  serviceFee      Decimal   @db.Decimal(10, 2)
+  discount        Decimal   @db.Decimal(10, 2) @default(0)
+  total           Decimal   @db.Decimal(10, 2)
+  currency        String
+  
+  // Payment
+  paymentStatus   PaymentStatus @default(PENDING)
+  paidAmount      Decimal   @db.Decimal(10, 2) @default(0)
+  
+  // Status
+  status          BookingStatus @default(PENDING)
+  confirmationType ConfirmationType @default(MANUAL)
+  
+  // Confirmation
+  confirmedAt     DateTime?
+  confirmedBy     String?
+  
+  // Cancellation
+  cancelledAt     DateTime?
+  cancelledBy     String?
+  cancellationReason String?
+  refundAmount    Decimal?  @db.Decimal(10, 2)
+  
+  // Contact
+  contactName     String
+  contactEmail    String
+  contactPhone    String
+  
+  // Notes
+  specialRequests String?
+  internalNotes   String?
+  
+  // Items
+  items           BookingItem[]
+  
+  // Payments
+  payments        Payment[]
+
+  // Metadata
+  metadata        Json?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  @@index([tenantId, status])
+  @@index([bookingNumber])
+  @@index([customerId])
+}
+
+// ============================================================================
+// PERSONNEL MODULE
+// ============================================================================
+
+model Personnel {
+  id              String    @id @default(uuid())
+  tenantId        String
+  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  // Personal Info
+  firstName       String
+  lastName        String
+  tcNumber        String    // Identity Number
+  birthDate       DateTime? @db.Date
+  birthPlace      String?
+  gender          String?   // Optional: MALE, FEMALE
+  
+  // Contact
+  address         String?   @db.Text
+  phone           String
+  relativePhone   String?   // Emergency contact
+  email           String?
+  
+  // Job Info
+  startDate       DateTime  @db.Date
+  endDate         DateTime? @db.Date // Termination date
+  jobTitle        String?
+  department      String?
+  salary          Decimal?  @db.Decimal(10, 2)
+  isActive        Boolean   @default(true)
+  
+  // Documents & Qualifications
+  licenseType     String?   // B, C, D, E etc.
+  srcNumber       String?
+  psychotechDocument String? // Psychotechnical report
+  
+  // Health
+  medicalHistory  String?   @db.Text
+  bloodGroup      String?
+  
+  // Media
+  photo           String?   // URL
+  
+  // System User Link (Optional)
+  userId          String?   @unique
+  user            User?     @relation(fields: [userId], references: [id])
+  
+  // Metadata
+  metadata        Json?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+
+  @@index([tenantId])
+  @@index([tcNumber])
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+enum ConfirmationType {
+  INSTANT
+  MANUAL
+}
+
+enum PaymentStatus {
+  PENDING
+  PARTIAL
+  PAID
+  REFUNDED
+  FAILED
+}
+
+model BookingItem {
+  id              String    @id @default(uuid())
+  bookingId       String
+  booking         Booking   @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  
+  name            String
+  quantity        Int
+  unitPrice       Decimal   @db.Decimal(10, 2)
+  total           Decimal   @db.Decimal(10, 2)
+  
+  metadata        Json?     // Room details, tour options, etc.
+  
+  @@index([bookingId])
+}
+
+// ============================================================================
+// PAYMENT SYSTEM
+// ============================================================================
+
+model Payment {
+  id              String    @id @default(uuid())
+  tenantId        String
+  tenant          Tenant    @relation(fields: [tenantId], references: [id])
+  
+  bookingId       String
+  booking         Booking   @relation(fields: [bookingId], references: [id])
+  
+  userId          String
+  user            User      @relation(fields: [userId], references: [id])
+  
+  // Reference
+  paymentNumber   String    @unique
+  
+  // Amount
+  amount          Decimal   @db.Decimal(10, 2)
+  currency        String
+  
+  // Method
+  method          PaymentMethod
+  provider        PaymentProvider?
+  
+  // Card (tokenized)
+  cardLast4       String?
+  cardBrand       String?
+  cardToken       String?   // Tokenized card
+  
+  // Transaction
+  transactionId   String?
+  providerResponse Json?
+  
+  // Status
+  status          PaymentTransactionStatus @default(PENDING)
+  
+  // Timestamps
+  authorizedAt    DateTime?
+  capturedAt      DateTime?
+  failedAt        DateTime?
+  refundedAt      DateTime?
+  
+  // Error
+  errorCode       String?
+  errorMessage    String?
+  
+  // Commission
+  platformFee     Decimal   @db.Decimal(10, 2)
+  tenantAmount    Decimal   @db.Decimal(10, 2)
+  
+  // Metadata
+  metadata        Json?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  @@index([tenantId])
+  @@index([bookingId])
+  @@index([status])
+}
+
+enum PaymentMethod {
+  CREDIT_CARD
+  DEBIT_CARD
+  BANK_TRANSFER
+  WALLET
+  BUY_NOW_PAY_LATER
+}
+
+enum PaymentProvider {
+  IYZICO
+  PAYTR
+  STRIPE
+  MASTERPASS
+}
+
+enum PaymentTransactionStatus {
+  PENDING
+  AUTHORIZED
+  CAPTURED
+  FAILED
+  REFUNDED
+  PARTIALLY_REFUNDED
+}
+
+// ============================================================================
+// REVIEWS & RATINGS
+// ============================================================================
+
+model Review {
+  id              String    @id @default(uuid())
+  
+  productId       String
+  product         Product   @relation(fields: [productId], references: [id])
+  
+  userId          String
+  bookingId       String?   // Optional: tied to booking
+  
+  rating          Int       // 1-5
+  title           String?
+  comment         String
+  
+  // Moderation
+  status          ReviewStatus @default(PENDING)
+  moderatedBy     String?
+  moderatedAt     DateTime?
+  
+  // Response
+  response        String?   // Tenant response
+  respondedAt     DateTime?
+  
+  // Helpful votes
+  helpfulCount    Int       @default(0)
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  @@index([productId, status])
+}
+
+enum ReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// ============================================================================
+// NOTIFICATIONS
+// ============================================================================
+
+model Notification {
+  id              String    @id @default(uuid())
+  userId          String
+  
+  type            NotificationType
+  channel         NotificationChannel[]
+  
+  title           String
+  message         String
+  data            Json?
+  
+  // Status
+  isRead          Boolean   @default(false)
+  readAt          DateTime?
+  
+  // Delivery
+  sentAt          DateTime?
+  deliveredAt     DateTime?
+  
+  createdAt       DateTime  @default(now())
+  
+  @@index([userId, isRead])
+}
+
+enum NotificationType {
+  BOOKING_CONFIRMED
+  BOOKING_CANCELLED
+  PAYMENT_SUCCESS
+  PAYMENT_FAILED
+  REMINDER
+  PROMOTION
+  SYSTEM
+}
+
+enum NotificationChannel {
+  IN_APP
+  EMAIL
+  SMS
+  PUSH
+}
+
+// ============================================================================
+// AI SERVICES
+// ============================================================================
+
+model AIContent {
+  id              String    @id @default(uuid())
+  tenantId        String
+  
+  productId       String?
+  productType     ProductType?
+  
+  contentType     AIContentType
+  prompt          String    @db.Text
+  result          Json
+  
+  // Model
+  provider        AIProvider
+  model           String
+  
+  // Quality
+  isApproved      Boolean   @default(false)
+  approvedBy      String?
+  approvedAt      DateTime?
+  
+  // Usage
+  tokensUsed      Int
+  cost            Decimal?  @db.Decimal(8, 4)
+  
+  createdAt       DateTime  @default(now())
+  
+  @@index([tenantId, contentType])
+}
+
+enum AIContentType {
+  DESCRIPTION
+  TRANSLATION
+  PRICING
+  RECOMMENDATION
+  SUMMARY
+}
+
+enum AIProvider {
+  OPENAI
+  ANTHROPIC
+  GOOGLE
+  AZURE
+}
+
+// ============================================================================
+// SYSTEM & AUDIT
+// ============================================================================
+
+model AuditLog {
+  id              String    @id @default(uuid())
+  tenantId        String?
+  
+  userId          String?
+  entityType      String    // User, Booking, Payment
+  entityId        String
+  action          String    // CREATE, UPDATE, DELETE
+  
+  before          Json?
+  after           Json?
+  
+  ipAddress       String
+  userAgent       String
+  
+  createdAt       DateTime  @default(now())
+  
+  @@index([tenantId, entityType, entityId])
+  @@index([createdAt])
+}

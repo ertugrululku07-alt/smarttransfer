@@ -1,0 +1,131 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  name      String?
+  email     String   @unique
+  passwordHash String?        // <-- required yerine OPTIONAL
+  role      UserRole @default(CUSTOMER)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum UserRole {
+  ADMIN
+  COMPANY
+  DRIVER
+  CUSTOMER
+}
+
+model Booking {
+  id                Int           @id @default(autoincrement())
+  vehicleType       String
+  vendor            String
+  price             Float
+  capacity          Int
+  pickup            String
+  dropoff           String
+  pickupDateTime    DateTime?
+  returnDateTime    DateTime?
+  fullName          String
+  email             String
+  phone             String
+  passengers        Int
+  flightNumber      String?
+  flightArrivalTime DateTime?
+  meetAndGreet      String?
+  notes             String?
+  status            BookingStatus @default(PENDING)
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  /// YENİ ALANLAR
+  childAges     String? // JSON string: örn. "[3,5,7]"
+  babySeat      Boolean? // bebek koltuğu istiyor mu
+  paymentStatus String? // "PENDING", "PAID", "FAILED"
+  paymentMethod String? // "CREDIT_CARD", "CASH", "BANK_TRANSFER"
+  transferType  String? // "ONE_WAY", "ROUND_TRIP"
+  source        String? // "WEB", "B2B", "MOBILE"
+  internalNotes String? // sadece adminin göreceği iç notlar
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+}
+
+model Vehicle {
+  id               Int     @id @default(autoincrement())
+  name             String // Sistem içinde göreceğiniz isim (örn: Sedan - Mercedes E Serisi)
+  brand            String? // Marka (Mercedes, VW ...)
+  model            String? // Model (E220d, Caravelle...)
+  year             Int? // Model yılı
+  color            String? // Renk (Siyah vb.)
+  plateNumber      String  @unique // Plaka
+  capacity         Int // Yolcu kapasitesi
+  luggage          Int? // Bagaj adedi / kapasitesi
+  vehicleType      String // Sedan, Minivan, VIP Van vb.
+  vehicleClass     String? // Economy, Business, VIP, Minibus vb.
+  basePricePerKm   Float? // km başına fiyat
+  basePricePerHour Float? // saatlik fiyat
+  isCompanyOwned   Boolean @default(true) // Kendi aracımız mı, partner mi
+  hasBabySeat      Boolean @default(false) // Bebek koltuğu var mı
+  maxBabySeats     Int? // Maksimum bebek koltuğu adedi
+  imageUrl         String? // Fotoğraf URL
+  description      String? // Açıklama / notlar
+  isActive         Boolean @default(true) // Aktif / pasif
+  usageType        String  @default("TRANSFER") // TRANSFER, SHUTTLE, TOUR vb.
+  shuttleMode      String? // ROUTE_BASED, FLEXIBLE (sadece SHUTTLE için)
+
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  shuttleRoutes ShuttleRoute[] // ← BU SATIRI EKLE
+}
+
+model ShuttleRoute {
+  id        Int     @id @default(autoincrement())
+  vehicle   Vehicle @relation(fields: [vehicleId], references: [id])
+  vehicleId Int
+
+  // Temel güzergah bilgileri
+  fromName String // Örn: "IST Havalimanı"
+  toName   String // Örn: "Taksim Meydanı"
+
+  // İleri seviye için istersen:
+  // fromLat        Float?
+  // fromLng        Float?
+  // toLat          Float?
+  // toLng          Float?
+
+  // Çalışma tipi
+  // Örn: DAILY, WEEKLY, CUSTOM
+  scheduleType String @default("DAILY")
+
+  // Kalkış saatlerini string dizi olarak tutalım: ["08:00","10:00","12:00"]
+  departureTimes String // JSON string olacak
+
+  // Haftalık günler (WEEKLY için): ["MON","TUE","WED",...]
+  weeklyDays String? // JSON string, opsiyonel
+
+  // Özel dönem tarihleri (CUSTOM için)
+  customStartDate String? // "YYYY-MM-DD" formatında
+  customEndDate   String? // "YYYY-MM-DD" formatında
+
+  pricePerSeat Float
+  maxSeats     Int
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

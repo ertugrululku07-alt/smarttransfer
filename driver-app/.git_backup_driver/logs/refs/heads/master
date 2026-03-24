@@ -1,0 +1,5 @@
+0000000000000000000000000000000000000000 79006d3cb648c793da1d6824f3dbea4b77cb74a8 Sürücü <sürücü@uygulama.com> 1771642293 +0300	commit (initial): Fix background sync headers and add background fetch
+79006d3cb648c793da1d6824f3dbea4b77cb74a8 4a70fb516aab052b1cfccbe8171a3e02d2c4fa19 Sürücü <sürücü@uygulama.com> 1771667478 +0300	commit: Fix Android 14 background service permissions
+4a70fb516aab052b1cfccbe8171a3e02d2c4fa19 09f9668454e9e09155bc088c9a74e2e73e7aff7d Sürücü <sürücü@uygulama.com> 1771729396 +0300	commit: Feat: Handled Expo background notifications for silent push
+09f9668454e9e09155bc088c9a74e2e73e7aff7d c84211dee3f62d776e2b80f559f75a4022b40f5a Sürücü <sürücü@uygulama.com> 1771730710 +0300	commit: Fix: Unblock Foreground Service location tracking by removing strict Android background permission requirement
+c84211dee3f62d776e2b80f559f75a4022b40f5a 3f0c9ce181602f385e7778673fe82d9773c30d88 Sürücü <sürücü@uygulama.com> 1771731124 +0300	commit: Fix: Set distanceInterval to 0 for continuous stationary location updates
