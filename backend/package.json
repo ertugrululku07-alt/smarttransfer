@@ -15,7 +15,7 @@
   "type": "commonjs",
   "dependencies": {
     "@here/flexpolyline": "^0.1.0",
-    "@prisma/client": "^6.19.0",
+    "@prisma/client": "^6.19.2",
     "@turf/turf": "^7.3.4",
     "axios": "^1.13.6",
     "bcryptjs": "^3.0.3",

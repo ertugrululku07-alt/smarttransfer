@@ -285,8 +285,13 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, selectedKey = 'dash
                   onClick: () => router.push('/admin/vehicle-types')
                 },
                 {
+                  key: 'pricing',
+                  label: 'Fiyatlandırma',
+                  onClick: () => router.push('/admin/pricing')
+                },
+                {
                   key: 'zones',
-                  label: 'Bölgeler (Fiyatlandırma)',
+                  label: 'Bölgeler',
                   onClick: () => router.push('/admin/zones')
                 },
                 {

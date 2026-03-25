@@ -4,7 +4,7 @@
 // ============================================================================
 
 const { PrismaClient } = require('@prisma/client');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 
 const prisma = new PrismaClient();
 
@@ -319,9 +319,8 @@ async function main() {
             lastName: 'Admin',
             fullName: 'Tenant Admin',
             roleId: tenantAdminRole.id,
-            status: 'ACTIVE'
         }
-  );
+    });
 
     // Demo Customer
     const demoCustomer = await prisma.user.upsert({

@@ -74,9 +74,9 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
             },
             include: {
                 vehicles: {
-                    where: { status: 'ACTIVE' },
-                    include: { zonePrices: true }
+                    where: { status: 'ACTIVE' }
                 },
+                zonePrices: true,
                 _count: {
                     select: { vehicles: true }
                 }
@@ -368,13 +368,12 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                 let calculatedPrice;
                 let calculationMethod = 'DISTANCE_BASE';
 
-                // Try to find Zone Pricing from the first active vehicle of this type
-                const firstVehicle = vt.vehicles && vt.vehicles.length > 0 ? vt.vehicles[0] : null;
+                // Try to find Zone Pricing from the VehicleType
                 let zonePriceConfig = null;
                 let finalMatchedZoneId = null;
                 let usedOverageDistanceKm = 0;
                 
-                if (firstVehicle && req.zoneOverages && Object.keys(req.zoneOverages).length > 0) {
+                if (req.zoneOverages && Object.keys(req.zoneOverages).length > 0) {
                     let lowestValidOverage = Infinity;
                     let smallestArea = Infinity;
 
@@ -382,11 +381,11 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                         const zoneOverage = zoneData.overage;
                         const zoneArea = zoneData.area;
 
-                        let candidateConfig = firstVehicle.zonePrices.find(zp => zp.zoneId === zoneId && zp.baseLocation === detectedBaseLocation);
+                        let candidateConfig = vt.zonePrices?.find(zp => zp.zoneId === zoneId && zp.baseLocation === detectedBaseLocation);
                         
                         // Fallback to AYT if detected base location is null and we are checking for AYT
                         if (!candidateConfig && detectedBaseLocation === null) {
-                            candidateConfig = firstVehicle.zonePrices.find(zp => zp.zoneId === zoneId && zp.baseLocation === 'AYT');
+                            candidateConfig = vt.zonePrices?.find(zp => zp.zoneId === zoneId && zp.baseLocation === 'AYT');
                         }
 
                         if (candidateConfig) {
@@ -406,21 +405,32 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
 
                 if (zonePriceConfig) {
                     calculationMethod = 'ZONE_POLYGON';
-                    const fixedPrice = Number(zonePriceConfig.price) || 0;
+                    
+                    const fixP = Number(zonePriceConfig.fixedPrice) || 0;
+                    let baseRouteCost = 0;
+                    
+                    if (fixP > 0) {
+                        baseRouteCost = fixP;
+                    } else {
+                        const adultP = Number(zonePriceConfig.price) || 0;
+                        const adultCount = Number(passengers) || 1; 
+                        baseRouteCost = adultP * adultCount; 
+                    }
+
                     const extraKmRate = Number(zonePriceConfig.extraKmPrice) || 0;
                     
                     const overageCost = usedOverageDistanceKm * extraKmRate;
-                    calculatedPrice = Math.round((fixedPrice + overageCost) * typeMult);
+                    calculatedPrice = Math.round((baseRouteCost + overageCost) * typeMult);
                 } else {
                     // Fallback to distance-based pricing ONLY if explicitly defined
-                    const openingFee = firstVehicle?.metadata?.openingFee;
-                    const pricePerKmField = firstVehicle?.metadata?.basePricePerKm;
+                    const openingFee = vt.metadata?.openingFee;
+                    const pricePerKmField = vt.metadata?.basePricePerKm;
                     
                     const hasValidFallback = (openingFee != null && Number(openingFee) > 0) || 
                                              (pricePerKmField != null && Number(pricePerKmField) > 0);
                                              
                     if (!hasValidFallback) {
-                        return null; // Skip this vehicle entirely if no polygon match and no explicit fallback rates
+                        return null; // Skip this vehicle type entirely if no polygon match and no explicit fallback rates
                     }
                     
                     const basePrice = openingFee ? Number(openingFee) : 0; 
@@ -432,6 +442,9 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
 
                 // Apply agency markup
                 const finalMarkedUpPrice = Math.round(calculatedPrice * (1 + (agencyMarkup / 100)));
+                
+                // Get image from active vehicles if type doesn't have one
+                const imageUrl = vt.image || (vt.vehicles && vt.vehicles.length > 0 ? vt.vehicles[0].metadata?.imageUrl : '/vehicles/vito.jpg');
 
                 return {
                     id: vt.id, 
@@ -442,13 +455,15 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                     luggage: vt.luggage,
                     price: finalMarkedUpPrice,
                     basePrice: calculatedPrice, 
-                    currency: firstVehicle?.metadata?.currency || 'EUR', 
+                    currency: vt.metadata?.currency || 'EUR', 
                     features: ['Özel Transfer', 'Kapıdan Kapıya', ...(vt.features || [])],
                     cancellationPolicy: '24 saat öncesine kadar ücretsiz iptal',
                     estimatedDuration: distance ? `${Math.round((distance ? Number(distance) : 50) * 1.2)} dk` : '50 dk', 
-                    image: firstVehicle?.metadata?.imageUrl || vt.image || '/vehicles/vito.jpg',
+                    image: imageUrl,
                     isShuttle: false,
-                    pricingMethod: calculationMethod
+                    pricingMethod: calculationMethod,
+                    zonePriceConfig: zonePriceConfig,
+                    metadata: vt.metadata
                 };
             }).filter(Boolean); // Remove skipped vehicles
 

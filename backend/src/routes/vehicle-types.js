@@ -30,7 +30,8 @@ router.get('/', authMiddleware, async (req, res) => {
             include: {
                 _count: {
                     select: { vehicles: true }
-                }
+                },
+                zonePrices: true
             }
         });
 
@@ -45,6 +46,8 @@ router.get('/', authMiddleware, async (req, res) => {
             description: vt.description,
             image: vt.image,
             features: vt.features || [],
+            metadata: vt.metadata || {},
+            zonePrices: vt.zonePrices || [],
             vehicleCount: vt._count.vehicles,
             order: vt.order
         }));
@@ -120,8 +123,22 @@ router.post('/', authMiddleware, async (req, res) => {
                 description,
                 image: req.body.image,
                 features: features || [],
-                order: nextOrder
-            }
+                metadata: req.body.metadata || {},
+                order: nextOrder,
+                zonePrices: req.body.zonePrices ? {
+                    create: req.body.zonePrices.map(z => ({
+                        zoneId: z.zoneId,
+                        baseLocation: z.baseLocation,
+                        price: z.price,
+                        childPrice: z.childPrice,
+                        babyPrice: z.babyPrice,
+                        fixedPrice: z.fixedPrice,
+                        cost: z.cost,
+                        extraKmPrice: z.extraKmPrice
+                    }))
+                } : undefined
+            },
+            include: { zonePrices: true }
         });
 
         res.json({ success: true, data: vehicleType });
@@ -154,8 +171,24 @@ router.put('/:id', authMiddleware, async (req, res) => {
                 luggage: parseInt(luggage) || 0,
                 description,
                 image: req.body.image,
-                features: features || []
-            }
+                features: features || [],
+                metadata: req.body.metadata || {},
+                // Recreate zonePrices
+                zonePrices: req.body.zonePrices ? {
+                    deleteMany: {},
+                    create: req.body.zonePrices.map(z => ({
+                        zoneId: z.zoneId,
+                        baseLocation: z.baseLocation,
+                        price: z.price,
+                        childPrice: z.childPrice,
+                        babyPrice: z.babyPrice,
+                        fixedPrice: z.fixedPrice,
+                        cost: z.cost,
+                        extraKmPrice: z.extraKmPrice
+                    }))
+                } : undefined
+            },
+            include: { zonePrices: true }
         });
 
         res.json({ success: true, data: vehicleType });

@@ -36,7 +36,7 @@ router.get('/', authMiddleware, async (req, res) => {
 
         const vehicles = await prisma.vehicle.findMany({
             where: whereClause,
-            include: { vehicleType: true, zonePrices: true },
+            include: { vehicleType: true },
             orderBy: { createdAt: 'desc' }
         });
 
@@ -70,8 +70,7 @@ router.get('/', authMiddleware, async (req, res) => {
             openingFee: v.metadata?.openingFee,
             fixedPrice: v.metadata?.fixedPrice,
             currency: v.metadata?.currency,
-            driverId: v.metadata?.driverId || null,
-            zonePrices: v.zonePrices || []
+            driverId: v.metadata?.driverId || null
         }));
 
         res.json({ success: true, data: formattedVehicles });
@@ -143,15 +142,7 @@ router.post('/', authMiddleware, async (req, res) => {
                     openingFee: data.openingFee,
                     fixedPrice: data.fixedPrice,
                     currency: data.currency
-                },
-                zonePrices: data.zonePrices ? {
-                    create: data.zonePrices.map(zp => ({
-                        zoneId: zp.zoneId,
-                        baseLocation: zp.baseLocation || 'AYT',
-                        price: parseFloat(zp.price),
-                        extraKmPrice: zp.extraKmPrice != null ? parseFloat(zp.extraKmPrice) : null,
-                    }))
-                } : undefined
+                }
             }
         });
 
@@ -207,20 +198,6 @@ router.put('/:id', authMiddleware, async (req, res) => {
 
         if (data.vehicleTypeId) {
             updateData.vehicleTypeId = data.vehicleTypeId;
-        }
-
-        const zonePricesOperation = data.zonePrices ? {
-            deleteMany: {},
-            create: data.zonePrices.map(zp => ({
-                zoneId: zp.zoneId,
-                baseLocation: zp.baseLocation || 'AYT',
-                price: parseFloat(zp.price),
-                extraKmPrice: zp.extraKmPrice != null ? parseFloat(zp.extraKmPrice) : null,
-            }))
-        } : undefined;
-
-        if (zonePricesOperation) {
-            updateData.zonePrices = zonePricesOperation;
         }
 
         const vehicle = await prisma.vehicle.update({

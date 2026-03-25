@@ -504,9 +504,13 @@ model VehicleType {
   
   order Int @default(0)
 
+  // Pricing & Settings
+  metadata Json?
+
   // Relations
-  transfers TransferData[]
-  vehicles  Vehicle[]
+  transfers  TransferData[]
+  vehicles   Vehicle[]
+  zonePrices VehicleTypeZonePrice[]
 
   @@unique([tenantId, slug])
 }
@@ -551,7 +555,6 @@ model Vehicle {
 
   // Relations
   shuttleRoutes ShuttleRoute[]
-  zonePrices    VehicleZonePrice[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1545,7 +1548,7 @@ model Zone {
   color   String? @default("#3388ff") // For map drawing
   polygon Json    // Array of LatLng [{lat, lng}, ...]
 
-  vehiclePrices VehicleZonePrice[]
+  vehicleTypePrices VehicleTypeZonePrice[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1553,10 +1556,10 @@ model Zone {
   @@index([tenantId])
 }
 
-model VehicleZonePrice {
-  id        String @id @default(uuid())
-  vehicleId String
-  vehicle   Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+model VehicleTypeZonePrice {
+  id            String      @id @default(uuid())
+  vehicleTypeId String
+  vehicleType   VehicleType @relation(fields: [vehicleTypeId], references: [id], onDelete: Cascade)
 
   zoneId String
   zone   Zone   @relation(fields: [zoneId], references: [id], onDelete: Cascade)
@@ -1565,10 +1568,14 @@ model VehicleZonePrice {
   baseLocation String @default("AYT")
 
   price        Decimal  @db.Decimal(10, 2)
+  childPrice   Decimal? @db.Decimal(10, 2)
+  babyPrice    Decimal? @db.Decimal(10, 2)
+  fixedPrice   Decimal? @db.Decimal(10, 2)
+  cost         Decimal? @db.Decimal(10, 2)
   extraKmPrice Decimal? @db.Decimal(10, 2)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([vehicleId, zoneId, baseLocation])
+  @@unique([vehicleTypeId, zoneId, baseLocation])
 }
