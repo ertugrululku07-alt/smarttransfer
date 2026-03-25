@@ -31,26 +31,33 @@ export default function PricingPage() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [vtRes, zonesRes, settingsRes, defsRes] = await Promise.all([
+      const [vtRes, zonesRes, settingsRes, defsRes] = await Promise.allSettled([
         apiClient.get('/api/vehicle-types'),
         apiClient.get('/api/zones'),
         apiClient.get('/api/tenant/settings'),
         apiClient.get('/api/tenant/definitions')
       ]);
 
-      if (vtRes.data?.success) setVehicleTypes(vtRes.data.data);
-      if (zonesRes.data?.success) setZones(zonesRes.data.data);
+      if (vtRes.status === 'fulfilled' && vtRes.value.data?.success) setVehicleTypes(vtRes.value.data.data);
+      if (zonesRes.status === 'fulfilled' && zonesRes.value.data?.success) setZones(zonesRes.value.data.data);
       
-      const st = settingsRes.data?.data;
-      if (st?.hubs) setHubs(st.hubs);
+      if (settingsRes.status === 'fulfilled') {
+        const st = settingsRes.value.data?.data;
+        if (st?.hubs) setHubs(st.hubs);
+      }
       
-      const df = defsRes.data?.data;
-      if (df?.currencies) setCurrencies(df.currencies);
-      else setCurrencies([{ code: 'TRY', symbol: '₺' }, { code: 'EUR', symbol: '€' }, { code: 'USD', symbol: '$' }, { code: 'GBP', symbol: '£' }]);
+      if (defsRes.status === 'fulfilled') {
+        const df = defsRes.value.data?.data;
+        if (df?.currencies) setCurrencies(df.currencies);
+      }
+      
+      if (!currencies.length) {
+        setCurrencies([{ code: 'TRY', symbol: '₺' }, { code: 'EUR', symbol: '€' }, { code: 'USD', symbol: '$' }, { code: 'GBP', symbol: '£' }]);
+      }
 
     } catch (err: any) {
       console.error('Fetch error:', err);
-      message.error('Veriler yüklenirken hata oluştu.');
+      message.error('Araç tipleri yüklenirken hata oluştu.');
     } finally {
       setLoading(false);
     }
