@@ -55,12 +55,15 @@ const TransferBookingContent: React.FC = () => {
     const router = useRouter();
     const [form] = Form.useForm();
 
+    // Billing State
     const [wantInvoice, setWantInvoice] = useState(false);
     const [invoiceType, setInvoiceType] = useState<'individual' | 'corporate'>('individual');
     const [notCitizen, setNotCitizen] = useState(false);
 
+
     const { Option } = Select;
 
+    // Sort countries: Priority first, then alphabetical
     const priorityCodes = ['TR', 'DE', 'GB', 'RU', 'NL', 'UA', 'FR', 'US', 'SA', 'AE'];
     const sortedCountries = [
         ...countryList.filter(c => priorityCodes.includes(c.code)),
@@ -74,15 +77,22 @@ const TransferBookingContent: React.FC = () => {
                 showSearch
                 optionFilterProp="children"
                 filterOption={(input, option) =>
+                    // Search by label (Country Name) or Code (+90)
                     String(option?.label || '').toLowerCase().includes(input.toLowerCase())
                 }
-                popupMatchSelectWidth={300}
+                popupMatchSelectWidth={300} // Wider dropdown to see names
             >
                 {sortedCountries.map(c => (
                     <Option key={c.code} value={'+' + c.phone} label={c.label}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <img src={`https://flagcdn.com/w20/${c.code.toLowerCase()}.png`} width="20" alt={c.code} style={{ borderRadius: 2 }} />
-                            <span>{c.code} (+{c.phone})</span>
+                            <img
+                                src={`https://flagcdn.com/w20/${c.code.toLowerCase()}.png`}
+                                srcSet={`https://flagcdn.com/w40/${c.code.toLowerCase()}.png 2x`}
+                                width="20"
+                                alt={c.code}
+                                style={{ borderRadius: 2 }}
+                            />
+                            <span>{c.code} (+{c.phone})</span> {/* Show ISO code + Phone */}
                             <span style={{ color: '#999', fontSize: 12, marginLeft: 'auto' }}>{c.label}</span>
                         </div>
                     </Option>
@@ -95,15 +105,19 @@ const TransferBookingContent: React.FC = () => {
     const [bookingSuccess, setBookingSuccess] = useState(false);
     const [bookingNumber, setBookingNumber] = useState<string | null>(null);
 
-    const vehicleId = searchParams.get('vehicleId') || '';
-    const pickup = searchParams.get('pickup') || '';
-    const dropoff = searchParams.get('dropoff') || '';
+    // Params
+    const vehicleId = searchParams.get('vehicleId');
+    const pickup = searchParams.get('pickup');
+    const dropoff = searchParams.get('dropoff');
     const date = searchParams.get('date');
     const time = searchParams.get('time');
     const passengers = searchParams.get('passengers');
     const type = searchParams.get('type');
-    const durationParam = searchParams.get('duration');
+    const durationParam = searchParams.get('duration'); // Get duration from URL
 
+    // Note: In a real app, we should fetch vehicle details from API using vehicleId
+    // For MVP, we'll calculate/display based on assumptions or params
+    // Or re-fetch search to get the specific vehicle details
     const [vehicleDetails, setVehicleDetails] = useState<any>(null);
     const [tripStats, setTripStats] = useState({ distance: 'Calculating...', duration: 'Calculating...' });
 
@@ -116,12 +130,14 @@ const TransferBookingContent: React.FC = () => {
             router.push('/');
             return;
         }
+        // Simulate fetching vehicle details or calculating price again
         fetchVehicleDetails();
-    }, [vehicleId, router]);
+    }, [vehicleId]);
 
+    // Initialize passenger list form
     useEffect(() => {
         if (passengers) {
-            const count = Math.max(0, (Number(passengers) || 1) - 1);
+            const count = Math.max(0, (Number(passengers) || 1) - 1); // Subtract 1 for main contact
             const list = Array(count).fill({ firstName: '', lastName: '', nationality: undefined });
             form.setFieldsValue({ passengerList: list });
         }
@@ -129,11 +145,16 @@ const TransferBookingContent: React.FC = () => {
 
     const fetchVehicleDetails = async () => {
         try {
+            // Re-use search endpoint to get fresh price/details for this specific trip
+            // Optimisation: Create a specific /api/transfer/quote endpoint later
             const pickupDateTime = time ? `${date}T${time}:00.000` : date;
+
             const pickupLat = searchParams.get('pickupLat');
             const pickupLng = searchParams.get('pickupLng');
+            
             const distance = sessionStorage.getItem('routeDistance');
             const encodedPolyline = sessionStorage.getItem('lastEncodedPolyline');
+            
             const cleanDistance = distance ? parseFloat(String(distance).replace(/[^0-9.]/g, '')) : undefined;
 
             const payload = {
@@ -151,8 +172,9 @@ const TransferBookingContent: React.FC = () => {
             const res = await apiClient.post('/api/transfer/search', payload);
             if (res.data.success) {
                 const found = res.data.data.results.find((v: any) => String(v.id) === vehicleId);
-                if (found) setVehicleDetails(found);
-                else {
+                if (found) {
+                    setVehicleDetails(found);
+                } else {
                     message.error('Seçilen araç artık müsait değil.');
                     router.back();
                 }
@@ -162,32 +184,63 @@ const TransferBookingContent: React.FC = () => {
         }
     };
 
+    // Extra Services State
     const [extraServices, setExtraServices] = useState<any[]>([]);
     const [selectedServices, setSelectedServices] = useState<Map<string, number>>(new Map());
     const [servicesLoading, setServicesLoading] = useState(false);
 
     useEffect(() => {
+        // Fetch Extra Services
         const fetchExtraServices = async () => {
             try {
                 setServicesLoading(true);
                 const res = await apiClient.get('/api/extra-services');
-                if (res.data.success) setExtraServices(res.data.data);
+                if (res.data.success) {
+                    setExtraServices(res.data.data);
+                }
             } catch (error) {
                 console.error('Error fetching extra services:', error);
             } finally {
                 setServicesLoading(false);
             }
         };
+
         fetchExtraServices();
     }, []);
 
-    const handleServiceChange = (serviceId: string, quantity: number) => {
+    const handleServiceChange = (serviceId: string, quantity: number, isPerPerson: boolean) => {
         const newSelected = new Map(selectedServices);
-        if (quantity > 0) newSelected.set(serviceId, quantity);
-        else newSelected.delete(serviceId);
+        if (quantity > 0) {
+            newSelected.set(serviceId, quantity);
+        } else {
+            newSelected.delete(serviceId);
+        }
         setSelectedServices(newSelected);
     };
 
+    const calculateServicesTotal = () => {
+        let total = 0;
+        selectedServices.forEach((qty, id) => {
+            const service = extraServices.find(s => s.id === id);
+            if (service) {
+                // Determine currency value (Mock conversion if needed, assuming EUR for services)
+                // For simplicity, assuming 1 EUR = 35 TRY if booking is in TRY, or just adding raw value if currencies match
+                // In a real app, we need proper currency conversion.
+                // For MVP: Let's assume services are priced in EUR and we convert to booking currency (TRY/EUR)
+                // If booking is in EUR, direct add. If TRY, x35.
+
+                // Better approach for MVP: Display service price in its own currency, but add to total in booking currency
+                // We'll stick to a simple conversion rate for now or just display separately.
+
+                // Let's assume standard conversion for display
+                const price = Number(service.price);
+                total += price * qty;
+            }
+        });
+        return total;
+    };
+
+    // Calculate Grand Total
     const vehiclePrice = vehicleDetails ? Number(vehicleDetails.price) : 0;
     const convertedVehiclePrice = vehicleDetails ? convertPrice(vehiclePrice, vehicleDetails.currency, selectedCurrency) : 0;
 
@@ -196,7 +249,8 @@ const TransferBookingContent: React.FC = () => {
         selectedServices.forEach((qty, id) => {
             const service = extraServices.find(s => s.id === id);
             if (service) {
-                const converted = convertPrice(Number(service.price), service.currency, selectedCurrency);
+                let price = Number(service.price);
+                const converted = convertPrice(price, service.currency, selectedCurrency);
                 total += converted * qty;
             }
         });
@@ -205,12 +259,17 @@ const TransferBookingContent: React.FC = () => {
 
     const grandTotal = convertedVehiclePrice + getConvertedServicePrice();
 
+
     const onFinish = async (values: any) => {
         if (!vehicleDetails) return;
+
         try {
             setLoading(true);
+
             const pickupDateTime = time ? `${date}T${time}:00.000` : date;
             const fullPhone = values.phone ? `${values.prefix || '+90'} ${values.phone}` : values.phone;
+
+            // Prepare Extra Services Data
             const selectedServicesList = Array.from(selectedServices.entries()).map(([id, qty]) => {
                 const service = extraServices.find(s => s.id === id);
                 return {
@@ -229,16 +288,26 @@ const TransferBookingContent: React.FC = () => {
                 dropoff,
                 pickupDateTime,
                 passengers: Number(passengers),
-                price: grandTotal,
+                price: grandTotal, 
                 currency: selectedCurrency,
-                customerInfo: { fullName: values.fullName, email: values.email, phone: fullPhone },
+                customerInfo: {
+                    fullName: values.fullName,
+                    email: values.email,
+                    phone: fullPhone
+                },
                 flightNumber: values.flightNumber,
                 notes: values.notes,
                 passengerDetails: [
-                    { firstName: values.fullName.split(' ')[0], lastName: values.fullName.split(' ').slice(1).join(' ') || '', nationality: null },
+                    // Passenger 1: Main Contact
+                    {
+                        firstName: values.fullName.split(' ')[0],
+                        lastName: values.fullName.split(' ').slice(1).join(' ') || '',
+                        nationality: null // Main contact form doesn't have nationality yet, or needs to be added if critical
+                    },
+                    // Additional Passengers
                     ...(values.passengerList || [])
                 ],
-                extraServices: selectedServicesList,
+                extraServices: selectedServicesList, // Add Extra Services
                 billingDetails: wantInvoice ? {
                     type: invoiceType,
                     fullName: invoiceType === 'individual' ? values.billingFullName : undefined,
@@ -252,6 +321,7 @@ const TransferBookingContent: React.FC = () => {
             };
 
             const res = await apiClient.post('/api/transfer/book', payload);
+
             if (res.data.success) {
                 setBookingSuccess(true);
                 setBookingNumber(res.data.data.bookingNumber);
@@ -259,11 +329,13 @@ const TransferBookingContent: React.FC = () => {
                 window.scrollTo(0, 0);
             }
         } catch (err: any) {
+            console.error('Booking error:', err);
             message.error(err.response?.data?.error || 'Rezervasyon oluşturulurken bir hata oluştu');
         } finally {
             setLoading(false);
         }
     };
+
 
     if (bookingSuccess) {
         return (
@@ -275,10 +347,63 @@ const TransferBookingContent: React.FC = () => {
                         title="Rezervasyonunuz Başarıyla Alındı!"
                         subTitle={`Rezervasyon Numaranız: ${bookingNumber}. Detaylar e-posta adresinize gönderilmiştir.`}
                         extra={[
-                            <Button type="primary" key="home" onClick={() => router.push('/')}>Anasayfaya Dön</Button>,
-                            <Button key="account" onClick={() => router.push('/login')}>Hesabıma Git</Button>,
+                            <Button type="primary" key="home" onClick={() => router.push('/')}>
+                                Anasayfaya Dön
+                            </Button>,
+                            <Button key="account" onClick={() => router.push('/login')}>
+                                Hesabıma Git
+                            </Button>,
                         ]}
-                    />
+                    >
+                        {/* Airport Pickup Time Calculation Display */}
+                        {(() => {
+                            const isAirportDropoff = [
+                                'AYT', 'IST', 'GZP', 'HAVALIMANI', 'AIRPORT', 'HAVAALANI'
+                            ].some(code => dropoff?.toUpperCase().includes(code));
+
+                            if (isAirportDropoff && time && durationParam) {
+                                try {
+                                    // Parse duration (e.g., "1 hour 55 mins" or "1 saat 55 dk")
+                                    let durationMinutes = 0;
+                                    const hourMatch = durationParam.match(/(\d+)\s*(hour|saat)/i);
+                                    const minMatch = durationParam.match(/(\d+)\s*(min|dk)/i);
+
+                                    if (hourMatch) durationMinutes += parseInt(hourMatch[1]) * 60;
+                                    if (minMatch) durationMinutes += parseInt(minMatch[1]);
+
+                                    if (durationMinutes > 0) {
+                                        // Flight Time
+                                        const flightDate = dayjs(`${date}T${time}`);
+
+                                        // Buffer: 3 hours for Shuttle, 2 hours for Private
+                                        const isShuttle = vehicleDetails?.isShuttle || vehicleDetails?.vehicleType?.toLowerCase().includes('shuttle');
+                                        const bufferHours = isShuttle ? 3 : 2;
+                                        const totalBuffer = durationMinutes + (bufferHours * 60);
+
+                                        const recommendedPickup = flightDate.subtract(totalBuffer, 'minute');
+
+                                        return (
+                                            <div style={{ marginTop: 24, padding: 16, background: '#e6f7ff', border: '1px solid #91d5ff', borderRadius: 8 }}>
+                                                <Title level={5} style={{ marginTop: 0, color: '#0050b3' }}>
+                                                    <RocketOutlined /> Önerilen Alınış Saati
+                                                </Title>
+                                                <Text>
+                                                    Uçuş saatiniz <strong>{time}</strong> olarak kabul edilmiştir.
+                                                    <br />
+                                                    Uçuşunuzdan <strong>{bufferHours} saat</strong> önce havalimanında olmanız ve <strong>{durationParam}</strong> yolculuk süresi dikkate alınarak;
+                                                    <br />
+                                                    Aracımızın sizi alacağı saat: <strong>{recommendedPickup.format('HH:mm')}</strong>
+                                                </Text>
+                                            </div>
+                                        );
+                                    }
+                                } catch (e) {
+                                    console.error('Pickup time calculation error:', e);
+                                }
+                            }
+                            return null;
+                        })()}
+                    </Result>
                 </Content>
             </Layout>
         );
@@ -287,35 +412,517 @@ const TransferBookingContent: React.FC = () => {
     return (
         <Layout style={{ minHeight: '100vh', background: '#f0f2f5' }}>
             <TopBar />
+
             <Content style={{ maxWidth: 1200, margin: '24px auto', padding: '0 24px', width: '100%' }}>
                 <div style={{ marginBottom: 24 }}>
-                    <Steps current={2} items={[{ title: 'Arama' }, { title: 'Seçim' }, { title: 'Bilgiler' }, { title: 'Ödeme' }]} />
+                    <Steps
+                        current={1}
+                        items={[
+                            { title: 'Arama', icon: <EnvironmentOutlined /> },
+                            { title: 'Seçim', icon: <CarOutlined /> },
+                            { title: 'Bilgiler', icon: <UserOutlined /> },
+                            { title: 'Ödeme', icon: <CreditCardOutlined /> },
+                        ]}
+                    />
                 </div>
+
                 <Row gutter={24}>
+                    {/* Booking Form */}
                     <Col xs={24} lg={16}>
-                        <Card title="Yolcu Bilgileri">
-                            <Form form={form} layout="vertical" onFinish={onFinish} initialValues={{ paymentMethod: 'cash' }}>
+                        <Card title="Yolcu Bilgileri" style={{ borderRadius: 8, marginBottom: 24 }}>
+                            <Form
+                                form={form}
+                                layout="vertical"
+                                onFinish={onFinish}
+                                initialValues={{ paymentMethod: 'cash' }}
+                            >
                                 <Row gutter={16}>
-                                    <Col span={12}><Form.Item name="fullName" label="Ad Soyad" rules={[{ required: true }]}><Input size="large" placeholder="Adınız Soyadınız" /></Form.Item></Col>
-                                    <Col span={12}><Form.Item name="phone" label="Telefon"><Space.Compact style={{ width: '100%' }}>{prefixSelector}<Form.Item name="phone" noStyle rules={[{ required: true }]}><Input size="large" style={{ width: 'calc(100% - 140px)' }} /></Form.Item></Space.Compact></Form.Item></Col>
+                                    <Col xs={24} md={12}>
+                                        <Form.Item
+                                            name="fullName"
+                                            label="Ad Soyad"
+                                            rules={[{ required: true, message: 'Lütfen ad soyad giriniz' }]}
+                                        >
+                                            <Input size="large" prefix={<UserOutlined />} placeholder="Adınız Soyadınız" />
+                                        </Form.Item>
+                                    </Col>
+                                    <Col xs={24} md={12}>
+                                        <Form.Item
+                                            name="phone"
+                                            label="Telefon Numarası"
+                                            rules={[{ required: true, message: 'Lütfen telefon numarası giriniz' }]}
+                                        >
+                                            <Space.Compact style={{ width: '100%' }}>
+                                                {prefixSelector}
+                                                <Form.Item
+                                                    name="phone"
+                                                    noStyle
+                                                    rules={[{ required: true, message: 'Lütfen telefon numarası giriniz' }]}
+                                                >
+                                                    <Input size="large" placeholder="555 123 45 67" style={{ width: 'calc(100% - 140px)' }} />
+                                                </Form.Item>
+                                            </Space.Compact>
+                                        </Form.Item>
+                                    </Col>
                                 </Row>
-                                <Form.Item name="email" label="E-posta" rules={[{ required: true, type: 'email' }]}><Input size="large" /></Form.Item>
-                                <Button type="primary" htmlType="submit" size="large" loading={loading} block style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', border: 'none', height: 50 }}>Rezervasyonu Tamamla</Button>
+
+                                <Form.Item
+                                    name="email"
+                                    label="E-posta Adresi"
+                                    rules={[
+                                        { required: true, message: 'Lütfen e-posta adresi giriniz' },
+                                        { type: 'email', message: 'Geçerli bir e-posta giriniz' }
+                                    ]}
+                                >
+                                    <Input size="large" placeholder="ornek@email.com" />
+                                </Form.Item>
+
+                                <Row gutter={16}>
+                                    <Col xs={24} md={12}>
+                                        <Form.Item
+                                            name="flightNumber"
+                                            label="Uçuş Numarası (Opsiyonel)"
+                                            tooltip="Havalimanı karşılaması için gereklidir"
+                                        >
+                                            <Input size="large" prefix={<RocketOutlined />} placeholder="TK1234" />
+                                        </Form.Item>
+                                    </Col>
+                                    <Col xs={24} md={12}>
+                                        <Form.Item
+                                            name="notes"
+                                            label="Sürücüye Not (Opsiyonel)"
+                                        >
+                                            <Input size="large" placeholder="Örn: Bebek koltuğu istiyorum" />
+                                        </Form.Item>
+                                    </Col>
+                                </Row>
+                                {Number(passengers) > 1 && (
+                                    <>
+                                        <Divider />
+
+                                        <Title level={5}>Diğer Yolcular</Title>
+                                        <Text type="secondary" style={{ display: 'block', marginBottom: 16 }}>
+                                            Lütfen diğer {Number(passengers) - 1} yolcunun kimlik bilgilerini giriniz.
+                                        </Text>
+
+                                        <Form.List name="passengerList">
+                                            {(fields) => (
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                                                    {fields.map((field, index) => (
+                                                        <Card
+                                                            key={field.key}
+                                                            size="small"
+                                                            title={`${index + 2}. Yolcu`}
+                                                            type="inner"
+                                                            styles={{ body: { padding: '16px 16px 0 16px' } }}
+                                                        >
+                                                            <Row gutter={16}>
+                                                                <Col xs={24} md={8}>
+                                                                    <Form.Item
+                                                                        {...field}
+                                                                        name={[field.name, 'firstName']}
+                                                                        label="Ad"
+                                                                        rules={[{ required: true, message: 'Ad zorunludur' }]}
+                                                                    >
+                                                                        <Input placeholder="Ad" />
+                                                                    </Form.Item>
+                                                                </Col>
+                                                                <Col xs={24} md={8}>
+                                                                    <Form.Item
+                                                                        {...field}
+                                                                        name={[field.name, 'lastName']}
+                                                                        label="Soyad"
+                                                                        rules={[{ required: true, message: 'Soyad zorunludur' }]}
+                                                                    >
+                                                                        <Input placeholder="Soyad" />
+                                                                    </Form.Item>
+                                                                </Col>
+                                                                <Col xs={24} md={8}>
+                                                                    <Form.Item
+                                                                        {...field}
+                                                                        name={[field.name, 'nationality']}
+                                                                        label="Uyruk"
+                                                                        rules={[{ required: true, message: 'Uyruk zorunludur' }]}
+                                                                    >
+                                                                        <Select
+                                                                            showSearch
+                                                                            placeholder="Uyruk Seçiniz"
+                                                                            optionFilterProp="children"
+                                                                            filterOption={(input, option) =>
+                                                                                (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                                                                            }
+                                                                            options={[
+                                                                                // Custom ordered list: Turkey first
+                                                                                ...countryList.filter(c => c.code === 'TR').map(c => ({ value: c.code, label: c.label })),
+                                                                                ...countryList.filter(c => c.code !== 'TR').map(c => ({ value: c.code, label: c.label }))
+                                                                            ]}
+                                                                        />
+                                                                    </Form.Item>
+                                                                </Col>
+                                                            </Row>
+                                                        </Card>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </Form.List>
+                                    </>
+                                )}
+
+                                <Divider />
+
+                                <Title level={5}>Fatura Bilgileri</Title>
+                                <div style={{ marginBottom: 16 }}>
+                                    <Checkbox
+                                        onChange={(e) => setWantInvoice(e.target.checked)}
+                                        checked={wantInvoice}
+                                        style={{ fontSize: 16 }}
+                                    >
+                                        Fatura İstiyorum
+                                    </Checkbox>
+                                </div>
+
+                                {wantInvoice && (
+                                    <div style={{ background: '#fafafa', padding: 16, borderRadius: 8, border: '1px solid #f0f0f0' }}>
+                                        <Form.Item name="invoiceType" initialValue="individual" style={{ marginBottom: 16 }}>
+                                            <Radio.Group onChange={(e) => setInvoiceType(e.target.value)} value={invoiceType}>
+                                                <Radio.Button value="individual">Bireysel</Radio.Button>
+                                                <Radio.Button value="corporate">Kurumsal</Radio.Button>
+                                            </Radio.Group>
+                                        </Form.Item>
+
+                                        {invoiceType === 'individual' ? (
+                                            <>
+                                                <Row gutter={16}>
+                                                    <Col xs={24} md={12}>
+                                                        <Form.Item
+                                                            name="billingFullName"
+                                                            label="Ad Soyad"
+                                                            rules={[{ required: true, message: 'Fatura için Ad Soyad zorunludur' }]}
+                                                        >
+                                                            <Input placeholder="Adınız Soyadınız" />
+                                                        </Form.Item>
+                                                    </Col>
+                                                    <Col xs={24} md={12}>
+                                                        {/* TC No field - only show if citizen */}
+                                                        {!notCitizen && (
+                                                            <Form.Item
+                                                                name="tcNo"
+                                                                label="TC Kimlik No"
+                                                                rules={[
+                                                                    { required: true, message: 'TC Kimlik numarası zorunludur' },
+                                                                    { len: 11, message: '11 haneli olmalıdır' }
+                                                                ]}
+                                                            >
+                                                                <Input placeholder="11 Haneli TC Kimlik No" maxLength={11} />
+                                                            </Form.Item>
+                                                        )}
+                                                        <div style={{ marginTop: -8, marginBottom: 24 }}>
+                                                            <Checkbox onChange={(e) => setNotCitizen(e.target.checked)} checked={notCitizen}>
+                                                                T.C. Vatandaşı değilim
+                                                            </Checkbox>
+                                                        </div>
+                                                    </Col>
+                                                </Row>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Form.Item
+                                                    name="companyName"
+                                                    label="Firma Adı"
+                                                    rules={[{ required: true, message: 'Firma adı zorunludur' }]}
+                                                >
+                                                    <Input placeholder="Şirket Ünvanı" />
+                                                </Form.Item>
+                                                <Row gutter={16}>
+                                                    <Col xs={24} md={12}>
+                                                        <Form.Item
+                                                            name="taxOffice"
+                                                            label="Vergi Dairesi"
+                                                            rules={[{ required: true, message: 'Vergi dairesi zorunludur' }]}
+                                                        >
+                                                            <Input placeholder="Vergi Dairesi" />
+                                                        </Form.Item>
+                                                    </Col>
+                                                    <Col xs={24} md={12}>
+                                                        <Form.Item
+                                                            name="taxNo"
+                                                            label="Vergi Numarası"
+                                                            rules={[{ required: true, message: 'Vergi numarası zorunludur' }]}
+                                                        >
+                                                            <Input placeholder="Vergi No" />
+                                                        </Form.Item>
+                                                    </Col>
+                                                </Row>
+                                            </>
+                                        )}
+
+                                        <Form.Item
+                                            name="billingAddress"
+                                            label="Fatura Adresi"
+                                            rules={[{ required: true, message: 'Fatura adresi zorunludur' }]}
+                                        >
+                                            <Input.TextArea rows={2} placeholder="Tam adres" />
+                                        </Form.Item>
+                                    </div>
+                                )}
+
+                                <Form.Item name="notes" label="Notlarınız">
+                                    <Input.TextArea rows={3} placeholder="Varsa ek istekleriniz..." />
+                                </Form.Item>
+
+                                <Divider />
+
+                                {/* Extra Services Expandable Section */}
+                                <div style={{ marginBottom: 24 }}>
+                                    <Collapse
+                                        ghost
+                                        expandIconPlacement="end"
+                                        items={[
+                                            {
+                                                key: '1',
+                                                label: <span style={{ fontWeight: 600, fontSize: 16 }}>Ekstra Hizmetler (Opsiyonel)</span>,
+                                                children: (
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                                                        {servicesLoading ? (
+                                                            <div style={{ textAlign: 'center', padding: 20 }}><Spin /></div>
+                                                        ) : extraServices.length === 0 ? (
+                                                            <Text type="secondary">Ekstra hizmet bulunmamaktadır.</Text>
+                                                        ) : (
+                                                            extraServices
+                                                                .filter(service => {
+                                                                    // Check if selected vehicle is a shuttle
+                                                                    const isShuttle = vehicleDetails?.isShuttle === true;
+
+                                                                    if (isShuttle && service.excludeFromShuttle) {
+                                                                        return false;
+                                                                    }
+                                                                    return true;
+                                                                })
+                                                                .map(service => {
+                                                                    const qty = selectedServices.get(service.id) || 0;
+                                                                    return (
+                                                                        <div key={service.id} style={{
+                                                                            display: 'flex',
+                                                                            justifyContent: 'space-between',
+                                                                            alignItems: 'center',
+                                                                            padding: '12px',
+                                                                            border: '1px solid #f0f0f0',
+                                                                            borderRadius: 8,
+                                                                            background: qty > 0 ? '#f6ffed' : '#fff',
+                                                                            borderColor: qty > 0 ? '#b7eb8f' : '#f0f0f0'
+                                                                        }}>
+                                                                            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                                                                {service.image ? (
+                                                                                    <img src={service.image} alt={service.name} style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 4 }} />
+                                                                                ) : (
+                                                                                    <div style={{ width: 48, height: 48, background: '#f5f5f5', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                                                        <ShoppingOutlined style={{ fontSize: 20, color: '#999' }} />
+                                                                                    </div>
+                                                                                )}
+                                                                                <div>
+                                                                                    <Text strong>{service.name}</Text>
+                                                                                    <div style={{ fontSize: 12, color: '#666' }}>
+                                                                                        {formatPrice(Number(service.price), service.currency)}
+                                                                                        {service.isPerPerson ? ' / kişi başı' : ' / adet'}
+                                                                                    </div>
+                                                                                </div>
+                                                                            </div>
+
+                                                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                                                <Button
+                                                                                    size="small"
+                                                                                    icon={<MinusOutlined />}
+                                                                                    disabled={qty === 0}
+                                                                                    onClick={() => handleServiceChange(service.id, qty - 1, service.isPerPerson)}
+                                                                                />
+                                                                                <span style={{ width: 24, textAlign: 'center', fontWeight: 600 }}>{qty}</span>
+                                                                                <Button
+                                                                                    size="small"
+                                                                                    icon={<PlusOutlined />}
+                                                                                    onClick={() => handleServiceChange(service.id, qty + 1, service.isPerPerson)}
+                                                                                />
+                                                                            </div>
+                                                                        </div>
+                                                                    );
+                                                                })
+                                                        )}
+                                                    </div>
+                                                )
+                                            }
+                                        ]}
+                                    />
+                                </div>
+
+                                <Divider />
+
+                                <Title level={5}>Ödeme Yöntemi</Title>
+                                <Form.Item name="paymentMethod">
+                                    <Radio.Group>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                            <Radio value="cash">
+                                                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                                                    <Text>Araçta Nakit / Kredi Kartı</Text>
+                                                    <Text type="secondary">(Rezervasyon anında ödeme alınmaz)</Text>
+                                                </div>
+                                            </Radio>
+                                            <Radio value="bank" disabled>
+                                                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                                                    <Text>Havale / EFT</Text>
+                                                    <Tag style={{ marginLeft: 8 }}>Yakında</Tag>
+                                                </div>
+                                            </Radio>
+                                            <Radio value="credit_card" disabled>
+                                                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                                                    <Text>Online Kredi Kartı</Text>
+                                                    <Tag style={{ marginLeft: 8 }}>Yakında</Tag>
+                                                </div>
+                                            </Radio>
+                                        </div>
+                                    </Radio.Group>
+                                </Form.Item>
+
+                                <Divider />
+
+                                <div style={{ textAlign: 'right' }}>
+                                    <Button
+                                        type="primary"
+                                        htmlType="submit"
+                                        size="large"
+                                        loading={loading}
+                                        style={{
+                                            minWidth: 200,
+                                            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                            border: 'none',
+                                            height: 50,
+                                            fontSize: 18
+                                        }}
+                                    >
+                                        Rezervasyonu Tamamla
+                                    </Button>
+                                </div>
                             </Form>
                         </Card>
                     </Col>
+
+                    {/* Trip Summary Info */}
                     <Col xs={24} lg={8}>
-                        <Card title="Özet">
-                            <div style={{ marginBottom: 12 }}><Text strong>{pickup} <ArrowRightOutlined /> {dropoff}</Text></div>
-                            <div style={{ marginBottom: 12 }}><Text>{dayjs(date).format('DD.MM.YYYY')} {time}</Text></div>
-                            <Divider />
-                            <div style={{ display: 'flex', justifyContent: 'space-between' }}><Text>Araç:</Text><Text strong>{vehicleDetails?.vehicleType}</Text></div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 16 }}><Title level={4}>Toplam:</Title><Title level={4} style={{ color: '#667eea' }}>{formatPrice(grandTotal, selectedCurrency)}</Title></div>
+                        <Card
+                            title="Transfer Özeti"
+                            style={{ borderRadius: 8, position: 'sticky', top: 24, overflow: 'hidden' }}
+                            styles={{ body: { padding: 0 } }}
+                        >
+                            {/* Map Section */}
+                            {pickup && dropoff && (
+                                <BookingMap
+                                    pickup={pickup}
+                                    dropoff={dropoff}
+                                    onDistanceCalculated={handleDistanceCalculated}
+                                />
+                            )}
+
+                            <div style={{ padding: 24 }}>
+                                {!vehicleDetails ? (
+                                    <div style={{ textAlign: 'center', padding: 20 }}>
+                                        <Spin />
+                                    </div>
+                                ) : (
+                                    <>
+                                        <div style={{ marginBottom: 16, borderLeft: '2px solid #1890ff', paddingLeft: 12 }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
+                                                <EnvironmentOutlined style={{ color: '#52c41a', marginRight: 8, fontSize: 16 }} />
+                                                <Text strong style={{ fontSize: 16 }}>{pickup}</Text>
+                                            </div>
+                                            <div style={{ height: 20, borderLeft: '1px dashed #ccc', marginLeft: 7, margin: '4px 0' }}></div>
+                                            <div style={{ display: 'flex', alignItems: 'center' }}>
+                                                <EnvironmentOutlined style={{ color: '#f5576c', marginRight: 8, fontSize: 16 }} />
+                                                <Text strong style={{ fontSize: 16 }}>{dropoff}</Text>
+                                            </div>
+                                        </div>
+
+                                        {/* Trip Stats */}
+                                        <div style={{ background: '#f0f5ff', padding: '12px 16px', borderRadius: 8, marginBottom: 20, display: 'flex', justifyContent: 'space-between' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                <DashboardOutlined style={{ color: '#1890ff' }} />
+                                                <div>
+                                                    <div style={{ fontSize: 10, color: '#666' }}>MESAFE</div>
+                                                    <div style={{ fontWeight: 600, color: '#1890ff' }}>
+                                                        {tripStats.distance === 'Calculating...' ? '35 km' : tripStats.distance}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div style={{ width: 1, background: '#d6e4ff' }}></div>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                <ClockCircleOutlined style={{ color: '#1890ff' }} />
+                                                <div>
+                                                    <div style={{ fontSize: 10, color: '#666' }}>SÜRE</div>
+                                                    <div style={{ fontWeight: 600, color: '#1890ff' }}>
+                                                        {tripStats.duration === 'Calculating...' ? '45 dk' : tripStats.duration}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Vehicle Info */}
+                                        {vehicleDetails && (
+                                            <div style={{ marginBottom: 16, textAlign: 'center' }}>
+                                                {vehicleDetails.image && (
+                                                    <img
+                                                        src={vehicleDetails.image}
+                                                        alt={vehicleDetails.vehicleType}
+                                                        style={{ width: '100%', borderRadius: 8, marginBottom: 8, objectFit: 'cover' }}
+                                                    />
+                                                )}
+                                                <Text strong style={{ fontSize: 16 }}>
+                                                    {type?.toLowerCase() === 'shuttle' ? 'Shuttle Transfer' : vehicleDetails.vehicleType}
+                                                </Text>
+                                            </div>
+                                        )}
+
+                                        <Divider style={{ margin: '16px 0' }} />
+                                        <div style={{ marginTop: 8 }}>
+                                            <Text strong style={{ fontSize: 12 }}>Ekstra Hizmetler</Text>
+                                            {Array.from(selectedServices.entries()).map(([id, qty]) => {
+                                                const s = extraServices.find(srv => srv.id === id);
+                                                if (!s) return null;
+                                                return (
+                                                    <div key={id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#666', marginTop: 4 }}>
+                                                        <span>{s.name} x {qty}</span>
+                                                        <span>{formatPrice(Number(s.price) * qty, s.currency)}</span>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </>
+                                )}
+
+                                <Divider style={{ margin: '12px 0' }} />
+
+                                {/* Grand Total */}
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <Title level={5} style={{ margin: 0 }}>Toplam Tutar</Title>
+                                    <Title level={3} style={{ margin: 0, color: '#52c41a' }}>
+                                        {formatPrice(grandTotal, selectedCurrency)}
+                                    </Title>
+                                </div>
+
+                                <Button
+                                    type="primary"
+                                    size="large"
+                                    block
+                                    onClick={() => form.submit()}
+                                    loading={loading}
+                                    style={{ marginTop: 16, height: 48, fontSize: 16 }}
+                                >
+                                    Rezervasyonu Tamamla
+                                </Button>
+                            </div>
                         </Card>
                     </Col>
                 </Row>
             </Content>
-        </Layout>
+
+            <Footer style={{ textAlign: 'center' }}>SmartTransfer ©2026</Footer>
+        </Layout >
     );
 };
 
