@@ -162,41 +162,57 @@ router.put('/:id', authMiddleware, async (req, res) => {
             return res.status(400).json({ success: false, error: 'İsim ve Kategori zorunludur' });
         }
 
-        const vehicleType = await prisma.vehicleType.update({
-            where: { id },
-            data: {
-                name,
-                category,
-                capacity: parseInt(capacity) || 0,
-                luggage: parseInt(luggage) || 0,
-                description,
-                image: req.body.image,
-                features: features || [],
-                metadata: req.body.metadata || {},
-                // Recreate zonePrices
-                zonePrices: req.body.zonePrices ? {
-                    deleteMany: {},
-                    create: req.body.zonePrices.map(z => ({
-                        zoneId: z.zoneId,
-                        baseLocation: z.baseLocation,
-                        price: z.price,
-                        childPrice: z.childPrice,
-                        babyPrice: z.babyPrice,
-                        fixedPrice: z.fixedPrice,
-                        cost: z.cost,
-                        extraKmPrice: z.extraKmPrice
-                    }))
-                } : undefined
-            },
-            include: { zonePrices: true }
+        // Use a transaction: first delete existing zone prices, then recreate
+        const vehicleType = await prisma.$transaction(async (tx) => {
+            // 1. Update the vehicle type fields
+            const updated = await tx.vehicleType.update({
+                where: { id },
+                data: {
+                    name,
+                    category,
+                    capacity: parseInt(capacity) || 0,
+                    luggage: parseInt(luggage) || 0,
+                    description,
+                    image: req.body.image,
+                    features: features || [],
+                    metadata: req.body.metadata || {},
+                }
+            });
+
+            // 2. If zonePrices provided, delete old ones and create new
+            if (Array.isArray(req.body.zonePrices)) {
+                await tx.vehicleTypeZonePrice.deleteMany({ where: { vehicleTypeId: id } });
+
+                if (req.body.zonePrices.length > 0) {
+                    await tx.vehicleTypeZonePrice.createMany({
+                        data: req.body.zonePrices.map(z => ({
+                            vehicleTypeId: id,
+                            zoneId: z.zoneId,
+                            baseLocation: z.baseLocation || 'AYT',
+                            price: z.price ?? 0,
+                            childPrice: z.childPrice ?? null,
+                            babyPrice: z.babyPrice ?? null,
+                            fixedPrice: z.fixedPrice ?? null,
+                            cost: z.cost ?? null,
+                            extraKmPrice: z.extraKmPrice ?? null,
+                        }))
+                    });
+                }
+            }
+
+            return tx.vehicleType.findUnique({
+                where: { id },
+                include: { zonePrices: true }
+            });
         });
 
         res.json({ success: true, data: vehicleType });
     } catch (error) {
-        console.error('Update vehicle type error:', error);
-        res.status(500).json({ success: false, error: 'Araç tipi güncellenemedi' });
+        console.error('Update vehicle type error:', error.message, error.code);
+        res.status(500).json({ success: false, error: 'Araç tipi güncellenemedi: ' + error.message });
     }
 });
+
 
 /**
  * DELETE /api/vehicle-types/:id

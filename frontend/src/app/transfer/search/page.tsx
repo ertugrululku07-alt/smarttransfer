@@ -271,7 +271,7 @@ const TransferSearchContent: React.FC = () => {
                     <Form.Item name="pickup" label="Alış Noktası" rules={[{ required: true }]}><HereLocationSearchInput placeholder="Nereden?" /></Form.Item>
                     <Form.Item name="dropoff" label="Bırakış Noktası" rules={[{ required: true }]}><HereLocationSearchInput placeholder="Nereye?" /></Form.Item>
                     <Row gutter={16}>
-                        <Col span={12}><Form.Item name="date" label="Tarih" rules={[{ required: true }]}><DatePicker style={{ width: '100%' }} format="DD.MM.YYYY" /></Form.Item></Col>
+                        <Col span={12}><Form.Item name="date" label="Tarih" rules={[{ required: true }]}><DatePicker style={{ width: '100%' }} format="DD.MM.YYYY" disabledDate={(current) => current && current < dayjs().startOf('day')} /></Form.Item></Col>
                         <Col span={12}><Form.Item name="time" label="Saat" rules={[{ required: true }]}><TimePicker style={{ width: '100%' }} format="HH:mm" /></Form.Item></Col>
                     </Row>
                     <Row gutter={16}>

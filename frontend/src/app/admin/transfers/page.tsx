@@ -127,7 +127,7 @@ const TransfersPage: React.FC = () => {
             render: (text: string) => <Text strong>{text}</Text>,
         },
         {
-            title: 'Tarih',
+            title: 'Transfer Zamanı',
             dataIndex: 'pickupDateTime',
             key: 'pickupDateTime',
             render: (date: string) => (
@@ -137,6 +137,18 @@ const TransfersPage: React.FC = () => {
                 </Space>
             ),
             sorter: (a: Booking, b: Booking) => dayjs(a.pickupDateTime).unix() - dayjs(b.pickupDateTime).unix(),
+        },
+        {
+            title: 'Kayıt Tarihi',
+            dataIndex: 'createdAt',
+            key: 'createdAt',
+            render: (date: string) => (
+                <Space direction="vertical" size={0}>
+                    <Text>{dayjs(date).format('DD.MM.YYYY')}</Text>
+                    <Text type="secondary" style={{ fontSize: 12 }}>{dayjs(date).format('HH:mm')}</Text>
+                </Space>
+            ),
+            sorter: (a: Booking, b: Booking) => dayjs(a.createdAt).unix() - dayjs(b.createdAt).unix(),
         },
         {
             title: 'Acente',
@@ -306,7 +318,7 @@ const TransfersPage: React.FC = () => {
                     </Space>
                 </div>
 
-                <Card styles={{ body: { padding: 0 } }} bordered={false}>
+                <Card styles={{ body: { padding: 0 } }} variant="borderless">
                     <Table
                         columns={columns}
                         dataSource={filteredBookings}

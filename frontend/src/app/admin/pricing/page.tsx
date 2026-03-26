@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Typography, Card, message, Row, Col, List, Avatar, 
   Button, Form, InputNumber, Select, Spin, Empty, 
-  Switch, Divider 
+  Switch, Divider, Input 
 } from 'antd';
 import { 
   CarOutlined, PlusOutlined, CloseCircleOutlined, SaveOutlined 
@@ -25,39 +25,62 @@ export default function PricingPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [selectedType, setSelectedType] = useState<any | null>(null);
+  const [defaultCurrency, setDefaultCurrency] = useState<string>('EUR');
   
   const [form] = Form.useForm();
 
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [vtRes, zonesRes, settingsRes, defsRes] = await Promise.allSettled([
+      const [vtRes, zonesRes, tenantRes] = await Promise.allSettled([
         apiClient.get('/api/vehicle-types'),
         apiClient.get('/api/zones'),
-        apiClient.get('/api/tenant/settings'),
-        apiClient.get('/api/tenant/definitions')
+        apiClient.get('/api/tenant/info')
       ]);
 
-      if (vtRes.status === 'fulfilled' && vtRes.value.data?.success) setVehicleTypes(vtRes.value.data.data);
-      if (zonesRes.status === 'fulfilled' && zonesRes.value.data?.success) setZones(zonesRes.value.data.data);
-      
-      if (settingsRes.status === 'fulfilled') {
-        const st = settingsRes.value.data?.data;
-        if (st?.hubs) setHubs(st.hubs);
+      if (vtRes.status === 'fulfilled' && vtRes.value.data?.success) {
+        setVehicleTypes(vtRes.value.data.data);
       }
       
-      if (defsRes.status === 'fulfilled') {
-        const df = defsRes.value.data?.data;
-        if (df?.currencies) setCurrencies(df.currencies);
+      if (zonesRes.status === 'fulfilled' && zonesRes.value.data?.success) {
+        setZones(zonesRes.value.data.data);
       }
       
-      if (!currencies.length) {
-        setCurrencies([{ code: 'TRY', symbol: '₺' }, { code: 'EUR', symbol: '€' }, { code: 'USD', symbol: '$' }, { code: 'GBP', symbol: '£' }]);
+      if (tenantRes.status === 'fulfilled' && tenantRes.value.data?.success) {
+        const tenant = tenantRes.value.data.data.tenant;
+        const st = tenant.settings || {};
+        
+        if (st.hubs && Array.isArray(st.hubs) && st.hubs.length > 0) {
+          console.log('Hubs loaded:', st.hubs);
+          setHubs(st.hubs);
+        } else {
+          setHubs([]);
+        }
+        
+        if (st.definitions?.currencies) {
+          setCurrencies(st.definitions.currencies);
+          // Detect the default currency
+          const defCur = st.definitions.currencies.find((c: any) => c.isDefault);
+          if (defCur) setDefaultCurrency(defCur.code);
+        } else if (tenant.currency) {
+          setCurrencies([{ code: tenant.currency, symbol: '' }]);
+          setDefaultCurrency(tenant.currency);
+        }
       }
+      
+      setCurrencies(prev => {
+        if (prev.length > 0) return prev;
+        return [
+          { code: 'TRY', symbol: '₺' }, 
+          { code: 'EUR', symbol: '€' }, 
+          { code: 'USD', symbol: '$' }, 
+          { code: 'GBP', symbol: '£' }
+        ];
+      });
 
     } catch (err: any) {
       console.error('Fetch error:', err);
-      message.error('Araç tipleri yüklenirken hata oluştu.');
+      message.error('Veriler yüklenirken hata oluştu.');
     } finally {
       setLoading(false);
     }
@@ -77,7 +100,7 @@ export default function PricingPage() {
         basePricePerKm: vt.metadata?.basePricePerKm,
         fixedPrice: vt.metadata?.fixedPrice,
         basePricePerHour: vt.metadata?.basePricePerHour,
-        currency: vt.metadata?.currency || 'EUR'
+        currency: vt.metadata?.currency || defaultCurrency
       },
       zonePrices: (vt.zonePrices || []).map((zp: any) => ({
         ...zp,
@@ -281,13 +304,17 @@ export default function PricingPage() {
                                     {...restField}
                                     name={[name, 'baseLocation']}
                                     label="Merkez (Kalkış / Varış)"
-                                    rules={[{ required: true, message: 'Seçiniz' }]}
+                                    rules={[{ required: true, message: 'Gerekli alan' }]}
                                   >
-                                    <Select placeholder="Örn: AYT">
-                                      {hubs.map((h: any) => (
-                                        <Option key={h.code} value={h.code}>{h.name} ({h.code})</Option>
-                                      ))}
-                                    </Select>
+                                    {hubs.length > 0 ? (
+                                      <Select placeholder="Örn: AYT" showSearch optionFilterProp="children">
+                                        {hubs.map((h: any) => (
+                                          <Option key={h.code} value={h.code}>{h.name} ({h.code})</Option>
+                                        ))}
+                                      </Select>
+                                    ) : (
+                                      <Input placeholder="Örn: AYT Havalimanı" />
+                                    )}
                                   </Form.Item>
                                 </Col>
                                 <Col span={10}>
@@ -318,9 +345,18 @@ export default function PricingPage() {
                                   <Col span={6}>
                                     <Form.Item
                                       {...restField}
+                                      name={[name, 'fixedPrice']}
+                                      label="Fix (Araç) Fiyatı"
+                                      tooltip="Bu girildiğinde yolcu sayısı ve çocuk/bebek fiyatı yok sayılır! Direkt aracın satış fiyatı olur."
+                                    >
+                                      <InputNumber min={0} step={1} precision={2} placeholder="0.00" style={{ width: '100%' }} />
+                                    </Form.Item>
+                                  </Col>
+                                  <Col span={6}>
+                                    <Form.Item
+                                      {...restField}
                                       name={[name, 'price']}
                                       label="Yetişkin / Baz Fiyat"
-                                      rules={[{ required: true, message: 'Zorunlu' }]}
                                       tooltip="Kişi başı yetişkin fiyatıdır. Eğer sistem kişi başı değil sadece araç bazlı satıyorsa Fix Fiyat giriniz."
                                     >
                                       <InputNumber min={0} step={1} precision={2} placeholder="0.00" style={{ width: '100%' }} />
@@ -340,16 +376,6 @@ export default function PricingPage() {
                                       {...restField}
                                       name={[name, 'babyPrice']}
                                       label="Bebek Fiyatı"
-                                    >
-                                      <InputNumber min={0} step={1} precision={2} placeholder="0.00" style={{ width: '100%' }} />
-                                    </Form.Item>
-                                  </Col>
-                                  <Col span={6}>
-                                    <Form.Item
-                                      {...restField}
-                                      name={[name, 'fixedPrice']}
-                                      label="Fix (Araç) Fiyatı"
-                                      tooltip="Bu girildiğinde yolcu sayısı ve çocuk/bebek fiyatı yok sayılır! Direkt aracın satış fiyatı olur."
                                     >
                                       <InputNumber min={0} step={1} precision={2} placeholder="0.00" style={{ width: '100%' }} />
                                     </Form.Item>

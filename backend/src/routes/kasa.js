@@ -478,10 +478,34 @@ router.delete('/entries/:id', authMiddleware, async (req, res) => {
     try {
         const { tenantId } = req.user;
         const meta = await getTenantMeta(tenantId);
-        const before = (meta.kasaEntries || []).length;
-        meta.kasaEntries = (meta.kasaEntries || []).filter(e => e.id !== req.params.id);
-        if (meta.kasaEntries.length === before) return res.status(404).json({ success: false, error: 'Kayıt bulunamadı' });
+        
+        const entryToDelete = (meta.kasaEntries || []).find(e => e.id === req.params.id);
+        if (!entryToDelete) {
+            return res.status(404).json({ success: false, error: 'Kayıt bulunamadı' });
+        }
+
+        meta.kasaEntries = meta.kasaEntries.filter(e => e.id !== req.params.id);
         await saveTenantMeta(tenantId, meta);
+
+        // Custom Auditing for Financial Deletions
+        const { logActivity } = require('../utils/logger');
+        const dirText = entryToDelete.direction === 'IN' ? 'Gelir' : 'Gider';
+        const logMsg = `Kasadan ${entryToDelete.amount} ${entryToDelete.currency} değerinde ${dirText} işlemi silindi. (Açıklama: ${entryToDelete.description || 'Yok'})`;
+        
+        await logActivity({
+            tenantId,
+            userId: req.user.id,
+            userEmail: req.user.email,
+            action: 'DELETE_KASA_ENTRY',
+            entityType: 'Kasa',
+            entityId: req.params.id,
+            details: {
+                message: logMsg,
+                previousState: entryToDelete // Keep full snapshot for undo functionality
+            },
+            ipAddress: req.headers['x-forwarded-for'] || req.socket?.remoteAddress
+        });
+
         res.json({ success: true });
     } catch (e) {
         res.status(500).json({ success: false, error: e.message });

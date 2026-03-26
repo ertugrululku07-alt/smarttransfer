@@ -95,6 +95,7 @@ model Tenant {
   extraServices   ExtraService[]
   transactions    Transaction[]
   zones           Zone[]
+  activityLogs    ActivityLog[]
 }
 
 enum TenantStatus {
@@ -508,9 +509,11 @@ model VehicleType {
   metadata Json?
 
   // Relations
-  transfers  TransferData[]
-  vehicles   Vehicle[]
-  zonePrices VehicleTypeZonePrice[]
+  transfers      TransferData[]
+  vehicles       Vehicle[]
+  zonePrices     VehicleTypeZonePrice[]
+  contractPrices AgencyContractPrice[]
+  contractMeta   AgencyContractMeta[]
 
   @@unique([tenantId, slug])
 }
@@ -1417,7 +1420,9 @@ model Agency {
   users           User[]
   products        Product[] 
   bookings        Booking[] 
-  deposits        AgencyDeposit[] 
+  deposits        AgencyDeposit[]
+  contractPrices  AgencyContractPrice[]
+  contractMeta    AgencyContractMeta[]
   
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -1549,6 +1554,7 @@ model Zone {
   polygon Json    // Array of LatLng [{lat, lng}, ...]
 
   vehicleTypePrices VehicleTypeZonePrice[]
+  contractPrices    AgencyContractPrice[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1578,4 +1584,89 @@ model VehicleTypeZonePrice {
   updatedAt DateTime @updatedAt
 
   @@unique([vehicleTypeId, zoneId, baseLocation])
+}
+
+// ============================================================================
+// AGENCY CONTRACT PRICES
+// ============================================================================
+
+model AgencyContractPrice {
+  id            String      @id @default(uuid())
+  tenantId      String
+
+  agencyId      String
+  agency        Agency      @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+
+  vehicleTypeId String
+  vehicleType   VehicleType @relation(fields: [vehicleTypeId], references: [id], onDelete: Cascade)
+
+  // Zone-based (mirrors VehicleTypeZonePrice)
+  zoneId        String
+  zone          Zone        @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+  baseLocation  String      @default("AYT")
+
+  // Contract Prices
+  price         Decimal  @db.Decimal(10, 2)   // Adult per-person price
+  childPrice    Decimal? @db.Decimal(10, 2)
+  babyPrice     Decimal? @db.Decimal(10, 2)
+  fixedPrice    Decimal? @db.Decimal(10, 2)   // Fixed total price (overrides per-pax)
+  extraKmPrice  Decimal? @db.Decimal(10, 2)   // Overage km price
+
+  isActive      Boolean  @default(true)
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([agencyId, vehicleTypeId, zoneId, baseLocation])
+  @@index([tenantId, agencyId])
+}
+
+// General / fallback pricing per agency + vehicleType (when no zone matches)
+model AgencyContractMeta {
+  id            String      @id @default(uuid())
+  tenantId      String
+
+  agencyId      String
+  agency        Agency      @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+
+  vehicleTypeId String
+  vehicleType   VehicleType @relation(fields: [vehicleTypeId], references: [id], onDelete: Cascade)
+
+  currency         String   @default("EUR")
+  openingFee       Decimal? @db.Decimal(10, 2)
+  basePricePerKm   Decimal? @db.Decimal(10, 2)
+  fixedPrice       Decimal? @db.Decimal(10, 2)
+  basePricePerHour Decimal? @db.Decimal(10, 2)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([agencyId, vehicleTypeId])
+  @@index([tenantId, agencyId])
+}
+
+// ============================================================================
+// SYSTEM ACTIVITY LOGGING (AUDIT)
+// ============================================================================
+
+model ActivityLog {
+  id          String   @id @default(uuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  userId      String?
+  userEmail   String?
+  
+  action      String   // e.g., CREATE_BOOKING, DELETE_USER, UPDATE_PRICING
+  entityType  String?  // e.g., Booking, Vehicle, User
+  entityId    String?  // ID of the affected record
+  
+  details     Json?    // Detailed payload, before/after changes, or soft-delete snapshot
+  ipAddress   String?  // IP address of the request
+  
+  createdAt   DateTime @default(now())
+
+  @@index([tenantId, action])
+  @@index([tenantId, entityType])
+  @@index([createdAt])
 }

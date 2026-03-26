@@ -281,6 +281,7 @@ const HomePage: React.FC = () => {
             placeholder="Tarih seçin"
             value={pickupDate}
             onChange={(date) => setPickupDate(date)}
+            disabledDate={(current) => current && current < dayjs().startOf('day')}
           />
         </Col>
         <Col xs={12} md={5}>

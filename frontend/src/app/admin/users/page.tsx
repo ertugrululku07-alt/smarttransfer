@@ -20,7 +20,7 @@ import {
   CheckCircleOutlined,
   CloseCircleOutlined,
 } from '@ant-design/icons';
-import axios from 'axios';
+import apiClient from '@/lib/api-client';
 import dayjs from 'dayjs';
 import AdminGuard from '../AdminGuard';
 import AdminLayout from '../AdminLayout';
@@ -31,7 +31,7 @@ const { Option } = Select;
 type UserRole = 'ADMIN' | 'COMPANY' | 'DRIVER' | 'CUSTOMER';
 
 interface User {
-  id: number;
+  id: string;
   name: string | null;
   email: string;
   role: UserRole;
@@ -70,7 +70,7 @@ const AdminUsersPage: React.FC = () => {
   const fetchUsers = async () => {
     try {
       setLoading(true);
-      const res = await axios.get(`${(process.env.NEXT_PUBLIC_API_URL || 'https://smarttransfer-backend-production.up.railway.app').replace(/[\r\n]+/g, '').trim()}/api/users`);
+      const res = await apiClient.get('/api/users');
 
       console.log('USERS RAW RESPONSE >>>', res.data);
 
@@ -138,7 +138,7 @@ const AdminUsersPage: React.FC = () => {
   // Aktif / pasif
   const handleToggleActive = async (user: User, active: boolean) => {
     try {
-      const res = await axios.patch(`${(process.env.NEXT_PUBLIC_API_URL || 'https://smarttransfer-backend-production.up.railway.app').replace(/[\r\n]+/g, '').trim()}/api/users/${user.id}/active`, {
+      const res = await apiClient.patch(`/api/users/${user.id}/active`, {
         isActive: active,
       });
 
@@ -172,10 +172,10 @@ const AdminUsersPage: React.FC = () => {
       }
 
       if (editingUser) {
-        await axios.put(`${(process.env.NEXT_PUBLIC_API_URL || 'https://smarttransfer-backend-production.up.railway.app').replace(/[\r\n]+/g, '').trim()}/api/users/${editingUser.id}`, payload);
+        await apiClient.put(`/api/users/${editingUser.id}`, payload);
         message.success('Kullanıcı güncellendi');
       } else {
-        await axios.post(`${(process.env.NEXT_PUBLIC_API_URL || 'https://smarttransfer-backend-production.up.railway.app').replace(/[\r\n]+/g, '').trim()}/api/users`, payload);
+        await apiClient.post('/api/users', payload);
         message.success('Kullanıcı eklendi');
       }
 

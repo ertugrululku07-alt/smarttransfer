@@ -29,12 +29,16 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
             pickupLng
         } = req.body;
 
-        // Fetch agency markup if user is an agency agent
+        // Fetch agency markup and contract prices if user is an agency agent
         let agencyMarkup = 0;
+        let agencyId = null;
+        let agencyContractMap = {}; // vehicleTypeId:zoneId -> contract
+        let agencyContractMeta = {}; // vehicleTypeId -> meta (fallback pricing)
         if (req.user && req.user.id) {
             const dbUser = await prisma.user.findUnique({
                 where: { id: req.user.id },
                 select: {
+                    agencyId: true,
                     agencyCommissionRate: true,
                     role: { select: { type: true } },
                     agency: { select: { markup: true } }
@@ -42,6 +46,7 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
             });
 
             if (dbUser) {
+                agencyId = dbUser.agencyId;
                 // If the user is AGENCY_STAFF and has a specific commission rate set, use that.
                 if (dbUser.role?.type === 'AGENCY_STAFF' && dbUser.agencyCommissionRate !== null) {
                     agencyMarkup = parseFloat(dbUser.agencyCommissionRate) || 0;
@@ -49,6 +54,24 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                 // Otherwise, fallback to the agency's default markup.
                 else if (dbUser.agency?.markup) {
                     agencyMarkup = parseFloat(dbUser.agency.markup) || 0;
+                }
+
+                // Fetch contract zone prices and meta (indexed by vehicleTypeId:zoneId and vehicleTypeId)
+                if (agencyId) {
+                    const contracts = await prisma.agencyContractPrice.findMany({
+                        where: { agencyId, isActive: true }
+                    });
+                    contracts.forEach(c => {
+                        const key = `${c.vehicleTypeId}:${c.zoneId}`;
+                        agencyContractMap[key] = c;
+                    });
+
+                    const metas = await prisma.agencyContractMeta.findMany({
+                        where: { agencyId }
+                    });
+                    metas.forEach(m => {
+                        agencyContractMeta[m.vehicleTypeId] = m;
+                    });
                 }
             }
         }
@@ -422,26 +445,46 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                     const overageCost = usedOverageDistanceKm * extraKmRate;
                     calculatedPrice = Math.round((baseRouteCost + overageCost) * typeMult);
                 } else {
-                    // Fallback to distance-based pricing ONLY if explicitly defined
-                    const openingFee = vt.metadata?.openingFee;
-                    const pricePerKmField = vt.metadata?.basePricePerKm;
-                    
-                    const hasValidFallback = (openingFee != null && Number(openingFee) > 0) || 
+                    // Fallback to distance-based pricing:
+                    // 1. Check agency-specific meta (contract fallback)
+                    // 2. Then fall back to global vehicle type metadata
+                    const meta = agencyContractMeta[vt.id];
+                    const openingFee = meta?.openingFee ?? vt.metadata?.openingFee;
+                    const pricePerKmField = meta?.basePricePerKm ?? vt.metadata?.basePricePerKm;
+
+                    const hasValidFallback = (openingFee != null && Number(openingFee) > 0) ||
                                              (pricePerKmField != null && Number(pricePerKmField) > 0);
-                                             
-                    if (!hasValidFallback) {
-                        return null; // Skip this vehicle type entirely if no polygon match and no explicit fallback rates
+
+                    // If agency has a meta fixedPrice (hizmet başı sabit), use that
+                    if (!hasValidFallback && meta?.fixedPrice) {
+                        calculatedPrice = Math.round(Number(meta.fixedPrice) * typeMult);
+                    } else if (!hasValidFallback) {
+                        return null;
+                    } else {
+                        const basePrice = openingFee ? Number(openingFee) : 0;
+                        const pricePerKm = pricePerKmField ? Number(pricePerKmField) : 0;
+                        const dist = distance ? Number(distance) : 50;
+                        calculatedPrice = Math.round((basePrice + (dist * pricePerKm)) * typeMult);
                     }
-                    
-                    const basePrice = openingFee ? Number(openingFee) : 0; 
-                    const pricePerKm = pricePerKmField ? Number(pricePerKmField) : 0;
-                    
-                    const dist = distance ? Number(distance) : 50;
-                    calculatedPrice = Math.round((basePrice + (dist * pricePerKm)) * typeMult);
                 }
 
-                // Apply agency markup
-                const finalMarkedUpPrice = Math.round(calculatedPrice * (1 + (agencyMarkup / 100)));
+                // === CHECK AGENCY CONTRACT PRICE (zone-based) ===
+                // If a zone was matched, look for a contract price for this vehicleType+zone
+                const contractLookupKey = finalMatchedZoneId ? `${vt.id}:${finalMatchedZoneId}` : null;
+                const contractPrice = contractLookupKey ? agencyContractMap[contractLookupKey] : null;
+                let finalPrice;
+                if (contractPrice) {
+                    // Contract price overrides all other pricing logic
+                    if (Number(contractPrice.fixedPrice) > 0) {
+                        finalPrice = Math.round(Number(contractPrice.fixedPrice) * typeMult);
+                    } else {
+                        const perPersonPrice = Number(contractPrice.price) || 0;
+                        finalPrice = Math.round(perPersonPrice * Number(passengers) * typeMult);
+                    }
+                } else {
+                    // Standard pricing: apply agency markup on calculated price
+                    finalPrice = Math.round(calculatedPrice * (1 + (agencyMarkup / 100)));
+                }
                 
                 // Get image from active vehicles if type doesn't have one
                 const imageUrl = vt.image || (vt.vehicles && vt.vehicles.length > 0 ? vt.vehicles[0].metadata?.imageUrl : '/vehicles/vito.jpg');
@@ -453,16 +496,16 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                     vendor: 'SmartTravel',
                     capacity: vt.capacity,
                     luggage: vt.luggage,
-                    price: finalMarkedUpPrice,
-                    basePrice: calculatedPrice, 
+                    price: finalPrice,
+                    basePrice: contractPrice ? finalPrice : calculatedPrice, 
                     currency: vt.metadata?.currency || 'EUR', 
                     features: ['Özel Transfer', 'Kapıdan Kapıya', ...(vt.features || [])],
                     cancellationPolicy: '24 saat öncesine kadar ücretsiz iptal',
                     estimatedDuration: distance ? `${Math.round((distance ? Number(distance) : 50) * 1.2)} dk` : '50 dk', 
                     image: imageUrl,
                     isShuttle: false,
-                    pricingMethod: calculationMethod,
-                    zonePriceConfig: zonePriceConfig,
+                    pricingMethod: contractPrice ? 'AGENCY_CONTRACT' : calculationMethod,
+                    zonePriceConfig: contractPrice ? null : zonePriceConfig,
                     metadata: vt.metadata
                 };
             }).filter(Boolean); // Remove skipped vehicles
@@ -1342,6 +1385,27 @@ router.put('/bookings/:id/status', authMiddleware, async (req, res) => {
                 ...(status === 'CANCELLED' ? { cancelledAt: new Date(), cancelledBy: req.user?.id } : {})
             }
         });
+
+        // Custom Auditing for Cancellations
+        if (status === 'CANCELLED') {
+            const { logActivity } = require('../utils/logger');
+            const guestName = currentBooking.fullName || currentBooking.metadata?.passengerName || 'Misafir';
+            const logMsg = `${guestName} isimli kişinin ${currentBooking.bookingNumber || id} numaralı rezervasyonu iptal edildi.`;
+            
+            await logActivity({
+                tenantId: req.tenant.id,
+                userId: req.user?.id,
+                userEmail: req.user?.email,
+                action: 'CANCEL_BOOKING',
+                entityType: 'Booking',
+                entityId: id,
+                details: { 
+                    message: logMsg,
+                    previousState: currentBooking 
+                },
+                ipAddress: req.headers['x-forwarded-for'] || req.socket?.remoteAddress
+            });
+        }
 
         res.json({
             success: true,

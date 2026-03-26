@@ -249,6 +249,11 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, selectedKey = 'dash
                   key: 'agencies',
                   label: 'Alt Acenteler (B2B)',
                   onClick: () => router.push('/admin/agencies')
+                },
+                {
+                  key: 'agency-contracts',
+                  label: 'Acenta Kontratları',
+                  onClick: () => router.push('/admin/agencies/contracts')
                 }
               ]
             },
@@ -359,6 +364,11 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, selectedKey = 'dash
                   key: 'general-reports',
                   label: 'Genel Raporlar',
                   onClick: () => router.push('/admin/reports')
+                },
+                {
+                  key: 'logs',
+                  label: 'İşlem Logları',
+                  onClick: () => router.push('/admin/reports/logs')
                 }
               ]
             },

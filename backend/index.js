@@ -39,6 +39,10 @@ app.use((req, res, next) => {
   next();
 });
 
+// Audit logging (records all mutations to the DB)
+const { auditLogMiddleware } = require('./src/middleware/audit');
+app.use(auditLogMiddleware);
+
 // ============================================================================
 // HEALTH CHECK
 // ============================================================================
@@ -155,6 +159,13 @@ app.use('/api/zones', tenantMiddleware, zonesRoutes);
 // Pages (CMS) routes
 const pagesRoutes = require('./src/routes/pages');
 app.use('/api/pages', tenantMiddleware, pagesRoutes);
+
+// User management routes
+const userRoutes = require('./src/routes/users');
+app.use('/api/users', tenantMiddleware, userRoutes);
+
+// Audit / Activity Logs route
+app.use('/api/admin/logs', tenantMiddleware, require('./src/routes/logs'));
 
 // ============================================================================
 // V1 LEGACY ROUTES (Backward Compatibility)

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Table, Card, Button, Modal, Form, Input, Typography, message, Space, Tag, InputNumber, Popconfirm, Divider, Descriptions } from 'antd';
+import { Table, Card, Button, Modal, Form, Input, Typography, message, Space, Tag, InputNumber, Popconfirm, Divider, Descriptions, Select } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, BankOutlined } from '@ant-design/icons';
 import apiClient from '@/lib/api-client';
 import AdminLayout from '../AdminLayout';
@@ -228,7 +228,11 @@ const AdminAgenciesPage = () => {
                             <InputNumber min={0} max={100} style={{ width: '100%' }} />
                         </Form.Item>
                         <Form.Item name="status" label="Durumu">
-                            <Input placeholder="ACTIVE, INACTIVE, SUSPENDED" />
+                            <Select>
+                                <Select.Option value="ACTIVE"><Tag color="success">Aktif</Tag></Select.Option>
+                                <Select.Option value="INACTIVE"><Tag color="default">Pasif</Tag></Select.Option>
+                                <Select.Option value="SUSPENDED"><Tag color="error">Askıya Alındı</Tag></Select.Option>
+                            </Select>
                         </Form.Item>
 
                         {editingAgency && (

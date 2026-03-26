@@ -62,6 +62,33 @@ router.get('/info', async (req, res) => {
 });
 
 /**
+ * GET /api/tenant/settings
+ * Get tenant settings (hubs, definitions, etc.)
+ */
+router.get('/settings', async (req, res) => {
+    try {
+        const tenant = await prisma.tenant.findUnique({
+            where: { id: req.tenant.id },
+            select: { settings: true }
+        });
+
+        if (!tenant) {
+            return res.status(404).json({ success: false, error: 'Tenant not found' });
+        }
+
+        res.json({
+            success: true,
+            data: tenant.settings || {}
+        });
+    } catch (error) {
+        console.error('Get settings error:', error);
+        res.status(500).json({ success: false, error: 'Failed to load settings' });
+    }
+});
+
+
+
+/**
  * PUT /api/tenant/settings
  * Update tenant settings (Admin only)
  */
