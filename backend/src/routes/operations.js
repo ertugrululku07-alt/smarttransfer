@@ -638,9 +638,15 @@ router.get('/shuttle-runs', authMiddleware, async (req, res) => {
         const dayEnd   = new Date(`${targetDate}T23:59:59.999Z`);
 
         // Fetch all shuttle bookings for the day
+        // Robust tenant filtering for SaaS context
+        const tenantId = req.tenant?.id || req.user?.tenantId;
+        if (!tenantId) {
+             return res.status(401).json({ success: false, error: 'Tenant context missing.' });
+        }
+
         const bookings = await prisma.booking.findMany({
             where: {
-                tenantId: req.tenant?.id, // Filter by tenant
+                tenantId: tenantId, 
                 productType: 'TRANSFER',
                 startDate: { gte: dayStart, lte: dayEnd },
                 status: { notIn: ['CANCELLED'] },
@@ -658,11 +664,13 @@ router.get('/shuttle-runs', authMiddleware, async (req, res) => {
 
         // Fetch all shuttle routes for reference
         const shuttleRoutes = await prisma.shuttleRoute.findMany({
-            where: { tenantId: req.tenant?.id },
+            where: { tenantId: tenantId },
             include: { vehicle: true }
         });
         const routeMap = {};
-        shuttleRoutes.forEach(r => { routeMap[r.id] = r; });
+        if (shuttleRoutes) {
+            shuttleRoutes.forEach(r => { if (r.id) routeMap[r.id] = r; });
+        }
 
         // Group by shuttleRouteId ONLY (destination-based, not time-based).
         // Shuttle logic: one bus visits multiple stops at different times (11:30, 12:00, 13:00)
@@ -759,18 +767,12 @@ router.get('/shuttle-runs', authMiddleware, async (req, res) => {
                     const firstPickup = run.bookings[0].pickupDateTime;
                     if (firstPickup) {
                         const d = new Date(firstPickup);
-                        // Safe formatting: HH:mm (avoiding toLocaleTimeString timezone issues)
                         if (!isNaN(d.getTime())) {
-                            const hh = String(d.getUTCHours() + 3).padStart(2, '0'); // Assuming TR time for now if UTC is used, or just local. Let's use getHours for server-local or use a safer approach:
-                            // Better: use the ISO string slice if it's already in TR time
-                            const isoStr = d.toISOString(); // e.g., 2026-03-28T11:30:00.000Z
-                            // Since we parsed from targetDate + T00:00:00.000Z, we should be careful.
-                            // Let's use a simpler approach: if pickupDateTime is a date object/ISO string, 
-                            // extract time part manually.
-                            const timePart = typeof firstPickup === 'string' && firstPickup.includes('T') 
-                                ? firstPickup.split('T')[1].substring(0, 5) 
-                                : d.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
-                            run.departureTime = timePart;
+                            // SAFE MANUAL HH:mm FORMATTING
+                            // Avoids toLocaleTimeString which crashes on unsupported systems
+                            const hours = d.getHours();
+                            const mins = d.getMinutes();
+                            run.departureTime = `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
                         } else {
                             run.departureTime = "--:--";
                         }
@@ -778,22 +780,30 @@ router.get('/shuttle-runs', authMiddleware, async (req, res) => {
                         run.departureTime = "--:--";
                     }
                 } catch (e) {
-                    console.error('Shuttle time format error:', e);
+                    console.error('Shuttle time parsing error:', e);
                     run.departureTime = "??:??";
                 }
             }
         });
 
         const runs = Object.values(runsMap).sort((a, b) => {
-            if (a.departureTime < b.departureTime) return -1;
-            if (a.departureTime > b.departureTime) return 1;
-            return a.routeName.localeCompare(b.routeName);
+            const timeA = a.departureTime || '99:99';
+            const timeB = b.departureTime || '99:99';
+            if (timeA < timeB) return -1;
+            if (timeA > timeB) return 1;
+            return (a.routeName || '').localeCompare(b.routeName || '');
         });
 
         res.json({ success: true, data: runs });
+
     } catch (error) {
-        console.error('shuttle-runs error:', error);
-        res.status(500).json({ success: false, error: 'Shuttle seferleri alınamadı: ' + error.message });
+        console.error('CRITICAL Shuttle Runs API Error:', error);
+        // RETURN ERROR MESSAGE EXPLICITLY TO HELP FRONTEND INVESTIGATION
+        res.status(500).json({ 
+            success: false, 
+            error: error.message || 'Server error',
+            ...(process.env.NODE_ENV !== 'production' && { stack: error.stack })
+        });
     }
 });
 
