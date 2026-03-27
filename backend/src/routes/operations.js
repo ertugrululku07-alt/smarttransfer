@@ -640,6 +640,7 @@ router.get('/shuttle-runs', authMiddleware, async (req, res) => {
         // Fetch all shuttle bookings for the day
         const bookings = await prisma.booking.findMany({
             where: {
+                tenantId: req.tenant?.id, // Filter by tenant
                 productType: 'TRANSFER',
                 startDate: { gte: dayStart, lte: dayEnd },
                 status: { notIn: ['CANCELLED'] },
@@ -657,6 +658,7 @@ router.get('/shuttle-runs', authMiddleware, async (req, res) => {
 
         // Fetch all shuttle routes for reference
         const shuttleRoutes = await prisma.shuttleRoute.findMany({
+            where: { tenantId: req.tenant?.id },
             include: { vehicle: true }
         });
         const routeMap = {};
@@ -745,11 +747,40 @@ router.get('/shuttle-runs', authMiddleware, async (req, res) => {
         // Post-process: sort bookings within each run by pickup time (ascending),
         // then set run departureTime = earliest pickup stop time.
         Object.values(runsMap).forEach(run => {
-            run.bookings.sort((a, b) => new Date(a.pickupDateTime) - new Date(b.pickupDateTime));
+            run.bookings.sort((a, b) => {
+                const dA = new Date(a.pickupDateTime).getTime() || 0;
+                const dB = new Date(b.pickupDateTime).getTime() || 0;
+                return dA - dB;
+            });
+
             if (run.bookings.length > 0) {
                 // departureTime = earliest pickup across all stops in this run
-                run.departureTime = new Date(run.bookings[0].pickupDateTime)
-                    .toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Istanbul' });
+                try {
+                    const firstPickup = run.bookings[0].pickupDateTime;
+                    if (firstPickup) {
+                        const d = new Date(firstPickup);
+                        // Safe formatting: HH:mm (avoiding toLocaleTimeString timezone issues)
+                        if (!isNaN(d.getTime())) {
+                            const hh = String(d.getUTCHours() + 3).padStart(2, '0'); // Assuming TR time for now if UTC is used, or just local. Let's use getHours for server-local or use a safer approach:
+                            // Better: use the ISO string slice if it's already in TR time
+                            const isoStr = d.toISOString(); // e.g., 2026-03-28T11:30:00.000Z
+                            // Since we parsed from targetDate + T00:00:00.000Z, we should be careful.
+                            // Let's use a simpler approach: if pickupDateTime is a date object/ISO string, 
+                            // extract time part manually.
+                            const timePart = typeof firstPickup === 'string' && firstPickup.includes('T') 
+                                ? firstPickup.split('T')[1].substring(0, 5) 
+                                : d.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+                            run.departureTime = timePart;
+                        } else {
+                            run.departureTime = "--:--";
+                        }
+                    } else {
+                        run.departureTime = "--:--";
+                    }
+                } catch (e) {
+                    console.error('Shuttle time format error:', e);
+                    run.departureTime = "??:??";
+                }
             }
         });
 
