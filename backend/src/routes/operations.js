@@ -788,12 +788,14 @@ router.patch('/shuttle-runs/assign', authMiddleware, async (req, res) => {
             if (!booking) continue;
 
             const updateData = { metadata: { ...(booking.metadata || {}) } };
-            if (driverId) {
-                updateData.driverId = driverId;
+            
+            // Explicitly handle null values for unassigning
+            if (driverId !== undefined) {
+                updateData.driverId = driverId; // Can be string or null
                 updateData.metadata.driverId = driverId;
             }
-            if (vehicleId) {
-                updateData.metadata.assignedVehicleId = vehicleId;
+            if (vehicleId !== undefined) {
+                updateData.metadata.assignedVehicleId = vehicleId; // Can be string or null
             }
 
             const updated = await prisma.booking.update({
