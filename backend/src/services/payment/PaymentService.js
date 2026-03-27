@@ -1,7 +1,7 @@
 const PayTRProvider = require('./providers/paytr');
 const IyzicoProvider = require('./providers/iyzico');
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+
+const prisma = require('../../lib/prisma');
 
 class PaymentService {
     async initializePayment(tenantId, params) {

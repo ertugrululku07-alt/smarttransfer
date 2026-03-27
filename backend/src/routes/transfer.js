@@ -2,13 +2,13 @@
 // Transfer module routes with Prisma Persistence
 
 const express = require('express');
-const { PrismaClient } = require('@prisma/client');
+
 const { authMiddleware, optionalAuthMiddleware } = require('../middleware/auth');
 const turf = require('@turf/turf');
 const flexpolyline = require('@here/flexpolyline');
 
 const router = express.Router();
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 
 /**
  * POST /api/transfer/search

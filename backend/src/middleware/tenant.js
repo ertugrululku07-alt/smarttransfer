@@ -1,8 +1,7 @@
 // src/middleware/tenant.js
 // Multi-tenant resolver middleware
 
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 
 // Simple in-memory cache to prevent DB exhaustion on every request
 const tenantCache = new Map();

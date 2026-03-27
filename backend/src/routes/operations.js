@@ -2,11 +2,10 @@
 // Smart Operations Module — Conflict Detection, Availability Calendar, AI Suggestions
 
 const express = require('express');
-const { PrismaClient } = require('@prisma/client');
+const prisma = require('../lib/prisma');
 const { authMiddleware } = require('../middleware/auth');
 
 const router = express.Router();
-const prisma = new PrismaClient();
 
 // Lazy-load services to avoid startup errors when env vars missing
 let RouteService = null;

@@ -1,11 +1,11 @@
 const express = require('express');
 const crypto = require('crypto');
 const Iyzipay = require('iyzipay');
-const { PrismaClient } = require('@prisma/client');
+
 const { authMiddleware } = require('../middleware/auth');
 const PaymentService = require('../services/payment/PaymentService');
 
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 const router = express.Router();
 
 /**
