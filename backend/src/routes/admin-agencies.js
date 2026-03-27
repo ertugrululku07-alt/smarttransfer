@@ -365,7 +365,6 @@ router.post('/:id/contracts/:vehicleTypeId', authMiddleware, async (req, res) =>
                         childPrice: z.childPrice != null ? parseFloat(z.childPrice) : null,
                         babyPrice: z.babyPrice != null ? parseFloat(z.babyPrice) : null,
                         fixedPrice: z.fixedPrice != null ? parseFloat(z.fixedPrice) : null,
-                        cost: z.cost != null ? parseFloat(z.cost) : null,
                         extraKmPrice: z.extraKmPrice != null ? parseFloat(z.extraKmPrice) : null,
                         isActive: z.isActive !== false
                     }))
@@ -404,4 +403,3 @@ router.delete('/:id/contracts/:vehicleTypeId', authMiddleware, async (req, res) 
 });
 
 module.exports = router;
-

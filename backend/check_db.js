@@ -1,22 +1,27 @@
 const { PrismaClient } = require('@prisma/client');
-const p = new PrismaClient();
-async function main() {
-    const roles = await p.role.findMany({ select: { id: true, code: true, type: true, name: true }, take: 20 });
-    console.log('ROLES:', JSON.stringify(roles, null, 2));
+const prisma = new PrismaClient();
 
-    const bookings = await p.booking.findMany({
-        where: { driverId: { not: null } },
-        select: { id: true, driverId: true, status: true, bookingNumber: true },
-        take: 5
-    });
-    console.log('BOOKINGS WITH DRIVER:', JSON.stringify(bookings, null, 2));
+async function checkDb() {
+    try {
+        const types = await prisma.vehicleType.findMany({
+            include: { vehicles: true }
+        });
+        console.log("Vehicle Types:");
+        types.forEach(vt => {
+            console.log(`- ${vt.name} (ID: ${vt.id}), Capacity: ${vt.capacity}`);
+            console.log(`  Metadata: ${JSON.stringify(vt.metadata)}`);
+            console.log(`  Active Vehicles: ${vt.vehicles.filter(v => v.status === 'ACTIVE').length}`);
+        });
 
-    const driver = await p.user.findFirst({
-        where: { role: { OR: [{ type: 'DRIVER' }, { code: 'DRIVER' }] } },
-        select: { id: true, firstName: true, lastName: true, role: { select: { type: true, code: true } }, tenantId: true }
-    });
-    console.log('DRIVER USER:', JSON.stringify(driver, null, 2));
+        const tenant = await prisma.tenant.findFirst();
+        console.log("\nTenant Hubs:");
+        console.log(JSON.stringify(tenant?.settings?.hubs, null, 2));
 
-    await p.$disconnect();
+    } catch (e) {
+        console.error(e);
+    } finally {
+        await prisma.$disconnect();
+    }
 }
-main().catch(e => { console.error(e); process.exit(1); });
+
+checkDb();

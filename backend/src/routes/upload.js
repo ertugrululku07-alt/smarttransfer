@@ -8,8 +8,8 @@ const router = express.Router();
 
 // Configuration
 const uploadDir = path.join(__dirname, '../../public/uploads');
-const publicUrl = process.env.PUBLIC_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'; // Make sure to set this or default
-const urlPrefix = '/uploads';
+const urlPrefix = '/uploads'; // Relative path only — absolute URL is resolved by the client
+
 
 // Ensure upload directory exists
 fs.ensureDirSync(uploadDir);
@@ -59,7 +59,7 @@ router.post('/driver-docs', upload.single('file'), (req, res) => {
             });
         }
 
-        const fileUrl = `${publicUrl}${urlPrefix}/${req.file.filename}`;
+        const fileUrl = `${urlPrefix}/${req.file.filename}`;
 
         res.json({
             success: true,
@@ -94,7 +94,7 @@ router.post('/', authMiddleware, upload.single('file'), (req, res) => {
             });
         }
 
-        const fileUrl = `${publicUrl}${urlPrefix}/${req.file.filename}`;
+        const fileUrl = `${urlPrefix}/${req.file.filename}`;
 
         res.json({
             success: true,

@@ -35,7 +35,7 @@ import {
     FilterOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
-import apiClient from '@/lib/api-client';
+import apiClient, { getImageUrl } from '@/lib/api-client';
 import TopBar from '@/app/components/TopBar';
 import BookingMap from '@/app/components/BookingMap';
 import HereLocationSearchInput from '@/app/components/HereLocationSearchInput';
@@ -238,7 +238,7 @@ const TransferSearchContent: React.FC = () => {
                                 <Card key={result.id} hoverable style={{ marginBottom: 16, overflow: 'hidden' }} styles={{ body: { padding: 0 } }}>
                                     <Row>
                                         <Col xs={24} md={8} style={{ background: '#f9f9f9', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, minHeight: 200, overflow: 'hidden', position: 'relative' }}>
-                                            {result.image ? <img src={result.image} alt={result.vehicleType} style={{ width: '100%', height: '100%', objectFit: 'contain', padding: '12px' }} /> : <CarOutlined style={{ fontSize: 80, color: '#d9d9d9' }} />}
+                                            {result.image ? <img src={getImageUrl(result.image)} alt={result.vehicleType} style={{ width: '100%', height: '100%', objectFit: 'contain', padding: '12px' }} /> : <CarOutlined style={{ fontSize: 80, color: '#d9d9d9' }} />}
                                             <div style={{ position: 'absolute', top: 12, left: 12 }}><Tag color="cyan">{result.vehicleType}</Tag></div>
                                         </Col>
                                         <Col xs={24} md={10} style={{ padding: 24 }}>

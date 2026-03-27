@@ -73,6 +73,12 @@ const AccountsPage: React.FC = () => {
     const [submitting, setSubmitting] = useState(false);
     const [search, setSearch] = useState('');
     const [typeFilter, setTypeFilter] = useState<string>('ALL');
+    const [currencies, setCurrencies] = useState<{code: string, symbol: string}[]>([
+        { code: 'TRY', symbol: '₺' },
+        { code: 'EUR', symbol: '€' },
+        { code: 'USD', symbol: '$' },
+        { code: 'GBP', symbol: '£' },
+    ]);
 
     // Transaction states
     const [txModalVisible, setTxModalVisible] = useState(false);
@@ -93,12 +99,27 @@ const AccountsPage: React.FC = () => {
     const fetchAccounts = async () => {
         setLoading(true);
         try {
-            const res = await apiClient.get('/api/accounting/accounts');
-            if (res.data.success) {
-                setAccounts(res.data.data);
+            const [accRes, tenantRes] = await Promise.allSettled([
+                apiClient.get('/api/accounting/accounts'),
+                apiClient.get('/api/tenant/info')
+            ]);
+
+            if (accRes.status === 'fulfilled' && accRes.value.data.success) {
+                setAccounts(accRes.value.data.data);
+            }
+
+            if (tenantRes.status === 'fulfilled' && tenantRes.value.data?.success) {
+                const tenant = tenantRes.value.data.data.tenant;
+                const st = tenant.settings || {};
+                
+                if (st.definitions?.currencies) {
+                    setCurrencies(st.definitions.currencies);
+                } else if (tenant.currency) {
+                    setCurrencies([{ code: tenant.currency, symbol: '' }]);
+                }
             }
         } catch {
-            message.error('Cariler yüklenirken hata oluştu');
+            message.error('Veriler yüklenirken hata oluştu');
         } finally {
             setLoading(false);
         }
@@ -134,7 +155,8 @@ const AccountsPage: React.FC = () => {
     const handleAdd = () => {
         setEditingAccount(null);
         form.resetFields();
-        form.setFieldsValue({ currency: 'TRY', type: 'CUSTOMER' });
+        const defaultCur = (currencies as any[]).find(c => c.isDefault)?.code || 'TRY';
+        form.setFieldsValue({ currency: defaultCur, type: 'CUSTOMER' });
         setIsModalVisible(true);
     };
 
@@ -769,7 +791,7 @@ const AccountsPage: React.FC = () => {
                     okButtonProps={{ style: { background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)', border: 'none' } }}
                 >
                     <Divider style={{ margin: '12px 0' }} />
-                    <Form form={form} layout="vertical" initialValues={{ type: 'CUSTOMER', currency: 'TRY' }}>
+                    <Form form={form} layout="vertical">
                         <Row gutter={16}>
                             <Col span={12}>
                                 <Form.Item name="code" label="Cari Kodu" rules={[{ required: true, message: 'Cari kodu zorunludur' }]}>
@@ -797,11 +819,12 @@ const AccountsPage: React.FC = () => {
                             </Col>
                             <Col span={12}>
                                 <Form.Item name="currency" label="Para Birimi" rules={[{ required: true }]}>
-                                    <Select>
-                                        <Option value="TRY">🇹🇷 TRY — Türk Lirası</Option>
-                                        <Option value="USD">🇺🇸 USD — Amerikan Doları</Option>
-                                        <Option value="EUR">🇪🇺 EUR — Euro</Option>
-                                        <Option value="GBP">🇬🇧 GBP — İngiliz Sterlini</Option>
+                                    <Select showSearch optionFilterProp="children">
+                                        {currencies.map((c: any) => (
+                                            <Option key={c.code} value={c.code}>
+                                                {c.code} {c.symbol ? `— ${c.symbol}` : ''} {c.rate ? `(Kur: ₺${c.rate})` : ''}
+                                            </Option>
+                                        ))}
                                     </Select>
                                 </Form.Item>
                             </Col>

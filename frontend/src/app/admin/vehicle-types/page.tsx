@@ -140,7 +140,7 @@ const VehicleTypesPage: React.FC = () => {
         setModalVisible(true);
     };
 
-    const handleEdit = (record: VehicleType) => {
+    const handleEdit = (record: any) => {
         setEditingId(record.id);
         setImageUrl(record.image);
         form.setFieldsValue({
@@ -150,7 +150,9 @@ const VehicleTypesPage: React.FC = () => {
             luggage: record.luggage,
             description: record.description,
             features: record.features,
-            image: record.image
+            image: record.image,
+            openingFee: record.metadata?.openingFee ?? null,
+            basePricePerKm: record.metadata?.basePricePerKm ?? null,
         });
         setModalVisible(true);
     };
@@ -194,11 +196,19 @@ const VehicleTypesPage: React.FC = () => {
         try {
             const values = await form.validateFields();
 
+            // Build metadata from km pricing fields
+            const { openingFee, basePricePerKm, ...rest } = values;
+            const metadata: Record<string, any> = {};
+            if (openingFee != null && openingFee !== '') metadata.openingFee = Number(openingFee);
+            if (basePricePerKm != null && basePricePerKm !== '') metadata.basePricePerKm = Number(basePricePerKm);
+
+            const payload = { ...rest, metadata };
+
             if (editingId) {
-                await apiClient.put(`/api/vehicle-types/${editingId}`, values);
+                await apiClient.put(`/api/vehicle-types/${editingId}`, payload);
                 message.success('Araç tipi güncellendi');
             } else {
-                await apiClient.post('/api/vehicle-types', values);
+                await apiClient.post('/api/vehicle-types', payload);
                 message.success('Araç tipi oluşturuldu');
             }
 
@@ -446,6 +456,31 @@ const VehicleTypesPage: React.FC = () => {
                         >
                             <TextArea rows={3} />
                         </Form.Item>
+
+                        <div style={{ borderTop: '1px solid #f0f0f0', paddingTop: 12, marginTop: 4, marginBottom: 8 }}>
+                            <span style={{ fontWeight: 600, color: '#555' }}>📏 Km Bazlı Fallback Fiyatlandırma</span>
+                            <div style={{ fontSize: 12, color: '#888', marginTop: 2, marginBottom: 10 }}>
+                                Özel bölge fiyatı eşleşmezse, bu araç tipi için km hesabıyla fiyat verilir. Boş bırakırsanız araç listede çıkmaz.
+                            </div>
+                        </div>
+                        <Row gutter={16}>
+                            <Col span={12}>
+                                <Form.Item
+                                    name="openingFee"
+                                    label="Başlangıç Ücreti (€)"
+                                >
+                                    <InputNumber min={0} step={0.5} style={{ width: '100%' }} placeholder="Örn: 10" />
+                                </Form.Item>
+                            </Col>
+                            <Col span={12}>
+                                <Form.Item
+                                    name="basePricePerKm"
+                                    label="Km Başı Ücret (€/km)"
+                                >
+                                    <InputNumber min={0} step={0.1} style={{ width: '100%' }} placeholder="Örn: 1.5" />
+                                </Form.Item>
+                            </Col>
+                        </Row>
                     </Form>
                 </Modal>
             </AdminLayout>

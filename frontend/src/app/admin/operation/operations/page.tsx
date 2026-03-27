@@ -1,10 +1,10 @@
-﻿'use client';
+'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
 import {
     Table, Card, Tag, Button, Space, Typography, message,
     Row, Col, DatePicker, Select, Input, Checkbox, Popover, Badge,
-    Avatar, Tooltip, Modal
+    Avatar, Tooltip, Modal, Segmented, Spin
 } from 'antd';
 import {
     ReloadOutlined,
@@ -245,11 +245,11 @@ export default function OperationsPage() {
     const [tempColors, setTempColors] = useState<Record<string, string>>(DEFAULT_COLORS);
 
 
-    // Filters
+    // Filters — default to PRIVATE so only Özel Transferler show on load
     const [filters, setFilters] = useState({
-        dateRange: [dayjs().subtract(30, 'day'), dayjs().add(30, 'day')],
+        dateRange: [dayjs(), dayjs()],
         direction: 'ALL', // ALL, DEPARTURE, ARRIVAL, INTER
-        transferType: 'ALL', // ALL, SHUTTLE, PRIVATE
+        transferType: 'PRIVATE', // ALL, SHUTTLE, PRIVATE — defaults to PRIVATE
         agency: 'ALL',
         status: 'ALL',
         driver: 'ALL',
@@ -336,10 +336,22 @@ export default function OperationsPage() {
             }
         },
         {
+            title: 'REZ. TARİHİ',
+            dataIndex: 'createdAt',
+            key: 'createdAt',
+            width: 110,
+            render: (val: string) => val ? (
+                <Space direction="vertical" size={0}>
+                    <Text style={{ fontSize: 12 }}>{dayjs(val).format('DD.MM.YYYY')}</Text>
+                    <Text type="secondary" style={{ fontSize: 10 }}>{dayjs(val).format('HH:mm')}</Text>
+                </Space>
+            ) : '-'
+        },
+        {
             title: 'TARİH',
             dataIndex: 'pickupDateTime',
             key: 'date',
-            width: 120,
+            width: 100,
             render: (val: string) => dayjs(val).format('DD.MM.YYYY')
         },
         {
@@ -1025,8 +1037,72 @@ export default function OperationsPage() {
         }
     };
 
+    // ---- Operations Mode (Private / Shuttle) ----
+    const [operationsMode, setOperationsMode] = useState<'private' | 'shuttle'>('private');
+
+    // Sync mode change → automatically update the transferType filter
+    const handleModeChange = (mode: 'private' | 'shuttle') => {
+        setOperationsMode(mode);
+        if (mode === 'private') {
+            setFilters(prev => ({ ...prev, transferType: 'PRIVATE' }));
+        }
+        // shuttle mode has its own table (fetchShuttleRuns), no filter change needed
+    };
+
+    // ---- Shuttle Runs State ----
+    const [shuttleRuns, setShuttleRuns] = useState<any[]>([]);
+    const [shuttleRunsLoading, setShuttleRunsLoading] = useState(false);
+    const [expandedRunKeys, setExpandedRunKeys] = useState<string[]>([]);
+
+    const fetchShuttleRuns = async () => {
+        setShuttleRunsLoading(true);
+        try {
+            const date = filters.dateRange[0].format('YYYY-MM-DD');
+            const res = await apiClient.get(`/api/operations/shuttle-runs?date=${date}`);
+            if (res.data.success) {
+                setShuttleRuns(res.data.data);
+            }
+        } catch (err) {
+            console.error('Shuttle runs fetch error:', err);
+            message.error('Shuttle seferleri alınamadı');
+        } finally {
+            setShuttleRunsLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        if (operationsMode === 'shuttle') {
+            fetchShuttleRuns();
+        }
+    }, [operationsMode, filters.dateRange]);
+
+    const handleShuttleAssign = async (run: any, driverId?: string, vehicleId?: string) => {
+        const bookingIds = run.bookings.map((b: any) => b.id);
+        if (bookingIds.length === 0) return;
+        try {
+            await apiClient.patch('/api/operations/shuttle-runs/assign', { bookingIds, driverId, vehicleId });
+            // Optimistic update
+            setShuttleRuns(prev => prev.map(r => {
+                if (r.runKey !== run.runKey) return r;
+                return {
+                    ...r,
+                    driverId: driverId ?? r.driverId,
+                    vehicleId: vehicleId ?? r.vehicleId,
+                    bookings: r.bookings.map((b: any) => ({
+                        ...b,
+                        driverId: driverId ?? b.driverId,
+                        assignedVehicleId: vehicleId ?? b.assignedVehicleId,
+                    }))
+                };
+            }));
+            message.success(`${bookingIds.length} yolcu için atama güncellendi`);
+        } catch (err: any) {
+            message.error('Atama başarısız: ' + (err?.response?.data?.error || err.message));
+        }
+    };
+
     // ---- Tab State ----
-    const [activeTab, setActiveTab] = useState<'active' | 'completed'>('active');
+    const [bookingTab, setBookingTab] = useState<'active' | 'completed'>('active');
 
     // ---- Auto-Assign State ----
     const [autoAssignModal, setAutoAssignModal] = useState<{
@@ -1100,10 +1176,20 @@ export default function OperationsPage() {
                         padding: '10px 20px',
                         flexShrink: 0,
                     }}>
-                        {/* Row 1: Direction tabs + action buttons */}
+                        {/* Row 1: Mode toggle + Direction tabs + action buttons */}
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
-                            <Space size={4} wrap>
-                                {[
+                            <Space size={8} wrap>
+                                <Segmented
+                                    value={operationsMode}
+                                    onChange={(v) => handleModeChange(v as 'private' | 'shuttle')}
+                                    options={[
+                                        { label: '🚗 Özel Transferler', value: 'private' },
+                                        { label: '🚌 Shuttle Seferleri', value: 'shuttle' },
+                                    ]}
+                                    style={{ fontWeight: 600, fontSize: 13, background: '#f0f4ff' }}
+                                />
+
+                                {operationsMode === 'private' && [
                                     { key: 'ALL', label: 'HEPSİ' },
                                     { key: 'DEPARTURE', label: '↗ GİDİŞ' },
                                     { key: 'ARRIVAL', label: '↙ GELİŞ' },
@@ -1128,33 +1214,48 @@ export default function OperationsPage() {
                                     </button>
                                 ))}
 
-                                <Badge count={bookings.filter((b: any) => b.status === 'PENDING').length} size="small">
-                                    <Button
-                                        size="small"
-                                        danger
-                                        type={bookings.filter((b: any) => b.status === 'PENDING').length > 0 ? 'primary' : 'default'}
-                                        style={{ borderRadius: 6, fontWeight: 600, fontSize: 12 }}
-                                    >
-                                        ONAY BEKLEYEN
-                                    </Button>
-                                </Badge>
+                                {operationsMode === 'private' && (
+                                    <Badge count={bookings.filter((b: any) => b.status === 'PENDING').length} size="small">
+                                        <Button
+                                            size="small"
+                                            danger
+                                            type={bookings.filter((b: any) => b.status === 'PENDING').length > 0 ? 'primary' : 'default'}
+                                            style={{ borderRadius: 6, fontWeight: 600, fontSize: 12 }}
+                                        >
+                                            ONAY BEKLEYEN
+                                        </Button>
+                                    </Badge>
+                                )}
                             </Space>
 
                             <Space size={4} wrap>
-                                <Button
-                                    size="small"
-                                    type="primary"
-                                    onClick={handleAutoAssign}
-                                    style={{
-                                        borderRadius: 6,
-                                        fontWeight: 600,
-                                        fontSize: 12,
-                                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                                        border: 'none'
-                                    }}
-                                >
-                                    ⚡ Otomatik Operasyon Yap
-                                </Button>
+                                {operationsMode === 'private' && (
+                                    <Button
+                                        size="small"
+                                        type="primary"
+                                        onClick={handleAutoAssign}
+                                        style={{
+                                            borderRadius: 6,
+                                            fontWeight: 600,
+                                            fontSize: 12,
+                                            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                            border: 'none'
+                                        }}
+                                    >
+                                        ⚡ Otomatik Operasyon Yap
+                                    </Button>
+                                )}
+                                {operationsMode === 'shuttle' && (
+                                    <Button
+                                        size="small"
+                                        icon={<ReloadOutlined />}
+                                        onClick={fetchShuttleRuns}
+                                        loading={shuttleRunsLoading}
+                                        style={{ borderRadius: 6 }}
+                                    >
+                                        Yenile
+                                    </Button>
+                                )}
                                 <Popover
                                     trigger="click"
                                     title={<span style={{ fontWeight: 700 }}>Sütun Görünürlüğü</span>}
@@ -1218,8 +1319,10 @@ export default function OperationsPage() {
                                 <RangePicker
                                     size="small"
                                     style={{ width: '100%' }}
-                                    defaultValue={[dayjs(), dayjs().add(7, 'd')]}
+                                    value={filters.dateRange as any}
+                                    onChange={(dates) => setFilters(prev => ({ ...prev, dateRange: dates as any }))}
                                     format="DD.MM.YY"
+                                    allowClear={false}
                                     placeholder={['Başlangıç', 'Bitiş']}
                                 />
                             </Col>
@@ -1227,12 +1330,12 @@ export default function OperationsPage() {
                                 <Select
                                     size="small"
                                     style={{ width: '100%' }}
-                                    defaultValue="ALL"
-                                    onChange={(val) => setFilters({ ...filters, transferType: val })}
+                                    value={filters.transferType}
+                                    onChange={(val) => setFilters(prev => ({ ...prev, transferType: val }))}
                                     options={[
                                         { value: 'ALL', label: 'Tip: Hepsi' },
-                                        { value: 'SHUTTLE', label: 'Shuttle' },
-                                        { value: 'PRIVATE', label: 'Özel' },
+                                        { value: 'PRIVATE', label: 'Tip: Özel' },
+                                        { value: 'SHUTTLE', label: 'Tip: Shuttle' },
                                     ]}
                                 />
                             </Col>
@@ -1314,84 +1417,117 @@ export default function OperationsPage() {
                         </Row>
                     </div>
 
-                    {/* ── TABS: Aktif / Tamamlandı ── */}
-                    <div style={{
-                        background: '#fff',
-                        borderBottom: '1px solid #e5e7eb',
-                        padding: '0 20px',
-                        display: 'flex',
-                        gap: 0,
-                        flexShrink: 0,
-                    }}>
-                        {[
-                            { key: 'active', label: 'Aktif Operasyonlar', count: activeCount, color: '#2563eb' },
-                            { key: 'completed', label: 'Tamamlanan Operasyonlar', count: completedCount, color: '#16a34a' },
-                        ].map(tab => (
-                            <button
-                                key={tab.key}
-                                onClick={() => setActiveTab(tab.key as 'active' | 'completed')}
-                                style={{
-                                    padding: '10px 20px',
-                                    border: 'none',
-                                    borderBottom: activeTab === tab.key ? `2px solid ${tab.color}` : '2px solid transparent',
-                                    background: 'transparent',
-                                    cursor: 'pointer',
-                                    fontWeight: activeTab === tab.key ? 700 : 500,
-                                    color: activeTab === tab.key ? tab.color : '#6b7280',
-                                    fontSize: 13,
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: 8,
-                                    transition: 'all 0.15s',
-                                }}
-                            >
-                                {tab.label}
-                                <span style={{
-                                    background: activeTab === tab.key ? tab.color : '#d1d5db',
-                                    color: '#fff',
-                                    borderRadius: 20,
-                                    padding: '1px 8px',
-                                    fontSize: 11,
-                                    fontWeight: 700,
-                                }}>
-                                    {tab.count}
-                                </span>
-                            </button>
-                        ))}
-                    </div>
+                    {/* ── TABS: Aktif / Tamamlandı (only for private mode) ── */}
+                    {operationsMode === 'private' && (
+                        <div style={{
+                            background: '#fff',
+                            borderBottom: '1px solid #e5e7eb',
+                            padding: '0 20px',
+                            display: 'flex',
+                            gap: 0,
+                            flexShrink: 0,
+                        }}>
+                            {[
+                                { key: 'active', label: 'Aktif Operasyonlar', count: activeCount, color: '#2563eb' },
+                                { key: 'completed', label: 'Tamamlanan Operasyonlar', count: completedCount, color: '#16a34a' },
+                            ].map(tab => (
+                                <button
+                                    key={tab.key}
+                                    onClick={() => setBookingTab(tab.key as 'active' | 'completed')}
+                                    style={{
+                                        padding: '10px 20px',
+                                        border: 'none',
+                                        borderBottom: bookingTab === tab.key ? `2px solid ${tab.color}` : '2px solid transparent',
+                                        background: 'transparent',
+                                        cursor: 'pointer',
+                                        fontWeight: bookingTab === tab.key ? 700 : 500,
+                                        color: bookingTab === tab.key ? tab.color : '#6b7280',
+                                        fontSize: 13,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 8,
+                                        transition: 'all 0.15s',
+                                    }}
+                                >
+                                    {tab.label}
+                                    <span style={{
+                                        background: bookingTab === tab.key ? tab.color : '#d1d5db',
+                                        color: '#fff',
+                                        borderRadius: 20,
+                                        padding: '1px 8px',
+                                        fontSize: 11,
+                                        fontWeight: 700,
+                                    }}>
+                                        {tab.count}
+                                    </span>
+                                </button>
+                            ))}
+                        </div>
+                    )}
 
                     {/* ── TABLE INFO BAR ── */}
-                    <div style={{
-                        background: '#f8fafc',
-                        borderBottom: '1px solid #e5e7eb',
-                        padding: '6px 20px',
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        flexShrink: 0,
-                    }}>
-                        <Space size={16}>
-                            <Text style={{ fontSize: 12 }}>
-                                <strong>{bookings.length}</strong> kayıt listeleniyor
+                    {operationsMode === 'private' && (
+                        <div style={{
+                            background: '#f8fafc',
+                            borderBottom: '1px solid #e5e7eb',
+                            padding: '6px 20px',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            flexShrink: 0,
+                        }}>
+                            <Space size={16}>
+                                <Text style={{ fontSize: 12 }}>
+                                    <strong>{bookings.length}</strong> kayıt listeleniyor
+                                </Text>
+                                {['PENDING', 'CONFIRMED', 'COMPLETED', 'CANCELLED'].map(s => {
+                                    const cnt = bookings.filter((b: any) => b.status === s).length;
+                                    if (!cnt) return null;
+                                    const colors: Record<string, string> = { PENDING: '#d97706', CONFIRMED: '#2563eb', COMPLETED: '#16a34a', CANCELLED: '#dc2626' };
+                                    const labels: Record<string, string> = { PENDING: 'Bekliyor', CONFIRMED: 'Onaylı', COMPLETED: 'Tamamlandı', CANCELLED: 'İptal' };
+                                    return (
+                                        <span key={s} style={{ fontSize: 11, color: colors[s], fontWeight: 600 }}>
+                                            {labels[s]}: {cnt}
+                                        </span>
+                                    );
+                                })}
+                            </Space>
+                            <Text type="secondary" style={{ fontSize: 11 }}>
+                                <DragOutlined /> Sütunları sürükleyip genişletebilirsiniz
                             </Text>
-                            {['PENDING', 'CONFIRMED', 'COMPLETED', 'CANCELLED'].map(s => {
-                                const cnt = bookings.filter((b: any) => b.status === s).length;
-                                if (!cnt) return null;
-                                const colors: Record<string, string> = { PENDING: '#d97706', CONFIRMED: '#2563eb', COMPLETED: '#16a34a', CANCELLED: '#dc2626' };
-                                const labels: Record<string, string> = { PENDING: 'Bekliyor', CONFIRMED: 'Onaylı', COMPLETED: 'Tamamlandı', CANCELLED: 'İptal' };
-                                return (
-                                    <span key={s} style={{ fontSize: 11, color: colors[s], fontWeight: 600 }}>
-                                        {labels[s]}: {cnt}
-                                    </span>
-                                );
-                            })}
-                        </Space>
-                        <Text type="secondary" style={{ fontSize: 11 }}>
-                            <DragOutlined /> Sütunları sürükleyip genişletebilirsiniz
-                        </Text>
-                    </div>
+                        </div>
+                    )}
 
-                    {/* ── MAIN TABLE ── */}
+                    {/* ── SHUTTLE INFO BAR ── */}
+                    {operationsMode === 'shuttle' && (
+                        <div style={{
+                            background: '#eff6ff',
+                            borderBottom: '1px solid #bfdbfe',
+                            padding: '6px 20px',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            flexShrink: 0,
+                        }}>
+                            <Space size={16}>
+                                <Text style={{ fontSize: 12 }}>
+                                    <strong>{shuttleRuns.length}</strong> sefer listeleniyor
+                                </Text>
+                                <Text style={{ fontSize: 11, color: '#2563eb', fontWeight: 600 }}>
+                                    Toplam Yolcu: {shuttleRuns.reduce((sum, r) => sum + r.bookings.length, 0)}
+                                </Text>
+                                <Text style={{ fontSize: 11, color: '#9333ea', fontWeight: 600 }}>
+                                    Atanan Sefer: {shuttleRuns.filter(r => r.driverId).length} / {shuttleRuns.length}
+                                </Text>
+                            </Space>
+                            <Text type="secondary" style={{ fontSize: 11 }}>
+                                🚌 Şöför ve araç atamak için sefer satırında açılır menüyü kullanın
+                            </Text>
+                        </div>
+                    )}
+
+                    {/* ── MAIN TABLE (Private mode) ── */}
+                    {operationsMode === 'private' && (
                     <div style={{ flex: 1, overflow: 'auto', padding: '0' }}>
                         <DndContext
                             sensors={sensors}
@@ -1419,7 +1555,7 @@ export default function OperationsPage() {
                                         },
                                     }}
                                     dataSource={bookings.filter((b: any) => {
-                                        if (activeTab === 'completed') return b.status === 'COMPLETED';
+                                        if (bookingTab === 'completed') return b.status === 'COMPLETED';
                                         return b.status !== 'COMPLETED';
                                     })}
                                     rowClassName={(record: any) => {
@@ -1443,6 +1579,238 @@ export default function OperationsPage() {
                             </SortableContext>
                         </DndContext>
                     </div>
+                    )}
+
+                    {/* ── SHUTTLE RUNS CARD PANEL (Shuttle mode) ── */}
+                    {operationsMode === 'shuttle' && (
+                    <div style={{ flex: 1, overflow: 'auto', padding: '16px 20px', background: '#f8fafc' }}>
+                        {shuttleRunsLoading ? (
+                            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 300 }}>
+                                <Spin size="large" tip="Sefer verileri yükleniyor..." />
+                            </div>
+                        ) : shuttleRuns.length === 0 ? (
+                            <div style={{
+                                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                                height: 380, gap: 16
+                            }}>
+                                <div style={{ fontSize: 64 }}>🚌</div>
+                                <div style={{ fontSize: 20, fontWeight: 700, color: '#374151' }}>Bu tarihte shuttle seferi bulunamadı</div>
+                                <div style={{ fontSize: 14, color: '#9ca3af', maxWidth: 400, textAlign: 'center' }}>
+                                    Shuttle seferleri, rezervasyon yapılırken araç tipi "Shuttle" veya "Paylaşımlı" seçilen
+                                    gruplandırılmış transferlerdir. Tarih filtresini değiştirmeyi deneyin.
+                                </div>
+                                <Button
+                                    type="primary"
+                                    icon={<ReloadOutlined />}
+                                    onClick={fetchShuttleRuns}
+                                    style={{ borderRadius: 8, background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', border: 'none' }}
+                                >
+                                    Yeniden Yükle
+                                </Button>
+                            </div>
+                        ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                                {shuttleRuns.map((run: any) => {
+                                    const totalPax = run.bookings.reduce((s: number, b: any) => s + (b.adults || 1), 0);
+                                    const capacity = run.maxSeats || 0;
+                                    const pct = capacity > 0 ? Math.round((totalPax / capacity) * 100) : 0;
+                                    const fillColor = pct >= 90 ? '#dc2626' : pct >= 70 ? '#d97706' : '#16a34a';
+                                    const isAssigned = run.driverId && run.vehicleId;
+                                    const isPartial = (run.driverId || run.vehicleId) && !isAssigned;
+                                    const isExpanded = expandedRunKeys.includes(run.runKey);
+
+                                    const driverName = run.driverId
+                                        ? (() => { const d = drivers.find((dr: any) => (dr.user?.id || dr.id) === run.driverId); return d ? `${d.firstName} ${d.lastName}` : run.driverId.substring(0, 8); })()
+                                        : null;
+                                    const vehiclePlate = run.vehicleId
+                                        ? (() => { const v = vehicles.find((vh: any) => vh.id === run.vehicleId); return v ? v.plateNumber : null; })()
+                                        : null;
+
+                                    const shuttleVehicles = vehicles.filter((v: any) => v.usageType === 'SHUTTLE' || v.metadata?.usageType === 'SHUTTLE');
+                                    const vehicleOpts = (shuttleVehicles.length > 0 ? shuttleVehicles : vehicles).map((v: any) => ({
+                                        value: v.id,
+                                        label: `${v.plateNumber} – ${v.brand || ''} ${v.model || ''}`.trim()
+                                    }));
+                                    const driverOpts = drivers.map((d: any) => ({
+                                        value: d.user?.id || d.id,
+                                        label: `${d.firstName || ''} ${d.lastName || ''}`.trim()
+                                    }));
+
+                                    return (
+                                        <div key={run.runKey} style={{
+                                            background: '#fff',
+                                            borderRadius: 12,
+                                            border: `2px solid ${isAssigned ? '#10b981' : isPartial ? '#f59e0b' : '#e5e7eb'}`,
+                                            overflow: 'hidden',
+                                            boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
+                                        }}>
+                                            {/* ── CARD HEADER ── */}
+                                            <div style={{
+                                                display: 'flex', alignItems: 'center', gap: 12,
+                                                padding: '10px 14px',
+                                                background: isAssigned
+                                                    ? 'linear-gradient(135deg, #f0fdf4, #dcfce7)'
+                                                    : isPartial
+                                                    ? 'linear-gradient(135deg, #fffbeb, #fef3c7)'
+                                                    : 'linear-gradient(135deg, #f8fafc, #f1f5f9)',
+                                                borderBottom: '1px solid #e5e7eb',
+                                            }}>
+                                                {/* Kalkış saati */}
+                                                <div style={{
+                                                    background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                                                    color: '#fff', borderRadius: 8,
+                                                    padding: '8px 14px', fontSize: 20, fontWeight: 800,
+                                                    letterSpacing: 1, minWidth: 72, textAlign: 'center', flexShrink: 0,
+                                                }}>
+                                                    {run.departureTime}
+                                                </div>
+
+                                                {/* Varış + Yolcu sayısı */}
+                                                <div style={{ flex: 1, minWidth: 0 }}>
+                                                    <div style={{ fontWeight: 800, fontSize: 15, color: '#1e293b', marginBottom: 3 }}>
+                                                        🏁 {run.toName || run.routeName}
+                                                    </div>
+                                                    <div style={{ fontSize: 11, color: '#64748b', display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                                                        <span style={{ fontWeight: 600, color: '#6366f1' }}>📍 {run.bookings.length} durak:</span>
+                                                        {run.bookings.map((b: any, i: number) => (
+                                                            <span key={b.id} style={{ background: '#e0e7ff', color: '#4338ca', borderRadius: 4, padding: '1px 6px', fontSize: 10, fontWeight: 600 }}>
+                                                                {b.contactName?.split(' ')[0]}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                </div>
+
+                                                {/* Toplam yolcu */}
+                                                <div style={{ textAlign: 'center', flexShrink: 0 }}>
+                                                    <div style={{ fontWeight: 800, fontSize: 20, color: fillColor, lineHeight: 1 }}>{totalPax}</div>
+                                                    <div style={{ fontSize: 10, color: '#9ca3af' }}>yolcu</div>
+                                                    {capacity > 0 && (
+                                                        <div style={{ width: 50, height: 4, background: '#e5e7eb', borderRadius: 3, marginTop: 3 }}>
+                                                            <div style={{ width: `${Math.min(pct, 100)}%`, height: '100%', background: fillColor, borderRadius: 3 }} />
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                {/* Durum badge */}
+                                                <div style={{ flexShrink: 0 }}>
+                                                    {isAssigned
+                                                        ? <Tag color="success" style={{ fontWeight: 700 }}>✅ Atandı</Tag>
+                                                        : isPartial
+                                                        ? <Tag color="warning" style={{ fontWeight: 700 }}>⚠️ Kısmi</Tag>
+                                                        : <Tag color="error" style={{ fontWeight: 700 }}>❌ Atanmadı</Tag>
+                                                    }
+                                                </div>
+                                            </div>
+
+                                            {/* Card Body: Assignments */}
+                                            <div style={{ padding: '10px 16px', display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap', borderBottom: '1px solid #e5e7eb' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                    <span style={{ fontSize: 12, color: '#6b7280', fontWeight: 600, minWidth: 50 }}>ŞOFÖR</span>
+                                                    <Select
+                                                        size="small"
+                                                        style={{ width: 180 }}
+                                                        placeholder="Şoför seç..."
+                                                        showSearch
+                                                        optionFilterProp="label"
+                                                        value={run.driverId || undefined}
+                                                        options={driverOpts}
+                                                        onChange={(v) => handleShuttleAssign(run, v, undefined)}
+                                                        allowClear
+                                                    />
+                                                    {driverName && (
+                                                        <span style={{ fontSize: 12, color: '#10b981', fontWeight: 600 }}>👤 {driverName}</span>
+                                                    )}
+                                                </div>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                    <span style={{ fontSize: 12, color: '#6b7280', fontWeight: 600, minWidth: 40 }}>ARAÇ</span>
+                                                    <Select
+                                                        size="small"
+                                                        style={{ width: 200 }}
+                                                        placeholder="Araç seç..."
+                                                        showSearch
+                                                        optionFilterProp="label"
+                                                        value={run.vehicleId || undefined}
+                                                        options={vehicleOpts}
+                                                        onChange={(v) => handleShuttleAssign(run, undefined, v)}
+                                                        allowClear
+                                                    />
+                                                    {vehiclePlate && (
+                                                        <span style={{ fontSize: 12, color: '#6366f1', fontWeight: 600 }}>🚌 {vehiclePlate}</span>
+                                                    )}
+                                                </div>
+                                                {run.pricePerSeat > 0 && (
+                                                    <div style={{ marginLeft: 'auto', fontSize: 12, color: '#6b7280' }}>
+                                                        Koltuk fiyatı: <strong style={{ color: '#1f2937' }}>₺{run.pricePerSeat}</strong>
+                                                        &nbsp;·&nbsp; Toplam: <strong style={{ color: '#6366f1' }}>₺{(run.pricePerSeat * totalPax).toLocaleString()}</strong>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* ── ALWAYS-VISIBLE PASSENGER LIST ── */}
+                                            <div style={{ background: '#fafafa' }}>
+                                                {/* Column header row */}
+                                                <div style={{
+                                                    display: 'grid',
+                                                    gridTemplateColumns: '32px 1fr 80px 200px 90px 50px 120px 80px',
+                                                    gap: 0,
+                                                    padding: '5px 12px',
+                                                    background: '#f1f5f9',
+                                                    borderBottom: '1px solid #e2e8f0',
+                                                    fontSize: 11,
+                                                    fontWeight: 700,
+                                                    color: '#64748b',
+                                                    letterSpacing: 0.3,
+                                                }}>
+                                                    <span>#</span>
+                                                    <span>MÜŞTERİ</span>
+                                                    <span>ALIŞ SAATİ</span>
+                                                    <span>ALIŞ NOKTASİ</span>
+                                                    <span>UÇUŞ</span>
+                                                    <span>PAX</span>
+                                                    <span>TELEFON</span>
+                                                    <span>DURUM</span>
+                                                </div>
+                                                {run.bookings.map((b: any, idx: number) => {
+                                                    const pickupTime = b.pickupDateTime
+                                                        ? new Date(b.pickupDateTime).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })
+                                                        : run.departureTime;
+                                                    const statusMap: any = { CONFIRMED: { color: '#2563eb', label: 'Onaylı' }, PENDING: { color: '#d97706', label: 'Bekliyor' }, COMPLETED: { color: '#16a34a', label: 'Tamamlandı' }, CANCELLED: { color: '#dc2626', label: 'İptal' } };
+                                                    const st = statusMap[b.status] || { color: '#6b7280', label: b.status };
+                                                    return (
+                                                        <div key={b.id} style={{
+                                                            display: 'grid',
+                                                            gridTemplateColumns: '32px 1fr 80px 200px 90px 50px 120px 80px',
+                                                            gap: 0,
+                                                            padding: '7px 12px',
+                                                            borderBottom: idx < run.bookings.length - 1 ? '1px solid #e5e7eb' : 'none',
+                                                            background: idx % 2 === 0 ? '#fff' : '#fafafa',
+                                                            alignItems: 'center',
+                                                            fontSize: 12,
+                                                        }}>
+                                                            <span style={{ color: '#94a3b8', fontWeight: 600 }}>{idx + 1}</span>
+                                                            <div>
+                                                                <div style={{ fontWeight: 700, color: '#1e293b', textTransform: 'uppercase', fontSize: 12 }}>{b.contactName}</div>
+                                                                <div style={{ fontSize: 10, color: '#94a3b8' }}>{b.bookingNumber}</div>
+                                                            </div>
+                                                            <span style={{ fontWeight: 700, color: '#6366f1', fontSize: 13 }}>{pickupTime}</span>
+                                                            <span style={{ fontSize: 11, color: '#374151', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={b.pickup}>📍 {b.pickup || '-'}</span>
+                                                            <span style={{ fontWeight: 600, color: b.flightNumber ? '#0369a1' : '#94a3b8', fontSize: 12 }}>
+                                                                {b.flightNumber ? `✈️ ${b.flightNumber}` : '—'}
+                                                            </span>
+                                                            <span style={{ fontWeight: 700, color: '#374151' }}>{b.adults || 1} kişi</span>
+                                                            <Text copyable={{ text: b.contactPhone }} style={{ fontSize: 11, color: '#374151' }}>{b.contactPhone}</Text>
+                                                            <span style={{ fontSize: 11, fontWeight: 600, color: st.color }}>{st.label}</span>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+                    )}
                 </div>
 
                 {/* Edit Columns Modal */}

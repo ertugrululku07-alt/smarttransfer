@@ -36,7 +36,7 @@ interface AdminMapPickerModalProps {
     initialLocation?: { lat: number; lng: number } | null;
     initialAddress?: string;
     initialRadius?: number;
-    initialDrawingMode?: "circle" | "polygon";
+    initialDrawingMode?: "circle" | "polygon" | "freehand";
     initialPolygonPath?: { lat: number; lng: number }[];
     title?: string;
     country?: string;
@@ -61,8 +61,20 @@ const AdminMapPickerModal: React.FC<AdminMapPickerModalProps> = ({
     const [loadingAddress, setLoadingAddress] = useState(false);
 
     // Polygon State
-    const [drawingMode, setDrawingMode] = useState<"circle" | "polygon">(initialDrawingMode);
+    const [drawingMode, setDrawingMode] = useState<"circle" | "polygon" | "freehand">(initialDrawingMode);
     const [polygonPath, setPolygonPath] = useState<{ lat: number; lng: number }[]>(initialPolygonPath);
+    const [freehandDrawEnabled, setFreehandDrawEnabled] = useState(false);
+
+    // APPEND new stroke points to existing polygon (cumulative drawing)
+    const handleFreehandAppend = (newPoints: { lat: number; lng: number }[]) => {
+        setPolygonPath(prev => [...prev, ...newPoints]);
+    };
+
+    const switchToFreehand = () => {
+        setDrawingMode('freehand');
+        setPolygonPath([]);
+        setFreehandDrawEnabled(false); // start in pan mode — user explicitly starts drawing
+    };
 
     const apiKey = process.env.NEXT_PUBLIC_HERE_API_KEY || 'RH04HVBUK6By3GfYWwVlCOG4Or1IzV-rRjygQRHbIvo';
 
@@ -176,7 +188,9 @@ const AdminMapPickerModal: React.FC<AdminMapPickerModalProps> = ({
     };
 
     const handleConfirm = () => {
-        let finalPolygon = drawingMode === 'polygon' ? polygonPath : generateCirclePolygon(markerPosition, radius);
+        let finalPolygon = (drawingMode === 'polygon' || drawingMode === 'freehand')
+            ? polygonPath
+            : generateCirclePolygon(markerPosition, radius);
         onConfirm(address, markerPosition.lat, markerPosition.lng, radius, finalPolygon);
         onCancel();
     };
@@ -208,21 +222,28 @@ const AdminMapPickerModal: React.FC<AdminMapPickerModalProps> = ({
             centered
         >
             <div style={{ marginBottom: 16 }}>
-                <div style={{ marginBottom: 12, display: 'flex', gap: 10 }}>
+                <div style={{ marginBottom: 12, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                     <Button
                         type={drawingMode === 'circle' ? 'primary' : 'default'}
-                        onClick={() => setDrawingMode('circle')}
+                        onClick={() => { setDrawingMode('circle'); setFreehandDrawEnabled(false); }}
                     >
-                        Daire (Yarıçap)
+                        🔵 Daire (Yarıçap)
                     </Button>
                     <Button
                         type={drawingMode === 'polygon' ? 'primary' : 'default'}
-                        onClick={() => setDrawingMode('polygon')}
+                        onClick={() => { setDrawingMode('polygon'); clearPolygon(); setFreehandDrawEnabled(false); }}
                     >
-                        Çizim Yap (Polygon)
+                        🔺 Tıkla-Çiz (Polygon)
                     </Button>
-                    {drawingMode === 'polygon' && (
-                        <Button onClick={clearPolygon} danger disabled={polygonPath.length === 0}>
+                    <Button
+                        type={drawingMode === 'freehand' ? 'primary' : 'default'}
+                        onClick={switchToFreehand}
+                        style={drawingMode === 'freehand' ? { background: '#52c41a', borderColor: '#52c41a' } : {}}
+                    >
+                        ✏️ Kalemle Çiz (Serbest)
+                    </Button>
+                    {(drawingMode === 'polygon' || drawingMode === 'freehand') && (
+                        <Button onClick={() => { clearPolygon(); setFreehandDrawEnabled(false); }} danger disabled={polygonPath.length === 0}>
                             Çizimi Temizle
                         </Button>
                     )}
@@ -266,7 +287,15 @@ const AdminMapPickerModal: React.FC<AdminMapPickerModalProps> = ({
 
             {drawingMode === 'polygon' && (
                 <div style={{ fontSize: 13, color: '#666', marginBottom: 16 }}>
-                    * Harita üzerine tıklayarak alanın sınırlarını belirleyin. Poligonu kapatmak için ilk noktaya gerek yoktur, son noktalar otomatik birleşir.
+                    🖱️ Harita üzerine <strong>tıklayarak</strong> alanın köşe noktalarını belirleyin. Poligon otomatik kapanır.
+                </div>
+            )}
+            {drawingMode === 'freehand' && (
+                <div style={{ fontSize: 13, color: '#389e0d', marginBottom: 16, background: '#f6ffed', padding: '8px 12px', borderRadius: 6, border: '1px solid #b7eb8f', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                    {freehandDrawEnabled
+                        ? <><strong>✏️ Çizim aktif.</strong> Fare tuşuna basılı tutarak haritada alan çizin.&nbsp;&nbsp;<Button size="small" onClick={() => setFreehandDrawEnabled(false)}>✋ Haritayı Kaydır</Button></>
+                        : <><strong>✋ Çizim pasif.</strong> Haritayı kaydırabilirsiniz.&nbsp;&nbsp;<Button size="small" type="primary" style={{ background: '#52c41a', borderColor: '#52c41a' }} onClick={() => setFreehandDrawEnabled(true)}>✏️ Çizimi Başlat</Button></>
+                    }
                 </div>
             )}
 
@@ -276,10 +305,12 @@ const AdminMapPickerModal: React.FC<AdminMapPickerModalProps> = ({
                     markerPosition={markerPosition}
                     radius={radius}
                     drawingMode={drawingMode}
+                    freehandDrawEnabled={freehandDrawEnabled}
                     polygonPath={polygonPath}
                     onMapClick={handleMapClick}
                     onMarkerDragEnd={handleMarkerDragEnd}
                     onPolygonClick={handlePolygonClick}
+                    onFreehandAppend={handleFreehandAppend}
                 />
                 
                 {loadingAddress && (

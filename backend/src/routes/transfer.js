@@ -227,26 +227,31 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
         }
 
         let detectedBaseLocation = null;
-        const allText = pickupNorm + " " + dropoffNorm;
+        // Use RAW pickup text (not normalized) so that airport words like 'havalimanı' are preserved for detection
+        const pickupTextRaw = pickup.toLowerCase();
         
         let bestMatchLength = 0;
         
         for (const hub of hubs) {
             const keys = hub.keywords ? hub.keywords.split(',').map(k => k.trim().toLowerCase()).filter(k => k) : [];
             keys.push(hub.code.toLowerCase());
-            if (hub.name) keys.push(hub.name.toLowerCase().replace('havalimanı', '').replace('airport', '').trim());
+            // NOTE: Do NOT auto-generate keys from hub.name as it produces generic words like 'antalya'
+            // that conflict between airport hubs and city hubs. Admin should set explicit keywords.
             
-            // Add robust aliases automatically to prevent user-admin omission errors
+            // Add robust aliases — airport-specific words only for AYT to avoid city name conflicts
             if (hub.code === 'GZP') keys.push('gazipaşa', 'gazipasa');
-            if (hub.code === 'AYT') keys.push('antalya');
+            if (hub.code === 'AYT') keys.push('havalimanı', 'havalimani', 'airport', 'havaalani');
             
             for (const k of keys) {
-                // If this keyword matches AND is longer/more specific than previous match
-                if (allText.includes(k) && k.length > bestMatchLength) {
+                if (pickupTextRaw.includes(k) && k.length >= bestMatchLength) {
                     // Give priority to specific airports over generic city names
                     if (k.includes('gazipaşa') || k.includes('gazipasa') || k.includes('gzp')) {
                          detectedBaseLocation = 'GZP';
                          bestMatchLength = 999; // Max priority
+                    } else if (k.includes('havalimanı') || k.includes('havalimani') || k.includes('airport') || k.includes('havaalani') || k === 'ayt') {
+                        // Airport-specific keyword: highest priority
+                        detectedBaseLocation = hub.code;
+                        bestMatchLength = 998;
                     } else {
                          detectedBaseLocation = hub.code;
                          bestMatchLength = k.length;
@@ -254,6 +259,8 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                 }
             }
         }
+        
+        console.log(`Hub Detection: pickup="${pickup.substring(0,40)}" → detectedBaseLocation="${detectedBaseLocation}"`);
 
         const dateObj = new Date(pickupDateTime);
         const dayOfWeekVal = dateObj.getDay(); // 0=Sun, 1=Mon...
@@ -404,12 +411,12 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                         const zoneOverage = zoneData.overage;
                         const zoneArea = zoneData.area;
 
-                        let candidateConfig = vt.zonePrices?.find(zp => zp.zoneId === zoneId && zp.baseLocation === detectedBaseLocation);
-                        
-                        // Fallback to AYT if detected base location is null and we are checking for AYT
-                        if (!candidateConfig && detectedBaseLocation === null) {
-                            candidateConfig = vt.zonePrices?.find(zp => zp.zoneId === zoneId && zp.baseLocation === 'AYT');
-                        }
+                        // Zone pricing ONLY applies when the pickup is from a known, registered hub.
+                        // If detectedBaseLocation is null (e.g. pickup from Denizli, İzmir etc.),
+                        // we do NOT apply zone pricing — the system must fall through to km-based pricing.
+                        let candidateConfig = detectedBaseLocation
+                            ? vt.zonePrices?.find(zp => zp.zoneId === zoneId && zp.baseLocation === detectedBaseLocation)
+                            : null;
 
                         if (candidateConfig) {
                             // If this overage is strictly better, OR it's a tie but this zone is more specific (smaller area)
@@ -446,6 +453,13 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                     calculatedPrice = Math.round((baseRouteCost + overageCost) * typeMult);
                 } else {
                     // Fallback to distance-based pricing:
+                    // RULE: km-based pricing only applies when the pickup is from a known hub.
+                    // If detectedBaseLocation is null (e.g. Denizli, İzmir — outside service area),
+                    // do NOT give any price — show no vehicles for this search.
+                    if (!detectedBaseLocation) {
+                        return null;
+                    }
+
                     // 1. Check agency-specific meta (contract fallback)
                     // 2. Then fall back to global vehicle type metadata
                     const meta = agencyContractMeta[vt.id];

@@ -51,8 +51,7 @@ router.post('/', authMiddleware, async (req, res) => {
                 customStartDate: data.customStartDate,
                 customEndDate: data.customEndDate,
                 weeklyDays: data.weeklyDays,
-                weeklyDays: data.weeklyDays,
-                pickupLocation: data.pickupLocation,
+                pickupLocation: data.pickupLocation ? (typeof data.pickupLocation === 'object' ? JSON.stringify(data.pickupLocation) : data.pickupLocation) : null,
                 pickupRadius: data.pickupRadius,
                 pickupPolygon: data.pickupPolygon
             }
@@ -88,7 +87,7 @@ router.put('/:id', authMiddleware, async (req, res) => {
                 customStartDate: data.customStartDate,
                 customEndDate: data.customEndDate,
                 weeklyDays: data.weeklyDays,
-                pickupLocation: data.pickupLocation,
+                pickupLocation: data.pickupLocation ? (typeof data.pickupLocation === 'object' ? JSON.stringify(data.pickupLocation) : data.pickupLocation) : null,
                 pickupRadius: data.pickupRadius,
                 pickupPolygon: data.pickupPolygon
             }

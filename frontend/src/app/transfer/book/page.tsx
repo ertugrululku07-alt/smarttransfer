@@ -40,7 +40,7 @@ import {
     ArrowRightOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
-import apiClient from '@/lib/api-client';
+import apiClient, { getImageUrl } from '@/lib/api-client';
 import TopBar from '@/app/components/TopBar';
 import BookingMap from '@/app/components/BookingMap';
 import { useCurrency } from '@/app/context/CurrencyContext';
@@ -713,7 +713,7 @@ const TransferBookingContent: React.FC = () => {
                                                                         }}>
                                                                             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                                                                                 {service.image ? (
-                                                                                    <img src={service.image} alt={service.name} style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 4 }} />
+                                                                                    <img src={getImageUrl(service.image)} alt={service.name} style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 4 }} />
                                                                                 ) : (
                                                                                     <div style={{ width: 48, height: 48, background: '#f5f5f5', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                                                                         <ShoppingOutlined style={{ fontSize: 20, color: '#999' }} />

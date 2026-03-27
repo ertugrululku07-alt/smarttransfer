@@ -1219,6 +1219,11 @@ model ShuttleRoute {
   // Status
   isActive Boolean @default(true)
 
+  // Pickup Details
+  pickupLocation  String?
+  pickupRadius    Float?
+  pickupPolygon   Json?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -1670,3 +1675,5 @@ model ActivityLog {
   @@index([tenantId, entityType])
   @@index([createdAt])
 }
+
+
