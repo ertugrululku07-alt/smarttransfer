@@ -322,13 +322,12 @@ server.listen(PORT, () => {
   // ==========================================================================
   const { Expo } = require('expo-server-sdk');
   const expo = new Expo({ useFcmV1: true });
-  const { PrismaClient } = require('@prisma/client');
-  const pushPrisma = new PrismaClient();
+  const prisma = require('./src/lib/prisma');
 
   const sendSilentPushToDrivers = async () => {
     try {
       // Find all drivers who have a push token and logged in within last 24h
-      const drivers = await pushPrisma.user.findMany({
+      const drivers = await prisma.user.findMany({
         where: {
           pushToken: { not: null },
           role: { type: { in: ['DRIVER', 'PARTNER', 'TENANT_STAFF'] } }
