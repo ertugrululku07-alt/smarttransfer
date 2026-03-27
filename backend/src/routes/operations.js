@@ -625,4 +625,189 @@ router.post('/auto-assign', authMiddleware, async (req, res) => {
     }
 });
 
+// ---------------------------------------------------------------------------
+// GET /api/operations/shuttle-runs?date=YYYY-MM-DD
+// Groups shuttle bookings into "runs" (grouped by shuttleRouteId + departureTime)
+// ---------------------------------------------------------------------------
+router.get('/shuttle-runs', authMiddleware, async (req, res) => {
+    try {
+        const { date } = req.query;
+        const targetDate = date || new Date().toISOString().split('T')[0];
+
+        const dayStart = new Date(`${targetDate}T00:00:00.000Z`);
+        const dayEnd   = new Date(`${targetDate}T23:59:59.999Z`);
+
+        // Fetch all shuttle bookings for the day
+        const bookings = await prisma.booking.findMany({
+            where: {
+                productType: 'TRANSFER',
+                startDate: { gte: dayStart, lte: dayEnd },
+                status: { notIn: ['CANCELLED'] },
+            },
+            include: { customer: true, agency: true },
+            orderBy: { startDate: 'asc' }
+        });
+
+        // Filter only shuttle bookings (identified by vehicleType, transferType, or shuttleRouteId metadata)
+        const shuttleBookings = bookings.filter(b => {
+            const vt = (b.metadata?.vehicleType || '').toLowerCase();
+            const tt = (b.metadata?.transferType || '').toLowerCase();
+            return vt.includes('shuttle') || vt.includes('paylaşımlı') || tt === 'shuttle' || b.metadata?.shuttleRouteId;
+        });
+
+        // Fetch all shuttle routes for reference
+        const shuttleRoutes = await prisma.shuttleRoute.findMany({
+            include: { vehicle: true }
+        });
+        const routeMap = {};
+        shuttleRoutes.forEach(r => { routeMap[r.id] = r; });
+
+        // Group by shuttleRouteId ONLY (destination-based, not time-based).
+        // Shuttle logic: one bus visits multiple stops at different times (11:30, 12:00, 13:00)
+        // but they are all the SAME run going to the same destination.
+        // departureTime will be set to the EARLIEST pickup time in post-processing.
+        const runsMap = {};
+        shuttleBookings.forEach(b => {
+            const routeId = b.metadata?.shuttleRouteId;
+
+            let key;
+            let routeNameForGrouping;
+            let fromNameForGrouping = b.metadata?.pickup || '';
+            let toNameForGrouping = b.metadata?.dropoff || '';
+            let maxSeatsForGrouping = 0;
+            let pricePerSeatForGrouping = 0;
+
+            if (routeId) {
+                // Group by routeId ONLY — all stops on the same route = same run
+                key = `ROUTE::${routeId}`;
+                const route = routeMap[routeId];
+                routeNameForGrouping = route
+                    ? `${route.fromName} → ${route.toName}`
+                    : (b.metadata?.pickup && b.metadata?.dropoff
+                        ? `${b.metadata.pickup} → ${b.metadata.dropoff}`
+                        : 'Bilinmeyen Rota');
+                fromNameForGrouping = route?.fromName || fromNameForGrouping;
+                toNameForGrouping = route?.toName || toNameForGrouping;
+                maxSeatsForGrouping = route?.maxSeats || 0;
+                pricePerSeatForGrouping = route?.pricePerSeat || 0;
+            } else {
+                // No shuttleRouteId: group by DESTINATION ONLY.
+                // All shuttle passengers going to the same place on the same day
+                // are on ONE run — the bus makes multiple stops at different times.
+                const dropoff = (b.metadata?.dropoff || 'Bilinmeyen Varış').trim();
+                // Normalize destination for grouping (first 60 chars to handle slight variations)
+                const dropoffKey = dropoff.substring(0, 60).toLowerCase().replace(/\s+/g, ' ');
+                key = `ADHOC::${dropoffKey}`;
+                routeNameForGrouping = `Shuttle → ${dropoff}`;
+                fromNameForGrouping = 'Çeşitli Noktalar';
+                toNameForGrouping = dropoff;
+            }
+
+            if (!runsMap[key]) {
+                runsMap[key] = {
+                    runKey: key,
+                    shuttleRouteId: routeId || null,
+                    routeName: routeNameForGrouping,
+                    fromName: fromNameForGrouping,
+                    toName:   toNameForGrouping,
+                    departureTime: null, // Will be set to earliest pickup in post-processing
+                    date: targetDate,
+                    maxSeats: maxSeatsForGrouping,
+                    pricePerSeat: pricePerSeatForGrouping,
+                    driverId: null,
+                    vehicleId: null,
+                    bookings: []
+                };
+            }
+
+            // Track assigned driver/vehicle from any booking in the run
+            if (b.driverId && !runsMap[key].driverId) runsMap[key].driverId = b.driverId;
+            if (b.metadata?.assignedVehicleId && !runsMap[key].vehicleId) runsMap[key].vehicleId = b.metadata?.assignedVehicleId;
+
+            runsMap[key].bookings.push({
+                id: b.id,
+                bookingNumber: b.bookingNumber,
+                contactName: b.contactName,
+                contactPhone: b.contactPhone,
+                adults: b.adults,
+                pickup: b.metadata?.pickup || '',
+                dropoff: b.metadata?.dropoff || '',
+                pickupDateTime: b.startDate,
+                status: b.status,
+                driverId: b.driverId,
+                assignedVehicleId: b.metadata?.assignedVehicleId || null,
+                agencyName: b.agency?.name || null,
+                flightNumber: b.metadata?.flightNumber || null,
+                notes: b.specialRequests || b.metadata?.notes || null,
+            });
+        });
+
+        // Post-process: sort bookings within each run by pickup time (ascending),
+        // then set run departureTime = earliest pickup stop time.
+        Object.values(runsMap).forEach(run => {
+            run.bookings.sort((a, b) => new Date(a.pickupDateTime) - new Date(b.pickupDateTime));
+            if (run.bookings.length > 0) {
+                // departureTime = earliest pickup across all stops in this run
+                run.departureTime = new Date(run.bookings[0].pickupDateTime)
+                    .toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Istanbul' });
+            }
+        });
+
+        const runs = Object.values(runsMap).sort((a, b) => {
+            if (a.departureTime < b.departureTime) return -1;
+            if (a.departureTime > b.departureTime) return 1;
+            return a.routeName.localeCompare(b.routeName);
+        });
+
+        res.json({ success: true, data: runs });
+    } catch (error) {
+        console.error('shuttle-runs error:', error);
+        res.status(500).json({ success: false, error: 'Shuttle seferleri alınamadı: ' + error.message });
+    }
+});
+
+// ---------------------------------------------------------------------------
+// PATCH /api/operations/shuttle-runs/assign
+// Body: { bookingIds: string[], driverId?: string, vehicleId?: string }
+// Bulk-assigns driver and/or vehicle to all bookings in a run
+// ---------------------------------------------------------------------------
+router.patch('/shuttle-runs/assign', authMiddleware, async (req, res) => {
+    try {
+        const { bookingIds, driverId, vehicleId } = req.body;
+
+        if (!bookingIds || !Array.isArray(bookingIds) || bookingIds.length === 0) {
+            return res.status(400).json({ success: false, error: 'bookingIds array zorunlu' });
+        }
+        if (!driverId && !vehicleId) {
+            return res.status(400).json({ success: false, error: 'driverId veya vehicleId gerekli' });
+        }
+
+        const updates = [];
+        for (const bookingId of bookingIds) {
+            const booking = await prisma.booking.findUnique({ where: { id: bookingId } });
+            if (!booking) continue;
+
+            const updateData = { metadata: { ...(booking.metadata || {}) } };
+            if (driverId) {
+                updateData.driverId = driverId;
+                updateData.metadata.driverId = driverId;
+            }
+            if (vehicleId) {
+                updateData.metadata.assignedVehicleId = vehicleId;
+            }
+
+            const updated = await prisma.booking.update({
+                where: { id: bookingId },
+                data: updateData
+            });
+            updates.push(updated.id);
+        }
+
+        res.json({ success: true, updatedCount: updates.length, updatedIds: updates });
+    } catch (error) {
+        console.error('shuttle-runs/assign error:', error);
+        res.status(500).json({ success: false, error: 'Shuttle atama başarısız: ' + error.message });
+    }
+});
+
 module.exports = router;
