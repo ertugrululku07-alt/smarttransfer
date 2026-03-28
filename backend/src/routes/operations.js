@@ -628,7 +628,7 @@ router.post('/auto-assign', authMiddleware, async (req, res) => {
 // GET /api/operations/shuttle-runs?date=YYYY-MM-DD
 // Groups shuttle bookings into "runs" (grouped by shuttleRouteId + departureTime)
 // ---------------------------------------------------------------------------
-router.get('/shuttle-runs', authMiddleware, async (req, res) => {
+router.get('/shuttle-runs', authMiddleware, async (req, res, next) => {
     let LOG_TAG = "INIT";
     try {
         const { date } = req.query;
@@ -801,16 +801,13 @@ router.get('/shuttle-runs', authMiddleware, async (req, res) => {
         });
 
         LOG_TAG = "FINALIZE";
-        res.json({ success: true, data: runs });
+        res.json({ success: true, count: runs.length, data: runs });
 
     } catch (error) {
         console.error(`SHUTTLE_RUNS_ERROR at [${LOG_TAG}]:`, error);
-        res.status(500).json({ 
-            success: false, 
-            error: `Server error at step ${LOG_TAG}: ${error.message || 'Unknown'}`,
-            stack: error.stack,
-            step: LOG_TAG
-        });
+        // Enrich error for global handler
+        error.LOG_TAG = LOG_TAG;
+        next(error); // Pass to global error handler in index.js for lastServerError capturing
     }
 });
 
