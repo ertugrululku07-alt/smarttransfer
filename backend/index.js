@@ -68,7 +68,7 @@ app.get('/api/ping', (req, res) => {
   res.json({
     success: true,
     message: 'SmartTravel API is running!',
-    version: '2.2.0'
+    version: '2.3.0'
   });
 });
 
@@ -114,7 +114,25 @@ app.use('/api/extra-services', tenantMiddleware, extraServiceRoutes);
 
 
 // Serve static files
-app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
+const fs = require('fs');
+const uploadsPath = path.join(__dirname, 'public/uploads');
+
+// Ensure public/uploads exists
+if (!fs.existsSync(path.join(__dirname, 'public'))) {
+  fs.mkdirSync(path.join(__dirname, 'public'));
+}
+if (!fs.existsSync(uploadsPath)) {
+  fs.mkdirSync(uploadsPath);
+}
+
+console.log(`Static uploads serving from: ${uploadsPath}`);
+app.use('/uploads', express.static(uploadsPath, {
+  setHeaders: (res, path) => {
+    if (path.endsWith('.jfif')) {
+      res.setHeader('Content-Type', 'image/jpeg');
+    }
+  }
+}));
 
 // Upload route
 const uploadRoutes = require('./src/routes/upload');
