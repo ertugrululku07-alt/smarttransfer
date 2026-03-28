@@ -68,7 +68,12 @@ app.get('/api/ping', (req, res) => {
   res.json({
     success: true,
     message: 'SmartTravel API is running!',
-    version: '2.3.0'
+    version: '2.3.1',
+    env: {
+      cwd: process.cwd(),
+      dirname: __dirname,
+      uploadsPath: path.join(__dirname, 'public/uploads')
+    }
   });
 });
 
