@@ -867,7 +867,7 @@ const TransferBookingContent: React.FC = () => {
                                             <div style={{ marginBottom: 16, textAlign: 'center' }}>
                                                 {vehicleDetails.image && (
                                                     <img
-                                                        src={vehicleDetails.image}
+                                                        src={getImageUrl(vehicleDetails.image)}
                                                         alt={vehicleDetails.vehicleType}
                                                         style={{ width: '100%', borderRadius: 8, marginBottom: 8, objectFit: 'cover' }}
                                                     />

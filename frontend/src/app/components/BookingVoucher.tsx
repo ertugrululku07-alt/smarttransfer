@@ -5,6 +5,7 @@ import { Card, Typography, Row, Col, Divider, Space, Tag } from 'antd';
 import { CarOutlined, CreditCardOutlined, SafetyCertificateOutlined, UserOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useBranding } from '../context/BrandingContext';
+import { getImageUrl } from '@/lib/api-client';
 
 const { Title, Text } = Typography;
 
@@ -27,8 +28,10 @@ export default function BookingVoucher({ booking, tenant, agency, pickup: pickup
     const dropoffLocation = booking.metadata?.dropoff || dropoffProp || 'Belirtilmedi';
 
     // Agency logo & name - prefer agency logo over tenant, check all possible field names
-    let agencyLogo = agency?.logo || agency?.logoUrl || agency?.logoImage
+    let agencyLogoRaw = agency?.logo || agency?.logoUrl || agency?.logoImage
         || tenant?.logoUrl || tenant?.logo || null;
+
+    let agencyLogo = agencyLogoRaw ? getImageUrl(agencyLogoRaw) : null;
 
     // Validate that the logo is actually a URL or base64 data, not just a string like "null" or empty
     if (agencyLogo && typeof agencyLogo === 'string' && !agencyLogo.startsWith('http') && !agencyLogo.startsWith('data:image')) {

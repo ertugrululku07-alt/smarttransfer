@@ -33,8 +33,9 @@ import {
   CarOutlined,
 } from '@ant-design/icons';
 import { Avatar, List, Tooltip } from 'antd';
-import apiClient, { getImageUrl } from '../../../lib/api-client';
+import apiClient, { getImageUrl } from '@/lib/api-client';
 import dayjs from 'dayjs';
+import { useBranding } from '../context/BrandingContext';
 import AdminGuard from '../AdminGuard';
 import AdminLayout from '../AdminLayout';
 
@@ -100,7 +101,7 @@ interface VehicleFormValues {
   zonePrices?: any[];
 }
 
-const VehiclesPage: React.FC = () => {
+const VehiclesPage: React.FC => {
   const [loading, setLoading] = useState(false);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [vehicleTypes, setVehicleTypes] = useState<any[]>([]); // Added vehicleTypes state
@@ -658,7 +659,17 @@ const VehiclesPage: React.FC = () => {
                     )}
 
                     {/* Usage Type inline dropdown */}
-                    <Select
+                                                                   {/* This block uses `vehicleDetails` which is not defined in this scope. */}
+                                                                   {/* It is placed here as per user instruction. */}
+                                                                   {/* If `vehicleDetails` is meant to be `v`, please clarify. */}
+                                                                   {/* {vehicleDetails.image && (
+                                                    <img
+                                                        src={getImageUrl(vehicleDetails.image)}
+                                                        alt={vehicleDetails.vehicleType}
+                                                        style={{ width: '100%', borderRadius: 8, marginBottom: 8, objectFit: 'cover' }}
+                                                    />
+                                                )} */}
+                   <Select
                       size="small"
                       value={v.usageType || 'TRANSFER'}
                       style={{ width: '100%', marginBottom: 10 }}
@@ -1049,7 +1060,7 @@ const VehiclesPage: React.FC = () => {
                         }}
                         onChange={handleUploadChange}
                       >
-                        {imageUrl ? <img src={imageUrl} alt="avatar" style={{ width: '100%', objectFit: 'contain' }} /> : uploadButton}
+                        {imageUrl ? <img src={getImageUrl(imageUrl)} alt="avatar" style={{ width: '100%', objectFit: 'contain' }} /> : uploadButton}
                       </Upload>
                     </Form.Item>
                     <Form.Item name="imageUrl" hidden>
