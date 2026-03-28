@@ -4,7 +4,21 @@ import axios from 'axios';
 const rawApiUrl = (process.env.NEXT_PUBLIC_API_URL || 'https://backend-production-69e7.up.railway.app').replace(/[\r\n]+/g, '').trim();
 const rawTenantSlug = process.env.NEXT_PUBLIC_TENANT_SLUG || 'smarttravel-demo';
 
-const API_URL = rawApiUrl.replace(/[\r\n]+/g, '').trim();
+// Defensive check: Railway URLs use dashes, never underscores. 
+// If an underscore is found in the domain part, it's likely a typo in the environment variable.
+const sanitizeUrl = (url: string) => {
+    if (url.includes('up.railway.app') && url.includes('_')) {
+        // Only replace underscores in the hostname part
+        const parts = url.split('/');
+        if (parts.length >= 3) {
+            parts[2] = parts[2].replace(/_/g, '-');
+            return parts.join('/');
+        }
+    }
+    return url;
+};
+
+const API_URL = sanitizeUrl(rawApiUrl);
 const TENANT_SLUG = rawTenantSlug.replace(/[\r\n]+/g, '').trim();
 
 // Create axios instance
@@ -18,13 +32,30 @@ const apiClient = axios.create({
 
 export const getImageUrl = (url?: string | null) => {
     if (!url) return undefined;
-    if (url.startsWith('http://localhost:4000')) {
-        return url.replace('http://localhost:4000', API_URL);
+    
+    // Version: 2.3.5 (Prod-Ready)
+    const normalizedUrl = url.trim();
+    
+    // 1. Handle localhost/127.0.0.1 legacy URLs
+    if (normalizedUrl.includes('localhost') || normalizedUrl.includes('127.0.0.1')) {
+        // Find the index of /uploads to preserve the path
+        const uploadIndex = normalizedUrl.indexOf('/uploads');
+        if (uploadIndex !== -1) {
+            return `${API_URL}${normalizedUrl.substring(uploadIndex)}`;
+        }
     }
-    if (url.startsWith('/uploads')) {
-        return `${API_URL}${url}`;
+    
+    // 2. Handle relative paths
+    if (normalizedUrl.startsWith('/uploads')) {
+        return `${API_URL}${normalizedUrl}`;
     }
-    return url;
+    
+    // 3. Handle just the filename (if somehow the prefix was lost)
+    if (!normalizedUrl.startsWith('http') && !normalizedUrl.startsWith('/')) {
+        return `${API_URL}/uploads/${normalizedUrl}`;
+    }
+    
+    return normalizedUrl;
 };
 
 // Add auth token to requests
