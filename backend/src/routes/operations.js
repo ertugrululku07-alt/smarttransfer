@@ -807,7 +807,9 @@ router.get('/shuttle-runs', authMiddleware, async (req, res) => {
         console.error(`SHUTTLE_RUNS_ERROR at [${LOG_TAG}]:`, error);
         res.status(500).json({ 
             success: false, 
-            error: `Server error at step ${LOG_TAG}: ${error.message || 'Unknown'}`
+            error: `Server error at step ${LOG_TAG}: ${error.message || 'Unknown'}`,
+            stack: error.stack,
+            step: LOG_TAG
         });
     }
 });

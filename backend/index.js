@@ -50,7 +50,7 @@ app.use(auditLogMiddleware);
 app.get('/health', (req, res) => {
   res.json({
     status: 'ok',
-    version: '2.0.0',
+    version: '2.1.0',
     timestamp: new Date().toISOString()
   });
 });
@@ -59,7 +59,7 @@ app.get('/api/ping', (req, res) => {
   res.json({
     success: true,
     message: 'SmartTravel API is running!',
-    version: '2.0.0'
+    version: '2.1.0'
   });
 });
 
