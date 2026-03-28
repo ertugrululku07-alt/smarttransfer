@@ -64,18 +64,7 @@ app.get('/health', (req, res) => {
   });
 });
 
-app.get('/api/ping', (req, res) => {
-  res.json({
-    success: true,
-    message: 'SmartTravel API is running!',
-    version: '2.3.1',
-    env: {
-      cwd: process.cwd(),
-      dirname: __dirname,
-      uploadsPath: path.join(__dirname, 'public/uploads')
-    }
-  });
-});
+// Removed duplicate ping for v2.3.2 diagnostics
 
 app.get('/api/debug/error-log', (req, res) => {
   res.json({
@@ -118,8 +107,7 @@ const extraServiceRoutes = require('./src/routes/extra-services');
 app.use('/api/extra-services', tenantMiddleware, extraServiceRoutes);
 
 
-// Serve static files
-const fs = require('fs');
+// Serve static files (REORDERED to the top and added directory check)
 const uploadsPath = path.join(__dirname, 'public/uploads');
 
 // Ensure public/uploads exists
@@ -130,14 +118,34 @@ if (!fs.existsSync(uploadsPath)) {
   fs.mkdirSync(uploadsPath);
 }
 
-console.log(`Static uploads serving from: ${uploadsPath}`);
 app.use('/uploads', express.static(uploadsPath, {
   setHeaders: (res, path) => {
-    if (path.endsWith('.jfif')) {
+    if (path.toLowerCase().endsWith('.jfif')) {
       res.setHeader('Content-Type', 'image/jpeg');
     }
   }
 }));
+
+app.get('/api/ping', (req, res) => {
+  let fileList = [];
+  try {
+     fileList = fs.readdirSync(uploadsPath);
+  } catch (e) {
+     fileList = ["Error reading dir: " + e.message];
+  }
+  
+  res.json({
+    success: true,
+    message: 'SmartTravel API is running!',
+    version: '2.3.2',
+    env: {
+      cwd: process.cwd(),
+      dirname: __dirname,
+      uploadsPath: uploadsPath,
+      files: fileList.slice(-10) // Show last 10 files
+    }
+  });
+});
 
 // Upload route
 const uploadRoutes = require('./src/routes/upload');
