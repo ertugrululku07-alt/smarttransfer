@@ -19,6 +19,15 @@ const transferRoutes = require('./src/routes/transfer');
 const app = express();
 const PORT = process.env.PORT || 4000;
 
+// Global error tracking for production debugging
+let lastServerError = { 
+  timestamp: null, 
+  message: "No error recorded since last start", 
+  stack: null, 
+  path: null, 
+  method: null 
+};
+
 // ============================================================================
 // MIDDLEWARE SETUP
 // ============================================================================
@@ -59,7 +68,14 @@ app.get('/api/ping', (req, res) => {
   res.json({
     success: true,
     message: 'SmartTravel API is running!',
-    version: '2.1.0'
+    version: '2.1.1'
+  });
+});
+
+app.get('/api/debug/error-log', (req, res) => {
+  res.json({
+    success: true,
+    lastError: lastServerError
   });
 });
 
@@ -250,21 +266,27 @@ app.use((req, res) => {
   });
 });
 
-// Global error handler
+// Global Error Handler for Production Debugging
 app.use((err, req, res, next) => {
-  console.error('Global error handler:', err);
+  console.error('GLOBAL_ERROR_HANDLER_LOG:', err);
+  
+  lastServerError = {
+    timestamp: new Date().toISOString(),
+    message: err.message || 'Unknown error',
+    stack: err.stack,
+    path: req.path,
+    method: req.method,
+    query: req.query,
+    body: (req.method === 'POST' || req.method === 'PATCH') ? req.body : undefined
+  };
 
-  res.status(err.status || 500).json({
+  res.status(500).json({
     success: false,
-    error: err.message || 'Internal server error',
-    ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
+    error: 'Internal Server Error',
+    diagnostic: err.message,
+    stack: err.stack
   });
 });
-
-// ============================================================================
-// START SERVER
-// ============================================================================
-
 
 // ============================================================================
 // START SERVER
