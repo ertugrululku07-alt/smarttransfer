@@ -68,7 +68,7 @@ app.get('/api/ping', (req, res) => {
   res.json({
     success: true,
     message: 'SmartTravel API is running!',
-    version: '2.1.3'
+    version: '2.2.0'
   });
 });
 

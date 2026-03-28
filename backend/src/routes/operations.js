@@ -690,16 +690,7 @@ router.get('/shuttle-runs', authMiddleware, async (req, res, next) => {
         LOG_TAG = "QUERY_ROUTES";
         const shuttleRoutes = await prisma.shuttleRoute.findMany({
             where: { tenantId: tenantId },
-            select: {
-                id: true,
-                tenantId: true,
-                fromName: true,
-                toName: true,
-                maxSeats: true,
-                pricePerSeat: true,
-                isActive: true,
-                vehicle: true // Include the vehicle relation
-            }
+            include: { vehicle: true }
         });
         
         const routeMap = {};
