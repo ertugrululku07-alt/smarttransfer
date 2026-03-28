@@ -629,20 +629,45 @@ router.post('/auto-assign', authMiddleware, async (req, res) => {
 // Groups shuttle bookings into "runs" (grouped by shuttleRouteId + departureTime)
 // ---------------------------------------------------------------------------
 router.get('/shuttle-runs', authMiddleware, async (req, res) => {
+    let LOG_TAG = "INIT";
     try {
         const { date } = req.query;
-        const targetDate = date || new Date().toISOString().split('T')[0];
+        LOG_TAG = "PARSE_DATE";
+        
+        // Safety for array dates or invalid strings
+        let targetDate;
+        if (Array.isArray(date)) {
+            targetDate = date[0];
+        } else {
+            targetDate = date || new Date().toISOString().split('T')[0];
+        }
 
-        const dayStart = new Date(`${targetDate}T00:00:00.000Z`);
-        const dayEnd   = new Date(`${targetDate}T23:59:59.999Z`);
+        if (!targetDate || typeof targetDate !== 'string') {
+            targetDate = new Date().toISOString().split('T')[0];
+        }
 
-        // Fetch all shuttle bookings for the day
-        // Robust tenant filtering for SaaS context
-        const tenantId = req.tenant?.id || req.user?.tenantId;
+        LOG_TAG = "CONSTRUCT_DATES";
+        // Ensure valid date string for ISO
+        let datePart = targetDate;
+        if (targetDate.includes('T')) {
+            datePart = targetDate.split('T')[0];
+        }
+        
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(datePart.substring(0, 10))) {
+             datePart = new Date().toISOString().split('T')[0];
+        }
+        
+        const dayStart = new Date(`${datePart}T00:00:00.000Z`);
+        const dayEnd   = new Date(`${datePart}T23:59:59.999Z`);
+
+        LOG_TAG = "CHECK_TENANT";
+        const user = req.user;
+        const tenantId = user?.tenantId;
         if (!tenantId) {
              return res.status(401).json({ success: false, error: 'Tenant context missing.' });
         }
 
+        LOG_TAG = "QUERY_BOOKINGS";
         const bookings = await prisma.booking.findMany({
             where: {
                 tenantId: tenantId, 
@@ -654,57 +679,48 @@ router.get('/shuttle-runs', authMiddleware, async (req, res) => {
             orderBy: { startDate: 'asc' }
         });
 
-        // Filter only shuttle bookings (identified by vehicleType, transferType, or shuttleRouteId metadata)
+        LOG_TAG = "FILTER_SHUTTLES";
         const shuttleBookings = bookings.filter(b => {
-            const vt = (b.metadata?.vehicleType || '').toLowerCase();
-            const tt = (b.metadata?.transferType || '').toLowerCase();
-            return vt.includes('shuttle') || vt.includes('paylaşımlı') || tt === 'shuttle' || b.metadata?.shuttleRouteId;
+            const m = b.metadata || {};
+            const vt = String(m.vehicleType || '').toLowerCase();
+            const tt = String(m.transferType || '').toLowerCase();
+            return vt.includes('shuttle') || vt.includes('paylaşımlı') || tt === 'shuttle' || m.shuttleRouteId;
         });
 
-        // Fetch all shuttle routes for reference
+        LOG_TAG = "QUERY_ROUTES";
         const shuttleRoutes = await prisma.shuttleRoute.findMany({
             where: { tenantId: tenantId },
             include: { vehicle: true }
         });
+        
         const routeMap = {};
-        if (shuttleRoutes) {
-            shuttleRoutes.forEach(r => { if (r.id) routeMap[r.id] = r; });
+        if (shuttleRoutes && Array.isArray(shuttleRoutes)) {
+            shuttleRoutes.forEach(r => { if (r && r.id) routeMap[r.id] = r; });
         }
 
-        // Group by shuttleRouteId ONLY (destination-based, not time-based).
-        // Shuttle logic: one bus visits multiple stops at different times (11:30, 12:00, 13:00)
-        // but they are all the SAME run going to the same destination.
-        // departureTime will be set to the EARLIEST pickup time in post-processing.
+        LOG_TAG = "GROUP_RUNS";
         const runsMap = {};
         shuttleBookings.forEach(b => {
-            const routeId = b.metadata?.shuttleRouteId;
+            const m = b.metadata || {};
+            const routeId = m.shuttleRouteId;
 
             let key;
             let routeNameForGrouping;
-            let fromNameForGrouping = b.metadata?.pickup || '';
-            let toNameForGrouping = b.metadata?.dropoff || '';
+            let fromNameForGrouping = m.pickup || '';
+            let toNameForGrouping = m.dropoff || '';
             let maxSeatsForGrouping = 0;
             let pricePerSeatForGrouping = 0;
 
-            if (routeId) {
-                // Group by routeId ONLY — all stops on the same route = same run
+            if (routeId && routeMap[routeId]) {
                 key = `ROUTE::${routeId}`;
                 const route = routeMap[routeId];
-                routeNameForGrouping = route
-                    ? `${route.fromName} → ${route.toName}`
-                    : (b.metadata?.pickup && b.metadata?.dropoff
-                        ? `${b.metadata.pickup} → ${b.metadata.dropoff}`
-                        : 'Bilinmeyen Rota');
-                fromNameForGrouping = route?.fromName || fromNameForGrouping;
-                toNameForGrouping = route?.toName || toNameForGrouping;
-                maxSeatsForGrouping = route?.maxSeats || 0;
-                pricePerSeatForGrouping = route?.pricePerSeat || 0;
+                routeNameForGrouping = `${route.fromName} → ${route.toName}`;
+                fromNameForGrouping = route.fromName || fromNameForGrouping;
+                toNameForGrouping = route.toName || toNameForGrouping;
+                maxSeatsForGrouping = Number(route.maxSeats) || 0;
+                pricePerSeatForGrouping = Number(route.pricePerSeat) || 0;
             } else {
-                // No shuttleRouteId: group by DESTINATION ONLY.
-                // All shuttle passengers going to the same place on the same day
-                // are on ONE run — the bus makes multiple stops at different times.
-                const dropoff = (b.metadata?.dropoff || 'Bilinmeyen Varış').trim();
-                // Normalize destination for grouping (first 60 chars to handle slight variations)
+                const dropoff = String(m.dropoff || 'Bilinmeyen Varış').trim();
                 const dropoffKey = dropoff.substring(0, 60).toLowerCase().replace(/\s+/g, ' ');
                 key = `ADHOC::${dropoffKey}`;
                 routeNameForGrouping = `Shuttle → ${dropoff}`;
@@ -719,8 +735,8 @@ router.get('/shuttle-runs', authMiddleware, async (req, res) => {
                     routeName: routeNameForGrouping,
                     fromName: fromNameForGrouping,
                     toName:   toNameForGrouping,
-                    departureTime: null, // Will be set to earliest pickup in post-processing
-                    date: targetDate,
+                    departureTime: null,
+                    date: datePart,
                     maxSeats: maxSeatsForGrouping,
                     pricePerSeat: pricePerSeatForGrouping,
                     driverId: null,
@@ -729,62 +745,53 @@ router.get('/shuttle-runs', authMiddleware, async (req, res) => {
                 };
             }
 
-            // Track assigned driver/vehicle from any booking in the run
             if (b.driverId && !runsMap[key].driverId) runsMap[key].driverId = b.driverId;
-            if (b.metadata?.assignedVehicleId && !runsMap[key].vehicleId) runsMap[key].vehicleId = b.metadata?.assignedVehicleId;
+            if (m.assignedVehicleId && !runsMap[key].vehicleId) runsMap[key].vehicleId = m.assignedVehicleId;
 
             runsMap[key].bookings.push({
                 id: b.id,
                 bookingNumber: b.bookingNumber,
                 contactName: b.contactName,
                 contactPhone: b.contactPhone,
-                adults: b.adults,
-                pickup: b.metadata?.pickup || '',
-                dropoff: b.metadata?.dropoff || '',
+                adults: b.adults || 0,
+                pickup: m.pickup || '',
+                dropoff: m.dropoff || '',
                 pickupDateTime: b.startDate,
                 status: b.status,
                 driverId: b.driverId,
-                assignedVehicleId: b.metadata?.assignedVehicleId || null,
+                assignedVehicleId: m.assignedVehicleId || null,
                 agencyName: b.agency?.name || null,
-                flightNumber: b.metadata?.flightNumber || null,
-                notes: b.specialRequests || b.metadata?.notes || null,
+                flightNumber: m.flightNumber || null,
+                notes: b.specialRequests || m.notes || null,
             });
         });
 
-        // Post-process: sort bookings within each run by pickup time (ascending),
-        // then set run departureTime = earliest pickup stop time.
+        LOG_TAG = "POST_PROCESS_TIMES";
         Object.values(runsMap).forEach(run => {
             run.bookings.sort((a, b) => {
-                const dA = new Date(a.pickupDateTime).getTime() || 0;
-                const dB = new Date(b.pickupDateTime).getTime() || 0;
+                const dA = a.pickupDateTime ? new Date(a.pickupDateTime).getTime() : 0;
+                const dB = b.pickupDateTime ? new Date(b.pickupDateTime).getTime() : 0;
                 return dA - dB;
             });
 
             if (run.bookings.length > 0) {
-                // departureTime = earliest pickup across all stops in this run
                 try {
                     const firstPickup = run.bookings[0].pickupDateTime;
                     if (firstPickup) {
                         const d = new Date(firstPickup);
                         if (!isNaN(d.getTime())) {
-                            // SAFE MANUAL HH:mm FORMATTING
-                            // Avoids toLocaleTimeString which crashes on unsupported systems
                             const hours = d.getHours();
                             const mins = d.getMinutes();
                             run.departureTime = `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
-                        } else {
-                            run.departureTime = "--:--";
-                        }
-                    } else {
-                        run.departureTime = "--:--";
-                    }
+                        } else { run.departureTime = "--:--"; }
+                    } else { run.departureTime = "--:--"; }
                 } catch (e) {
-                    console.error('Shuttle time parsing error:', e);
                     run.departureTime = "??:??";
                 }
             }
         });
 
+        LOG_TAG = "SORT_RUNS";
         const runs = Object.values(runsMap).sort((a, b) => {
             const timeA = a.departureTime || '99:99';
             const timeB = b.departureTime || '99:99';
@@ -793,18 +800,18 @@ router.get('/shuttle-runs', authMiddleware, async (req, res) => {
             return (a.routeName || '').localeCompare(b.routeName || '');
         });
 
+        LOG_TAG = "FINALIZE";
         res.json({ success: true, data: runs });
 
     } catch (error) {
-        console.error('CRITICAL Shuttle Runs API Error:', error);
-        // RETURN ERROR MESSAGE EXPLICITLY TO HELP FRONTEND INVESTIGATION
+        console.error(`SHUTTLE_RUNS_ERROR at [${LOG_TAG}]:`, error);
         res.status(500).json({ 
             success: false, 
-            error: error.message || 'Server error',
-            ...(process.env.NODE_ENV !== 'production' && { stack: error.stack })
+            error: `Server error at step ${LOG_TAG}: ${error.message || 'Unknown'}`
         });
     }
 });
+
 
 // ---------------------------------------------------------------------------
 // PATCH /api/operations/shuttle-runs/assign
