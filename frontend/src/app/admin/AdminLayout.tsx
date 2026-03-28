@@ -23,7 +23,7 @@ import {
 } from '@ant-design/icons';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../context/AuthContext';
-import { useBranding } from '../context/BrandingContext';
+import { useBranding } from '@/app/context/BrandingContext';
 import FloatingDriverChat from '../components/FloatingDriverChat';
 
 const { Header, Sider, Content } = Layout;

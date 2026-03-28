@@ -35,7 +35,7 @@ import {
 import { Avatar, List, Tooltip } from 'antd';
 import apiClient, { getImageUrl } from '@/lib/api-client';
 import dayjs from 'dayjs';
-import { useBranding } from '../context/BrandingContext';
+import { useBranding } from '@/app/context/BrandingContext';
 import AdminGuard from '../AdminGuard';
 import AdminLayout from '../AdminLayout';
 
