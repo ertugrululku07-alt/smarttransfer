@@ -238,7 +238,33 @@ const TransferSearchContent: React.FC = () => {
                                 <Card key={result.id} hoverable style={{ marginBottom: 16, overflow: 'hidden' }} styles={{ body: { padding: 0 } }}>
                                     <Row>
                                         <Col xs={24} md={8} style={{ background: '#f9f9f9', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, minHeight: 200, overflow: 'hidden', position: 'relative' }}>
-                                            {result.image ? <img src={getImageUrl(result.image)} alt={result.vehicleType} style={{ width: '100%', height: '100%', objectFit: 'contain', padding: '12px' }} /> : <CarOutlined style={{ fontSize: 80, color: '#d9d9d9' }} />}
+                                            {result.image ? (
+                                                <img 
+                                                    src={getImageUrl(result.image)} 
+                                                    alt={result.vehicleType} 
+                                                    style={{ width: '100%', height: '100%', objectFit: 'contain', padding: '12px' }} 
+                                                    onError={(e) => {
+                                                        const target = e.target as HTMLImageElement;
+                                                        if (target.src.includes('/vehicles/')) {
+                                                            // If even fallback fails, hide it or show icon
+                                                            target.style.display = 'none';
+                                                            const parent = target.parentElement;
+                                                            if (parent) {
+                                                                const icon = document.createElement('span');
+                                                                icon.className = 'anticon anticon-car';
+                                                                icon.style.fontSize = '80px';
+                                                                icon.style.color = '#d9d9d9';
+                                                                parent.appendChild(icon);
+                                                            }
+                                                        } else {
+                                                            // Try local fallback based on type
+                                                            target.src = result.isShuttle ? '/vehicles/sprinter.png' : '/vehicles/vito.png';
+                                                        }
+                                                    }}
+                                                />
+                                            ) : (
+                                                <CarOutlined style={{ fontSize: 80, color: '#d9d9d9' }} />
+                                            )}
                                             <div style={{ position: 'absolute', top: 12, left: 12 }}><Tag color="cyan">{result.vehicleType}</Tag></div>
                                         </Col>
                                         <Col xs={24} md={10} style={{ padding: 24 }}>

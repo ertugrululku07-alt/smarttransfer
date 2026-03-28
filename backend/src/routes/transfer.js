@@ -384,7 +384,7 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                 features: ['Belirli Kalkış Saatleri', 'Ekonomik', 'Paylaşımlı Yolculuk', ...(s.vehicle?.metadata?.hasWifi ? ['WiFi'] : [])],
                 cancellationPolicy: '24 saat öncesine kadar ücretsiz iptal',
                 estimatedDuration: 'Değişken', // Depends on stops
-                image: s.vehicle?.metadata?.imageUrl || '/vehicles/sprinter.jpg',
+                image: s.vehicle?.metadata?.imageUrl || '/vehicles/sprinter.png',
                 isShuttle: true,
                 departureTimes: s.departureTimes // Pass departure times to frontend
             };
@@ -501,7 +501,7 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                 }
                 
                 // Get image from active vehicles if type doesn't have one
-                const imageUrl = vt.image || (vt.vehicles && vt.vehicles.length > 0 ? vt.vehicles[0].metadata?.imageUrl : '/vehicles/vito.jpg');
+                const imageUrl = vt.image || (vt.vehicles && vt.vehicles.length > 0 ? vt.vehicles[0].metadata?.imageUrl : '/vehicles/vito.png');
 
                 return {
                     id: vt.id, 
