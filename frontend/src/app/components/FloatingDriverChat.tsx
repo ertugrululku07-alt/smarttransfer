@@ -5,7 +5,7 @@ import { MessageOutlined, CloseOutlined, SendOutlined, WifiOutlined, UserOutline
 import { useAuth } from '../context/AuthContext';
 import { io as socketIO, Socket } from 'socket.io-client';
 
-const RAILWAY_URL = 'https://smarttransfer-backend-production.up.railway.app';
+const RAILWAY_URL = 'https://backend-production-69e7.up.railway.app';
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || RAILWAY_URL;
 const API_URL = BASE_URL.endsWith('/api') ? BASE_URL : `${BASE_URL}/api`;
 const rawSocketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || RAILWAY_URL;

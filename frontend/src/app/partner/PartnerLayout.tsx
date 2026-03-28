@@ -41,7 +41,7 @@ const PartnerLayout: React.FC<PartnerLayoutProps> = ({ children }) => {
                 // Using existing client or fetch
                 const token = localStorage.getItem('token');
                 if (token) {
-                    const res = await fetch(`${(process.env.NEXT_PUBLIC_API_URL || 'https://smarttransfer-backend-production.up.railway.app').replace(/[\r\n]+/g, '').trim()}/api/transfer/partner/active-bookings`, {
+                    const res = await fetch(`${(process.env.NEXT_PUBLIC_API_URL || 'https://backend-production-69e7.up.railway.app').replace(/[\r\n]+/g, '').trim()}/api/transfer/partner/active-bookings`, {
                         headers: { 'Authorization': `Bearer ${token}` }
                     });
                     if (res.ok) {

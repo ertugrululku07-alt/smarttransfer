@@ -32,7 +32,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }
 
         // Initialize socket - connect to Railway (same server as driver app)
-        const rawSocketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'https://smarttransfer-backend-production.up.railway.app';
+        const rawSocketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'https://backend-production-69e7.up.railway.app';
         const SOCKET_URL = rawSocketUrl.replace(/[\r\n]+/g, '').trim();
         const socketInstance = io(SOCKET_URL, {
             autoConnect: false, // Wait for auth

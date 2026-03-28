@@ -77,7 +77,7 @@ const PersonnelCreatePage = () => {
 
     const uploadProps = {
         name: 'file',
-        action: `${(process.env.NEXT_PUBLIC_API_URL || 'https://smarttransfer-backend-production.up.railway.app').replace(/[\r\n]+/g, '').trim()}/api/upload/driver-docs`, // Use existing upload endpoint
+        action: `${(process.env.NEXT_PUBLIC_API_URL || 'https://backend-production-69e7.up.railway.app').replace(/[\r\n]+/g, '').trim()}/api/upload/driver-docs`, // Use existing upload endpoint
         headers: {
             authorization: 'authorization-text',
         },

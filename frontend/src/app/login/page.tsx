@@ -16,7 +16,7 @@ const LoginPage: React.FC = () => {
       setLoading(true);
 
       console.log('🔐 Attempting login...');
-      const res = await axios.post(`${(process.env.NEXT_PUBLIC_API_URL || 'https://smarttransfer-backend-production.up.railway.app').replace(/[\r\n]+/g, '').trim()}/api/auth/login`, values);
+      const res = await axios.post(`${(process.env.NEXT_PUBLIC_API_URL || 'https://backend-production-69e7.up.railway.app').replace(/[\r\n]+/g, '').trim()}/api/auth/login`, values);
       console.log('✅ Login response:', res.data);
 
       // New V2 API response format

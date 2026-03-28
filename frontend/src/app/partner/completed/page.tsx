@@ -43,7 +43,7 @@ export default function CompletedReservationsPage() {
                     return;
                 }
 
-                const response = await fetch(`${(process.env.NEXT_PUBLIC_API_URL || 'https://smarttransfer-backend-production.up.railway.app').replace(/[\r\n]+/g, '').trim()}/api/transfer/partner/completed-bookings`, {
+                const response = await fetch(`${(process.env.NEXT_PUBLIC_API_URL || 'https://backend-production-69e7.up.railway.app').replace(/[\r\n]+/g, '').trim()}/api/transfer/partner/completed-bookings`, {
                     headers: {
                         'Authorization': `Bearer ${token}`
                     }
