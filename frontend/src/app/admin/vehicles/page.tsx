@@ -101,7 +101,7 @@ interface VehicleFormValues {
   zonePrices?: any[];
 }
 
-const VehiclesPage: React.FC => {
+const VehiclesPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [vehicleTypes, setVehicleTypes] = useState<any[]>([]); // Added vehicleTypes state
