@@ -43,6 +43,25 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Serve static files (MOVED TO TOP for v2.3.4)
+const uploadsPath = path.resolve(__dirname, 'public/uploads');
+
+// Ensure public/uploads exists
+if (!fs.existsSync(path.resolve(__dirname, 'public'))) {
+  fs.mkdirSync(path.resolve(__dirname, 'public'));
+}
+if (!fs.existsSync(uploadsPath)) {
+  fs.mkdirSync(uploadsPath);
+}
+
+app.use('/uploads', express.static(uploadsPath, {
+  setHeaders: (res, path) => {
+    if (path.toLowerCase().endsWith('.jfif')) {
+      res.setHeader('Content-Type', 'image/jpeg');
+    }
+  }
+}));
+
 // Request logging (development)
 app.use((req, res, next) => {
   console.log(`${new Date().toISOString()} ${req.method} ${req.path}`);
@@ -108,24 +127,7 @@ const extraServiceRoutes = require('./src/routes/extra-services');
 app.use('/api/extra-services', tenantMiddleware, extraServiceRoutes);
 
 
-// Serve static files (REORDERED to the top and added directory check)
-const uploadsPath = path.join(__dirname, 'public/uploads');
-
-// Ensure public/uploads exists
-if (!fs.existsSync(path.join(__dirname, 'public'))) {
-  fs.mkdirSync(path.join(__dirname, 'public'));
-}
-if (!fs.existsSync(uploadsPath)) {
-  fs.mkdirSync(uploadsPath);
-}
-
-app.use('/uploads', express.static(uploadsPath, {
-  setHeaders: (res, path) => {
-    if (path.toLowerCase().endsWith('.jfif')) {
-      res.setHeader('Content-Type', 'image/jpeg');
-    }
-  }
-}));
+// Static serving removed here, moved to top in v2.3.4
 
 app.get('/api/ping', (req, res) => {
   let fileList = [];
@@ -138,7 +140,7 @@ app.get('/api/ping', (req, res) => {
   res.json({
     success: true,
     message: 'SmartTravel API is running!',
-    version: '2.3.2',
+    version: '2.3.4',
     env: {
       cwd: process.cwd(),
       dirname: __dirname,
