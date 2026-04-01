@@ -710,11 +710,20 @@ router.get('/shuttle-runs', authMiddleware, async (req, res, next) => {
             let toNameForGrouping = m.dropoff || '';
             let maxSeatsForGrouping = 0;
             let pricePerSeatForGrouping = 0;
+            const masterTime = m.shuttleMasterTime || '';
 
-            if (routeId && routeMap[routeId]) {
-                key = `ROUTE::${routeId}`;
+            if (m.manualRunId) {
+                key = m.manualRunId.startsWith('MANUAL::') ? m.manualRunId : `MANUAL::${m.manualRunId}`;
+                routeNameForGrouping = m.manualRunName || 'Manuel Sefer';
+                fromNameForGrouping = 'Manuel';
+                toNameForGrouping = m.manualRunName || 'Manuel Sefer';
+            } else if (routeId && routeMap[routeId]) {
+                key = `ROUTE::${routeId}${masterTime ? '::' + masterTime : ''}`;
                 const route = routeMap[routeId];
                 routeNameForGrouping = `${route.fromName} → ${route.toName}`;
+                if (masterTime) {
+                    routeNameForGrouping += ` (${masterTime} Seferi)`;
+                }
                 fromNameForGrouping = route.fromName || fromNameForGrouping;
                 toNameForGrouping = route.toName || toNameForGrouping;
                 maxSeatsForGrouping = Number(route.maxSeats) || 0;
@@ -722,8 +731,11 @@ router.get('/shuttle-runs', authMiddleware, async (req, res, next) => {
             } else {
                 const dropoff = String(m.dropoff || 'Bilinmeyen Varış').trim();
                 const dropoffKey = dropoff.substring(0, 60).toLowerCase().replace(/\s+/g, ' ');
-                key = `ADHOC::${dropoffKey}`;
+                key = `ADHOC::${dropoffKey}${masterTime ? '::' + masterTime : ''}`;
                 routeNameForGrouping = `Shuttle → ${dropoff}`;
+                if (masterTime) {
+                    routeNameForGrouping += ` (${masterTime} Seferi)`;
+                }
                 fromNameForGrouping = 'Çeşitli Noktalar';
                 toNameForGrouping = dropoff;
             }
@@ -735,7 +747,8 @@ router.get('/shuttle-runs', authMiddleware, async (req, res, next) => {
                     routeName: routeNameForGrouping,
                     fromName: fromNameForGrouping,
                     toName:   toNameForGrouping,
-                    departureTime: null,
+                    departureTime: masterTime || null,
+                    _originalMasterTime: masterTime || null,
                     date: datePart,
                     maxSeats: maxSeatsForGrouping,
                     pricePerSeat: pricePerSeatForGrouping,
@@ -774,7 +787,7 @@ router.get('/shuttle-runs', authMiddleware, async (req, res, next) => {
                 return dA - dB;
             });
 
-            if (run.bookings.length > 0) {
+            if (run.bookings.length > 0 && !run.departureTime) {
                 try {
                     const firstPickup = run.bookings[0].pickupDateTime;
                     if (firstPickup) {
@@ -789,6 +802,7 @@ router.get('/shuttle-runs', authMiddleware, async (req, res, next) => {
                     run.departureTime = "??:??";
                 }
             }
+            if (!run.departureTime) run.departureTime = "--:--";
         });
 
         LOG_TAG = "SORT_RUNS";
@@ -855,6 +869,52 @@ router.patch('/shuttle-runs/assign', authMiddleware, async (req, res) => {
     } catch (error) {
         console.error('shuttle-runs/assign error:', error);
         res.status(500).json({ success: false, error: 'Shuttle atama başarısız: ' + error.message });
+    }
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/operations/shuttle-runs/move
+// Body: { bookingIds: string[], targetRun: { manualRunId, shuttleRouteId, shuttleMasterTime, manualRunName } }
+// Moves bookings into a specific shuttle run (auto or manual)
+// ---------------------------------------------------------------------------
+router.post('/shuttle-runs/move', authMiddleware, async (req, res) => {
+    try {
+        const { bookingIds, targetRun } = req.body;
+        
+        if (!bookingIds || !Array.isArray(bookingIds) || bookingIds.length === 0) {
+            return res.status(400).json({ success: false, error: 'bookingIds array zorunlu' });
+        }
+        
+        if (!targetRun) {
+            return res.status(400).json({ success: false, error: 'targetRun gerekli' });
+        }
+
+        const updates = [];
+        for (const bookingId of bookingIds) {
+            const booking = await prisma.booking.findUnique({ where: { id: bookingId } });
+            if (!booking) continue;
+
+            const updateData = {
+                metadata: {
+                    ...(booking.metadata || {}),
+                    shuttleRouteId: targetRun.shuttleRouteId || null,
+                    shuttleMasterTime: targetRun.shuttleMasterTime || null,
+                    manualRunId: targetRun.manualRunId || null,
+                    manualRunName: targetRun.manualRunName || null
+                }
+            };
+
+            const updated = await prisma.booking.update({
+                where: { id: bookingId },
+                data: updateData
+            });
+            updates.push(updated.id);
+        }
+
+        res.json({ success: true, updatedCount: updates.length });
+    } catch (error) {
+        console.error('shuttle-runs/move error:', error);
+        res.status(500).json({ success: false, error: 'Geçiş işlemi başarısız: ' + error.message });
     }
 });
 

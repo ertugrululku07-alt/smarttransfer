@@ -62,7 +62,7 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                         where: { agencyId, isActive: true }
                     });
                     contracts.forEach(c => {
-                        const key = `${c.vehicleTypeId}:${c.zoneId}`;
+                        const key = `${c.vehicleTypeId}:${c.zoneId}:${c.baseLocation}`;
                         agencyContractMap[key] = c;
                     });
 
@@ -355,16 +355,51 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
             if (!isLocationMatch) return false;
 
             // Schedule Check
-            if (route.scheduleType === 'DAILY') return true;
-            if (route.scheduleType === 'WEEKLY') {
+            let passesSchedule = false;
+            if (route.scheduleType === 'DAILY') passesSchedule = true;
+            else if (route.scheduleType === 'WEEKLY') {
                 const allowedDays = Array.isArray(route.weeklyDays) ? route.weeklyDays : [];
-                return allowedDays.includes(currentDayCode);
+                passesSchedule = allowedDays.includes(currentDayCode);
             }
-            if (route.scheduleType === 'CUSTOM') {
-                if (!route.customStartDate || !route.customEndDate) return false;
-                return dateStr >= route.customStartDate && dateStr <= route.customEndDate;
+            else if (route.scheduleType === 'CUSTOM') {
+                if (route.customStartDate && route.customEndDate) {
+                    passesSchedule = dateStr >= route.customStartDate && dateStr <= route.customEndDate;
+                }
             }
-            return false;
+
+            if (!passesSchedule) return false;
+
+            // TIME WINDOW CHECK (±2 hours)
+            const searchDate = new Date(pickupDateTime);
+            // Ignore timezone issues if pickupDateTime is accurate in local time, but we fallback safely
+            const userMin = searchDate.getHours() * 60 + searchDate.getMinutes();
+            let closestMasterTime = null;
+            let minOffset = Infinity;
+            
+            if (route.departureTimes && Array.isArray(route.departureTimes) && route.departureTimes.length > 0) {
+                route.departureTimes.forEach(dt => {
+                    if (!dt) return;
+                    const parts = dt.split(':');
+                    const dtMin = parseInt(parts[0]) * 60 + parseInt(parts[1]);
+                    
+                    let diff = userMin - dtMin; 
+                    // Let's assume shuttle can pick up user between 1 hour before master time and 2 hours after master time
+                    if (diff >= -60 && diff <= 180) {
+                        if (Math.abs(diff) < Math.abs(minOffset)) {
+                            minOffset = diff;
+                            closestMasterTime = dt;
+                        }
+                    }
+                });
+                if (!closestMasterTime) return false;
+            } else {
+                // If it has no departure times explicitly defined, it passes implicitly.
+            }
+
+            route._matchedMasterTime = closestMasterTime;
+            route._timeOffsetMin = minOffset;
+
+            return true;
         });
 
         const shuttleResults = matchingShuttles.map(s => {
@@ -386,7 +421,9 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                 estimatedDuration: 'Değişken', // Depends on stops
                 image: s.vehicle?.metadata?.imageUrl || '/vehicles/sprinter.png',
                 isShuttle: true,
-                departureTimes: s.departureTimes // Pass departure times to frontend
+                departureTimes: s.departureTimes, // Pass departure times to frontend
+                matchedMasterTime: s._matchedMasterTime,
+                timeOffsetMin: s._timeOffsetMin
             };
         });
 
@@ -414,9 +451,13 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                         // Zone pricing ONLY applies when the pickup is from a known, registered hub.
                         // If detectedBaseLocation is null (e.g. pickup from Denizli, İzmir etc.),
                         // we do NOT apply zone pricing — the system must fall through to km-based pricing.
-                        let candidateConfig = detectedBaseLocation
-                            ? vt.zonePrices?.find(zp => zp.zoneId === zoneId && zp.baseLocation === detectedBaseLocation)
-                            : null;
+                        let candidateConfig = null;
+                        if (detectedBaseLocation) {
+                            const globalConfig = vt.zonePrices?.find(zp => zp.zoneId === zoneId && zp.baseLocation === detectedBaseLocation);
+                            const contractKey = `${vt.id}:${zoneId}:${detectedBaseLocation}`;
+                            const agencyConfig = agencyContractMap[contractKey];
+                            candidateConfig = globalConfig || agencyConfig;
+                        }
 
                         if (candidateConfig) {
                             // If this overage is strictly better, OR it's a tie but this zone is more specific (smaller area)
@@ -484,16 +525,17 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
 
                 // === CHECK AGENCY CONTRACT PRICE (zone-based) ===
                 // If a zone was matched, look for a contract price for this vehicleType+zone
-                const contractLookupKey = finalMatchedZoneId ? `${vt.id}:${finalMatchedZoneId}` : null;
+                const contractLookupKey = finalMatchedZoneId && detectedBaseLocation ? `${vt.id}:${finalMatchedZoneId}:${detectedBaseLocation}` : null;
                 const contractPrice = contractLookupKey ? agencyContractMap[contractLookupKey] : null;
                 let finalPrice;
                 if (contractPrice) {
                     // Contract price overrides all other pricing logic
+                    const extra = usedOverageDistanceKm * (Number(contractPrice.extraKmPrice) || 0);
                     if (Number(contractPrice.fixedPrice) > 0) {
-                        finalPrice = Math.round(Number(contractPrice.fixedPrice) * typeMult);
+                        finalPrice = Math.round((Number(contractPrice.fixedPrice) + extra) * typeMult);
                     } else {
                         const perPersonPrice = Number(contractPrice.price) || 0;
-                        finalPrice = Math.round(perPersonPrice * Number(passengers) * typeMult);
+                        finalPrice = Math.round(((perPersonPrice * Number(passengers)) + extra) * typeMult);
                     }
                 } else {
                     // Standard pricing: apply agency markup on calculated price
@@ -561,7 +603,9 @@ router.post('/book', optionalAuthMiddleware, async (req, res) => {
             notes,
             extraServices, // New field
             passengerDetails, // New field
-            billingDetails // Fatura bilgileri (undefined ise müşteri fatura istemedi)
+            billingDetails, // Fatura bilgileri (undefined ise müşteri fatura istemedi)
+            shuttleRouteId, // From search matching
+            shuttleMasterTime // From closest offset
         } = req.body;
 
         // ... (keep validations) ...
@@ -622,7 +666,9 @@ router.post('/book', optionalAuthMiddleware, async (req, res) => {
                     extraServices: extraServices || [], // Save Extra Services
                     wantsInvoice: !!billingDetails,      // true ise fatura istiyor
                     billingDetails: billingDetails || null, // Fatura detayları
-                    passengerDetails: passengerDetails || [] // Move passengerDetails inside metadata
+                    passengerDetails: passengerDetails || [], // Move passengerDetails inside metadata
+                    shuttleRouteId: shuttleRouteId || null,
+                    shuttleMasterTime: shuttleMasterTime || null
                 }
             }
         });
@@ -826,7 +872,7 @@ router.get('/bookings', authMiddleware, async (req, res) => {
             assignedVehicleId: b.metadata?.assignedVehicleId || null, // Vehicle assignment
             // Nested relations mapping expected by the frontend:
             customer: b.customer,
-            agencyName: b.agency?.companyName || b.customer?.agency?.companyName || b.metadata?.agencyName || null,
+            agencyName: b.agency?.name || b.agency?.companyName || b.customer?.agency?.name || b.customer?.agency?.companyName || b.metadata?.agencyName || null,
             agencyId: b.agencyId || b.customer?.agency?.id || null,
             // Fatura alanları
             wantsInvoice: b.metadata?.wantsInvoice || false,

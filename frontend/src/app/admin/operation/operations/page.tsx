@@ -29,6 +29,7 @@ import {
     FullscreenExitOutlined,
     EyeOutlined,
     EyeInvisibleOutlined,
+    PlusOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import 'dayjs/locale/tr';
@@ -41,7 +42,7 @@ import { useSocket } from '@/app/context/SocketContext';
 
 // DnD Imports
 import type { DragEndEvent } from '@dnd-kit/core';
-import { DndContext, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { DndContext, PointerSensor, useSensor, useSensors, useDraggable, useDroppable } from '@dnd-kit/core';
 import { restrictToHorizontalAxis } from '@dnd-kit/modifiers';
 import {
     arrayMove,
@@ -154,6 +155,35 @@ const ResizableTitle = (props: any) => {
     );
 };
 
+// --- Shuttle DnD Components ---
+const DroppableShuttleRun = ({ runId, children }: { runId: string, children: React.ReactNode }) => {
+    const { isOver, setNodeRef } = useDroppable({ id: runId });
+    return (
+        <div ref={setNodeRef} style={{ transition: 'all 0.2s', border: isOver ? '2px dashed #6366f1' : 'none', borderRadius: 12 }}>
+            {children}
+        </div>
+    );
+};
+
+const DraggablePassengerItem = ({ booking, children }: { booking: any, children: React.ReactNode }) => {
+    const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+        id: booking.id,
+        data: { booking }
+    });
+    const style = transform ? {
+        transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
+        zIndex: isDragging ? 999 : 1,
+        opacity: isDragging ? 0.8 : 1,
+        boxShadow: isDragging ? '0 5px 15px rgba(0,0,0,0.2)' : 'none',
+    } : undefined;
+    return (
+        <div ref={setNodeRef} style={style} {...listeners} {...attributes}>
+            {children}
+        </div>
+    );
+};
+// ------------------------------
+
 export default function OperationsPage() {
     const [bookings, setBookings] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
@@ -167,6 +197,36 @@ export default function OperationsPage() {
         } catch { return new Set(); }
     });
     const { socket } = useSocket();
+
+    const [isManualModalVisible, setIsManualModalVisible] = useState(false);
+    const [manualRunTime, setManualRunTime] = useState('');
+    const [manualRunName, setManualRunName] = useState('');
+
+    const handleAddManualRun = () => {
+        if (!manualRunTime || !manualRunName) {
+            message.error("Lütfen saat ve rota adı girin.");
+            return;
+        }
+        const newRunId = `MANUAL::${Date.now()}`;
+        const newRun = {
+            runKey: newRunId,
+            departureTime: manualRunTime,
+            routeName: manualRunName,
+            isManual: true,
+            manualRunId: newRunId,
+            bookings: []
+        };
+        // Ensure shuttleRuns is preserved if it already exists, otherwise need to adjust where this goes
+        // Because shuttleRuns is not in this chunk, I will use setShuttleRuns directly assuming it exists.
+        setShuttleRuns(prev => {
+            const arr = [newRun, ...prev];
+            return arr.sort((a, b) => (a.departureTime || '').localeCompare(b.departureTime || ''));
+        });
+        setIsManualModalVisible(false);
+        setManualRunTime('');
+        setManualRunName('');
+        message.success("Manuel sefer eklendi. Yolcuları bu sefere sürükleyebilirsiniz.");
+    };
 
     // Conflict modal state
     const [conflictModal, setConflictModal] = useState<{
@@ -1101,6 +1161,57 @@ export default function OperationsPage() {
         }
     };
 
+    const handleShuttleDragEnd = async (event: DragEndEvent) => {
+        const { active, over } = event;
+        if (!over) return;
+        const passengerId = active.id as string;
+        const targetRunKey = over.id as string;
+
+        // Find source run and passenger
+        let sourceRun: any = null;
+        let passenger: any = null;
+        for (const run of shuttleRuns) {
+            const found = run.bookings.find((b: any) => b.id === passengerId);
+            if (found) {
+                sourceRun = run;
+                passenger = found;
+                break;
+            }
+        }
+        if (!sourceRun || !passenger || sourceRun.runKey === targetRunKey) return;
+
+        const targetRun = shuttleRuns.find(r => r.runKey === targetRunKey);
+        if (!targetRun) return;
+
+        try {
+            const payload = {
+                bookingIds: [passengerId],
+                targetRun: {
+                    manualRunId: targetRun.isManual ? targetRun.manualRunId : null,
+                    shuttleRouteId: targetRun.isManual ? null : (targetRun.shuttleRouteId || targetRun.routeId || null),
+                    shuttleMasterTime: targetRun.isManual ? targetRun.departureTime : (targetRun._originalMasterTime || null),
+                    manualRunName: targetRun.isManual ? targetRun.routeName : null
+                }
+            };
+            const res = await apiClient.post('/api/operations/shuttle-runs/move', payload);
+            if (res.data.success) {
+                setShuttleRuns(prev => prev.map(r => {
+                    if (r.runKey === sourceRun.runKey) {
+                        return { ...r, bookings: r.bookings.filter((b: any) => b.id !== passengerId) };
+                    }
+                    if (r.runKey === targetRunKey) {
+                        return { ...r, bookings: [...r.bookings, passenger] };
+                    }
+                    return r;
+                }));
+                message.success('Yolcu taşındı');
+            }
+        } catch (err: any) {
+            console.error(err);
+            message.error('Taşıma başarısız: ' + (err?.response?.data?.error || err.message));
+        }
+    };
+
     // ---- Tab State ----
     const [bookingTab, setBookingTab] = useState<'active' | 'completed'>('active');
 
@@ -1246,15 +1357,26 @@ export default function OperationsPage() {
                                     </Button>
                                 )}
                                 {operationsMode === 'shuttle' && (
-                                    <Button
-                                        size="small"
-                                        icon={<ReloadOutlined />}
-                                        onClick={fetchShuttleRuns}
-                                        loading={shuttleRunsLoading}
-                                        style={{ borderRadius: 6 }}
-                                    >
-                                        Yenile
-                                    </Button>
+                                    <>
+                                        <Button
+                                            size="small"
+                                            type="primary"
+                                            icon={<PlusOutlined />}
+                                            onClick={() => setIsManualModalVisible(true)}
+                                            style={{ borderRadius: 6, background: 'linear-gradient(135deg, #10b981, #059669)', border: 'none', fontWeight: 600 }}
+                                        >
+                                            Manuel Sefer Ekle
+                                        </Button>
+                                        <Button
+                                            size="small"
+                                            icon={<ReloadOutlined />}
+                                            onClick={fetchShuttleRuns}
+                                            loading={shuttleRunsLoading}
+                                            style={{ borderRadius: 6 }}
+                                        >
+                                            Yenile
+                                        </Button>
+                                    </>
                                 )}
                                 <Popover
                                     trigger="click"
@@ -1609,6 +1731,7 @@ export default function OperationsPage() {
                                 </Button>
                             </div>
                         ) : (
+                            <DndContext onDragEnd={handleShuttleDragEnd}>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                                 {shuttleRuns.map((run: any) => {
                                     const totalPax = run.bookings.reduce((s: number, b: any) => s + (b.adults || 1), 0);
@@ -1637,7 +1760,8 @@ export default function OperationsPage() {
                                     }));
 
                                     return (
-                                        <div key={run.runKey} style={{
+                                        <DroppableShuttleRun key={run.runKey} runId={run.runKey}>
+                                        <div style={{
                                             background: '#fff',
                                             borderRadius: 12,
                                             border: `2px solid ${isAssigned ? '#10b981' : isPartial ? '#f59e0b' : '#e5e7eb'}`,
@@ -1777,7 +1901,8 @@ export default function OperationsPage() {
                                                     const statusMap: any = { CONFIRMED: { color: '#2563eb', label: 'Onaylı' }, PENDING: { color: '#d97706', label: 'Bekliyor' }, COMPLETED: { color: '#16a34a', label: 'Tamamlandı' }, CANCELLED: { color: '#dc2626', label: 'İptal' } };
                                                     const st = statusMap[b.status] || { color: '#6b7280', label: b.status };
                                                     return (
-                                                        <div key={b.id} style={{
+                                                        <DraggablePassengerItem key={b.id} booking={b}>
+                                                        <div style={{
                                                             display: 'grid',
                                                             gridTemplateColumns: '32px 1fr 80px 200px 90px 50px 120px 80px',
                                                             gap: 0,
@@ -1801,13 +1926,16 @@ export default function OperationsPage() {
                                                             <Text copyable={{ text: b.contactPhone }} style={{ fontSize: 11, color: '#374151' }}>{b.contactPhone}</Text>
                                                             <span style={{ fontSize: 11, fontWeight: 600, color: st.color }}>{st.label}</span>
                                                         </div>
+                                                        </DraggablePassengerItem>
                                                     );
                                                 })}
                                             </div>
                                         </div>
+                                        </DroppableShuttleRun>
                                     );
                                 })}
                             </div>
+                            </DndContext>
                         )}
                     </div>
                     )}
@@ -2124,6 +2252,35 @@ export default function OperationsPage() {
                             )}
                         </div>
                     )}
+                </Modal>
+
+                {/* Manual Shuttle Modal */}
+                <Modal
+                    title="Manuel Sefer Ekle"
+                    open={isManualModalVisible}
+                    onOk={handleAddManualRun}
+                    onCancel={() => setIsManualModalVisible(false)}
+                    okText="Oluştur"
+                    cancelText="İptal"
+                >
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                        <div>
+                            <div style={{ marginBottom: 4, fontWeight: 600 }}>Sefer Saati</div>
+                            <Input
+                                type="time"
+                                value={manualRunTime}
+                                onChange={(e) => setManualRunTime(e.target.value)}
+                            />
+                        </div>
+                        <div>
+                            <div style={{ marginBottom: 4, fontWeight: 600 }}>Rota Adı (Nereden nereye)</div>
+                            <Input
+                                placeholder="Örn: Antalya → Alanya"
+                                value={manualRunName}
+                                onChange={(e) => setManualRunName(e.target.value)}
+                            />
+                        </div>
+                    </div>
                 </Modal>
             </AdminLayout>
 
