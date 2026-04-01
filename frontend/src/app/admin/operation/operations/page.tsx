@@ -1184,15 +1184,23 @@ export default function OperationsPage() {
         if (!targetRun) return;
 
         try {
-            const payload = {
+            const payload: any = {
                 bookingIds: [passengerId],
-                targetRun: {
-                    manualRunId: targetRun.isManual ? targetRun.manualRunId : null,
-                    shuttleRouteId: targetRun.isManual ? null : (targetRun.shuttleRouteId || targetRun.routeId || null),
+            };
+
+            // If the target run has existing bookings, pass one as a sample
+            // so the backend can mirror its metadata exactly (guaranteed same group key)
+            if (targetRun.bookings && targetRun.bookings.length > 0) {
+                payload.sampleBookingId = targetRun.bookings[0].id;
+            } else {
+                // New/empty run: pass explicit fields
+                payload.targetRun = {
+                    manualRunId: targetRun.isManual ? (targetRun.manualRunId || targetRun.runKey) : null,
+                    shuttleRouteId: targetRun.isManual ? null : (targetRun.shuttleRouteId || null),
                     shuttleMasterTime: targetRun.isManual ? targetRun.departureTime : (targetRun._originalMasterTime || null),
                     manualRunName: targetRun.isManual ? targetRun.routeName : null
-                }
-            };
+                };
+            }
             const res = await apiClient.post('/api/operations/shuttle-runs/move', payload);
             if (res.data.success) {
                 setShuttleRuns(prev => prev.map(r => {

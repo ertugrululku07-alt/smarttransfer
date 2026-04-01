@@ -874,19 +874,44 @@ router.patch('/shuttle-runs/assign', authMiddleware, async (req, res) => {
 
 // ---------------------------------------------------------------------------
 // POST /api/operations/shuttle-runs/move
-// Body: { bookingIds: string[], targetRun: { manualRunId, shuttleRouteId, shuttleMasterTime, manualRunName } }
-// Moves bookings into a specific shuttle run (auto or manual)
+// Body: { bookingIds: string[], sampleBookingId?: string, targetRun?: {...} }
+// Moves bookings into a specific shuttle run by mirroring metadata from a sibling booking
 // ---------------------------------------------------------------------------
 router.post('/shuttle-runs/move', authMiddleware, async (req, res) => {
     try {
-        const { bookingIds, targetRun } = req.body;
+        const { bookingIds, targetRun, sampleBookingId } = req.body;
         
         if (!bookingIds || !Array.isArray(bookingIds) || bookingIds.length === 0) {
             return res.status(400).json({ success: false, error: 'bookingIds array zorunlu' });
         }
-        
-        if (!targetRun) {
-            return res.status(400).json({ success: false, error: 'targetRun gerekli' });
+
+        // If sampleBookingId is provided, read its metadata and mirror it exactly
+        // This guarantees that the moved booking will group identically with siblings
+        let resolvedMeta = null;
+        if (sampleBookingId) {
+            const sample = await prisma.booking.findUnique({ where: { id: sampleBookingId } });
+            if (sample && sample.metadata) {
+                const m = sample.metadata;
+                resolvedMeta = {
+                    shuttleRouteId: m.shuttleRouteId || null,
+                    shuttleMasterTime: m.shuttleMasterTime || null,
+                    manualRunId: m.manualRunId || null,
+                    manualRunName: m.manualRunName || null,
+                };
+                console.log('[shuttle-move] Resolved meta from sample:', resolvedMeta);
+            }
+        }
+
+        // Fall back to explicit targetRun fields
+        const metaToApply = resolvedMeta || {
+            shuttleRouteId: targetRun?.shuttleRouteId || null,
+            shuttleMasterTime: targetRun?.shuttleMasterTime || null,
+            manualRunId: targetRun?.manualRunId || null,
+            manualRunName: targetRun?.manualRunName || null,
+        };
+
+        if (!metaToApply.shuttleRouteId && !metaToApply.manualRunId && !metaToApply.shuttleMasterTime) {
+            return res.status(400).json({ success: false, error: 'Hedef sefer bilgisi yetersiz (shuttleRouteId, manualRunId veya shuttleMasterTime gerekli)' });
         }
 
         const updates = [];
@@ -894,19 +919,14 @@ router.post('/shuttle-runs/move', authMiddleware, async (req, res) => {
             const booking = await prisma.booking.findUnique({ where: { id: bookingId } });
             if (!booking) continue;
 
-            const updateData = {
-                metadata: {
-                    ...(booking.metadata || {}),
-                    shuttleRouteId: targetRun.shuttleRouteId || null,
-                    shuttleMasterTime: targetRun.shuttleMasterTime || null,
-                    manualRunId: targetRun.manualRunId || null,
-                    manualRunName: targetRun.manualRunName || null
-                }
-            };
-
             const updated = await prisma.booking.update({
                 where: { id: bookingId },
-                data: updateData
+                data: {
+                    metadata: {
+                        ...(booking.metadata || {}),
+                        ...metaToApply
+                    }
+                }
             });
             updates.push(updated.id);
         }
