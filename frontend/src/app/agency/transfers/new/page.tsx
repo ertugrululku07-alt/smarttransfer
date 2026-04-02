@@ -362,191 +362,337 @@ const AgencyNewTransferPage = () => {
 
     // Render Steps
     const renderSearchStep = () => (
-        <Card variant="borderless" style={{ maxWidth: 900, margin: '0 auto', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
-            <div style={{ marginBottom: 32, textAlign: 'center' }}>
-                <Title level={3} style={{ margin: 0, color: '#1a1a2e' }}>Yeni Transfer Arayın</Title>
-                <Text type="secondary">Müşteriniz için en uygun rotayı ve aracı bulun.</Text>
+        <div style={{ maxWidth: 920, margin: '0 auto' }}>
+            {/* Hero Header */}
+            <div style={{ textAlign: 'center', marginBottom: 40 }}>
+                <div style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 10,
+                    background: 'rgba(98,60,228,0.12)', borderRadius: 50,
+                    padding: '6px 20px', marginBottom: 20
+                }}>
+                    <span style={{ fontSize: 18 }}>✈️</span>
+                    <span style={{ color: '#623ce4', fontWeight: 600, fontSize: 13, letterSpacing: 1 }}>VIP TRANSFER ARAMA</span>
+                </div>
+                <h1 style={{
+                    margin: 0, fontSize: 38, fontWeight: 800,
+                    background: 'linear-gradient(135deg, #1a1a2e 0%, #623ce4 100%)',
+                    WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+                    backgroundClip: 'text', lineHeight: 1.2
+                }}>Yeni Transfer Arayın</h1>
+                <p style={{ color: '#64748b', fontSize: 16, marginTop: 12, marginBottom: 0 }}>
+                    Müşteriniz için en uygun rotayı ve aracı saniyeler içinde bulun
+                </p>
             </div>
 
-            <Row gutter={[16, 24]}>
-                <Col xs={24} md={12}>
-                    <Text strong style={{ display: 'block', marginBottom: 8 }}>Nereden</Text>
-                    <HereLocationSearchInput
-                        size="large"
-                        placeholder="Havaalanı, Adres, Otel"
-                        value={pickup}
-                        onChange={setPickup}
-                        onSelect={(val, lat, lng) => {
-                            setPickup(val);
-                            if (lat && lng) setPickupLocation({ lat, lng });
-                        }}
-                        onMapClick={() => openMapModal('pickup')}
-                        country="TUR"
-                    />
-                </Col>
-                <Col xs={24} md={12}>
-                    <Text strong style={{ display: 'block', marginBottom: 8 }}>Nereye</Text>
-                    <HereLocationSearchInput
-                        size="large"
-                        placeholder="Havaalanı, Adres, Otel"
-                        value={dropoff}
-                        onChange={setDropoff}
-                        onSelect={(val, lat, lng) => {
-                            setDropoff(val);
-                            if (lat && lng) setDropoffLocation({ lat, lng });
-                        }}
-                        onMapClick={() => openMapModal('dropoff')}
-                        country="TUR"
-                    />
-                </Col>
-
-                <Col xs={24} md={6}>
-                    <Text strong style={{ display: 'block', marginBottom: 8 }}>Alış Tarihi</Text>
-                    <DatePicker
-                        size="large"
-                        style={{ width: '100%' }}
-                        format="DD.MM.YYYY"
-                        placeholder="Tarih seçin"
-                        value={date}
-                        onChange={setDate}
-                    />
-                </Col>
-                <Col xs={24} md={6}>
-                    <Text strong style={{ display: 'block', marginBottom: 8 }}>Alış Saati</Text>
-                    <Space.Compact style={{ width: '100%' }}>
-                        <Select
+            {/* Glassmorphism Search Card */}
+            <div style={{
+                background: 'rgba(255,255,255,0.92)',
+                backdropFilter: 'blur(20px)',
+                WebkitBackdropFilter: 'blur(20px)',
+                borderRadius: 24,
+                padding: '36px 40px',
+                boxShadow: '0 20px 60px rgba(98,60,228,0.12), 0 4px 20px rgba(0,0,0,0.06)',
+                border: '1px solid rgba(255,255,255,0.8)'
+            }}>
+                {/* Route Row */}
+                <div style={{ display: 'flex', gap: 16, marginBottom: 20, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                    <div style={{ flex: 1, minWidth: 220 }}>
+                        <label style={{ display: 'block', marginBottom: 8, fontWeight: 700, fontSize: 13, color: '#374151', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                            🛫 Nereden
+                        </label>
+                        <HereLocationSearchInput
                             size="large"
-                            value={pickupHour}
-                            onChange={setPickupHour}
-                            style={{ width: '50%' }}
-                            options={Array.from({ length: 24 }, (_, i) => ({
-                                value: i.toString().padStart(2, '0'),
-                                label: i.toString().padStart(2, '0')
-                            }))}
+                            placeholder="Havaalanı, Adres, Otel"
+                            value={pickup}
+                            onChange={setPickup}
+                            onSelect={(val, lat, lng) => {
+                                setPickup(val);
+                                if (lat && lng) setPickupLocation({ lat, lng });
+                            }}
+                            onMapClick={() => openMapModal('pickup')}
+                            country="TUR"
                         />
-                        <Select
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', paddingBottom: 6 }}>
+                        <div style={{
+                            width: 40, height: 40, borderRadius: '50%',
+                            background: 'linear-gradient(135deg, #623ce4, #8b5cf6)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            boxShadow: '0 4px 12px rgba(98,60,228,0.35)', flexShrink: 0
+                        }}>
+                            <ArrowRightOutlined style={{ color: '#fff', fontSize: 16 }} />
+                        </div>
+                    </div>
+                    <div style={{ flex: 1, minWidth: 220 }}>
+                        <label style={{ display: 'block', marginBottom: 8, fontWeight: 700, fontSize: 13, color: '#374151', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                            🛬 Nereye
+                        </label>
+                        <HereLocationSearchInput
                             size="large"
-                            value={pickupMinute}
-                            onChange={setPickupMinute}
-                            style={{ width: '50%' }}
-                            options={['00', '15', '30', '45'].map(m => ({ value: m, label: m }))}
+                            placeholder="Havaalanı, Adres, Otel"
+                            value={dropoff}
+                            onChange={setDropoff}
+                            onSelect={(val, lat, lng) => {
+                                setDropoff(val);
+                                if (lat && lng) setDropoffLocation({ lat, lng });
+                            }}
+                            onMapClick={() => openMapModal('dropoff')}
+                            country="TUR"
                         />
-                    </Space.Compact>
-                </Col>
-                <Col xs={24} md={6}>
-                    <Text strong style={{ display: 'block', marginBottom: 8 }}>Yolcular</Text>
-                    <PassengerSelector
-                        size="large"
-                        value={passengerCounts}
-                        onChange={setPassengerCounts}
-                    />
-                </Col>
-                <Col xs={24} md={6}>
-                    <Text strong style={{ display: 'block', marginBottom: 8 }}>Transfer Tipi</Text>
-                    <Radio.Group
-                        value={tripType}
-                        onChange={(e) => setTripType(e.target.value)}
-                        style={{ width: '100%', display: 'flex' }}
-                        size="large"
-                    >
-                        <Radio.Button value="ONE_WAY" style={{ flex: 1, textAlign: 'center', padding: '0 8px' }}>Tek Yön</Radio.Button>
-                        <Radio.Button value="ROUND_TRIP" style={{ flex: 1, textAlign: 'center', padding: '0 8px' }}>Çift Yön</Radio.Button>
-                    </Radio.Group>
-                </Col>
-            </Row>
+                    </div>
+                </div>
 
-            <Button
-                type="primary"
-                size="large"
-                block
-                icon={<SearchOutlined />}
-                loading={loading}
-                onClick={handleSearch}
-                style={{ marginTop: 32, height: 50, fontSize: 16 }}
-            >
-                Araçları Listele
-            </Button>
-        </Card>
+                {/* Divider */}
+                <div style={{ height: 1, background: 'linear-gradient(90deg, transparent, #e5e7eb, transparent)', margin: '8px 0 24px' }} />
+
+                {/* Details Row */}
+                <Row gutter={[16, 16]}>
+                    <Col xs={24} md={6}>
+                        <label style={{ display: 'block', marginBottom: 8, fontWeight: 700, fontSize: 13, color: '#374151', textTransform: 'uppercase', letterSpacing: 0.5 }}>📅 Tarih</label>
+                        <DatePicker
+                            size="large"
+                            style={{ width: '100%' }}
+                            format="DD.MM.YYYY"
+                            placeholder="Tarih seçin"
+                            value={date}
+                            onChange={setDate}
+                        />
+                    </Col>
+                    <Col xs={24} md={6}>
+                        <label style={{ display: 'block', marginBottom: 8, fontWeight: 700, fontSize: 13, color: '#374151', textTransform: 'uppercase', letterSpacing: 0.5 }}>🕐 Saat</label>
+                        <Space.Compact style={{ width: '100%' }}>
+                            <Select size="large" value={pickupHour} onChange={setPickupHour} style={{ width: '50%' }}
+                                options={Array.from({ length: 24 }, (_, i) => ({ value: i.toString().padStart(2, '0'), label: i.toString().padStart(2, '0') }))}
+                            />
+                            <Select size="large" value={pickupMinute} onChange={setPickupMinute} style={{ width: '50%' }}
+                                options={['00', '15', '30', '45'].map(m => ({ value: m, label: m }))}
+                            />
+                        </Space.Compact>
+                    </Col>
+                    <Col xs={24} md={6}>
+                        <label style={{ display: 'block', marginBottom: 8, fontWeight: 700, fontSize: 13, color: '#374151', textTransform: 'uppercase', letterSpacing: 0.5 }}>👥 Yolcular</label>
+                        <PassengerSelector size="large" value={passengerCounts} onChange={setPassengerCounts} />
+                    </Col>
+                    <Col xs={24} md={6}>
+                        <label style={{ display: 'block', marginBottom: 8, fontWeight: 700, fontSize: 13, color: '#374151', textTransform: 'uppercase', letterSpacing: 0.5 }}>🔄 Tip</label>
+                        <Radio.Group value={tripType} onChange={(e) => setTripType(e.target.value)} style={{ width: '100%', display: 'flex' }} size="large">
+                            <Radio.Button value="ONE_WAY" style={{ flex: 1, textAlign: 'center', fontWeight: 600 }}>Tek Yön</Radio.Button>
+                            <Radio.Button value="ROUND_TRIP" style={{ flex: 1, textAlign: 'center', fontWeight: 600 }}>Çift Yön</Radio.Button>
+                        </Radio.Group>
+                    </Col>
+                </Row>
+
+                {/* Search Button */}
+                <button
+                    onClick={handleSearch}
+                    disabled={loading}
+                    style={{
+                        marginTop: 28, width: '100%', height: 58, fontSize: 17, fontWeight: 700,
+                        border: 'none', borderRadius: 14, cursor: loading ? 'not-allowed' : 'pointer',
+                        background: loading ? '#9ca3af' : 'linear-gradient(135deg, #623ce4 0%, #8b5cf6 50%, #a78bfa 100%)',
+                        color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+                        boxShadow: loading ? 'none' : '0 8px 30px rgba(98,60,228,0.4)',
+                        transition: 'all 0.3s ease', letterSpacing: 0.5
+                    }}
+                >
+                    {loading ? <><span style={{ display: 'inline-block', width: 20, height: 20, border: '3px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} /> Aranıyor...</> : <><SearchOutlined /> Araçları Listele</>}
+                </button>
+            </div>
+
+            {/* Feature Badges */}
+            <div style={{ display: 'flex', gap: 16, justifyContent: 'center', marginTop: 28, flexWrap: 'wrap' }}>
+                {[['⚡', 'Anlık Fiyatlar'], ['🛡️', 'Güvenli Ödeme'], ['🌍', '7/24 Destek'], ['💎', 'VIP Araçlar']].map(([icon, text]) => (
+                    <div key={text} style={{
+                        display: 'flex', alignItems: 'center', gap: 8, padding: '8px 18px',
+                        background: 'rgba(255,255,255,0.7)', borderRadius: 50,
+                        border: '1px solid rgba(98,60,228,0.15)', fontSize: 13, color: '#374151', fontWeight: 500
+                    }}>
+                        <span>{icon}</span><span>{text}</span>
+                    </div>
+                ))}
+            </div>
+
+            <style>{`
+                @keyframes spin { to { transform: rotate(360deg); } }
+            `}</style>
+        </div>
     );
 
     const renderResultsStep = () => (
-        <div style={{ maxWidth: 900, margin: '0 auto' }}>
-            <div style={{ marginBottom: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <Button icon={<ArrowLeftOutlined />} onClick={() => setCurrentStep('search')}>
-                    Aramaya Dön
-                </Button>
-                <Title level={4} style={{ margin: 0 }}>
-                    {pickup} <ArrowRightOutlined style={{ fontSize: 16, color: '#999', margin: '0 8px' }} /> {dropoff}
-                </Title>
+        <div style={{ maxWidth: 960, margin: '0 auto' }}>
+            {/* Top Bar */}
+            <div style={{ marginBottom: 28, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+                <button onClick={() => setCurrentStep('search')} style={{
+                    display: 'flex', alignItems: 'center', gap: 8, padding: '10px 20px',
+                    background: 'rgba(255,255,255,0.9)', border: '1px solid #e5e7eb',
+                    borderRadius: 12, cursor: 'pointer', fontWeight: 600, fontSize: 14, color: '#374151'
+                }}>
+                    <ArrowLeftOutlined /> Aramaya Dön
+                </button>
+                <div style={{
+                    background: 'rgba(255,255,255,0.9)', borderRadius: 14, padding: '12px 24px',
+                    border: '1px solid rgba(98,60,228,0.15)', display: 'flex', alignItems: 'center', gap: 16,
+                    boxShadow: '0 4px 16px rgba(0,0,0,0.06)'
+                }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontSize: 20 }}>🛫</span>
+                        <span style={{ fontWeight: 700, color: '#1a1a2e', fontSize: 15, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pickup}</span>
+                    </div>
+                    <div style={{
+                        width: 32, height: 32, borderRadius: '50%',
+                        background: 'linear-gradient(135deg, #623ce4, #8b5cf6)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center'
+                    }}>
+                        <ArrowRightOutlined style={{ color: '#fff', fontSize: 12 }} />
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontSize: 20 }}>🛬</span>
+                        <span style={{ fontWeight: 700, color: '#1a1a2e', fontSize: 15, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{dropoff}</span>
+                    </div>
+                </div>
+                {!loading && !searchError && results.length > 0 && (
+                    <div style={{ background: 'linear-gradient(135deg, #623ce4, #8b5cf6)', color: '#fff', borderRadius: 50, padding: '8px 18px', fontSize: 14, fontWeight: 700 }}>
+                        {results.length} Araç Bulundu
+                    </div>
+                )}
             </div>
 
             {loading ? (
                 <div style={{ textAlign: 'center', padding: '100px 0' }}>
+                    <div style={{ fontSize: 60, marginBottom: 20 }}>🔍</div>
                     <Spin size="large" />
-                    <div style={{ marginTop: 16 }}>Araçlar aranıyor...</div>
+                    <div style={{ marginTop: 20, color: '#623ce4', fontWeight: 600, fontSize: 16 }}>Araçlar aranıyor...</div>
+                    <div style={{ color: '#9ca3af', marginTop: 6 }}>En iyi fiyatları buluyoruz</div>
                 </div>
             ) : searchError ? (
-                <Alert message="Hata" description={searchError} type="error" showIcon />
+                <div style={{ background: 'rgba(255,255,255,0.9)', borderRadius: 20, padding: 40, textAlign: 'center', border: '1px solid #fee2e2' }}>
+                    <div style={{ fontSize: 48, marginBottom: 16 }}>⚠️</div>
+                    <div style={{ color: '#dc2626', fontWeight: 700, fontSize: 18, marginBottom: 8 }}>Arama Hatası</div>
+                    <div style={{ color: '#6b7280' }}>{searchError}</div>
+                </div>
             ) : results.length === 0 ? (
-                <Alert message="Sonuç Bulunamadı" description="Seçtiğiniz kriterlere uygun araç bulunamadı." type="warning" showIcon />
+                <div style={{ background: 'rgba(255,255,255,0.9)', borderRadius: 20, padding: 40, textAlign: 'center' }}>
+                    <div style={{ fontSize: 48, marginBottom: 16 }}>🚗</div>
+                    <div style={{ fontWeight: 700, fontSize: 18, marginBottom: 8 }}>Sonuç Bulunamadı</div>
+                    <div style={{ color: '#6b7280' }}>Seçtiğiniz kriterlere uygun araç bulunamadı.</div>
+                </div>
             ) : (
-                <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-                    {results.map((result) => (
-                        <Card key={result.id} hoverable styles={{ body: { padding: 0 } }} style={{ overflow: 'hidden' }}>
-                            <Row>
-                                <Col xs={24} md={6} style={{ background: '#f9f9f9', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 160, position: 'relative' }}>
-                                    {result.image ? (
-                                        <img src={result.image} alt={result.vehicleType} style={{ width: '100%', height: '100%', objectFit: 'contain', padding: '12px' }} />
-                                    ) : (
-                                        <CarOutlined style={{ fontSize: 60, color: '#d9d9d9' }} />
-                                    )}
-                                    <div style={{ position: 'absolute', top: 8, left: 8 }}>
-                                        <Tag color="cyan">{result.vehicleType}</Tag>
-                                    </div>
-                                </Col>
-                                <Col xs={24} md={12} style={{ padding: '20px' }}>
-                                    <Title level={5} style={{ margin: 0 }}>{result.vehicleType}</Title>
-                                    <Text type="secondary" style={{ display: 'block', marginBottom: 12 }}>by {result.vendor}</Text>
-
-                                    <Space direction="vertical" size="small" style={{ width: '100%' }}>
-                                        <Space size="large">
-                                            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><UserOutlined /> {result.capacity} Yolcu</span>
-                                            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><SafetyCertificateOutlined /> {result.luggage} Bavul</span>
-                                        </Space>
-                                        {!result.isShuttle && (
-                                            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><ClockCircleOutlined /> Tahmini: {result.estimatedDuration || routeStats?.duration || 'Bilinmiyor'}</span>
-                                        )}
-                                        {result.features?.includes('WiFi') && (
-                                            <Tag icon={<WifiOutlined />} color="blue" bordered={false}>Ücretsiz WiFi</Tag>
-                                        )}
-                                    </Space>
-                                </Col>
-                                <Col xs={24} md={6} style={{
-                                    padding: '20px',
-                                    borderLeft: '1px solid #f0f0f0',
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    justifyContent: 'center',
-                                    alignItems: 'center',
-                                    background: '#fafafa'
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                    {results.map((result, idx) => (
+                        <div
+                            key={result.id}
+                            style={{
+                                background: 'rgba(255,255,255,0.95)',
+                                borderRadius: 20,
+                                overflow: 'hidden',
+                                boxShadow: '0 4px 20px rgba(0,0,0,0.07)',
+                                border: '1px solid rgba(255,255,255,0.9)',
+                                display: 'flex',
+                                transition: 'all 0.3s ease'
+                            }}
+                            onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-3px)'; (e.currentTarget as HTMLDivElement).style.boxShadow = '0 12px 40px rgba(98,60,228,0.15)'; }}
+                            onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)'; (e.currentTarget as HTMLDivElement).style.boxShadow = '0 4px 20px rgba(0,0,0,0.07)'; }}
+                        >
+                            {/* Vehicle Image */}
+                            <div style={{
+                                width: 200, minHeight: 160, flexShrink: 0,
+                                background: 'linear-gradient(135deg, #f8f7ff 0%, #ede9fe 100%)',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                position: 'relative', overflow: 'hidden'
+                            }}>
+                                {result.image ? (
+                                    <img src={result.image} alt={result.vehicleType} style={{ width: '90%', height: '80%', objectFit: 'contain' }} />
+                                ) : (
+                                    <CarOutlined style={{ fontSize: 64, color: '#8b5cf6', opacity: 0.5 }} />
+                                )}
+                                <div style={{
+                                    position: 'absolute', top: 12, left: 12,
+                                    background: 'linear-gradient(135deg, #623ce4, #8b5cf6)',
+                                    color: '#fff', borderRadius: 50, padding: '4px 12px',
+                                    fontSize: 11, fontWeight: 700, letterSpacing: 0.5
                                 }}>
-                                    <Text type="secondary">Önerilen Satış</Text>
-                                    <Title level={3} style={{ marginTop: 4, marginBottom: 0, color: '#2b6cb0' }}>
-                                        {result.currency === 'EUR' ? '€' : '₺'}{result.price}
-                                    </Title>
-                                    {(result.basePrice && result.basePrice !== result.price) && (
-                                        <Text type="secondary" style={{ fontSize: 12, marginBottom: 16 }}>
-                                            B2B Net: {result.currency === 'EUR' ? '€' : '₺'}{result.basePrice}
-                                        </Text>
+                                    {result.vehicleType}
+                                </div>
+                                {idx === 0 && (
+                                    <div style={{
+                                        position: 'absolute', top: 12, right: 12,
+                                        background: 'linear-gradient(135deg, #f59e0b, #fbbf24)',
+                                        color: '#fff', borderRadius: 50, padding: '4px 10px',
+                                        fontSize: 11, fontWeight: 700
+                                    }}>⭐ Önerilen</div>
+                                )}
+                            </div>
+
+                            {/* Info */}
+                            <div style={{ flex: 1, padding: '24px 28px' }}>
+                                <div style={{ marginBottom: 12 }}>
+                                    <div style={{ fontSize: 20, fontWeight: 800, color: '#1a1a2e' }}>{result.vehicleType}</div>
+                                    <div style={{ color: '#6b7280', fontSize: 13, marginTop: 2 }}>Sağlayıcı: {result.vendor}</div>
+                                </div>
+                                <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#f3f4f6', borderRadius: 10, padding: '6px 14px' }}>
+                                        <UserOutlined style={{ color: '#623ce4' }} />
+                                        <span style={{ fontSize: 13, fontWeight: 600 }}>{result.capacity} Yolcu</span>
+                                    </div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#f3f4f6', borderRadius: 10, padding: '6px 14px' }}>
+                                        <SafetyCertificateOutlined style={{ color: '#623ce4' }} />
+                                        <span style={{ fontSize: 13, fontWeight: 600 }}>{result.luggage} Bavul</span>
+                                    </div>
+                                    {!result.isShuttle && (
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#f3f4f6', borderRadius: 10, padding: '6px 14px' }}>
+                                            <ClockCircleOutlined style={{ color: '#623ce4' }} />
+                                            <span style={{ fontSize: 13, fontWeight: 600 }}>~{result.estimatedDuration || routeStats?.duration || '?'}</span>
+                                        </div>
                                     )}
-                                    <Button type="primary" size="large" onClick={() => handleSelectVehicle(result)} block style={{ marginTop: (result.basePrice && result.basePrice !== result.price) ? 0 : 16 }}>
-                                        Seç ve İlerle
-                                    </Button>
-                                </Col>
-                            </Row>
-                        </Card>
+                                    {result.features?.includes('WiFi') && (
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#eff6ff', borderRadius: 10, padding: '6px 14px' }}>
+                                            <WifiOutlined style={{ color: '#3b82f6' }} />
+                                            <span style={{ fontSize: 13, fontWeight: 600, color: '#3b82f6' }}>Ücretsiz WiFi</span>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Price & CTA */}
+                            <div style={{
+                                width: 200, flexShrink: 0, padding: '24px 20px',
+                                borderLeft: '1px solid #f3f4f6',
+                                display: 'flex', flexDirection: 'column',
+                                justifyContent: 'center', alignItems: 'center',
+                                background: 'linear-gradient(180deg, #fafafa 0%, #f5f3ff 100%)'
+                            }}>
+                                <div style={{ fontSize: 12, color: '#9ca3af', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>Önerilen Satış</div>
+                                <div style={{
+                                    fontSize: 34, fontWeight: 900, color: '#623ce4', lineHeight: 1.1,
+                                    background: 'linear-gradient(135deg, #623ce4, #8b5cf6)',
+                                    WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent'
+                                }}>
+                                    {result.currency === 'EUR' ? '€' : '₺'}{result.price}
+                                </div>
+                                {(result.basePrice && result.basePrice !== result.price) && (
+                                    <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 4 }}>
+                                        B2B Net: {result.currency === 'EUR' ? '€' : '₺'}{result.basePrice}
+                                    </div>
+                                )}
+                                <button
+                                    onClick={() => handleSelectVehicle(result)}
+                                    style={{
+                                        marginTop: 16, width: '100%', padding: '12px 0',
+                                        background: 'linear-gradient(135deg, #623ce4, #8b5cf6)',
+                                        color: '#fff', border: 'none', borderRadius: 12,
+                                        fontSize: 14, fontWeight: 700, cursor: 'pointer',
+                                        boxShadow: '0 4px 16px rgba(98,60,228,0.3)',
+                                        transition: 'all 0.2s'
+                                    }}
+                                    onMouseEnter={e => (e.currentTarget.style.transform = 'scale(1.03)')}
+                                    onMouseLeave={e => (e.currentTarget.style.transform = 'scale(1)')}
+                                >
+                                    Seç ve İlerle →
+                                </button>
+                            </div>
+                        </div>
                     ))}
-                </Space>
+                </div>
             )}
         </div>
     );
@@ -899,72 +1045,97 @@ const AgencyNewTransferPage = () => {
         }
 
         return (
-            <Card bordered={false} style={{ maxWidth: 800, margin: '0 auto', textAlign: 'center', padding: '40px 0', borderTop: '4px solid #52c41a' }}>
-                <CheckCircleOutlined style={{ fontSize: 72, color: '#52c41a', marginBottom: 24 }} />
-                <Title level={3}>Rezervasyonunuz Başarıyla Alındı!</Title>
-                <Text type="secondary" style={{ fontSize: 16, display: 'block', marginBottom: 32 }}>
-                    Rezervasyon Numaranız: <Text strong>{bookingResult?.bookingNumber || 'Yükleniyor...'}</Text>. Detaylar e-posta adresinize gönderilmiştir.
-                </Text>
+            <div style={{ maxWidth: 780, margin: '0 auto' }}>
+                {/* Success Hero */}
+                <div style={{
+                    background: 'linear-gradient(135deg, #623ce4 0%, #8b5cf6 50%, #a78bfa 100%)',
+                    borderRadius: 28, padding: '52px 40px', textAlign: 'center', marginBottom: 24,
+                    position: 'relative', overflow: 'hidden',
+                    boxShadow: '0 20px 60px rgba(98,60,228,0.35)'
+                }}>
+                    {/* Decorative circles */}
+                    <div style={{ position: 'absolute', top: -40, right: -40, width: 180, height: 180, borderRadius: '50%', background: 'rgba(255,255,255,0.07)' }} />
+                    <div style={{ position: 'absolute', bottom: -50, left: -30, width: 220, height: 220, borderRadius: '50%', background: 'rgba(255,255,255,0.05)' }} />
 
-                <Space size="middle" style={{ marginBottom: 40 }}>
-                    <Button type="primary" size="large" style={{ backgroundColor: '#623ce4' }} onClick={() => {
-                        // Reset wizard first, then push to home to avoid keeping user locked
-                        form.resetFields();
-                        setCurrentStep('search');
-                        setPickup('');
-                        setDropoff('');
-                        setDate(null);
-                        setSelectedVehicle(null);
+                    <div style={{ fontSize: 72, marginBottom: 16 }}>🎉</div>
+                    <h2 style={{ color: '#fff', fontSize: 32, fontWeight: 800, margin: '0 0 12px', letterSpacing: -0.5 }}>Rezervasyon Tamamlandı!</h2>
+                    <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 16, margin: '0 0 28px' }}>
+                        Müşterinizin transferi başarıyla oluşturuldu.
+                    </p>
+                    <div style={{
+                        display: 'inline-block', background: 'rgba(255,255,255,0.15)',
+                        backdropFilter: 'blur(10px)', borderRadius: 16,
+                        padding: '14px 32px', border: '1px solid rgba(255,255,255,0.25)'
                     }}>
-                        Anasayfaya Dön
-                    </Button>
-                    <Button size="large" onClick={() => window.open('/agency/transfers', '_blank')}>
-                        Hesabıma Git
-                    </Button>
-                    <Button size="large" id="voucher-print-btn" onClick={() => {
-                        // Open the voucher in a new print-dedicated window for reliability
+                        <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase' }}>Rezervasyon No</div>
+                        <div style={{ color: '#fff', fontSize: 26, fontWeight: 900, letterSpacing: 2, marginTop: 4 }}>
+                            {bookingResult?.bookingNumber || '...'}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Info Cards Row */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24 }}>
+                    <div style={{ background: 'rgba(255,255,255,0.95)', borderRadius: 20, padding: '24px 28px', boxShadow: '0 4px 20px rgba(0,0,0,0.07)', border: '1px solid rgba(255,255,255,0.9)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+                            <div style={{ width: 40, height: 40, borderRadius: 12, background: 'linear-gradient(135deg, #f0fdf4, #dcfce7)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>🗺️</div>
+                            <div style={{ fontWeight: 700, color: '#1a1a2e', fontSize: 15 }}>Rota Bilgisi</div>
+                        </div>
+                        <div style={{ fontSize: 13, color: '#6b7280', lineHeight: 1.8 }}>
+                            <div>🛫 <strong>{pickup}</strong></div>
+                            <div style={{ marginLeft: 8, color: '#d1d5db' }}>↓</div>
+                            <div>🛬 <strong>{dropoff}</strong></div>
+                        </div>
+                    </div>
+                    <div style={{ background: 'rgba(255,255,255,0.95)', borderRadius: 20, padding: '24px 28px', boxShadow: '0 4px 20px rgba(0,0,0,0.07)', border: '1px solid rgba(255,255,255,0.9)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+                            <div style={{ width: 40, height: 40, borderRadius: 12, background: 'linear-gradient(135deg, #eff6ff, #dbeafe)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>🕐</div>
+                            <div style={{ fontWeight: 700, color: '#1a1a2e', fontSize: 15 }}>Alınış Zamanı</div>
+                        </div>
+                        <div style={{ fontSize: 13, color: '#6b7280', lineHeight: 1.8 }}>
+                            <div>📅 <strong>{date?.format('DD MMMM YYYY')}</strong></div>
+                            <div>⏰ Alınış: <strong style={{ color: '#623ce4', fontSize: 15 }}>{pickupTimeStr}</strong></div>
+                            {(dropoff.toLowerCase().includes('havalimanı') || dropoff.toLowerCase().includes('airport')) && (
+                                <div style={{ marginTop: 6, padding: '6px 10px', background: '#fefce8', borderRadius: 8, color: '#92400e', fontSize: 12 }}>
+                                    ⚠️ Havalimanı: {durationText} süre hesaplanmaktadır
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Voucher hidden */}
+                <div id="print-voucher-container" className="print-only-voucher" style={{ position: 'absolute', left: -9999, top: -9999, width: 0, height: 0, overflow: 'hidden' }}>
+                    <BookingVoucher booking={bookingResult} tenant={tenantInfo} agency={agencyInfo} pickup={pickup} dropoff={dropoff} />
+                </div>
+
+                {/* Action Buttons */}
+                <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
+                    <button onClick={() => {
+                        form.resetFields(); setCurrentStep('search');
+                        setPickup(''); setDropoff(''); setDate(null); setSelectedVehicle(null);
+                    }} style={{
+                        padding: '14px 32px', borderRadius: 14, border: 'none', cursor: 'pointer',
+                        background: 'linear-gradient(135deg, #623ce4, #8b5cf6)', color: '#fff',
+                        fontWeight: 700, fontSize: 15, boxShadow: '0 6px 20px rgba(98,60,228,0.35)'
+                    }}>➕ Yeni Transfer</button>
+                    <button onClick={() => window.open('/agency/transfers', '_blank')} style={{
+                        padding: '14px 32px', borderRadius: 14, border: '1px solid #e5e7eb', cursor: 'pointer',
+                        background: 'rgba(255,255,255,0.95)', color: '#374151', fontWeight: 700, fontSize: 15
+                    }}>📋 Transferlerim</button>
+                    <button id="voucher-print-btn" onClick={() => {
                         const voucherEl = document.getElementById('print-voucher-container');
                         if (!voucherEl) return;
                         const printWindow = window.open('', '_blank', 'width=900,height=700');
                         if (!printWindow) { window.alert('Pop-up engelleyiciyi kapatın'); return; }
-                        printWindow.document.write(`
-                            <!DOCTYPE html><html><head>
-                            <meta charset="utf-8">
-                            <title>Transfer Voucher</title>
-                            <style>
-                                body { margin: 0; padding: 0; font-family: 'Inter', Arial, sans-serif; -webkit-print-color-adjust: exact; }
-                                @media print { @page { size: A4 portrait; margin: 10mm; } }
-                            </style>
-                            </head><body>${voucherEl.innerHTML}</body></html>
-                        `);
-                        printWindow.document.close();
-                        printWindow.focus();
-                        printWindow.print();
-                    }}>
-                        Yazdır (Voucher)
-                    </Button>
-                </Space>
-
-                {/* Voucher: hidden on screen via CSS, visible during print */}
-                <div
-                    id="print-voucher-container"
-                    className="print-only-voucher"
-                    style={{ position: 'absolute', left: -9999, top: -9999, width: 0, height: 0, overflow: 'hidden' }}
-                >
-                    <BookingVoucher booking={bookingResult} tenant={tenantInfo} agency={agencyInfo} pickup={pickup} dropoff={dropoff} />
+                        printWindow.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Transfer Voucher</title><style>body { margin: 0; padding: 0; font-family: 'Inter', Arial, sans-serif; -webkit-print-color-adjust: exact; } @media print { @page { size: A4 portrait; margin: 10mm; } }</style></head><body>${voucherEl.innerHTML}</body></html>`);
+                        printWindow.document.close(); printWindow.focus(); printWindow.print();
+                    }} style={{
+                        padding: '14px 32px', borderRadius: 14, border: '1px solid #e5e7eb', cursor: 'pointer',
+                        background: 'rgba(255,255,255,0.95)', color: '#374151', fontWeight: 700, fontSize: 15
+                    }}>🖨️ Voucher Yazdır</button>
                 </div>
-
-                <div style={{ background: '#e6f7ff', border: '1px solid #91d5ff', padding: 24, borderRadius: 8, textAlign: 'left', maxWidth: 600, margin: '0 auto' }}>
-                    <Title level={5} style={{ color: '#0050b3', marginTop: 0 }}><ClockCircleOutlined /> Önerilen Alınış Saati</Title>
-                    <Text>Belirtilen saatiniz <Text strong>{pickupTimeStr}</Text> olarak kabul edilmiştir.</Text>
-                    <br />
-                    {(dropoff.toLowerCase().includes('havalimanı') || dropoff.toLowerCase().includes('airport')) && (
-                        <Text>Uçuşunuzdan 2 saat önce havalimanında olmanız ve <Text strong>{durationText}</Text> yolculuk süresi dikkate alınarak;</Text>
-                    )}
-                    <br />
-                    <Text style={{ fontSize: 16, marginTop: 12, display: 'block' }}>Aracımızın sizi alacağı saat: <Text strong>{calculatedPickup}</Text></Text>
-                </div>
-            </Card>
+            </div>
         );
     };
 
@@ -980,7 +1151,17 @@ const AgencyNewTransferPage = () => {
                     country="tr"
                 />
 
-                <div style={{ padding: '24px 0' }}>
+                <div style={{
+                    minHeight: '100vh',
+                    background: currentStep === 'search'
+                        ? 'linear-gradient(160deg, #f5f3ff 0%, #ede9fe 30%, #e0f2fe 70%, #f0fdf4 100%)'
+                        : currentStep === 'success'
+                        ? 'linear-gradient(160deg, #f0fdf4 0%, #dcfce7 30%, #f5f3ff 100%)'
+                        : 'linear-gradient(160deg, #f8fafc 0%, #f1f5f9 100%)',
+                    padding: '40px 24px',
+                    borderRadius: 16,
+                    transition: 'background 0.6s ease'
+                }}>
                     {currentStep === 'search' && renderSearchStep()}
                     {currentStep === 'results' && renderResultsStep()}
                     {currentStep === 'details' && renderDetailsStep()}
