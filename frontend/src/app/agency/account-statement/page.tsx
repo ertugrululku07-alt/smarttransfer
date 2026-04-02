@@ -251,68 +251,117 @@ export default function AccountStatementPage() {
 
                     <style jsx global>{`
                         @media print {
-                            body {
-                                background: #ffffff !important;
-                                padding: 0 !important;
+                            /* Bütün layout yapısını kırıp normal akışa döndür */
+                            body, html, #__next, .ant-layout {
+                                display: block !important;
+                                width: 100% !important;
+                                max-width: 100% !important;
+                                min-width: 100% !important;
                                 margin: 0 !important;
+                                padding: 0 !important;
+                                background: #ffffff !important;
+                                position: static !important;
                             }
-                            .ant-layout {
-                                background: transparent !important;
-                            }
-                            .ant-layout-sider {
-                                display: none !important;
-                            }
-                            .ant-layout-header {
-                                display: none !important;
-                            }
-                            /* Hide browser-added headers/footers */
-                            @page {
-                                margin: 20mm;
-                                size: auto;
-                            }
+                            
+                            /* Gizlenecek Elemanlar */
+                            .ant-layout-sider,
+                            .ant-layout-header,
                             .no-print {
                                 display: none !important;
                             }
+                            
+                            /* Content marginlarını sıfırla */
+                            .ant-layout-content {
+                                margin: 0 !important;
+                                padding: 0 !important;
+                                overflow: visible !important;
+                            }
+
                             .print-only {
                                 display: block !important;
                             }
+                            
                             .print-container {
                                 max-width: 100% !important;
+                                width: 100% !important;
                                 margin: 0 !important;
                                 padding: 0 !important;
+                            }
+
+                            @page {
+                                margin: 10mm 15mm;
+                                size: a4 portrait;
+                            }
+
+                            /* İstatistik Kartları - Print Görünümü */
+                            .ant-row {
+                                display: flex !important;
+                                flex-wrap: nowrap !important;
+                                flex-direction: row !important;
+                                gap: 10px !important;
+                            }
+                            .ant-col-xs-24.ant-col-md-8 {
+                                flex: 1 1 33% !important;
+                                max-width: 33% !important;
                             }
                             .stat-card {
                                 border: 1px solid #d9d9d9 !important;
                                 box-shadow: none !important;
                                 break-inside: avoid;
+                                padding: 12px !important;
                             }
+                            .stat-card .ant-card-body {
+                                padding: 8px !important;
+                            }
+
+                            /* Tablo Stil ve Genişlikleri */
                             .table-card {
                                 box-shadow: none !important;
                                 padding: 0 !important;
                                 border: none !important;
+                                margin-top: 15px !important;
                             }
-                            .ant-table {
-                                border: 1px solid #f0f0f0;
+                            .ant-table-wrapper, 
+                            .ant-table, 
+                            .ant-table-container, 
+                            .ant-table-content,
+                            table {
+                                width: 100% !important;
+                                max-width: 100% !important;
                             }
                             .ant-table-thead > tr > th {
-                                background-color: #fafafa !important;
+                                background-color: #f0f0f0 !important;
                                 -webkit-print-color-adjust: exact;
                                 color-adjust: exact;
                                 border-bottom: 2px solid #000 !important;
-                                font-weight: bold;
+                                font-weight: bold !important;
+                                padding: 8px !important;
+                                font-size: 12px !important;
+                                white-space: nowrap !important;
                             }
                             .ant-table-tbody > tr > td {
                                 border-bottom: 1px solid #f0f0f0 !important;
+                                padding: 6px 8px !important;
+                                font-size: 11px !important;
                             }
+                            .ant-table-tbody > tr > td:first-child {
+                                white-space: nowrap !important;
+                            }
+
+                            /* Tag vs diğer ufak ayarlar */
                             .ant-tag {
-                                border: none !important;
+                                border: 1px solid #d9d9d9 !important;
                                 background: transparent !important;
-                                padding: 0 !important;
+                                padding: 0 4px !important;
+                                font-size: 10px !important;
                             }
-                            .ant-tag-red { color: #cf1322 !important; }
-                            .ant-tag-green { color: #3f8600 !important; }
-                            .ant-typography-success { color: #3f8600 !important; }
-                            .ant-typography-danger { color: #cf1322 !important; }
+                            .ant-space {
+                                display: flex !important;
+                                gap: 2px !important;
+                            }
+                            .ant-space-item {
+                                display: block !important;
+                            }
                         }
                     `}</style>
 

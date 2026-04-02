@@ -291,6 +291,49 @@ app.use('/api/messages', messageRoutes);
 // ERROR HANDLING
 // ============================================================================
 
+// ============================================================================
+// NEWS PROXY (RSS Feed - CORS safe)
+// ============================================================================
+app.get('/api/news/tourism', async (req, res) => {
+  try {
+    const axios = require('axios');
+    const response = await axios.get('https://www.turizmguncel.com/rss/haber', {
+      timeout: 8000,
+      headers: { 'User-Agent': 'SmartTransfer/2.0 RSS Reader' }
+    });
+    const xml = response.data;
+
+    // Simple XML parse: extract <item> blocks
+    const items = [];
+    const itemRegex = /<item>([\s\S]*?)<\/item>/g;
+    let match;
+    while ((match = itemRegex.exec(xml)) !== null && items.length < 15) {
+      const block = match[1];
+      const getTag = (tag) => {
+        const m = block.match(new RegExp(`<${tag}[^>]*><!\\[CDATA\\[([\\s\\S]*?)\\]\\]><\\/${tag}>|<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`));
+        return m ? (m[1] || m[2] || '').trim() : '';
+      };
+      const getAttr = (tag, attr) => {
+        const m = block.match(new RegExp(`<${tag}[^>]*${attr}=["']([^"']+)["']`));
+        return m ? m[1] : '';
+      };
+      const imgInDesc = (getTag('description') || '').match(/<img[^>]+src=["']([^"']+)["']/i);
+      items.push({
+        title: getTag('title'),
+        link: getTag('link') || getTag('guid'),
+        pubDate: getTag('pubDate'),
+        description: (getTag('description') || '').replace(/<[^>]+>/g, '').slice(0, 140),
+        imageUrl: getAttr('enclosure', 'url') || (imgInDesc ? imgInDesc[1] : null)
+      });
+    }
+
+    res.json({ success: true, data: items });
+  } catch (err) {
+    console.error('RSS proxy error:', err.message);
+    res.json({ success: false, data: [] });
+  }
+});
+
 // 404 handler
 app.use((req, res) => {
   res.status(404).json({

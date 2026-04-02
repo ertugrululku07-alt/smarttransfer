@@ -28,7 +28,7 @@
     "react-dom": "19.2.0",
     "react-leaflet": "^5.0.0",
     "react-quill-new": "^3.8.3",
-    "recharts": "^3.6.0",
+    "recharts": "^3.8.1",
     "socket.io-client": "^4.8.3",
     "use-places-autocomplete": "^4.0.1",
     "world-countries": "^5.1.0"

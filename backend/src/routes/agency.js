@@ -681,6 +681,71 @@ router.post('/deposits', authMiddleware, agencyMiddleware, async (req, res) => {
 });
 
 // ==========================================
+// AGENCY DASHBOARD STATS
+// ==========================================
+router.get('/dashboard', authMiddleware, agencyMiddleware, async (req, res) => {
+    try {
+        const agencyId = req.agencyId;
+        const tenantId = req.tenant.id;
+
+        // Fetch agency balance and staff count in parallel
+        const [agency, staffCount, bookings] = await Promise.all([
+            prisma.agency.findUnique({
+                where: { id: agencyId },
+                select: { balance: true, companyName: true }
+            }),
+            prisma.user.count({
+                where: { agencyId, tenantId, status: { not: 'DELETED' } }
+            }),
+            prisma.booking.findMany({
+                where: { agencyId, tenantId },
+                select: { status: true, startDate: true, createdAt: true }
+            })
+        ]);
+
+        const totalTransfers = bookings.length;
+        const completedTransfers = bookings.filter(b => b.status === 'COMPLETED').length;
+        const pendingTransfers = bookings.filter(b => b.status === 'PENDING').length;
+        const inProgressTransfers = bookings.filter(b => b.status === 'CONFIRMED').length;
+        const cancelledTransfers = bookings.filter(b => b.status === 'CANCELLED').length;
+
+        // Monthly transfer chart data for current year
+        const currentYear = new Date().getFullYear();
+        const monthlyData = Array.from({ length: 12 }, (_, i) => ({
+            month: i + 1,
+            label: new Date(currentYear, i, 1).toLocaleString('tr-TR', { month: 'short' }),
+            count: 0
+        }));
+
+        bookings.forEach(b => {
+            const d = new Date(b.startDate || b.createdAt);
+            if (d.getFullYear() === currentYear) {
+                const m = d.getMonth(); // 0-indexed
+                if (monthlyData[m]) monthlyData[m].count++;
+            }
+        });
+
+        res.json({
+            success: true,
+            data: {
+                totalTransfers,
+                completedTransfers,
+                pendingTransfers,
+                inProgressTransfers,
+                cancelledTransfers,
+                staffCount,
+                balance: agency ? parseFloat(agency.balance) : 0,
+                companyName: agency?.companyName,
+                monthlyChart: monthlyData
+            }
+        });
+    } catch (error) {
+        console.error('Agency dashboard stats error:', error);
+        res.status(500).json({ success: false, error: 'Failed to fetch dashboard stats' });
+    }
+});
+
+// ==========================================
 // ACCOUNT STATEMENT (HESAP EKSTRESİ)
 // ==========================================
 // Get agency's account statement (includes transactions with personnel details)
