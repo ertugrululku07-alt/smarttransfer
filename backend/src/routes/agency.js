@@ -680,4 +680,115 @@ router.post('/deposits', authMiddleware, agencyMiddleware, async (req, res) => {
     }
 });
 
+// ==========================================
+// ACCOUNT STATEMENT (HESAP EKSTRESİ)
+// ==========================================
+// Get agency's account statement (includes transactions with personnel details)
+router.get('/statement', authMiddleware, agencyMiddleware, async (req, res) => {
+    try {
+        const { startDate, endDate } = req.query;
+
+        // Fetch all transactions for this agency
+        // We fetch all of them to calculate a proper running balance up to the selected date
+        // But we will only return the transactions that fall within the requested date range
+        const allTransactions = await prisma.transaction.findMany({
+            where: {
+                tenantId: req.tenant.id,
+                accountId: `agency-${req.agencyId}`
+            },
+            orderBy: { date: 'asc' } // chronological for balance calculation
+        });
+
+        // Resolve reference IDs to get personnel details in parallel
+        const statementEntries = await Promise.all(allTransactions.map(async (t) => {
+            let personnelName = null;
+            let referenceData = null;
+
+            if (t.referenceId) {
+                // Determine if it was a booking (Booking type) or a deposit
+                if (t.type === 'MANUAL_OUT' || t.type === 'MANUAL_IN') {
+                    // Usually implies a booking purchase or cancellation refund
+                    const booking = await prisma.booking.findUnique({
+                        where: { id: t.referenceId },
+                        select: {
+                            bookingNumber: true,
+                            agent: { select: { firstName: true, lastName: true, fullName: true } }
+                        }
+                    });
+                    if (booking) {
+                        personnelName = booking.agent ? booking.agent.fullName : 'Bilinmeyen Personel';
+                        referenceData = booking.bookingNumber;
+                    }
+                } else if (t.type === 'DEPOSIT') {
+                    const deposit = await prisma.agencyDeposit.findUnique({
+                        where: { id: t.referenceId },
+                        select: {
+                            transactionRef: true,
+                            approvedBy: { select: { fullName: true } }
+                        }
+                    });
+                    if (deposit) {
+                        personnelName = deposit.approvedBy ? `Onaylayan: ${deposit.approvedBy.fullName}` : 'Sistem / Otomatik';
+                        referenceData = deposit.transactionRef;
+                    }
+                }
+            }
+
+            return {
+                id: t.id,
+                date: t.date,
+                type: t.type,
+                amount: parseFloat(t.amount),
+                isCredit: t.isCredit,
+                description: t.description,
+                personnelName: personnelName || 'Sistem',
+                referenceData,
+                runningBalance: 0 // Will calculate in the next step
+            };
+        }));
+
+        // Calculate running balance
+        let currentBalance = 0;
+        statementEntries.forEach(entry => {
+            if (entry.isCredit) {
+                currentBalance += entry.amount;
+            } else {
+                currentBalance -= entry.amount;
+            }
+            entry.runningBalance = currentBalance;
+        });
+
+        // Filter by dates if provided
+        let filteredEntries = statementEntries;
+        if (startDate && endDate) {
+            const startStr = new Date(startDate).toISOString().slice(0, 10);
+            const endStr = new Date(endDate).toISOString().slice(0, 10);
+            filteredEntries = statementEntries.filter(e => {
+                const eDateStr = new Date(e.date).toISOString().slice(0, 10);
+                return eDateStr >= startStr && eDateStr <= endStr;
+            });
+        }
+
+        // Return from newest to oldest for the table
+        filteredEntries.reverse();
+
+        // Also fetch the current live agency balance just to be sure
+        const agency = await prisma.agency.findUnique({
+            where: { id: req.agencyId },
+            select: { balance: true }
+        });
+
+        res.json({
+            success: true,
+            data: {
+                transactions: filteredEntries,
+                currentBalance: agency ? parseFloat(agency.balance) : currentBalance
+            }
+        });
+    } catch (error) {
+        console.error('Fetch agency statement error:', error);
+        res.status(500).json({ success: false, error: 'Failed to fetch statement' });
+    }
+});
+
 module.exports = router;

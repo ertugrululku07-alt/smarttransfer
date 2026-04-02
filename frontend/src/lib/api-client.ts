@@ -33,8 +33,12 @@ const apiClient = axios.create({
 export const getImageUrl = (url?: string | null) => {
     if (!url) return undefined;
     
-    // Version: 2.3.5 (Prod-Ready)
+    // Version: 2.3.6 (Prod-Ready)
     const normalizedUrl = url.trim();
+    
+    if (normalizedUrl.startsWith('data:image')) {
+        return normalizedUrl;
+    }
     
     // 1. Handle localhost/127.0.0.1 legacy URLs
     if (normalizedUrl.includes('localhost') || normalizedUrl.includes('127.0.0.1')) {

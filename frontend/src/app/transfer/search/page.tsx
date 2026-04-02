@@ -59,6 +59,8 @@ interface TransferResult {
     image?: string;
     isShuttle?: boolean;
     departureTimes?: string[];
+    matchedMasterTime?: string;
+    timeOffsetMin?: number;
 }
 
 const TransferSearchContent: React.FC = () => {
@@ -140,11 +142,14 @@ const TransferSearchContent: React.FC = () => {
         }
     };
 
-    const handleBook = (vehicleId: string) => {
+    const handleBook = (vehicleId: string, matchedMasterTime?: string) => {
         const currentDistance = routeStats?.distance;
         if (currentDistance) sessionStorage.setItem('routeDistance', currentDistance.toString());
         const params = new URLSearchParams(searchParams.toString());
         params.set('vehicleId', vehicleId);
+        if (matchedMasterTime) {
+            params.set('shuttleMasterTime', matchedMasterTime);
+        }
         if (routeStats?.duration) {
             params.set('duration', routeStats.duration.toString());
         }
@@ -272,6 +277,7 @@ const TransferSearchContent: React.FC = () => {
                                             <Text type="secondary" style={{ display: 'block', marginBottom: 16 }}>by {result.vendor}</Text>
                                             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%', marginBottom: 16 }}>
                                                 {result.isShuttle && <Tag color="purple">Paylaşımlı Shuttle</Tag>}
+                                                {result.matchedMasterTime && <Tag color="blue" style={{fontWeight:600}}>{result.matchedMasterTime} Yolculuğu</Tag>}
                                                 <Space><UserOutlined /> {result.capacity} Yolcu</Space>
                                                 <Space><SafetyCertificateOutlined /> {result.luggage} Bavul</Space>
                                                 {result.features?.includes('WiFi') && <Space><WifiOutlined /> WiFi</Space>}
@@ -282,7 +288,7 @@ const TransferSearchContent: React.FC = () => {
                                         <Col xs={24} md={6} style={{ padding: 24, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center' }}>
                                             <Text type="secondary" delete>{formatPrice(Math.round(result.price * 1.2), result.currency)}</Text>
                                             <Title level={2} style={{ color: '#667eea', margin: '4px 0 16px', fontSize: 28 }}>{formatPrice(result.price, result.currency)}</Title>
-                                            <Button type="primary" size="large" block onClick={() => handleBook(result.id)} style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', border: 'none' }}>Hemen Seç</Button>
+                                            <Button type="primary" size="large" block onClick={() => handleBook(result.id, result.matchedMasterTime)} style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', border: 'none' }}>Hemen Seç</Button>
                                         </Col>
                                     </Row>
                                 </Card>

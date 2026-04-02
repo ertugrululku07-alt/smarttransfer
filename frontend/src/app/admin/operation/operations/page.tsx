@@ -826,14 +826,22 @@ export default function OperationsPage() {
         const handleNewBooking = () => {
             // Trigger a re-fetch to ensure all nested relations (customer, metadata) are complete
             fetchBookings();
+            fetchShuttleRuns();
+        };
+
+        const handleShuttleRunsUpdated = () => {
+            // Trigger a re-fetch when shuttle runs are mutated (passengers moved, drivers assigned)
+            fetchShuttleRuns();
         };
 
         socket.on('booking_status_update', handleStatusUpdate);
         socket.on('new_booking', handleNewBooking);
+        socket.on('shuttle_runs_updated', handleShuttleRunsUpdated);
 
         return () => {
             socket.off('booking_status_update', handleStatusUpdate);
             socket.off('new_booking', handleNewBooking);
+            socket.off('shuttle_runs_updated', handleShuttleRunsUpdated);
         };
     }, [socket, filters.transferType, filters.direction]);
 
@@ -1188,30 +1196,21 @@ export default function OperationsPage() {
                 bookingIds: [passengerId],
             };
 
-            // If the target run has existing bookings, pass one as a sample
-            // so the backend can mirror its metadata exactly (guaranteed same group key)
+            payload.targetRun = {
+                manualRunId: targetRun.isManual ? (targetRun.manualRunId || targetRun.runKey) : null,
+                shuttleRouteId: targetRun.isManual ? null : (targetRun.shuttleRouteId || null),
+                shuttleMasterTime: targetRun.isManual ? targetRun.departureTime : (targetRun._originalMasterTime || null),
+                manualRunName: targetRun.isManual ? targetRun.routeName : (targetRun.routeName || null)
+            };
+
             if (targetRun.bookings && targetRun.bookings.length > 0) {
                 payload.sampleBookingId = targetRun.bookings[0].id;
-            } else {
-                // New/empty run: pass explicit fields
-                payload.targetRun = {
-                    manualRunId: targetRun.isManual ? (targetRun.manualRunId || targetRun.runKey) : null,
-                    shuttleRouteId: targetRun.isManual ? null : (targetRun.shuttleRouteId || null),
-                    shuttleMasterTime: targetRun.isManual ? targetRun.departureTime : (targetRun._originalMasterTime || null),
-                    manualRunName: targetRun.isManual ? targetRun.routeName : null
-                };
+                payload.targetBookingIds = targetRun.bookings.map((b: any) => b.id);
             }
+
             const res = await apiClient.post('/api/operations/shuttle-runs/move', payload);
             if (res.data.success) {
-                setShuttleRuns(prev => prev.map(r => {
-                    if (r.runKey === sourceRun.runKey) {
-                        return { ...r, bookings: r.bookings.filter((b: any) => b.id !== passengerId) };
-                    }
-                    if (r.runKey === targetRunKey) {
-                        return { ...r, bookings: [...r.bookings, passenger] };
-                    }
-                    return r;
-                }));
+                fetchShuttleRuns(); // Refetch to align exact backend state (drivers, vehicles, upgraded runs)
                 message.success('Yolcu taşındı');
             }
         } catch (err: any) {

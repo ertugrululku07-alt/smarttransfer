@@ -1214,6 +1214,7 @@ model ShuttleRoute {
 
   // Pricing & Capacity
   pricePerSeat Decimal @db.Decimal(10, 2)
+  currency     String  @default("EUR")
   maxSeats     Int
 
   // Status

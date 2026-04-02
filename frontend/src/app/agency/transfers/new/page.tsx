@@ -164,11 +164,13 @@ const AgencyNewTransferPage = () => {
             const pickupDateTime = `${date.format('YYYY-MM-DD')}T${pickupHour}:${pickupMinute}:00.000Z`;
 
             let distance: number | undefined;
+            let encodedPolyline: string | undefined;
             if (pickup && dropoff) {
                 try {
                     const route = await getRouteDetails(pickup, dropoff);
                     if (route) {
                         distance = route.distanceKm;
+                        encodedPolyline = route.encodedPolyline;
                         setRouteStats({ distance: route.distanceKm, duration: route.durationMin });
                     }
                 } catch (e) {
@@ -183,6 +185,7 @@ const AgencyNewTransferPage = () => {
                 passengers: totalPassengers || 1,
                 transferType: tripType,
                 distance,
+                encodedPolyline,
                 pickupLat: pickupLocation?.lat,
                 pickupLng: pickupLocation?.lng
             };
@@ -996,7 +999,7 @@ const AgencyNewTransferPage = () => {
                         window.scrollTo({ top: 0, behavior: 'smooth' });
                     }}
                     width={600}
-                    destroyOnClose
+                    destroyOnHidden
                 >
                     {paymentHtml ? (
                         <div

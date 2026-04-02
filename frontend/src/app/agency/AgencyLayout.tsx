@@ -13,7 +13,8 @@ import {
     SettingOutlined,
     BankOutlined,
     WalletOutlined,
-    UnorderedListOutlined
+    UnorderedListOutlined,
+    FileTextOutlined
 } from '@ant-design/icons';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../context/AuthContext';
@@ -107,6 +108,12 @@ const AgencyLayout: React.FC<AgencyLayoutProps> = ({ children, selectedKey = 'da
                     label: 'Depozito Yatır',
                     icon: <WalletOutlined />,
                     onClick: () => router.push('/agency/deposits')
+                },
+                {
+                    key: 'account-statement',
+                    label: 'Hesap Ekstresi',
+                    icon: <FileTextOutlined />,
+                    onClick: () => router.push('/agency/account-statement')
                 }
             ]
         }

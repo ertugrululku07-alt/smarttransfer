@@ -42,6 +42,7 @@ interface ShuttleRoute {
   scheduleType: 'DAILY' | 'WEEKLY' | 'CUSTOM';
   departureTimes: string[];
   pricePerSeat: number;
+  currency?: string;
   maxSeats: number;
   isActive: boolean;
   customStartDate?: string | null;
@@ -78,6 +79,7 @@ const AdminShuttleRoutesPage: React.FC = () => {
   const [editingRoute, setEditingRoute] = useState<ShuttleRoute | null>(null);
   const [shuttleRoutes, setShuttleRoutes] = useState<ShuttleRoute[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [currencies, setCurrencies] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
   // Location State
@@ -120,9 +122,21 @@ const AdminShuttleRoutesPage: React.FC = () => {
     }
   };
 
+  const fetchCurrencies = async () => {
+    try {
+      const res = await apiClient.get('/api/tenant/info');
+      const settings = res.data?.data?.tenant?.settings || {};
+      const defs = settings.definitions || { currencies: [] };
+      setCurrencies(defs.currencies || []);
+    } catch (error) {
+      console.error('Error fetching currencies:', error);
+    }
+  };
+
   useEffect(() => {
     fetchShuttleRoutes();
     fetchVehicles();
+    fetchCurrencies();
   }, []);
 
   const showModal = (route?: ShuttleRoute) => {
@@ -151,6 +165,7 @@ const AdminShuttleRoutesPage: React.FC = () => {
         scheduleType: route.scheduleType,
         departureTimes: route.departureTimes, // Pass strings directly
         pricePerSeat: route.pricePerSeat,
+        currency: route.currency || 'EUR',
         maxSeats: route.maxSeats,
         isActive: route.isActive,
         customDateRange: route.customStartDate && route.customEndDate
@@ -169,6 +184,7 @@ const AdminShuttleRoutesPage: React.FC = () => {
         scheduleType: 'DAILY',
         weeklyDays: [],
         departureTimes: ['08:00'], // Default string
+        currency: 'EUR',
       });
     }
     setIsModalVisible(true);
@@ -226,6 +242,7 @@ const AdminShuttleRoutesPage: React.FC = () => {
         scheduleType: values.scheduleType,
         departureTimes: formattedDepartureTimes.sort(), // Sort times
         pricePerSeat: Number(values.pricePerSeat),
+        currency: values.currency || 'EUR',
         maxSeats: Number(values.maxSeats),
         isActive: values.isActive ?? true,
         customStartDate,
@@ -315,7 +332,10 @@ const AdminShuttleRoutesPage: React.FC = () => {
       title: 'Fiyat',
       dataIndex: 'pricePerSeat',
       key: 'pricePerSeat',
-      render: (price: number) => `${price} €`,
+      render: (price: number, record: ShuttleRoute) => {
+        const c = currencies?.find((cur: any) => cur.code === (record.currency || 'EUR'));
+        return `${price} ${c?.symbol || record.currency || '€'}`;
+      },
     },
     {
       title: 'Durum',
@@ -355,6 +375,8 @@ const AdminShuttleRoutesPage: React.FC = () => {
           initialAddress={pickupLocation?.address}
           initialLocation={pickupLocation ? { lat: pickupLocation.lat, lng: pickupLocation.lng } : null}
           initialRadius={pickupRadius}
+          initialPolygonPath={pickupPolygon || []}
+          initialDrawingMode={pickupPolygon && pickupPolygon.length > 0 ? "polygon" : "circle"}
           country="tr"
         />
 
@@ -480,12 +502,29 @@ const AdminShuttleRoutesPage: React.FC = () => {
               />
             </Form.Item>
 
-            <Form.Item
-              name="pricePerSeat"
-              label="Kişi Başı Fiyat (€)"
-              rules={[{ required: true, message: 'Lütfen kişi başı fiyatı girin!' }]}
-            >
-              <Input type="number" min={0} step={0.01} placeholder="Örn: 10.00" />
+            <Form.Item label="Kişi Başı Fiyat" required>
+              <Input.Group compact>
+                <Form.Item
+                  name="pricePerSeat"
+                  noStyle
+                  rules={[{ required: true, message: 'Lütfen kişi başı fiyatı girin!' }]}
+                >
+                  <Input type="number" min={0} step={0.01} placeholder="Örn: 10.00" style={{ width: 'calc(100% - 100px)' }} />
+                </Form.Item>
+                <Form.Item
+                  name="currency"
+                  noStyle
+                  rules={[{ required: true, message: 'Para birimi seçin' }]}
+                >
+                  <Select style={{ width: 100 }} placeholder="Birim">
+                    {currencies.map((c) => (
+                      <Option key={c.code} value={c.code}>
+                        {c.code} ({c.symbol})
+                      </Option>
+                    ))}
+                  </Select>
+                </Form.Item>
+              </Input.Group>
             </Form.Item>
 
             <Form.Item

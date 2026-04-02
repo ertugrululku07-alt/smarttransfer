@@ -8,10 +8,13 @@ import {
 import {
     SearchOutlined, EditOutlined, StopOutlined, EyeOutlined,
     CarOutlined, ReloadOutlined, ClockCircleOutlined, CheckCircleOutlined,
-    CloseCircleOutlined, CalendarOutlined, TeamOutlined, EnvironmentOutlined
+    CloseCircleOutlined, CalendarOutlined, TeamOutlined, EnvironmentOutlined,
+    PrinterOutlined // NEW
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import apiClient from '@/lib/api-client';
+import { useAuth } from '@/app/context/AuthContext';
+import BookingVoucher from '@/app/components/BookingVoucher';
 import AgencyGuard from '../../AgencyGuard';
 import AgencyLayout from '../../AgencyLayout';
 
@@ -44,8 +47,10 @@ interface Booking {
 }
 
 export default function AgencyTransferListPage() {
+    const { user } = useAuth();
     const [bookings, setBookings] = useState<Booking[]>([]);
     const [loading, setLoading] = useState(false);
+    const [agencyInfo, setAgencyInfo] = useState<any>(null);
     const [search, setSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState<string | undefined>(undefined);
     const [dateRange, setDateRange] = useState<[dayjs.Dayjs, dayjs.Dayjs] | null>(null);
@@ -78,6 +83,16 @@ export default function AgencyTransferListPage() {
     }, [search, statusFilter, dateRange]);
 
     useEffect(() => { fetchBookings(); }, [fetchBookings]);
+
+    useEffect(() => {
+        const fetchAgencyInfo = async () => {
+            try {
+                const res = await apiClient.get('/api/agency/settings');
+                if (res.data?.success) setAgencyInfo(res.data.data);
+            } catch {}
+        };
+        fetchAgencyInfo();
+    }, []);
 
     const hoursUntil = (b: Booking) =>
         (new Date(b.startDate).getTime() - Date.now()) / (1000 * 60 * 60);
@@ -150,11 +165,35 @@ export default function AgencyTransferListPage() {
         });
     };
 
+    const handlePrint = (b: Booking) => {
+        setDetailBooking(b);
+        setTimeout(() => {
+            const voucherEl = document.getElementById('print-voucher-container');
+            if (!voucherEl) return;
+            const printWindow = window.open('', '_blank', 'width=900,height=700');
+            if (!printWindow) { window.alert('Pop-up engelleyiciyi kapatın'); return; }
+            printWindow.document.write(`
+                <!DOCTYPE html><html><head>
+                <meta charset="utf-8">
+                <title>Transfer Voucher</title>
+                <style>
+                    body { margin: 0; padding: 0; font-family: 'Inter', Arial, sans-serif; -webkit-print-color-adjust: exact; }
+                    @media print { @page { size: A4 portrait; margin: 10mm; } }
+                </style>
+                </head><body>${voucherEl.innerHTML}</body></html>
+            `);
+            printWindow.document.close();
+            printWindow.focus();
+            printWindow.print();
+        }, 150); // wait for react render
+    };
+
     // --- Stats ---
     const total = bookings.length;
     const confirmed = bookings.filter(b => b.status === 'CONFIRMED').length;
     const cancelled = bookings.filter(b => b.status === 'CANCELLED').length;
-    const upcoming = bookings.filter(b => hoursUntil(b) > 0 && b.status !== 'CANCELLED').length;
+    const completed = bookings.filter(b => b.status === 'COMPLETED').length;
+    const upcoming = bookings.filter(b => hoursUntil(b) > 0 && b.status !== 'CANCELLED' && b.status !== 'COMPLETED').length;
 
     // --- Columns ---
     const columns: any[] = [
@@ -296,6 +335,15 @@ export default function AgencyTransferListPage() {
                             onClick={() => { setDetailBooking(r); setDetailModalOpen(true); }}
                         />
                     </Tooltip>
+                    <Tooltip title="Voucher Yazdır">
+                        <Button
+                            type="default"
+                            size="small"
+                            icon={<PrinterOutlined />}
+                            style={{ borderRadius: 6, color: '#0891b2' }}
+                            onClick={() => handlePrint(r)}
+                        />
+                    </Tooltip>
                     <Tooltip title={canEdit(r) ? 'Düzenle' :
                         r.status === 'CANCELLED' ? 'İptal edildi' :
                             r.status === 'COMPLETED' ? 'Tamamlandı' :
@@ -340,14 +388,15 @@ export default function AgencyTransferListPage() {
                     {[
                         { title: 'Toplam', value: total, icon: <TeamOutlined />, color: '#6366f1' },
                         { title: 'Onaylı', value: confirmed, icon: <CheckCircleOutlined />, color: '#16a34a' },
+                        { title: 'Tamamlanan', value: completed, icon: <CarOutlined />, color: '#6b7280' },
                         { title: 'İptal', value: cancelled, icon: <CloseCircleOutlined />, color: '#dc2626' },
                         { title: 'Yaklaşan', value: upcoming, icon: <ClockCircleOutlined />, color: '#f59e0b' },
                     ].map(s => (
-                        <Col key={s.title} xs={12} sm={6}>
+                        <Col key={s.title} xs={12} sm={8} lg={4} style={{ flex: '1 1 18%' }}>
                             <Card
                                 size="small"
                                 style={{ borderRadius: 10, borderLeft: `3px solid ${s.color}`, background: '#fff' }}
-                                bodyStyle={{ padding: '10px 14px' }}
+                                styles={{ body: { padding: '10px 14px' } }}
                             >
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                                     <div>
@@ -366,7 +415,7 @@ export default function AgencyTransferListPage() {
                 {/* Filters */}
                 <Card
                     style={{ marginBottom: 16, borderRadius: 10, border: '1px solid #f0f0f0' }}
-                    bodyStyle={{ padding: '12px 16px' }}
+                    styles={{ body: { padding: '12px 16px' } }}
                 >
                     <Row gutter={[10, 10]} align="middle">
                         <Col xs={24} sm={9}>
@@ -415,7 +464,7 @@ export default function AgencyTransferListPage() {
                 {/* Table */}
                 <Card
                     style={{ borderRadius: 10, border: '1px solid #f0f0f0' }}
-                    bodyStyle={{ padding: 0 }}
+                    styles={{ body: { padding: 0 } }}
                 >
                     <Table
                         columns={columns}
@@ -542,6 +591,10 @@ export default function AgencyTransferListPage() {
                     onCancel={() => setDetailModalOpen(false)}
                     footer={[
                         <Button key="close" onClick={() => setDetailModalOpen(false)}>Kapat</Button>,
+                        <Button key="print" type="default" icon={<PrinterOutlined />}
+                            onClick={() => handlePrint(detailBooking!)}>
+                            Yazdır
+                        </Button>,
                         detailBooking && canEdit(detailBooking) && (
                             <Button key="edit" type="primary" icon={<EditOutlined />}
                                 onClick={() => { setDetailModalOpen(false); handleEdit(detailBooking!); }}>
@@ -643,6 +696,18 @@ export default function AgencyTransferListPage() {
                         );
                     })()}
                 </Modal>
+
+                <div id="print-voucher-container" style={{ position: 'absolute', left: -9999, top: -9999, width: 0, height: 0, overflow: 'hidden' }}>
+                    {detailBooking && (
+                        <BookingVoucher
+                            booking={detailBooking}
+                            tenant={user?.tenant}
+                            agency={agencyInfo}
+                            pickup={detailBooking.metadata?.pickup}
+                            dropoff={detailBooking.metadata?.dropoff}
+                        />
+                    )}
+                </div>
             </AgencyLayout>
         </AgencyGuard>
     );

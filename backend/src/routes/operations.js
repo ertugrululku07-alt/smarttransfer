@@ -865,6 +865,11 @@ router.patch('/shuttle-runs/assign', authMiddleware, async (req, res) => {
             updates.push(updated.id);
         }
 
+        const io = req.app.get('io');
+        if (io) {
+            io.to('admin_monitoring').emit('shuttle_runs_updated', { updatedCount: updates.length });
+        }
+
         res.json({ success: true, updatedCount: updates.length, updatedIds: updates });
     } catch (error) {
         console.error('shuttle-runs/assign error:', error);
@@ -879,36 +884,52 @@ router.patch('/shuttle-runs/assign', authMiddleware, async (req, res) => {
 // ---------------------------------------------------------------------------
 router.post('/shuttle-runs/move', authMiddleware, async (req, res) => {
     try {
-        const { bookingIds, targetRun, sampleBookingId } = req.body;
+        const { bookingIds, targetRun, sampleBookingId, targetBookingIds } = req.body;
         
         if (!bookingIds || !Array.isArray(bookingIds) || bookingIds.length === 0) {
             return res.status(400).json({ success: false, error: 'bookingIds array zorunlu' });
         }
 
-        // If sampleBookingId is provided, read its metadata and mirror it exactly
-        // This guarantees that the moved booking will group identically with siblings
-        let resolvedMeta = null;
-        if (sampleBookingId) {
-            const sample = await prisma.booking.findUnique({ where: { id: sampleBookingId } });
-            if (sample && sample.metadata) {
-                const m = sample.metadata;
-                resolvedMeta = {
-                    shuttleRouteId: m.shuttleRouteId || null,
-                    shuttleMasterTime: m.shuttleMasterTime || null,
-                    manualRunId: m.manualRunId || null,
-                    manualRunName: m.manualRunName || null,
-                };
-                console.log('[shuttle-move] Resolved meta from sample:', resolvedMeta);
-            }
-        }
-
-        // Fall back to explicit targetRun fields
-        const metaToApply = resolvedMeta || {
+        let metaToApply = {
             shuttleRouteId: targetRun?.shuttleRouteId || null,
             shuttleMasterTime: targetRun?.shuttleMasterTime || null,
             manualRunId: targetRun?.manualRunId || null,
             manualRunName: targetRun?.manualRunName || null,
         };
+
+        if (sampleBookingId) {
+            const sample = await prisma.booking.findUnique({ where: { id: sampleBookingId } });
+            if (sample && sample.metadata) {
+                const m = sample.metadata;
+                // If the target is an ADHOC run (no standard metadata grouping keys), upgrade it to a manual run
+                // to support reliable continuous grouping for the old and new moved passenger(s).
+                if (!m.shuttleRouteId && !m.manualRunId) {
+                    const upgradeId = `MANUAL::${Date.now()}`;
+                    metaToApply.manualRunId = upgradeId;
+                    metaToApply.manualRunName = targetRun?.manualRunName || 'Birleştirilmiş Shuttle Seferi';
+                    
+                    // Upgrade all existing bookings in the target run to the same new manual run ID
+                    if (targetBookingIds && targetBookingIds.length > 0) {
+                        for (const tbId of targetBookingIds) {
+                            const tb = await prisma.booking.findUnique({ where: { id: tbId } });
+                            if (tb) {
+                                await prisma.booking.update({
+                                    where: { id: tbId },
+                                    data: {
+                                        metadata: { ...(tb.metadata || {}), manualRunId: metaToApply.manualRunId, manualRunName: metaToApply.manualRunName }
+                                    }
+                                });
+                            }
+                        }
+                    }
+                } else {
+                    metaToApply.shuttleRouteId = m.shuttleRouteId || null;
+                    metaToApply.shuttleMasterTime = m.shuttleMasterTime || null;
+                    metaToApply.manualRunId = m.manualRunId || null;
+                    metaToApply.manualRunName = m.manualRunName || null;
+                }
+            }
+        }
 
         if (!metaToApply.shuttleRouteId && !metaToApply.manualRunId && !metaToApply.shuttleMasterTime) {
             return res.status(400).json({ success: false, error: 'Hedef sefer bilgisi yetersiz (shuttleRouteId, manualRunId veya shuttleMasterTime gerekli)' });
@@ -919,16 +940,38 @@ router.post('/shuttle-runs/move', authMiddleware, async (req, res) => {
             const booking = await prisma.booking.findUnique({ where: { id: bookingId } });
             if (!booking) continue;
 
+            let driverIdToSet = booking.driverId;
+            let vehicleIdToSet = booking.metadata?.assignedVehicleId || null;
+
+            if (sampleBookingId) {
+                // If joining an existing run with passengers, adopt the target run's explicit vehicle/driver mappings
+                const sample = await prisma.booking.findUnique({ where: { id: sampleBookingId } });
+                driverIdToSet = sample ? sample.driverId : null;
+                vehicleIdToSet = sample?.metadata?.assignedVehicleId || null;
+            } else if (targetRun) {
+                // New/empty manual runs start without a driver/vehicle assigned implicitly
+                // Ensure moving a passenger into an empty run does NOT automatically link their vehicle to the generic run.
+                driverIdToSet = null;
+                vehicleIdToSet = null;
+            }
+
             const updated = await prisma.booking.update({
                 where: { id: bookingId },
                 data: {
+                    driverId: driverIdToSet,
                     metadata: {
                         ...(booking.metadata || {}),
-                        ...metaToApply
+                        ...metaToApply,
+                        assignedVehicleId: vehicleIdToSet
                     }
                 }
             });
             updates.push(updated.id);
+        }
+
+        const io = req.app.get('io');
+        if (io) {
+            io.to('admin_monitoring').emit('shuttle_runs_updated', { updatedCount: updates.length });
         }
 
         res.json({ success: true, updatedCount: updates.length });

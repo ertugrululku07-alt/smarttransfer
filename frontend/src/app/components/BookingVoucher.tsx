@@ -54,8 +54,20 @@ export default function BookingVoucher({ booking, tenant, agency, pickup: pickup
             <Row justify="space-between" align="middle" style={{ marginBottom: 30 }}>
                 <Col>
                     {agencyLogo ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={agencyLogo} alt="Firma Logosu" style={{ height: 70, maxWidth: 220, objectFit: 'contain', display: 'block' }} />
+                        <>
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img 
+                                src={agencyLogo} 
+                                alt="Firma Logosu" 
+                                style={{ height: 70, maxWidth: 220, objectFit: 'contain', display: 'block' }} 
+                                onError={(e) => {
+                                    (e.target as HTMLImageElement).style.display = 'none';
+                                    const fallbackEl = document.getElementById(`fallback-name-${booking.id}`);
+                                    if (fallbackEl) fallbackEl.style.display = 'block';
+                                }}
+                            />
+                            <Title id={`fallback-name-${booking.id}`} level={3} style={{ margin: 0, display: 'none' }}>{agencyName}</Title>
+                        </>
                     ) : (
                         <Title level={3} style={{ margin: 0 }}>{agencyName}</Title>
                     )}
