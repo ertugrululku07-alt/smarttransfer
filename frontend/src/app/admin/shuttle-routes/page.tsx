@@ -59,7 +59,7 @@ interface Vehicle {
   plateNumber: string;
   vehicleType: string;
   capacity: number;
-  usageType?: 'TRANSFER' | 'SHUTTLE' | null;
+  usageType?: string | string[] | null;
 }
 
 const WEEK_DAYS = [
@@ -172,6 +172,8 @@ const AdminShuttleRoutesPage: React.FC = () => {
           ? [moment(route.customStartDate, 'YYYY-MM-DD'), moment(route.customEndDate, 'YYYY-MM-DD')]
           : null,
         weeklyDays: route.weeklyDays || [],
+        isBidirectional: false,
+        returnDepartureTimes: [],
       });
     } else {
       setEditingRoute(null);
@@ -185,6 +187,8 @@ const AdminShuttleRoutesPage: React.FC = () => {
         weeklyDays: [],
         departureTimes: ['08:00'], // Default string
         currency: 'EUR',
+        isBidirectional: false,
+        returnDepartureTimes: [],
       });
     }
     setIsModalVisible(true);
@@ -250,7 +254,9 @@ const AdminShuttleRoutesPage: React.FC = () => {
         weeklyDays,
         pickupLocation,
         pickupRadius,
-        pickupPolygon
+        pickupPolygon,
+        isBidirectional: values.isBidirectional,
+        returnDepartureTimes: values.returnDepartureTimes ? values.returnDepartureTimes.sort() : []
       };
 
       if (editingRoute) {
@@ -287,7 +293,7 @@ const AdminShuttleRoutesPage: React.FC = () => {
     }
   };
 
-  const shuttleVehicles = vehicles.filter((v) => v.usageType === 'SHUTTLE');
+  const shuttleVehicles = vehicles.filter((v) => Array.isArray(v.usageType) ? v.usageType.includes('SHUTTLE') : v.usageType === 'SHUTTLE');
 
   const columns = [
     { title: 'ID', dataIndex: 'id', key: 'id' },
@@ -502,6 +508,28 @@ const AdminShuttleRoutesPage: React.FC = () => {
               />
             </Form.Item>
 
+            {/* Return times moved to a point where they show up if bidirectional is checked */}
+            <Form.Item noStyle shouldUpdate={(prevValues, currentValues) => prevValues.isBidirectional !== currentValues.isBidirectional}>
+              {({ getFieldValue }) =>
+                getFieldValue('isBidirectional') ? (
+                  <Form.Item
+                    name="returnDepartureTimes"
+                    label="Dönüş Kalkış Saatleri"
+                    rules={[{ required: true, message: 'Dönüş rotası için en az bir kalkış saati seçin!' }]}
+                  >
+                    <Select
+                      mode="tags"
+                      style={{ width: '100%' }}
+                      placeholder="Dönüş saatlerini seçin veya yazın (örn: 14:30)"
+                      options={timeOptions}
+                      allowClear
+                      tokenSeparators={[',', ' ']}
+                    />
+                  </Form.Item>
+                ) : null
+              }
+            </Form.Item>
+
             <Form.Item label="Kişi Başı Fiyat" required>
               <Input.Group compact>
                 <Form.Item
@@ -535,9 +563,14 @@ const AdminShuttleRoutesPage: React.FC = () => {
               <Input type="number" min={1} placeholder="Örn: 4" />
             </Form.Item>
 
-            <Form.Item name="isActive" label="Aktif" valuePropName="checked">
-              <Switch checkedChildren="Aktif" unCheckedChildren="Pasif" />
-            </Form.Item>
+            <Space size="large" style={{ width: '100%', justifyContent: 'flex-start' }}>
+              <Form.Item name="isActive" label="Durum (Aktif)" valuePropName="checked">
+                <Switch checkedChildren="Aktif" unCheckedChildren="Pasif" />
+              </Form.Item>
+              <Form.Item name="isBidirectional" label="Çift Yönlü Hat Oluştur" valuePropName="checked">
+                <Switch checkedChildren="Evet" unCheckedChildren="Hayır" />
+              </Form.Item>
+            </Space>
           </Form>
         </Modal>
       </AdminLayout>

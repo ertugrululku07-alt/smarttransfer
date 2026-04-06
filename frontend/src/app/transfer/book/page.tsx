@@ -22,7 +22,8 @@ import {
     Alert,
     Checkbox,
     Collapse,
-    Select
+    Select,
+    TimePicker
 } from 'antd';
 import {
     CarOutlined,
@@ -114,6 +115,17 @@ const TransferBookingContent: React.FC = () => {
     const passengers = searchParams.get('passengers');
     const type = searchParams.get('type');
     const durationParam = searchParams.get('duration'); // Get duration from URL
+    const shuttleMasterTime = searchParams.get('shuttleMasterTime');
+
+    // Airport Transfer Detection: Check if pickup or dropoff contains airport keywords
+    const AIRPORT_KEYWORDS = [
+        'havaliman', 'havaalani', 'airport', 'hava liman', 'hava alan',
+        'ayt', 'ist', 'saw', 'esb', 'adnan menderes', 'atatürk', 'sabiha',
+        'gazipasa', 'gazipaşa', 'gazipasha', 'dalaman', 'bodrum', 'milas'
+    ];
+    const isAirportTransfer = AIRPORT_KEYWORDS.some(kw =>
+        pickup?.toLowerCase().includes(kw) || dropoff?.toLowerCase().includes(kw)
+    );
 
     // Note: In a real app, we should fetch vehicle details from API using vehicleId
     // For MVP, we'll calculate/display based on assumptions or params
@@ -166,7 +178,8 @@ const TransferBookingContent: React.FC = () => {
                 pickupLat,
                 pickupLng,
                 distance: cleanDistance,
-                encodedPolyline: encodedPolyline || undefined
+                encodedPolyline: encodedPolyline || undefined,
+                shuttleMasterTime: shuttleMasterTime || undefined
             };
 
             const res = await apiClient.post('/api/transfer/search', payload);
@@ -296,7 +309,8 @@ const TransferBookingContent: React.FC = () => {
                     phone: fullPhone
                 },
                 flightNumber: values.flightNumber,
-                notes: values.notes,
+                flightTime: values.flightTime ? values.flightTime.format('HH:mm') : undefined,
+                notes: values.notes || (values.flightTime ? `Uçuş Saati: ${values.flightTime.format('HH:mm')}` : undefined),
                 passengerDetails: [
                     // Passenger 1: Main Contact
                     {
@@ -477,6 +491,16 @@ const TransferBookingContent: React.FC = () => {
                                     <Input size="large" placeholder="ornek@email.com" />
                                 </Form.Item>
 
+                                {isAirportTransfer && (
+                                    <Alert
+                                        type="info"
+                                        showIcon
+                                        icon={<RocketOutlined />}
+                                        message="Havalimanı Transferi Tespit Edildi"
+                                        description="Hata yapmamak için uçuş saatinizi ve uçuş numaranızı doğru girmeniz gerekmektedir."
+                                        style={{ marginBottom: 16 }}
+                                    />
+                                )}
                                 <Row gutter={16}>
                                     <Col xs={24} md={12}>
                                         <Form.Item
@@ -488,12 +512,29 @@ const TransferBookingContent: React.FC = () => {
                                         </Form.Item>
                                     </Col>
                                     <Col xs={24} md={12}>
-                                        <Form.Item
-                                            name="notes"
-                                            label="Sürücüye Not (Opsiyonel)"
-                                        >
-                                            <Input size="large" placeholder="Örn: Bebek koltuğu istiyorum" />
-                                        </Form.Item>
+                                        {isAirportTransfer ? (
+                                            <Form.Item
+                                                name="flightTime"
+                                                label="Uçuş Saatiniz"
+                                                tooltip="Uçuşunuzun kalkış veya varış saatini giriniz. Şoförümüz bu saate göre sizi alır."
+                                                rules={[{ required: true, message: 'Havalimanı transferi için uçuş saati zorunludur' }]}
+                                            >
+                                                <TimePicker
+                                                    size="large"
+                                                    format="HH:mm"
+                                                    style={{ width: '100%' }}
+                                                    placeholder="Uçuş Saatiniz (ÖR: 14:30)"
+                                                    minuteStep={5}
+                                                />
+                                            </Form.Item>
+                                        ) : (
+                                            <Form.Item
+                                                name="notes"
+                                                label="Sürücüye Not (Opsiyonel)"
+                                            >
+                                                <Input size="large" placeholder="Örn: Bebek koltuğu istiyorum" />
+                                            </Form.Item>
+                                        )}
                                     </Col>
                                 </Row>
                                 {Number(passengers) > 1 && (

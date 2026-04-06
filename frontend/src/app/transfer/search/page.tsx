@@ -82,6 +82,8 @@ const TransferSearchContent: React.FC = () => {
     const type = searchParams.get('type') || 'ONE_WAY';
     const pickupLat = searchParams.get('pickupLat') || '';
     const pickupLng = searchParams.get('pickupLng') || '';
+    const dropoffLat = searchParams.get('dropoffLat') || '';
+    const dropoffLng = searchParams.get('dropoffLng') || '';
 
     useEffect(() => {
         if (pickup && dropoff && date) {
@@ -97,7 +99,7 @@ const TransferSearchContent: React.FC = () => {
             setError(null);
             let pickupDateTime = date;
             if (time) {
-                pickupDateTime = `${date}T${time}:00.000Z`;
+                pickupDateTime = `${date}T${time}:00.000`;
             }
 
             let distance: number | undefined;
@@ -124,8 +126,10 @@ const TransferSearchContent: React.FC = () => {
                 transferType: type,
                 distance,
                 encodedPolyline,
-                pickupLat,
-                pickupLng
+                pickupLat: searchParams.get('pickupLat') || undefined,
+                pickupLng: searchParams.get('pickupLng') || undefined,
+                dropoffLat: searchParams.get('dropoffLat') || undefined,
+                dropoffLng: searchParams.get('dropoffLng') || undefined
             };
 
             const res = await apiClient.post('/api/transfer/search', payload);
@@ -163,7 +167,11 @@ const TransferSearchContent: React.FC = () => {
             date: date ? dayjs(date) : null,
             time: time ? dayjs(time, 'HH:mm') : null,
             passengers: Number(passengers) || 1,
-            type: type || 'ONE_WAY'
+            type: type || 'ONE_WAY',
+            pickupLat: searchParams.get('pickupLat') || '',
+            pickupLng: searchParams.get('pickupLng') || '',
+            dropoffLat: searchParams.get('dropoffLat') || '',
+            dropoffLng: searchParams.get('dropoffLng') || ''
         });
         setIsEditModalVisible(true);
     };
@@ -176,6 +184,11 @@ const TransferSearchContent: React.FC = () => {
         params.set('time', values.time.format('HH:mm'));
         params.set('passengers', values.passengers);
         params.set('type', values.type);
+        if (values.pickupLat) params.set('pickupLat', values.pickupLat);
+        if (values.pickupLng) params.set('pickupLng', values.pickupLng);
+        if (values.dropoffLat) params.set('dropoffLat', values.dropoffLat);
+        if (values.dropoffLng) params.set('dropoffLng', values.dropoffLng);
+        
         setIsEditModalVisible(false);
         router.push(`/transfer/search?${params.toString()}`);
     };
@@ -300,8 +313,27 @@ const TransferSearchContent: React.FC = () => {
 
             <Modal title="Aramayı Düzenle" open={isEditModalVisible} onCancel={() => setIsEditModalVisible(false)} footer={null} destroyOnHidden={true}>
                 <Form form={form} layout="vertical" onFinish={handleEditSubmit}>
-                    <Form.Item name="pickup" label="Alış Noktası" rules={[{ required: true }]}><HereLocationSearchInput placeholder="Nereden?" /></Form.Item>
-                    <Form.Item name="dropoff" label="Bırakış Noktası" rules={[{ required: true }]}><HereLocationSearchInput placeholder="Nereye?" /></Form.Item>
+                    <Form.Item name="pickupLat" noStyle><Input type="hidden" /></Form.Item>
+                    <Form.Item name="pickupLng" noStyle><Input type="hidden" /></Form.Item>
+                    <Form.Item name="dropoffLat" noStyle><Input type="hidden" /></Form.Item>
+                    <Form.Item name="dropoffLng" noStyle><Input type="hidden" /></Form.Item>
+
+                    <Form.Item name="pickup" label="Alış Noktası" rules={[{ required: true }]}>
+                        <HereLocationSearchInput 
+                            placeholder="Nereden?" 
+                            onSelect={(val, lat, lng) => {
+                                form.setFieldsValue({ pickup: val, pickupLat: lat, pickupLng: lng });
+                            }} 
+                        />
+                    </Form.Item>
+                    <Form.Item name="dropoff" label="Bırakış Noktası" rules={[{ required: true }]}>
+                        <HereLocationSearchInput 
+                            placeholder="Nereye?" 
+                            onSelect={(val, lat, lng) => {
+                                form.setFieldsValue({ dropoff: val, dropoffLat: lat, dropoffLng: lng });
+                            }}
+                        />
+                    </Form.Item>
                     <Row gutter={16}>
                         <Col span={12}><Form.Item name="date" label="Tarih" rules={[{ required: true }]}><DatePicker style={{ width: '100%' }} format="DD.MM.YYYY" disabledDate={(current) => current && current < dayjs().startOf('day')} /></Form.Item></Col>
                         <Col span={12}><Form.Item name="time" label="Saat" rules={[{ required: true }]}><TimePicker style={{ width: '100%' }} format="HH:mm" /></Form.Item></Col>

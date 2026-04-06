@@ -1,4 +1,4 @@
-﻿const express = require('express');
+const express = require('express');
 
 const { authMiddleware } = require('../middleware/auth');
 const router = express.Router();
@@ -165,6 +165,36 @@ router.put('/accounts/:id', authMiddleware, async (req, res) => {
     try {
         const { id } = req.params;
         const { code, name, type, taxNumber, taxOffice, address, phone, email, currency } = req.body;
+
+        if (id.startsWith('agency-')) {
+            const agencyId = id.replace('agency-', '');
+            const updated = await prisma.agency.update({
+                where: { id: agencyId, tenantId: req.user.tenantId },
+                data: { companyName: name, taxNumber, taxOffice, address, phone, email }
+            });
+            return res.json({ success: true, data: updated });
+        } else if (id.startsWith('personnel-')) {
+            const personnelId = id.replace('personnel-', '');
+            const nameParts = (name || '').split(' ');
+            const firstName = nameParts[0] || '';
+            const lastName = nameParts.slice(1).join(' ') || '';
+            const updated = await prisma.personnel.update({
+                where: { id: personnelId, tenantId: req.user.tenantId },
+                data: { firstName, lastName, address, phone, email }
+            });
+            return res.json({ success: true, data: updated });
+        } else if (id.startsWith('partner-')) {
+            const partnerId = id.replace('partner-', '');
+            const nameParts = (name || '').split(' ');
+            const firstName = nameParts[0] || '';
+            const lastName = nameParts.slice(1).join(' ') || '';
+            const updated = await prisma.user.update({
+                where: { id: partnerId, tenantId: req.user.tenantId },
+                data: { firstName, lastName, phone, email }
+            });
+            return res.json({ success: true, data: updated });
+        }
+
         const existingAccount = await prisma.account.findFirst({ where: { id, tenantId: req.user.tenantId } });
         if (!existingAccount) return res.status(404).json({ success: false, error: 'Hesap bulunamadı.' });
 

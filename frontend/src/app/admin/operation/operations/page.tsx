@@ -248,6 +248,37 @@ export default function OperationsPage() {
         suggestion: any;
     } | null>(null);
 
+    // Complete Booking Modal state
+    const [completeModalVisible, setCompleteModalVisible] = useState(false);
+    const [selectedCompleteBooking, setSelectedCompleteBooking] = useState<any>(null);
+    const [collectedAmount, setCollectedAmount] = useState<number>(0);
+    const [completeLoading, setCompleteLoading] = useState(false);
+
+    const handleOpenCompleteModal = (booking: any) => {
+        setSelectedCompleteBooking(booking);
+        setCollectedAmount(booking.total || booking.price || 0); // Suggest total price
+        setCompleteModalVisible(true);
+    };
+
+    const handleCompleteTransfer = async () => {
+        if (!selectedCompleteBooking) return;
+        setCompleteLoading(true);
+        try {
+            await apiClient.put(`/api/transfer/bookings/${selectedCompleteBooking.id}/status`, {
+                status: 'COMPLETED',
+                collectedAmount: collectedAmount
+            });
+            message.success('Transfer başarıyla tamamlandı!');
+            setCompleteModalVisible(false);
+            fetchBookings(); // Refresh list to get new status
+        } catch (e: any) {
+            console.error(e);
+            message.error(e.response?.data?.error || 'Transfer tamamlanırken bir hata oluştu');
+        } finally {
+            setCompleteLoading(false);
+        }
+    };
+
     // Fullscreen toggle
     const toggleFullscreen = () => {
         if (!document.fullscreenElement) {
@@ -449,7 +480,7 @@ export default function OperationsPage() {
                 const isShuttle = record.transferType === 'SHUTTLE';
 
                 // Get shuttle vehicle owners
-                const shuttleVehicles = vehicles.filter((v: any) => v.usageType === 'SHUTTLE' || v.shuttleMode);
+                const shuttleVehicles = vehicles.filter((v: any) => (Array.isArray(v.usageType) ? v.usageType.includes('SHUTTLE') : v.usageType === 'SHUTTLE') || v.shuttleMode);
                 const shuttleDriverIds = new Set(shuttleVehicles.filter((v: any) => v.driverId).map((v: any) => v.driverId));
 
                 // Filter drivers pool based on transfer type
@@ -531,7 +562,7 @@ export default function OperationsPage() {
                 const isShuttle = record.transferType === 'SHUTTLE';
 
                 // Filter by usageType (set in vehicle management)
-                const shuttleVehicles = vehicles.filter((v: any) => v.usageType === 'SHUTTLE' || v.shuttleMode || v.metadata?.usageType === 'SHUTTLE' || v.metadata?.shuttleMode);
+                const shuttleVehicles = vehicles.filter((v: any) => (Array.isArray(v.usageType) ? v.usageType.includes('SHUTTLE') : v.usageType === 'SHUTTLE') || v.shuttleMode || (Array.isArray(v.metadata?.usageType) ? v.metadata?.usageType.includes('SHUTTLE') : v.metadata?.usageType === 'SHUTTLE') || v.metadata?.shuttleMode);
                 const privateVehicles = vehicles.filter((v: any) => !shuttleVehicles.includes(v));
 
                 // Use filtered list strictly depending on Shuttle or Private
@@ -645,6 +676,48 @@ export default function OperationsPage() {
                         <EnvironmentOutlined style={{ color: '#dc2626', marginRight: 4 }} />{loc}
                     </Text>
                 );
+            }
+        },
+        {
+            title: 'İŞLEM',
+            key: 'actions',
+            width: 130,
+            render: (_: any, record: any) => {
+                const isPayInVehicle = record.metadata?.paymentMethod === 'PAY_IN_VEHICLE';
+                const isAgencyBooking = !!record.agencyId;
+                const isCompleted = record.status === 'COMPLETED';
+                const isCancelled = record.status === 'CANCELLED';
+
+                if (isCompleted || isCancelled) {
+                    return (
+                        <Tag color={isCompleted ? 'success' : 'error'} style={{ fontSize: 11 }}>
+                            {isCompleted ? '✅ Tamamlandı' : '❌ İptal'}
+                        </Tag>
+                    );
+                }
+
+                // Only show Tamamla for PAY_IN_VEHICLE agency bookings
+                if (isAgencyBooking && isPayInVehicle) {
+                    return (
+                        <Tooltip title="Nakit tahsilatı girerek transferi tamamla ve cari hesaba yansıt">
+                            <Button
+                                type="primary"
+                                size="small"
+                                style={{
+                                    background: 'linear-gradient(135deg, #16a34a, #22c55e)',
+                                    border: 'none',
+                                    fontSize: 11,
+                                    fontWeight: 600
+                                }}
+                                onClick={() => handleOpenCompleteModal(record)}
+                            >
+                                💵 Tamamla
+                            </Button>
+                        </Tooltip>
+                    );
+                }
+
+                return <Text type="secondary" style={{ fontSize: 12 }}>—</Text>;
             }
         },
     ];
@@ -1756,7 +1829,7 @@ export default function OperationsPage() {
                                         ? (() => { const v = vehicles.find((vh: any) => vh.id === run.vehicleId); return v ? v.plateNumber : null; })()
                                         : null;
 
-                                    const shuttleVehicles = vehicles.filter((v: any) => v.usageType === 'SHUTTLE' || v.metadata?.usageType === 'SHUTTLE');
+                                    const shuttleVehicles = vehicles.filter((v: any) => (Array.isArray(v.usageType) ? v.usageType.includes('SHUTTLE') : v.usageType === 'SHUTTLE') || (Array.isArray(v.metadata?.usageType) ? v.metadata?.usageType.includes('SHUTTLE') : v.metadata?.usageType === 'SHUTTLE'));
                                     const vehicleOpts = (shuttleVehicles.length > 0 ? shuttleVehicles : vehicles).map((v: any) => ({
                                         value: v.id,
                                         label: `${v.plateNumber} – ${v.brand || ''} ${v.model || ''}`.trim()
@@ -2288,6 +2361,89 @@ export default function OperationsPage() {
                             />
                         </div>
                     </div>
+                </Modal>
+
+                {/* ── COMPLETE TRANSFER MODAL (for PAY_IN_VEHICLE reconciliation) ── */}
+                <Modal
+                    title={
+                        <Space>
+                            <span style={{ fontSize: 18 }}>💵</span>
+                            <span>Transfer Tamamla — Nakit Tahsilat</span>
+                        </Space>
+                    }
+                    open={completeModalVisible}
+                    onCancel={() => setCompleteModalVisible(false)}
+                    onOk={handleCompleteTransfer}
+                    okText="Tamamla ve Cari'ye Yansıt"
+                    cancelText="İptal"
+                    confirmLoading={completeLoading}
+                    okButtonProps={{
+                        style: { background: 'linear-gradient(135deg, #16a34a, #22c55e)', border: 'none', fontWeight: 600 }
+                    }}
+                    width={480}
+                >
+                    {selectedCompleteBooking && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                            <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10, padding: '12px 16px' }}>
+                                <div style={{ fontWeight: 700, fontSize: 14, color: '#15803d', marginBottom: 6 }}>
+                                    📋 {selectedCompleteBooking.bookingNumber}
+                                </div>
+                                <div style={{ fontSize: 13, color: '#374151' }}>
+                                    <span>👤 {selectedCompleteBooking.contactName}</span><br />
+                                    <span>📍 {selectedCompleteBooking.pickup?.rawLocation || selectedCompleteBooking.pickup?.location || '-'}</span>
+                                    <span style={{ margin: '0 6px' }}>→</span>
+                                    <span>{selectedCompleteBooking.dropoff?.rawLocation || selectedCompleteBooking.dropoff?.location || '-'}</span>
+                                </div>
+                                {selectedCompleteBooking.metadata?.paymentMethod === 'PAY_IN_VEHICLE' && (
+                                    <div style={{ marginTop: 8, fontSize: 12, display: 'flex', gap: 16 }}>
+                                        <span>💰 B2B Maliyet: <strong style={{ color: '#dc2626' }}>₺{selectedCompleteBooking.subtotal || 0}</strong></span>
+                                        <span>🏷️ Satış Fiyatı: <strong style={{ color: '#2563eb' }}>₺{selectedCompleteBooking.total || 0}</strong></span>
+                                    </div>
+                                )}
+                            </div>
+
+                            {selectedCompleteBooking.metadata?.paymentMethod === 'PAY_IN_VEHICLE' ? (
+                                <div>
+                                    <div style={{ fontWeight: 600, marginBottom: 8, color: '#374151' }}>
+                                        Şoförün Tahsil Ettiği Nakit Tutar (₺)
+                                    </div>
+                                    <input
+                                        type="number"
+                                        min={0}
+                                        step={0.01}
+                                        value={collectedAmount}
+                                        onChange={(e) => setCollectedAmount(parseFloat(e.target.value) || 0)}
+                                        style={{
+                                            width: '100%', padding: '10px 14px', fontSize: 22,
+                                            fontWeight: 700, border: '2px solid #d1fae5',
+                                            borderRadius: 10, outline: 'none', boxSizing: 'border-box',
+                                            color: '#15803d', background: '#f0fdf4',
+                                            textAlign: 'center'
+                                        }}
+                                    />
+                                    <div style={{ marginTop: 10, background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 8, padding: '10px 14px', fontSize: 13 }}>
+                                        <div style={{ fontWeight: 600, color: '#92400e', marginBottom: 4 }}>Hesaplama Özeti</div>
+                                        <div>B2B Maliyet: <strong>₺{selectedCompleteBooking.subtotal || 0}</strong></div>
+                                        <div>Tahsil Edilen: <strong>₺{collectedAmount}</strong></div>
+                                        <div style={{ marginTop: 6, padding: '6px 10px', background: (collectedAmount - (selectedCompleteBooking.subtotal || 0)) >= 0 ? '#dcfce7' : '#fee2e2', borderRadius: 6 }}>
+                                            Acente Cari Farkı:&nbsp;
+                                            <strong style={{ color: (collectedAmount - (selectedCompleteBooking.subtotal || 0)) >= 0 ? '#16a34a' : '#dc2626', fontSize: 15 }}>
+                                                {(collectedAmount - (selectedCompleteBooking.subtotal || 0)) >= 0 ? '+' : ''}₺{(collectedAmount - (selectedCompleteBooking.subtotal || 0)).toFixed(2)}
+                                            </strong>
+                                            &nbsp;
+                                            <span style={{ fontSize: 11, color: (collectedAmount - (selectedCompleteBooking.subtotal || 0)) >= 0 ? '#15803d' : '#dc2626' }}>
+                                                {(collectedAmount - (selectedCompleteBooking.subtotal || 0)) >= 0 ? '(Bakiyeye Eklenecek)' : '(Bakiyeden Düşülecek)'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div style={{ fontSize: 13, color: '#6b7280' }}>
+                                    Bu transfer, araçta nakit ödeme ile oluşturulmamış. Sadece durumu <strong>"Tamamlandı"</strong> olarak güncellenecek. Cari bakiye değişmeyecek.
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </Modal>
             </AdminLayout>
 

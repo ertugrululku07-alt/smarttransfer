@@ -11,7 +11,8 @@ import {
     SendOutlined, CheckCircleOutlined, ClockCircleOutlined, FileTextOutlined,
     ReloadOutlined, EyeOutlined, CopyOutlined, ThunderboltOutlined,
     UserOutlined, ShopOutlined, DollarOutlined, SafetyOutlined,
-    ArrowUpOutlined, ArrowDownOutlined,
+    ArrowUpOutlined, ArrowDownOutlined, SearchOutlined
+
 } from '@ant-design/icons';
 import AdminLayout from '../../AdminLayout';
 import AdminGuard from '../../AdminGuard';
@@ -91,13 +92,13 @@ const KIND_CFG: Record<string, { label: string; color: string }> = {
 const fmtTRY = (v: number, cur = 'TRY') =>
     new Intl.NumberFormat('tr-TR', { style: 'currency', currency: cur }).format(Number(v) || 0);
 
-function newLine(): InvoiceLine {
+function newLine(defaultVatRate = 18): InvoiceLine {
     return {
         id: Math.random().toString(36).slice(2),
         description: '',
         quantity: 1,
         unitPrice: 0,
-        vatRate: 18,
+        vatRate: defaultVatRate,
         unit: 'Adet',
         lineTotal: 0,
         vatAmount: 0,
@@ -304,13 +305,26 @@ function InvoicesPageContent() {
     const [cariPickerOpen, setCariPickerOpen] = useState(false);
     const [cariList, setCariList] = useState<any[]>([]);
     const [cariSearch, setCariSearch] = useState('');
+    const [dynamicVatRates, setDynamicVatRates] = useState<{rate: number, isDefault?: boolean}[]>([]);
 
     const fetchInvoices = async () => {
         setLoading(true);
         try {
-            const res = await apiClient.get('/api/invoices');
-            if (res.data.success) setInvoices(res.data.data);
-        } catch { message.error('Faturalar yüklenemedi'); }
+            const [res, tenantRes] = await Promise.all([
+                apiClient.get('/api/invoices').catch(() => null),
+                apiClient.get('/api/tenant/info').catch(() => null)
+            ]);
+            
+            if (res && res.data?.success) {
+                setInvoices(res.data.data);
+            }
+            if (tenantRes && tenantRes.data?.success) {
+                const defs = tenantRes.data.data?.tenant?.settings?.definitions;
+                if (defs?.vatRates && defs.vatRates.length > 0) {
+                    setDynamicVatRates(defs.vatRates);
+                }
+            }
+        } catch { message.error('Veriler yüklenirken bir hata oluştu'); }
         finally { setLoading(false); }
     };
 
@@ -352,7 +366,8 @@ function InvoicesPageContent() {
 
             setActiveTab(tab);
             setEditing(null);
-            setLines([newLine()]);
+            const defaultVat = dynamicVatRates.find(r => r.isDefault)?.rate ?? dynamicVatRates[0]?.rate ?? 20;
+            setLines([newLine(defaultVat)]);
             setDiscount(0);
             setCurrency('TRY');
 
@@ -398,7 +413,10 @@ function InvoicesPageContent() {
         });
     };
 
-    const addLine = () => setLines(p => [...p, newLine()]);
+    const addLine = () => {
+        const defaultVat = dynamicVatRates.find(r => r.isDefault)?.rate ?? dynamicVatRates[0]?.rate ?? 20;
+        setLines(p => [...p, newLine(defaultVat)]);
+    };
     const removeLine = (idx: number) => setLines(p => p.filter((_, i) => i !== idx));
 
     const subTotal = lines.reduce((s, l) => s + l.lineTotal, 0);
@@ -407,7 +425,8 @@ function InvoicesPageContent() {
 
     const openNew = async () => {
         setEditing(null);
-        setLines([newLine()]);
+        const defaultVat = dynamicVatRates.find(r => r.isDefault)?.rate ?? dynamicVatRates[0]?.rate ?? 20;
+        setLines([newLine(defaultVat)]);
         setDiscount(0);
         setCurrency('TRY');
         form.resetFields();
@@ -733,12 +752,13 @@ function InvoicesPageContent() {
                     <Form form={form} layout="vertical" style={{ marginTop: 8 }}>
                         <Collapse
                             size="small"
+                            defaultActiveKey={['lines']}
                             style={{ marginBottom: 16, borderRadius: 10 }}
-                            items={[{
-                                key: 'meta',
-                                label: <span style={{ fontWeight: 700, fontSize: 13, color: '#374151' }}>📋 Fatura Bilgileri</span>,
-                                children: (
-                                    <>
+                            items={[
+                                {
+                                    key: 'meta',
+                                    label: <span style={{ fontWeight: 700, fontSize: 13, color: '#374151' }}>📋 Fatura Bilgileri</span>,
+                                    children: (
                                         <Row gutter={12}>
                                             <Col span={6}>
                                                 <Form.Item name="invoiceNo" label="Fatura No" rules={[{ required: true }]}>
@@ -770,12 +790,169 @@ function InvoicesPageContent() {
                                                     </Select>
                                                 </Form.Item>
                                             </Col>
+                                            <Col span={6}>
+                                                <Form.Item name="invoiceDate" label="Fatura Tarihi" rules={[{ required: true }]}>
+                                                    <DatePicker format="DD.MM.YYYY" style={{ width: '100%' }} />
+                                                </Form.Item>
+                                            </Col>
+                                            <Col span={6}>
+                                                <Form.Item name="dueDate" label="Vade Tarihi">
+                                                    <DatePicker format="DD.MM.YYYY" style={{ width: '100%' }} />
+                                                </Form.Item>
+                                            </Col>
+                                            <Col span={6}>
+                                                <Form.Item name="paymentMethod" label="Ödeme Şekli" rules={[{ required: true }]}>
+                                                    <Select>
+                                                        {PAYMENT_METHODS.map(p => <Select.Option key={p.value} value={p.value}>{p.label}</Select.Option>)}
+                                                    </Select>
+                                                </Form.Item>
+                                            </Col>
+                                            <Col span={6}>
+                                                <Form.Item name="status" label="Durum" rules={[{ required: true }]} initialValue="DRAFT">
+                                                    <Select>
+                                                        {Object.entries(STATUS_CFG).map(([k, c]) => (
+                                                            <Select.Option key={k} value={k}>{c.label}</Select.Option>
+                                                        ))}
+                                                    </Select>
+                                                </Form.Item>
+                                            </Col>
                                         </Row>
-                                    </>
-                                )
-                            }]}
+                                    )
+                                },
+                                {
+                                    key: 'party',
+                                    label: (
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center', paddingRight: 16 }}>
+                                            <span style={{ fontWeight: 700, fontSize: 13, color: '#374151' }}>
+                                                {isSales ? '🏢 Müşteri (Alıcı) Bilgileri' : '🏢 Satıcı (Tedarikçi) Bilgileri'}
+                                            </span>
+                                            <Button size="small" type="primary" ghost onClick={(e) => { e.stopPropagation(); openCariPicker(); }}>
+                                                Cari Seç
+                                            </Button>
+                                        </div>
+                                    ),
+                                    children: (
+                                        <div style={{ background: '#f8fafc', padding: 12, borderRadius: 8 }}>
+                                            <Row gutter={12}>
+                                                <Col span={12}>
+                                                    <Form.Item name={[isSales ? 'buyerInfo' : 'sellerInfo', 'companyName']} label="Firma/Kişi Adı" rules={[{ required: true }]}>
+                                                        <Input />
+                                                    </Form.Item>
+                                                </Col>
+                                                <Col span={6}>
+                                                    <Form.Item name={[isSales ? 'buyerInfo' : 'sellerInfo', 'taxNo']} label="VKN/TCKN">
+                                                        <Input />
+                                                    </Form.Item>
+                                                </Col>
+                                                <Col span={6}>
+                                                    <Form.Item name={[isSales ? 'buyerInfo' : 'sellerInfo', 'taxOffice']} label="Vergi Dairesi">
+                                                        <Input />
+                                                    </Form.Item>
+                                                </Col>
+                                                <Col span={12}>
+                                                    <Form.Item name={[isSales ? 'buyerInfo' : 'sellerInfo', 'address']} label="Adres">
+                                                        <Input.TextArea rows={2} />
+                                                    </Form.Item>
+                                                </Col>
+                                                <Col span={6}>
+                                                    <Form.Item name={[isSales ? 'buyerInfo' : 'sellerInfo', 'phone']} label="Telefon">
+                                                        <Input />
+                                                    </Form.Item>
+                                                </Col>
+                                                <Col span={6}>
+                                                    <Form.Item name={[isSales ? 'buyerInfo' : 'sellerInfo', 'email']} label="E-Posta">
+                                                        <Input />
+                                                    </Form.Item>
+                                                </Col>
+                                            </Row>
+                                        </div>
+                                    )
+                                },
+                                {
+                                    key: 'lines',
+                                    label: <span style={{ fontWeight: 700, fontSize: 13, color: '#374151' }}>🏷️ Fatura Kalemleri</span>,
+                                    children: (
+                                        <>
+                                            <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden' }}>
+                                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                                                    <thead>
+                                                        <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                                                            <th style={{ padding: '8px 12px', textAlign: 'left' }}>Açıklama</th>
+                                                            <th style={{ padding: '8px 12px', width: 90 }}>Birim</th>
+                                                            <th style={{ padding: '8px 12px', width: 80, textAlign: 'right' }}>Miktar</th>
+                                                            <th style={{ padding: '8px 12px', width: 110, textAlign: 'right' }}>B. Fiyat</th>
+                                                            <th style={{ padding: '8px 12px', width: 80, textAlign: 'right' }}>KDV %</th>
+                                                            <th style={{ padding: '8px 12px', width: 100, textAlign: 'right' }}>Toplam</th>
+                                                            <th style={{ padding: '8px 12px', width: 40, textAlign: 'center' }}></th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {lines.map((l, i) => (
+                                                            <tr key={l.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                                                <td style={{ padding: '6px 12px' }}><Input size="small" value={l.description} onChange={e => updateLine(i, 'description', e.target.value)} /></td>
+                                                                <td style={{ padding: '6px 12px' }}><Select size="small" value={l.unit} onChange={v => updateLine(i, 'unit', v)} style={{ width: '100%' }}>{UNITS.map(u => <Select.Option key={u} value={u}>{u}</Select.Option>)}</Select></td>
+                                                                <td style={{ padding: '6px 12px' }}><InputNumber size="small" value={l.quantity} onChange={v => updateLine(i, 'quantity', v || 1)} style={{ width: '100%' }} /></td>
+                                                                <td style={{ padding: '6px 12px' }}><InputNumber size="small" value={l.unitPrice} onChange={v => updateLine(i, 'unitPrice', v || 0)} style={{ width: '100%' }} /></td>
+                                                                <td style={{ padding: '6px 12px' }}><Select size="small" value={l.vatRate} onChange={v => updateLine(i, 'vatRate', v)} style={{ width: '100%' }}>{dynamicVatRates.map(v => <Select.Option key={v.rate} value={v.rate}>%{v.rate}</Select.Option>)}</Select></td>
+                                                                <td style={{ padding: '6px 12px', textAlign: 'right', fontWeight: 600 }}>{fmtTRY(l.lineTotal + l.vatAmount, currency)}</td>
+                                                                <td style={{ padding: '6px 12px', textAlign: 'center' }}>
+                                                                    <Button size="small" type="text" danger icon={<DeleteOutlined />} onClick={() => removeLine(i)} disabled={lines.length === 1} />
+                                                                </td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                                <div style={{ padding: 8, background: '#f8fafc' }}>
+                                                    <Button type="dashed" block icon={<PlusOutlined />} onClick={addLine} size="small">Yeni Kalem Ekle</Button>
+                                                </div>
+                                            </div>
+                                
+                                            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
+                                                <div style={{ width: 300, background: '#f8fafc', padding: 16, borderRadius: 8, border: '1px solid #e2e8f0' }}>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                                                        <span style={{ color: '#4b5563' }}>Ara Toplam:</span>
+                                                        <span style={{ fontWeight: 600 }}>{fmtTRY(subTotal, currency)}</span>
+                                                    </div>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                                                        <span style={{ color: '#4b5563' }}>Toplam KDV:</span>
+                                                        <span style={{ fontWeight: 600 }}>{fmtTRY(totalVat, currency)}</span>
+                                                    </div>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12, alignItems: 'center' }}>
+                                                        <span style={{ color: '#4b5563' }}>İndirim:</span>
+                                                        <InputNumber size="small" value={discount} onChange={v => setDiscount(v || 0)} style={{ width: 100 }} />
+                                                    </div>
+                                                    <Divider style={{ margin: '8px 0' }} />
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: 16, color: isSales ? '#16a34a' : '#1e293b' }}>
+                                                        <span>GENEL TOPLAM:</span>
+                                                        <span>{fmtTRY(grandTotal, currency)}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <Form.Item name="notes" label="Fatura Notu" style={{ marginTop: 16 }}>
+                                                <Input.TextArea rows={2} placeholder="Varsa eklemek istediğiniz notlar..." />
+                                            </Form.Item>
+                                        </>
+                                    )
+                                }
+                            ]}
                         />
                     </Form>
+                </Modal>
+                <Modal
+                    open={cariPickerOpen}
+                    onCancel={() => setCariPickerOpen(false)}
+                    title="Cari Hesap Seçimi"
+                    footer={null}
+                >
+                    <Input placeholder="Cari adı veya VKN ile ara..." prefix={<SearchOutlined />} value={cariSearch} onChange={e => setCariSearch(e.target.value)} style={{ marginBottom: 12 }} />
+                    <div style={{ maxHeight: 400, overflowY: 'auto' }}>
+                        {cariList.filter(c => c.name.toLowerCase().includes(cariSearch.toLowerCase()) || (c.taxNumber || '').includes(cariSearch)).map(c => (
+                            <Card key={c.id} size="small" style={{ marginBottom: 8, cursor: 'pointer' }} onClick={() => selectCari(c)} hoverable>
+                                <div style={{ fontWeight: 600 }}>{c.name}</div>
+                                <div style={{ fontSize: 12, color: '#666' }}>{c.taxNumber ? `VKN: ${c.taxNumber}` : ''} | {c.email} | {c.phone}</div>
+                            </Card>
+                        ))}
+                    </div>
                 </Modal>
                 <PrintModal invoice={printInv} open={!!printInv} onClose={() => setPrintInv(null)} sellerName={branding.companyName} />
             </AdminLayout>

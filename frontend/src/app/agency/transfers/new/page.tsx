@@ -50,6 +50,16 @@ const AgencyNewTransferPage = () => {
     const [passengerCounts, setPassengerCounts] = useState({ adults: 1, children: 0, babies: 0 });
     const [tripType, setTripType] = useState<'ONE_WAY' | 'ROUND_TRIP'>('ONE_WAY');
 
+    // Airport Transfer Detection
+    const AIRPORT_KEYWORDS = [
+        'havaliman', 'havaalani', 'airport', 'hava liman', 'hava alan',
+        'ayt', 'ist', 'saw', 'esb', 'adnan menderes', 'atatürk', 'sabiha',
+        'gazipasa', 'gazipaşa', 'gazipasha', 'dalaman', 'bodrum', 'milas'
+    ];
+    const isAirportTransfer = AIRPORT_KEYWORDS.some(kw =>
+        pickup?.toLowerCase().includes(kw) || dropoff?.toLowerCase().includes(kw)
+    );
+
     // Map Modal State
     const [mapModalVisible, setMapModalVisible] = useState(false);
     const [mapModalType, setMapModalType] = useState<'pickup' | 'dropoff'>('pickup');
@@ -161,7 +171,7 @@ const AgencyNewTransferPage = () => {
             setSearchError(null);
 
             const totalPassengers = passengerCounts.adults + passengerCounts.children + passengerCounts.babies;
-            const pickupDateTime = `${date.format('YYYY-MM-DD')}T${pickupHour}:${pickupMinute}:00.000Z`;
+            const pickupDateTime = `${date.format('YYYY-MM-DD')}T${pickupHour}:${pickupMinute}:00.000`;
 
             let distance: number | undefined;
             let encodedPolyline: string | undefined;
@@ -294,7 +304,8 @@ const AgencyNewTransferPage = () => {
                     vehicleType: selectedVehicle.vehicleType,
                     contactNationality: values.contactNationality,
                     flightNumber: values.flightNumber,
-                    customerNotes: values.customerNotes,
+                    flightTime: values.flightTime ? values.flightTime.format('HH:mm') : undefined,
+                    customerNotes: values.customerNotes || (values.flightTime ? `Uçuş Saati: ${values.flightTime.format('HH:mm')}` : undefined),
                     wantsInvoice: values.wantsInvoice,
                     agencyNotes: values.agencyNotes,
                     paymentMethod: values.paymentMethod,
@@ -817,16 +828,45 @@ const AgencyNewTransferPage = () => {
                     </Col>
                 </Row>
 
+                {isAirportTransfer && (
+                    <Alert
+                        type="info"
+                        showIcon
+                        message="✈️ Havalimanı Transferi Tespit Edildi"
+                        description="Hata yapmamak için uçuş saatini ve uçuş numarasını doğru girmeniz zorunludur."
+                        style={{ marginBottom: 16 }}
+                    />
+                )}
                 <Row gutter={16}>
                     <Col xs={24} md={12}>
-                        <Form.Item name="flightNumber" label="Uçuş Numarası (Opsiyonel)">
+                        <Form.Item
+                            name="flightNumber"
+                            label="Uçuş Numarası (Opsiyonel)"
+                        >
                             <Input placeholder="Örn: TK1234" size="large" />
                         </Form.Item>
                     </Col>
                     <Col xs={24} md={12}>
-                        <Form.Item name="customerNotes" label="Sürücüye Not (Opsiyonel)">
-                            <Input placeholder="Örn: Bebek koltuğu istiyorum" size="large" />
-                        </Form.Item>
+                        {isAirportTransfer ? (
+                            <Form.Item
+                                name="flightTime"
+                                label="Uçuş Saatiniz"
+                                tooltip="Uçuşunuzun kalkış veya varış saatini giriniz. Şoförümüz bu saate göre sizi alır."
+                                rules={[{ required: true, message: 'Havalimanı transferi için uçuş saati zorunludur' }]}
+                            >
+                                <TimePicker
+                                    size="large"
+                                    format="HH:mm"
+                                    style={{ width: '100%' }}
+                                    placeholder="Uçuş Saatiniz (ÖR: 14:30)"
+                                    minuteStep={5}
+                                />
+                            </Form.Item>
+                        ) : (
+                            <Form.Item name="customerNotes" label="Sürücüye Not (Opsiyonel)">
+                                <Input placeholder="Örn: Bebek koltuğu istiyorum" size="large" />
+                            </Form.Item>
+                        )}
                     </Col>
                 </Row>
 
@@ -969,6 +1009,9 @@ const AgencyNewTransferPage = () => {
                         <Radio value="BALANCE">
                             Cari Hesaptan Öde <Text type="secondary">(Mevcut Bakiye: {agencyBalance.toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' })})</Text>
                         </Radio>
+                        <Radio value="PAY_IN_VEHICLE">
+                            Araçta Nakit Ödeme <Tag color="orange" style={{ marginLeft: 8 }}>Geçici Bakiye Yansımaz</Tag>
+                        </Radio>
                         <Tooltip
                             title={!hasActivePOS ? 'Yönetici Paneli\'nde aktif bir Sanal POS tanımlanmamış. Kredi kartı ile ödeme için lütfen yöneticinizle iletişime geçin.' : undefined}
                         >
@@ -997,6 +1040,16 @@ const AgencyNewTransferPage = () => {
                                     showIcon
                                     message="Anında 3D Güvenli Ödeme & Kâr Transferi"
                                     description="Bu seçenekte rezervasyonu tamamlarken ekranınızda güvenli Sanal POS açılır. Müşterinizin kart bilgileri girilip ödeme çekildiğinde, belirlediğiniz satış fiyatı ile B2B alış fiyatı arasındaki KÂR MARJI anında Cari Bakiyenize yatırılır."
+                                    style={{ marginTop: 16 }}
+                                />
+                            );
+                        } else if (method === 'PAY_IN_VEHICLE') {
+                            return (
+                                <Alert
+                                    type="warning"
+                                    showIcon
+                                    message="Cari Hesaba Sonradan Yansıtma İşlemi"
+                                    description="Anında bakiye düşümü yapılmaz. Transfer tamamlanıp, şoför/operasyon tahsil edilen işlem tutarını sisteme girdiğinde B2B alış fiyatınız sisteme aktarılır, satış fiyatı ile arasındaki kâr farkı cari bakiyenize alacak olarak yansıtılır."
                                     style={{ marginTop: 16 }}
                                 />
                             );

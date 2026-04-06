@@ -26,7 +26,8 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
             distance, // Received from frontend (in km)
             encodedPolyline,
             pickupLat,
-            pickupLng
+            pickupLng,
+            shuttleMasterTime
         } = req.body;
 
         // Fetch agency markup and contract prices if user is an agency agent
@@ -379,12 +380,20 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
             if (route.departureTimes && Array.isArray(route.departureTimes) && route.departureTimes.length > 0) {
                 route.departureTimes.forEach(dt => {
                     if (!dt) return;
+
+                    // PRIORITY: If shuttleMasterTime is provided (from booking page re-search), match it exactly
+                    if (shuttleMasterTime && dt === shuttleMasterTime) {
+                        minOffset = 0;
+                        closestMasterTime = dt;
+                        return; // Found exact match for this iteration
+                    }
+
                     const parts = dt.split(':');
                     const dtMin = parseInt(parts[0]) * 60 + parseInt(parts[1]);
                     
                     let diff = userMin - dtMin; 
-                    // Let's assume shuttle can pick up user between 1 hour before master time and 2 hours after master time
-                    if (diff >= -60 && diff <= 180) {
+                    // Let's assume shuttle can pick up user within 3 hours before or after search time
+                    if (diff >= -180 && diff <= 180) {
                         if (Math.abs(diff) < Math.abs(minOffset)) {
                             minOffset = diff;
                             closestMasterTime = dt;
@@ -940,7 +949,7 @@ router.get('/pool-bookings', authMiddleware, async (req, res) => {
                 luggage: 2 // Mock
             },
             price: {
-                amount: Number(b.total),
+                amount: b.metadata?.poolPrice ? Number(b.metadata.poolPrice) : Number(b.total),
                 currency: b.currency
             },
             status: b.metadata?.operationalStatus || 'POOL'
@@ -1074,7 +1083,7 @@ router.get('/partner/active-bookings', authMiddleware, async (req, res) => {
                 luggage: 2
             },
             price: {
-                amount: Number(b.total),
+                amount: b.metadata?.poolPrice ? Number(b.metadata.poolPrice) : Number(b.total),
                 currency: b.currency
             },
             status: 'ACCEPTED', // Frontend tracking
@@ -1137,7 +1146,7 @@ router.get('/partner/completed-bookings', authMiddleware, async (req, res) => {
                 type: b.metadata?.vehicleType || 'Standart',
             },
             price: {
-                amount: Number(b.total),
+                amount: b.metadata?.poolPrice ? Number(b.metadata.poolPrice) : Number(b.total),
                 currency: b.currency
             },
             paymentStatus: b.paymentStatus, // PAID, PENDING, DISPUTED
@@ -1408,13 +1417,115 @@ router.patch('/bookings/:id', authMiddleware, async (req, res) => {
 });
 
 /**
+ * POST /api/transfer/bookings/admin
+ * Create new manual booking from Call Center (Admin)
+ */
+router.post('/bookings/admin', authMiddleware, async (req, res) => {
+    try {
+        const { passengerName, passengerPhone, passengerEmail, pickup, dropoff, pickupDateTime, vehicleType, flightNumber, price, notes, adults } = req.body;
+
+        const tenantId = req.tenant?.id;
+        if (!tenantId) return res.status(500).json({ success: false, error: 'Tenant context missing' });
+
+        const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+        const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+        const bookingNumber = `TR-${dateStr}-${randomSuffix}`;
+
+        const metadata = {
+            pickup,
+            dropoff,
+            flightNumber,
+            vehicleType,
+            passengerName,
+            creationSource: 'ADMIN_MANUAL'
+        };
+
+        const booking = await prisma.booking.create({
+            data: {
+                tenantId: tenantId,
+                bookingNumber: bookingNumber,
+                productType: 'TRANSFER',
+                status: 'CONFIRMED', 
+                paymentStatus: 'PENDING',
+                startDate: new Date(pickupDateTime),
+                endDate: new Date(pickupDateTime),
+                currency: 'TRY',
+                total: Number(price || 0),
+                subtotal: Number(price || 0),
+                contactName: passengerName || 'Misafir',
+                contactEmail: passengerEmail || '',
+                contactPhone: passengerPhone || '',
+                adults: Number(adults || 1),
+                specialRequests: notes || '',
+                metadata: metadata,
+            }
+        });
+
+        res.json({ success: true, data: booking });
+    } catch (error) {
+        console.error('Create booking admin error:', error);
+        res.status(500).json({ success: false, error: 'Rezervasyon oluşturulamadı' });
+    }
+});
+
+/**
+ * PUT /api/transfer/bookings/admin/:id
+ * Update booking details (Admin Call Center)
+ */
+router.put('/bookings/admin/:id', authMiddleware, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { passengerName, passengerPhone, pickup, dropoff, pickupDateTime, vehicleType, flightNumber, price, notes, adults } = req.body;
+
+        const currentBooking = await prisma.booking.findUnique({ where: { id: id } });
+        if (!currentBooking) {
+            return res.status(404).json({ success: false, error: 'Rezervasyon bulunamadı' });
+        }
+
+        let newMetadata = currentBooking.metadata || {};
+        if (pickup !== undefined) newMetadata.pickup = pickup;
+        if (dropoff !== undefined) newMetadata.dropoff = dropoff;
+        if (flightNumber !== undefined) newMetadata.flightNumber = flightNumber;
+        if (vehicleType !== undefined) newMetadata.vehicleType = vehicleType;
+        if (passengerName !== undefined) newMetadata.passengerName = passengerName;
+
+        const updateData = {
+            metadata: newMetadata
+        };
+        
+        if (passengerName !== undefined) updateData.contactName = passengerName;
+        if (passengerPhone !== undefined) updateData.contactPhone = passengerPhone;
+        if (pickupDateTime !== undefined) {
+            updateData.startDate = new Date(pickupDateTime);
+            updateData.endDate = new Date(pickupDateTime);
+        }
+        if (price !== undefined) {
+            updateData.total = Number(price);
+            updateData.subtotal = Number(price);
+        }
+        if (notes !== undefined) updateData.specialRequests = notes;
+        if (adults !== undefined) updateData.adults = Number(adults);
+
+        const updated = await prisma.booking.update({
+            where: { id: id },
+            data: updateData
+        });
+
+        res.json({ success: true, data: updated, message: 'Rezervasyon güncellendi' });
+    } catch (error) {
+        console.error('Update booking admin error:', error);
+        res.status(500).json({ success: false, error: 'Güncelleme başarısız oldu' });
+    }
+});
+
+/**
  * PUT /api/transfer/bookings/:id/status
  * Update booking status (Admin) - In Database
  */
 router.put('/bookings/:id/status', authMiddleware, async (req, res) => {
     try {
         const { id } = req.params;
-        const { status, subStatus } = req.body;
+        const { status, subStatus, collectedAmount, poolPrice } = req.body;
 
         // Fetch current booking first to preserve metadata
         const currentBooking = await prisma.booking.findUnique({
@@ -1433,39 +1544,82 @@ router.put('/bookings/:id/status', authMiddleware, async (req, res) => {
         if (subStatus) {
             newMetadata = { ...newMetadata, operationalStatus: subStatus };
         }
+        if (poolPrice !== undefined) {
+            newMetadata = { ...newMetadata, poolPrice: Number(poolPrice) };
+        }
 
-        const updatedBooking = await prisma.booking.update({
-            where: { id: id },
-            data: {
-                status: status,
-                metadata: newMetadata,
-                // If confirmed, set confirmedAt
-                ...(status === 'CONFIRMED' ? { confirmedAt: new Date(), confirmedBy: req.user?.id } : {}),
-                // If cancelled, set cancelledAt
-                ...(status === 'CANCELLED' ? { cancelledAt: new Date(), cancelledBy: req.user?.id } : {})
+        let updatedBooking;
+
+        await prisma.$transaction(async (tx) => {
+            let paymentStatusUpdate = {};
+
+            // Agency Reconciliation Logic
+            if (status === 'COMPLETED' && currentBooking.agencyId && newMetadata.paymentMethod === 'PAY_IN_VEHICLE' && currentBooking.paymentStatus !== 'PAID') {
+                const b2bCost = Number(currentBooking.subtotal || 0);
+                const collected = collectedAmount !== undefined ? Number(collectedAmount) : Number(currentBooking.total || 0);
+                const agencyProfit = collected - b2bCost;
+
+                paymentStatusUpdate = { paymentStatus: 'PAID' };
+
+                if (agencyProfit !== 0) {
+                    await tx.agency.update({
+                        where: { id: currentBooking.agencyId },
+                        data: {
+                            balance: { increment: agencyProfit },
+                            credit: { increment: agencyProfit > 0 ? agencyProfit : 0 },
+                            debit: { increment: agencyProfit < 0 ? Math.abs(agencyProfit) : 0 }
+                        }
+                    });
+
+                    await tx.transaction.create({
+                        data: {
+                            tenantId: req.tenant.id,
+                            accountId: `agency-${currentBooking.agencyId}`,
+                            type: agencyProfit > 0 ? 'MANUAL_IN' : 'MANUAL_OUT',
+                            amount: Math.abs(agencyProfit),
+                            isCredit: agencyProfit > 0,
+                            description: `Araçta Nakit Tahsilat Farkı (PNR: ${currentBooking.bookingNumber})`,
+                            date: new Date(),
+                            referenceId: currentBooking.id
+                        }
+                    });
+                }
+            }
+
+            updatedBooking = await tx.booking.update({
+                where: { id: id },
+                data: {
+                    status: status,
+                    ...paymentStatusUpdate,
+                    metadata: newMetadata,
+                    // If confirmed, set confirmedAt
+                    ...(status === 'CONFIRMED' ? { confirmedAt: new Date(), confirmedBy: req.user?.id } : {}),
+                    // If cancelled, set cancelledAt
+                    ...(status === 'CANCELLED' ? { cancelledAt: new Date(), cancelledBy: req.user?.id } : {})
+                }
+            });
+
+            // Custom Auditing for Cancellations
+            if (status === 'CANCELLED') {
+                const { logActivity } = require('../utils/logger');
+                const guestName = currentBooking.fullName || currentBooking.metadata?.passengerName || 'Misafir';
+                const logMsg = `${guestName} isimli kişinin ${currentBooking.bookingNumber || id} numaralı rezervasyonu iptal edildi.`;
+                
+                await logActivity({
+                    tenantId: req.tenant.id,
+                    userId: req.user?.id,
+                    userEmail: req.user?.email,
+                    action: 'CANCEL_BOOKING',
+                    entityType: 'Booking',
+                    entityId: id,
+                    details: { 
+                        message: logMsg,
+                        previousState: currentBooking 
+                    },
+                    ipAddress: req.headers['x-forwarded-for'] || req.socket?.remoteAddress
+                });
             }
         });
-
-        // Custom Auditing for Cancellations
-        if (status === 'CANCELLED') {
-            const { logActivity } = require('../utils/logger');
-            const guestName = currentBooking.fullName || currentBooking.metadata?.passengerName || 'Misafir';
-            const logMsg = `${guestName} isimli kişinin ${currentBooking.bookingNumber || id} numaralı rezervasyonu iptal edildi.`;
-            
-            await logActivity({
-                tenantId: req.tenant.id,
-                userId: req.user?.id,
-                userEmail: req.user?.email,
-                action: 'CANCEL_BOOKING',
-                entityType: 'Booking',
-                entityId: id,
-                details: { 
-                    message: logMsg,
-                    previousState: currentBooking 
-                },
-                ipAddress: req.headers['x-forwarded-for'] || req.socket?.remoteAddress
-            });
-        }
 
         res.json({
             success: true,

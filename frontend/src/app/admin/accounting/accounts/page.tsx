@@ -408,7 +408,10 @@ const AccountsPage: React.FC = () => {
             setIsModalVisible(false);
             fetchAccounts();
         } catch (error: any) {
-            if (!error?.errorFields) message.error('İşlem başarısız. Cari kodu tekrar ediyor olabilir.');
+            if (!error?.errorFields) {
+                const backendMsg = error?.response?.data?.error || 'İşlem başarısız. Cari kodu tekrar ediyor olabilir.';
+                message.error(backendMsg);
+            }
         } finally { setSubmitting(false); }
     };
 
@@ -431,12 +434,10 @@ const AccountsPage: React.FC = () => {
                                 style={{
                                     fontWeight: 700, fontSize: 13, lineHeight: 1.3,
                                     color: '#4f46e5', cursor: 'pointer',
-                                    textDecoration: 'underline', textDecorationColor: '#c7d2fe',
-                                    textUnderlineOffset: 2,
                                     display: 'inline',
                                 }}
                                 onClick={() => handleEdit(record)}
-                                title="Carili duzenlemek icin tiklayin"
+                                title="Cariyi düzenlemek veya görüntülemek için tıklayın"
                             >
                                 {record.name}
                             </div>

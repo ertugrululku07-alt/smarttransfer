@@ -537,4 +537,34 @@ router.get('/me', require('../middleware/auth').authMiddleware, async (req, res)
     }
 });
 
+/**
+ * GET /api/auth/metadata
+ * Get current user metadata/preferences
+ */
+router.get('/metadata', require('../middleware/auth').authMiddleware, async (req, res) => {
+    try {
+        const user = await prisma.user.findUnique({ where: { id: req.user.id }, select: { metadata: true } });
+        res.json({ success: true, data: user?.metadata || {} });
+    } catch(err) {
+        res.status(500).json({ success: false, error: 'Failed' });
+    }
+});
+
+/**
+ * PUT /api/auth/metadata
+ * Update current user metadata/preferences
+ */
+router.put('/metadata', require('../middleware/auth').authMiddleware, async (req, res) => {
+    try {
+        const { preferences } = req.body;
+        const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+        const currentMetadata = (user.metadata && typeof user.metadata === 'object') ? user.metadata : {};
+        const updatedMetadata = { ...currentMetadata, ...preferences };
+        await prisma.user.update({ where: { id: req.user.id }, data: { metadata: updatedMetadata } });
+        res.json({ success: true, data: updatedMetadata });
+    } catch(err) {
+        res.status(500).json({ success: false, error: 'Failed' });
+    }
+});
+
 module.exports = router;

@@ -280,7 +280,7 @@ router.post('/bookings', authMiddleware, agencyMiddleware, async (req, res) => {
                     contactEmail,
                     contactPhone,
                     status: paymentMethod === 'CREDIT_CARD' ? 'PENDING' : 'CONFIRMED',
-                    paymentStatus: paymentMethod === 'CREDIT_CARD' ? 'PENDING' : 'PAID',
+                    paymentStatus: paymentMethod === 'BALANCE' ? 'PAID' : 'PENDING',
                     confirmationType: 'INSTANT',
                     metadata
                 }

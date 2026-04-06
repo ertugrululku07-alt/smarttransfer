@@ -65,7 +65,7 @@ interface Vehicle {
   description?: string | null;
   isActive: boolean;
   createdAt: string;
-  usageType: string;
+  usageType: string | string[];
   shuttleMode?: string | null;
   zonePrices?: any[];
 }
@@ -91,7 +91,7 @@ interface VehicleFormValues {
   imageUrl?: string;
   description?: string;
   isActive?: boolean;
-  usageType?: string;
+  usageType?: string | string[];
   shuttleMode?: string | null;
   metadata?: {
     openingFee?: number;
@@ -246,7 +246,7 @@ const VehiclesPage: React.FC = () => {
       hasWifi: true,
       hasBabySeat: false,
       isActive: true,
-      usageType: 'TRANSFER',
+      usageType: ['TRANSFER'],
       shuttleMode: undefined,
       zonePrices: [],
       currency: undefined,
@@ -278,7 +278,7 @@ const VehiclesPage: React.FC = () => {
       imageUrl: vehicle.imageUrl || undefined,
       description: vehicle.description || undefined,
       isActive: vehicle.isActive,
-      usageType: vehicle.usageType || 'TRANSFER',
+      usageType: Array.isArray(vehicle.usageType) ? vehicle.usageType : [vehicle.usageType || 'TRANSFER'],
       shuttleMode: vehicle.shuttleMode || undefined,
       zonePrices: vehicle.zonePrices || [],
       metadata: {
@@ -350,7 +350,7 @@ const VehiclesPage: React.FC = () => {
         ...values,
         imageUrl: imageUrl,
         isCompanyOwned: values.isCompanyOwned,
-        shuttleMode: values.usageType === 'SHUTTLE' ? values.shuttleMode : null,
+        shuttleMode: Array.isArray(values.usageType) ? (values.usageType.includes('SHUTTLE') ? values.shuttleMode : null) : (values.usageType === 'SHUTTLE' ? values.shuttleMode : null),
         // Map metadata fields to root for backend
         openingFee: metadataForm.openingFee,
         fixedPrice: metadataForm.fixedPrice,
@@ -524,7 +524,9 @@ const VehiclesPage: React.FC = () => {
             </Col>
           )}
           {filteredVehicles.map((v) => {
-            const usageInfo = USAGE_LABELS[v.usageType] || { label: v.usageType, color: '#6b7280' };
+            const usageTypes = Array.isArray(v.usageType) ? v.usageType : [v.usageType || 'TRANSFER'];
+            const firstUsage = usageTypes[0];
+            const usageInfo = USAGE_LABELS[firstUsage] || { label: firstUsage, color: '#6b7280' };
             const classColor = CLASS_COLORS[v.vehicleClass || ''] || '#6b7280';
             const classLabel = CLASS_LABELS[v.vehicleClass || ''] || v.vehicleClass || '';
 
@@ -575,14 +577,25 @@ const VehiclesPage: React.FC = () => {
                     <div style={{
                       position: 'absolute',
                       top: 10, left: 10,
-                      background: usageInfo.color,
-                      color: 'white',
-                      borderRadius: 6,
-                      padding: '2px 8px',
-                      fontSize: 11,
-                      fontWeight: 600,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 4
                     }}>
-                      {usageInfo.label}
+                      {usageTypes.map((ut: string) => {
+                        const ui = USAGE_LABELS[ut] || { label: ut, color: '#6b7280' };
+                        return (
+                          <div key={ut} style={{
+                            background: ui.color,
+                            color: 'white',
+                            borderRadius: 6,
+                            padding: '2px 8px',
+                            fontSize: 11,
+                            fontWeight: 600,
+                          }}>
+                            {ui.label}
+                          </div>
+                        );
+                      })}
                     </div>
                     {/* Plate Number */}
                     <div style={{
@@ -671,14 +684,15 @@ const VehiclesPage: React.FC = () => {
                                                 )} */}
                    <Select
                       size="small"
-                      value={v.usageType || 'TRANSFER'}
+                      mode="multiple"
+                      value={Array.isArray(v.usageType) ? v.usageType : [v.usageType || 'TRANSFER']}
                       style={{ width: '100%', marginBottom: 10 }}
                       onChange={async (newType) => {
                         try {
                           await apiClient.put(`/api/vehicles/${v.id}`, {
                             ...v,
                             usageType: newType,
-                            shuttleMode: newType === 'SHUTTLE' ? (v.shuttleMode || 'FLEXIBLE') : null,
+                            shuttleMode: Array.isArray(newType) ? (newType.includes('SHUTTLE') ? (v.shuttleMode || 'FLEXIBLE') : null) : (newType === 'SHUTTLE' ? (v.shuttleMode || 'FLEXIBLE') : null),
                           });
                           message.success('Güncellendi');
                           fetchVehicles();
@@ -965,7 +979,7 @@ const VehiclesPage: React.FC = () => {
                           name="usageType"
                           rules={[{ required: true, message: 'Kullanım tipi zorunludur' }]}
                         >
-                          <Select placeholder="Seçiniz">
+                          <Select mode="multiple" placeholder="Seçiniz">
                             <Option value="TRANSFER">Özel Transfer</Option>
                             <Option value="SHUTTLE">Shuttle / Paylaşımlı</Option>
                             <Option value="TOUR">Tur Aracı</Option>
@@ -988,8 +1002,8 @@ const VehiclesPage: React.FC = () => {
                     {/* Sadece SHUTTLE için göster */}
                     <Form.Item noStyle shouldUpdate>
                       {() => {
-                        const usageType = form.getFieldValue('usageType');
-                        if (usageType !== 'SHUTTLE') return null;
+                        const usageType = form.getFieldValue('usageType') || [];
+                        if ((Array.isArray(usageType) && !usageType.includes('SHUTTLE')) || (!Array.isArray(usageType) && usageType !== 'SHUTTLE')) return null;
 
                         return (
                           <Row gutter={16}>

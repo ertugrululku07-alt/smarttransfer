@@ -58,6 +58,29 @@ router.post('/', authMiddleware, async (req, res) => {
             }
         });
 
+        if (data.isBidirectional && data.returnDepartureTimes && data.returnDepartureTimes.length > 0) {
+            await prisma.shuttleRoute.create({
+                data: {
+                    vehicleId: data.vehicleId,     // Same vehicle
+                    fromName: data.toName,         // Swap from Name
+                    toName: data.fromName,         // Swap to Name
+                    scheduleType: data.scheduleType || 'DAILY', // Same schedule type
+                    departureTimes: data.returnDepartureTimes, // Use return times
+                    pricePerSeat: data.pricePerSeat, // Same price
+                    currency: data.currency || 'EUR',
+                    maxSeats: data.maxSeats,         // Same capacity
+                    isActive: data.isActive !== false,
+                    customStartDate: data.customStartDate,
+                    customEndDate: data.customEndDate,
+                    weeklyDays: data.weeklyDays,
+                    // Typically do not apply the origin's exact pickup locations to the destination (since it would make pickupPolygon of Alanya active in Antalya, which makes no sense). Left null.
+                    pickupLocation: null,
+                    pickupRadius: null,
+                    pickupPolygon: null
+                }
+            });
+        }
+
         res.json({ success: true, data: route });
     } catch (error) {
         console.error('Create shuttle route error:', error);
@@ -94,6 +117,29 @@ router.put('/:id', authMiddleware, async (req, res) => {
                 pickupPolygon: data.pickupPolygon
             }
         });
+
+        // Add return route if bidirectional flag is checked during update
+        if (data.isBidirectional && data.returnDepartureTimes && data.returnDepartureTimes.length > 0) {
+            await prisma.shuttleRoute.create({
+                data: {
+                    vehicleId: data.vehicleId,
+                    fromName: data.toName,
+                    toName: data.fromName,
+                    scheduleType: data.scheduleType || 'DAILY',
+                    departureTimes: data.returnDepartureTimes,
+                    pricePerSeat: data.pricePerSeat,
+                    currency: data.currency || 'EUR',
+                    maxSeats: data.maxSeats,
+                    isActive: data.isActive !== false,
+                    customStartDate: data.customStartDate,
+                    customEndDate: data.customEndDate,
+                    weeklyDays: data.weeklyDays,
+                    pickupLocation: null,
+                    pickupRadius: null,
+                    pickupPolygon: null
+                }
+            });
+        }
 
         res.json({ success: true, data: route });
     } catch (error) {
