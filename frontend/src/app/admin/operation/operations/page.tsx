@@ -2051,7 +2051,7 @@ export default function OperationsPage() {
                                                     { key: 'extraServices', label: 'EKSTRA' },
                                                     { key: 'actions', label: 'İŞLEM' },
                                                 ].map(col => {
-                                                    const hc = (window as any).getOperationsHiddenColumns?.() || new Set();
+                                                    const hc = (typeof window !== 'undefined' && (window as any).getOperationsHiddenColumns?.()) || new Set();
                                                     const isHidden = hc.has(col.key);
                                                     return (
                                                         <div key={col.key} onClick={() => {
@@ -2087,7 +2087,7 @@ export default function OperationsPage() {
                                     }} style={{ borderRadius: 6 }}>Başlıklar</Button>
                                     <Button size="small" icon={<BgColorsOutlined />} onClick={openColorModal} style={{ borderRadius: 6 }}>Renkler</Button>
                                     <Button size="small" icon={<SaveOutlined />} onClick={() => {
-                                        if ((window as any).saveOperationsColumnSettings) {
+                                        if (typeof window !== 'undefined' && (window as any).saveOperationsColumnSettings) {
                                             (window as any).saveOperationsColumnSettings();
                                         }
                                         saveLayout();
