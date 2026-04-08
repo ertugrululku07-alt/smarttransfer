@@ -555,38 +555,113 @@ export default function OperationsTable({
         {
             title: renderColumnHeader('paymentType', 'ÖDEME', true),
             key: 'paymentType',
-            width: columnWidths.paymentType || 95,
+            width: columnWidths.paymentType || 105,
             render: (_: any, record: any) => {
-                const method = record?.metadata?.paymentMethod;
+                // 1. Try metadata.paymentMethod (canonical source for both B2B and new B2C bookings)
+                let method = record?.metadata?.paymentMethod;
                 const status = record?.paymentStatus || record?.metadata?.paymentStatus;
-                if (!method) return <Text style={{ fontSize: 11, color: '#999' }}>-</Text>;
 
-                if (method === 'PAY_IN_VEHICLE') {
-                    const isPaid = status === 'PAID';
-                    return (
-                        <Tag style={{
-                            margin: 0,
-                            fontSize: 10,
-                            fontWeight: 800,
-                            background: isPaid ? '#dcfce7' : '#fff7ed',
-                            border: `1px solid ${isPaid ? '#86efac' : '#fdba74'}`,
-                            color: isPaid ? '#166534' : '#9a3412',
-                            borderRadius: 6,
-                            padding: '1px 6px'
-                        }}>
-                            {isPaid ? 'Ödendi' : 'Araçta'}
-                        </Tag>
-                    );
+                // 2. Fallback for legacy direct bookings that never had paymentMethod saved
+                if (!method) {
+                    // If the booking has an agencyId, it's a B2B booking
+                    if (record?.agencyId) {
+                        // Agency bookings default to BALANCE if not specified
+                        method = 'BALANCE';
+                    } else {
+                        // Direct B2C bookings historically defaulted to "cash" (PAY_IN_VEHICLE)
+                        method = 'PAY_IN_VEHICLE';
+                    }
                 }
 
-                if (method === 'CREDIT_CARD') {
-                    return <Tag style={{ margin: 0, fontSize: 10, fontWeight: 800, background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1d4ed8', borderRadius: 6, padding: '1px 6px' }}>Kart</Tag>;
-                }
-                if (method === 'BALANCE') {
-                    return <Tag style={{ margin: 0, fontSize: 10, fontWeight: 800, background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#166534', borderRadius: 6, padding: '1px 6px' }}>Bakiye</Tag>;
-                }
+                const isPaid = status === 'PAID';
 
-                return <Tag style={{ margin: 0, fontSize: 10, fontWeight: 800, background: '#f8fafc', border: '1px solid #e2e8f0', color: '#475569', borderRadius: 6, padding: '1px 6px' }}>{String(method)}</Tag>;
+                // Premium payment type configurations with icons and gradients
+                const paymentStyles: Record<string, {
+                    icon: string;
+                    label: string;
+                    gradient: string;
+                    border: string;
+                    color: string;
+                    glow: string;
+                }> = {
+                    'PAY_IN_VEHICLE': {
+                        icon: '🚗',
+                        label: isPaid ? 'Ödendi' : 'Araçta',
+                        gradient: isPaid
+                            ? 'linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%)'
+                            : 'linear-gradient(135deg, #fff7ed 0%, #fed7aa 100%)',
+                        border: isPaid ? '#86efac' : '#fdba74',
+                        color: isPaid ? '#15803d' : '#c2410c',
+                        glow: isPaid ? '0 0 8px rgba(34,197,94,0.15)' : '0 0 8px rgba(251,146,60,0.15)',
+                    },
+                    'CASH': {
+                        icon: '💵',
+                        label: isPaid ? 'Ödendi' : 'Nakit',
+                        gradient: isPaid
+                            ? 'linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%)'
+                            : 'linear-gradient(135deg, #fefce8 0%, #fef08a 100%)',
+                        border: isPaid ? '#86efac' : '#fde047',
+                        color: isPaid ? '#15803d' : '#a16207',
+                        glow: isPaid ? '0 0 8px rgba(34,197,94,0.15)' : '0 0 8px rgba(253,224,71,0.15)',
+                    },
+                    'CREDIT_CARD': {
+                        icon: '💳',
+                        label: 'Kart',
+                        gradient: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)',
+                        border: '#93c5fd',
+                        color: '#1d4ed8',
+                        glow: '0 0 8px rgba(59,130,246,0.15)',
+                    },
+                    'BALANCE': {
+                        icon: '🏦',
+                        label: 'Bakiye',
+                        gradient: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)',
+                        border: '#86efac',
+                        color: '#15803d',
+                        glow: '0 0 8px rgba(34,197,94,0.15)',
+                    },
+                    'BANK_TRANSFER': {
+                        icon: '🏧',
+                        label: 'Havale',
+                        gradient: 'linear-gradient(135deg, #faf5ff 0%, #ede9fe 100%)',
+                        border: '#c4b5fd',
+                        color: '#6d28d9',
+                        glow: '0 0 8px rgba(139,92,246,0.15)',
+                    },
+                };
+
+                const config = paymentStyles[method] || {
+                    icon: '💰',
+                    label: String(method),
+                    gradient: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
+                    border: '#cbd5e1',
+                    color: '#475569',
+                    glow: 'none',
+                };
+
+                return (
+                    <Tag style={{
+                        margin: 0,
+                        fontSize: 10,
+                        fontWeight: 800,
+                        background: config.gradient,
+                        border: `1.5px solid ${config.border}`,
+                        color: config.color,
+                        borderRadius: 8,
+                        padding: '2px 8px',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 3,
+                        boxShadow: config.glow,
+                        letterSpacing: 0.3,
+                        lineHeight: '18px',
+                        transition: 'all 0.2s ease',
+                        cursor: 'default',
+                    }}>
+                        <span style={{ fontSize: 11, lineHeight: 1 }}>{config.icon}</span>
+                        {config.label}
+                    </Tag>
+                );
             },
         },
         {

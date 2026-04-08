@@ -670,6 +670,7 @@ router.post('/book', optionalAuthMiddleware, async (req, res) => {
             passengers,
             price,
             currency, // New field
+            paymentMethod, // Payment method from booking form
             customerInfo,
             flightNumber,
             flightTime, // New field for Explicit Flight Time
@@ -739,6 +740,7 @@ router.post('/book', optionalAuthMiddleware, async (req, res) => {
                     returnDateTime,
                     flightNumber,
                     flightTime, // Save actual flight time regardless of pickup time
+                    paymentMethod: paymentMethod || 'PAY_IN_VEHICLE', // Save payment method for operations display
                     notes,
                     distance: req.body.distance || '0 km',
                     duration: req.body.duration || '0 dk',

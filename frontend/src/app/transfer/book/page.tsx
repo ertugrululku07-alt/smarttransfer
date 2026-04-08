@@ -328,6 +328,14 @@ const TransferBookingContent: React.FC = () => {
                 }
             }
 
+            // Map form payment method values to backend constants
+            const paymentMethodMap: Record<string, string> = {
+                'cash': 'PAY_IN_VEHICLE',
+                'credit_card': 'CREDIT_CARD',
+                'bank': 'BANK_TRANSFER',
+            };
+            const resolvedPaymentMethod = paymentMethodMap[values.paymentMethod] || 'PAY_IN_VEHICLE';
+
             const payload = {
                 vehicleType: vehicleDetails.vehicleType,
                 pickup,
@@ -336,6 +344,7 @@ const TransferBookingContent: React.FC = () => {
                 passengers: Number(passengers),
                 price: grandTotal, 
                 currency: selectedCurrency,
+                paymentMethod: resolvedPaymentMethod,
                 customerInfo: {
                     fullName: values.fullName,
                     email: values.email,

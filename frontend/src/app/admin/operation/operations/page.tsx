@@ -2758,29 +2758,83 @@ export default function OperationsPage() {
                                                                             </div>
                                                                         );
                                                                         case 'payment': {
-                                                                            const method = b?.metadata?.paymentMethod;
+                                                                            // 1. Try metadata.paymentMethod (canonical)
+                                                                            let method = b?.metadata?.paymentMethod;
                                                                             const ps = b?.paymentStatus;
-                                                                            if (!method) return <span style={{ fontSize: 11, color: '#999' }}>-</span>;
-                                                                            if (method === 'PAY_IN_VEHICLE') {
-                                                                                const paid = ps === 'PAID';
-                                                                                return (
-                                                                                    <span style={{
-                                                                                        fontSize: 11,
-                                                                                        fontWeight: 800,
-                                                                                        color: paid ? '#166534' : '#9a3412',
-                                                                                        background: paid ? '#dcfce7' : '#ffedd5',
-                                                                                        border: `1px solid ${paid ? '#86efac' : '#fdba74'}`,
-                                                                                        padding: '2px 8px',
-                                                                                        borderRadius: 10,
-                                                                                        whiteSpace: 'nowrap'
-                                                                                    }}>
-                                                                                        {paid ? 'Ödendi' : 'Araçta'}
-                                                                                    </span>
-                                                                                );
+
+                                                                            // 2. Fallback for legacy bookings without paymentMethod
+                                                                            if (!method) {
+                                                                                if (b?.agencyId) {
+                                                                                    method = 'BALANCE';
+                                                                                } else {
+                                                                                    method = 'PAY_IN_VEHICLE';
+                                                                                }
                                                                             }
-                                                                            if (method === 'CREDIT_CARD') return <span style={{ fontSize: 11, fontWeight: 800, color: '#1d4ed8', background: '#eff6ff', border: '1px solid #bfdbfe', padding: '2px 8px', borderRadius: 10, whiteSpace: 'nowrap' }}>Kart</span>;
-                                                                            if (method === 'BALANCE') return <span style={{ fontSize: 11, fontWeight: 800, color: '#166534', background: '#f0fdf4', border: '1px solid #bbf7d0', padding: '2px 8px', borderRadius: 10, whiteSpace: 'nowrap' }}>Bakiye</span>;
-                                                                            return <span style={{ fontSize: 11, fontWeight: 700, color: '#475569', background: '#f8fafc', border: '1px solid #e2e8f0', padding: '2px 8px', borderRadius: 10, whiteSpace: 'nowrap' }}>{String(method)}</span>;
+
+                                                                            const isPaid = ps === 'PAID';
+
+                                                                            const payStyles: Record<string, { icon: string; label: string; gradient: string; border: string; color: string; glow: string }> = {
+                                                                                'PAY_IN_VEHICLE': {
+                                                                                    icon: '🚗', label: isPaid ? 'Ödendi' : 'Araçta',
+                                                                                    gradient: isPaid ? 'linear-gradient(135deg, #dcfce7, #bbf7d0)' : 'linear-gradient(135deg, #fff7ed, #fed7aa)',
+                                                                                    border: isPaid ? '#86efac' : '#fdba74',
+                                                                                    color: isPaid ? '#15803d' : '#c2410c',
+                                                                                    glow: isPaid ? '0 0 8px rgba(34,197,94,0.15)' : '0 0 8px rgba(251,146,60,0.15)',
+                                                                                },
+                                                                                'CASH': {
+                                                                                    icon: '💵', label: isPaid ? 'Ödendi' : 'Nakit',
+                                                                                    gradient: isPaid ? 'linear-gradient(135deg, #dcfce7, #bbf7d0)' : 'linear-gradient(135deg, #fefce8, #fef08a)',
+                                                                                    border: isPaid ? '#86efac' : '#fde047',
+                                                                                    color: isPaid ? '#15803d' : '#a16207',
+                                                                                    glow: isPaid ? '0 0 8px rgba(34,197,94,0.15)' : '0 0 8px rgba(253,224,71,0.15)',
+                                                                                },
+                                                                                'CREDIT_CARD': {
+                                                                                    icon: '💳', label: 'Kart',
+                                                                                    gradient: 'linear-gradient(135deg, #eff6ff, #dbeafe)',
+                                                                                    border: '#93c5fd', color: '#1d4ed8',
+                                                                                    glow: '0 0 8px rgba(59,130,246,0.15)',
+                                                                                },
+                                                                                'BALANCE': {
+                                                                                    icon: '🏦', label: 'Bakiye',
+                                                                                    gradient: 'linear-gradient(135deg, #f0fdf4, #dcfce7)',
+                                                                                    border: '#86efac', color: '#15803d',
+                                                                                    glow: '0 0 8px rgba(34,197,94,0.15)',
+                                                                                },
+                                                                                'BANK_TRANSFER': {
+                                                                                    icon: '🏧', label: 'Havale',
+                                                                                    gradient: 'linear-gradient(135deg, #faf5ff, #ede9fe)',
+                                                                                    border: '#c4b5fd', color: '#6d28d9',
+                                                                                    glow: '0 0 8px rgba(139,92,246,0.15)',
+                                                                                },
+                                                                            };
+
+                                                                            const cfg = payStyles[method] || {
+                                                                                icon: '💰', label: String(method),
+                                                                                gradient: 'linear-gradient(135deg, #f8fafc, #f1f5f9)',
+                                                                                border: '#cbd5e1', color: '#475569', glow: 'none',
+                                                                            };
+
+                                                                            return (
+                                                                                <span style={{
+                                                                                    fontSize: 10,
+                                                                                    fontWeight: 800,
+                                                                                    color: cfg.color,
+                                                                                    background: cfg.gradient,
+                                                                                    border: `1.5px solid ${cfg.border}`,
+                                                                                    padding: '2px 8px',
+                                                                                    borderRadius: 8,
+                                                                                    whiteSpace: 'nowrap',
+                                                                                    display: 'inline-flex',
+                                                                                    alignItems: 'center',
+                                                                                    gap: 3,
+                                                                                    boxShadow: cfg.glow,
+                                                                                    letterSpacing: 0.3,
+                                                                                    lineHeight: '18px',
+                                                                                }}>
+                                                                                    <span style={{ fontSize: 11, lineHeight: 1 }}>{cfg.icon}</span>
+                                                                                    {cfg.label}
+                                                                                </span>
+                                                                            );
                                                                         }
                                                                         case 'pax': return <span style={{ fontWeight: 700, color: '#374151' }}>{b.adults || 1} p</span>;
                                                                         case 'phone': return <span style={{ fontSize: 12, color: '#374151' }}>{b.contactPhone}</span>;
