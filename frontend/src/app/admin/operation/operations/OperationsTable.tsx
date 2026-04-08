@@ -505,6 +505,7 @@ export default function OperationsTable({
             title: renderColumnHeader('index', '#'),
             key: 'index',
             width: columnWidths.index,
+            ellipsis: true,
             render: (_: any, __: any, index: number) => (
                 <Text style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700, fontFamily: 'monospace' }}>{index + 1}</Text>
             ),
@@ -514,6 +515,7 @@ export default function OperationsTable({
             dataIndex: 'bookingNumber',
             key: 'bookingNumber',
             width: columnWidths.bookingNumber,
+            ellipsis: true,
             render: (text: string) => (
                 <Text copyable={{ text, tooltips: ['Kopyala', 'Kopyalandı'] }} style={{ fontSize: 10.5, fontFamily: 'monospace', color: '#3b82f6', fontWeight: 600 }}>{text}</Text>
             ),
@@ -523,6 +525,7 @@ export default function OperationsTable({
             dataIndex: 'direction',
             key: 'direction',
             width: columnWidths.direction,
+            ellipsis: true,
             render: (dir: string) => {
                 const configs: Record<string, { color: string; bg: string; label: string; icon: string }> = {
                     DEPARTURE: { color: '#f97316', bg: '#fff7ed', label: 'Gidiş', icon: '✈️' },
@@ -547,6 +550,7 @@ export default function OperationsTable({
             dataIndex: 'partnerName',
             key: 'partnerName',
             width: columnWidths.partnerName,
+            ellipsis: true,
             render: (_: string, record: any) => {
                 const agencyName = record.agencyName || record.partnerName;
                 return <Text style={{ fontSize: 11, fontWeight: 500 }}>{agencyName || <span style={{ color: '#d1d5db' }}>—</span>}</Text>;
@@ -556,6 +560,7 @@ export default function OperationsTable({
             title: renderColumnHeader('paymentType', 'ÖDEME', true),
             key: 'paymentType',
             width: columnWidths.paymentType || 105,
+            ellipsis: true,
             render: (_: any, record: any) => {
                 // 1. Try metadata.paymentMethod (canonical source for both B2B and new B2C bookings)
                 let method = record?.metadata?.paymentMethod;
@@ -669,6 +674,7 @@ export default function OperationsTable({
             dataIndex: 'customerNote',
             key: 'customerNote',
             width: columnWidths.customerNote,
+            ellipsis: true,
             render: (text: string, record: any) => {
                 const note =
                     text ||
@@ -713,6 +719,7 @@ export default function OperationsTable({
             dataIndex: 'internalNotes',
             key: 'internalNotes',
             width: columnWidths.internalNotes,
+            ellipsis: true,
             render: (text: string, record: any) => {
                 const isEditing = editingCell?.id === record.id && editingCell?.field === 'internalNotes';
                 if (isEditing) {
@@ -749,6 +756,7 @@ export default function OperationsTable({
             title: renderColumnHeader('customerName', 'MÜŞTERİ ADI', true),
             key: 'customerName',
             width: columnWidths.customerName,
+            ellipsis: true,
             render: (_: any, record: any) => {
                 const name = record.customerName || record.customer?.name || ((record.customer?.firstName || '') + ' ' + (record.customer?.lastName || '')).trim() || '-';
                 return <Text style={{ fontSize: 11.5, fontWeight: 700, color: '#1e293b' }}>{name}</Text>;
@@ -758,6 +766,7 @@ export default function OperationsTable({
             title: renderColumnHeader('contactPhone', 'TELEFON'),
             key: 'contactPhone',
             width: columnWidths.contactPhone,
+            ellipsis: true,
             render: (_: any, record: any) => {
                 const phone = record.contactPhone || record.customer?.phone || record.customer?.contactPhone || '-';
                 return <Text style={{ fontSize: 11, fontFamily: 'monospace', color: '#475569' }}>{phone}</Text>;
@@ -767,6 +776,7 @@ export default function OperationsTable({
             title: renderColumnHeader('date', 'TARİH', true),
             key: 'date',
             width: columnWidths.date,
+            ellipsis: true,
             render: (_: any, record: any) => {
                 const date = record.pickupDateTime || record.dropoffDateTime;
                 return <Text style={{ fontSize: 10.5, fontFamily: 'monospace', color: '#64748b' }}>{date ? dayjs(date).format('DD.MM.YY') : '-'}</Text>;
@@ -776,6 +786,7 @@ export default function OperationsTable({
             title: renderColumnHeader('airportCode', 'IATA', true),
             key: 'airportCode',
             width: columnWidths.airportCode,
+            ellipsis: true,
             render: (_: any, record: any) => {
                 const pickupLoc = record.pickup?.rawLocation || record.pickup?.location || '';
                 const dropoffLoc = record.dropoff?.rawLocation || record.dropoff?.location || '';
@@ -803,6 +814,7 @@ export default function OperationsTable({
             title: renderColumnHeader('pickupRegionCode', 'ALIŞ BÖLGE', true),
             key: 'pickupRegionCode',
             width: columnWidths.pickupRegionCode || 75,
+            ellipsis: true,
             render: (_: any, record: any) => {
                 const code = record.pickupRegionCode || record.metadata?.pickupRegionCode;
                 if (!code) return <Text style={{ fontSize: 11, color: '#999' }}>-</Text>;
@@ -822,6 +834,7 @@ export default function OperationsTable({
             title: renderColumnHeader('dropoffRegionCode', 'VARIŞ BÖLGE', true),
             key: 'dropoffRegionCode',
             width: columnWidths.dropoffRegionCode || 75,
+            ellipsis: true,
             render: (_: any, record: any) => {
                 const code = record.dropoffRegionCode || record.metadata?.dropoffRegionCode;
                 if (!code) return <Text style={{ fontSize: 11, color: '#999' }}>-</Text>;
@@ -842,6 +855,7 @@ export default function OperationsTable({
             dataIndex: 'operationalStatus',
             key: 'status',
             width: columnWidths.status,
+            ellipsis: true,
             render: (status: string, record: any) => {
                 // Fallback to main status if operationalStatus is not set
                 const effectiveStatus = status || record.status || record.metadata?.operationalStatus || 'PENDING';
@@ -903,6 +917,7 @@ export default function OperationsTable({
             title: renderColumnHeader('driver', 'ŞOFÖR'),
             key: 'driver',
             width: columnWidths.driver,
+            ellipsis: true,
             render: (_: any, record: any) => {
                 const options = drivers.map(d => ({
                     label: `${d.firstName} ${d.lastName}`,
@@ -938,6 +953,7 @@ export default function OperationsTable({
             title: renderColumnHeader('vehicle', 'ARAÇ'),
             key: 'vehicle',
             width: columnWidths.vehicle,
+            ellipsis: true,
             render: (_: any, record: any) => {
                 const options = vehicles.map(v => ({
                     label: `${v.plate} - ${v.model}`,
@@ -961,6 +977,7 @@ export default function OperationsTable({
             title: renderColumnHeader('time', 'TRANSFER SAATİ', true),
             key: 'time',
             width: columnWidths.time,
+            ellipsis: true,
             render: (_: any, record: any) => {
                 const time = record.pickupDateTime || record.dropoffDateTime;
                 const formatted = time ? dayjs(time).format('HH:mm') : '-';
@@ -1013,6 +1030,7 @@ export default function OperationsTable({
             title: renderColumnHeader('flightTime', 'UÇUŞ SAATİ', true),
             key: 'flightTime',
             width: columnWidths.flightTime || 85,
+            ellipsis: true,
             render: (_: any, record: any) => {
                 const ft = record.metadata?.flightTime || record.flightTime || '';
                 
@@ -1063,12 +1081,14 @@ export default function OperationsTable({
             dataIndex: 'flightNumber',
             key: 'flightCode',
             width: columnWidths.flightCode,
+            ellipsis: true,
             render: (text: string) => <Text style={{ fontSize: 11, color: '#475569' }}>{text || <span style={{ color: '#d1d5db' }}>—</span>}</Text>,
         },
         {
             title: renderColumnHeader('pax', 'PAX', true),
             key: 'pax',
             width: columnWidths.pax,
+            ellipsis: true,
             render: (_: any, record: any) => {
                 const total = (record.adults || 0) + (record.children || 0) + (record.infants || 0);
                 return (
@@ -1087,6 +1107,7 @@ export default function OperationsTable({
             title: renderColumnHeader('pickup', 'ALIŞ YERİ'),
             key: 'pickup',
             width: columnWidths.pickup,
+            ellipsis: true,
             render: (_: any, record: any) => {
                 const loc = record.pickup?.location || record.pickup?.rawLocation || '';
                 return (
@@ -1110,6 +1131,7 @@ export default function OperationsTable({
             title: renderColumnHeader('dropoff', 'BIRAKIŞ YERİ'),
             key: 'dropoff',
             width: columnWidths.dropoff,
+            ellipsis: true,
             render: (_: any, record: any) => {
                 const loc = record.dropoff?.location || record.dropoff?.rawLocation || '';
                 return (
@@ -1133,6 +1155,7 @@ export default function OperationsTable({
             title: renderColumnHeader('extraServices', 'EKSTRA'),
             key: 'extraServices',
             width: columnWidths.extraServices,
+            ellipsis: true,
             render: (_: any, record: any) => {
                 const extras = record.metadata?.extraServices || record.extraServices || record.extras || record.services || [];
                 if (!extras || extras.length === 0) return <Text style={{ fontSize: 11, color: '#999' }}>-</Text>;
@@ -1162,6 +1185,7 @@ export default function OperationsTable({
             title: renderColumnHeader('actions', 'İŞLEM'),
             key: 'actions',
             width: columnWidths.actions,
+            ellipsis: true,
             render: (_: any, record: any) => {
                 if (record.status === 'COMPLETED') {
                     return (
@@ -1312,6 +1336,10 @@ export default function OperationsTable({
                     border-bottom: 1px solid #f1f5f9 !important;
                     vertical-align: middle !important;
                     transition: none !important;
+                    overflow: hidden !important;
+                    text-overflow: ellipsis !important;
+                    white-space: nowrap !important;
+                    word-break: keep-all !important;
                 }
 
                 /* ── RESIZE HANDLE ── */
@@ -1390,7 +1418,8 @@ export default function OperationsTable({
                                 showTotal: (total, range) => `${range[0]}-${range[1]} / ${total} kayıt`
                             }}
                             size="small"
-                            scroll={{ x: 'max-content', y: 'calc(100vh - 320px)' }}
+                            tableLayout="fixed"
+                            scroll={{ x: Object.keys(columnWidths).reduce((sum, key) => sum + (columnWidths[key] || 100), 0), y: 'calc(100vh - 320px)' }}
                             sticky
                         />
                     </SortableContext>

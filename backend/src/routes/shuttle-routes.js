@@ -54,7 +54,8 @@ router.post('/', authMiddleware, async (req, res) => {
                 weeklyDays: data.weeklyDays,
                 pickupLocation: data.pickupLocation ? (typeof data.pickupLocation === 'object' ? JSON.stringify(data.pickupLocation) : data.pickupLocation) : null,
                 pickupRadius: data.pickupRadius,
-                pickupPolygon: data.pickupPolygon
+                pickupPolygon: data.pickupPolygon,
+                metadata: data.metadata || null
             }
         });
 
@@ -114,7 +115,8 @@ router.put('/:id', authMiddleware, async (req, res) => {
                 weeklyDays: data.weeklyDays,
                 pickupLocation: data.pickupLocation ? (typeof data.pickupLocation === 'object' ? JSON.stringify(data.pickupLocation) : data.pickupLocation) : null,
                 pickupRadius: data.pickupRadius,
-                pickupPolygon: data.pickupPolygon
+                pickupPolygon: data.pickupPolygon,
+                metadata: data.metadata || null
             }
         });
 

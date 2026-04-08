@@ -351,72 +351,81 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
         };
 
         const matchingShuttles = shuttleRoutes.filter(route => {
-            // 1. Location Check
-            let isLocationMatch = false;
+            // 1. PICKUP Location Check (from → user's pickup)
+            let isPickupMatch = false;
 
-            // If Route has Pickup Location defined
-            if (route.pickupLocation) {
-                // Parse route location
-                const routeLoc = typeof route.pickupLocation === 'string'
-                    ? JSON.parse(route.pickupLocation)
-                    : route.pickupLocation;
+            // Check coordinates first (most reliable)
+            if (req.body.pickupLat && req.body.pickupLng) {
+                const userLat = Number(req.body.pickupLat);
+                const userLng = Number(req.body.pickupLng);
 
-                // Check if request has coordinates
-                if (req.body.pickupLat && req.body.pickupLng) {
-                    const userLat = Number(req.body.pickupLat);
-                    const userLng = Number(req.body.pickupLng);
+                // 1a. Polygon Check (Priority — from zone-based routes)
+                if (route.pickupPolygon) {
+                    const polygon = typeof route.pickupPolygon === 'string'
+                        ? JSON.parse(route.pickupPolygon)
+                        : route.pickupPolygon;
 
-                    // 1. Polygon Check (Priority)
-                    if (route.pickupPolygon) {
-                        const polygon = typeof route.pickupPolygon === 'string'
-                            ? JSON.parse(route.pickupPolygon)
-                            : route.pickupPolygon;
+                    if (Array.isArray(polygon) && polygon.length > 2) {
+                        // Point in Polygon Algorithm (Ray Casting)
+                        let inside = false;
+                        for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+                            const xi = polygon[i].lng, yi = polygon[i].lat;
+                            const xj = polygon[j].lng, yj = polygon[j].lat;
 
-                        // Check if valid polygon array
-                        if (Array.isArray(polygon) && polygon.length > 2) {
-                            // Point in Polygon Algorithm (Ray Casting)
-                            let inside = false;
-                            for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-                                const xi = polygon[i].lng, yi = polygon[i].lat;
-                                const xj = polygon[j].lng, yj = polygon[j].lat;
-
-                                const intersect = ((yi > userLat) !== (yj > userLat))
-                                    && (userLng < (xj - xi) * (userLat - yi) / (yj - yi) + xi);
-                                if (intersect) inside = !inside;
-                            }
-                            isLocationMatch = inside;
+                            const intersect = ((yi > userLat) !== (yj > userLat))
+                                && (userLng < (xj - xi) * (userLat - yi) / (yj - yi) + xi);
+                            if (intersect) inside = !inside;
                         }
+                        isPickupMatch = inside;
                     }
-
-                    // 2. Radius Check (Fallback if not Matched yet and radius exists)
-                    if (!isLocationMatch && route.pickupRadius) {
-                        const dist = getDistanceFromLatLonInMeters(
-                            routeLoc.lat,
-                            routeLoc.lng,
-                            userLat,
-                            userLng
-                        );
-                        // Match if within radius
-                        if (dist <= route.pickupRadius) {
-                            isLocationMatch = true;
-                        }
-                    }
-                } else {
-                    // Fallback to text matching if client didn't send coords 
-                    const routeFrom = normalizeLocation(route.fromName);
-                    const routeTo = normalizeLocation(route.toName);
-                    isLocationMatch = (routeFrom.includes(pickupNorm) || pickupNorm.includes(routeFrom)) &&
-                        (routeTo.includes(dropoffNorm) || dropoffNorm.includes(routeTo));
                 }
-            } else {
-                // Legacy Text Matching
-                const routeFrom = normalizeLocation(route.fromName);
-                const routeTo = normalizeLocation(route.toName);
-                isLocationMatch = (routeFrom.includes(pickupNorm) || pickupNorm.includes(routeFrom)) &&
-                    (routeTo.includes(dropoffNorm) || dropoffNorm.includes(routeTo));
+
+                // 1b. Radius Check (Fallback if not matched yet and radius exists)
+                if (!isPickupMatch && route.pickupRadius && route.pickupLocation) {
+                    const routeLoc = typeof route.pickupLocation === 'string'
+                        ? JSON.parse(route.pickupLocation)
+                        : route.pickupLocation;
+                    const dist = getDistanceFromLatLonInMeters(
+                        routeLoc.lat,
+                        routeLoc.lng,
+                        userLat,
+                        userLng
+                    );
+                    if (dist <= route.pickupRadius) {
+                        isPickupMatch = true;
+                    }
+                }
             }
 
-            if (!isLocationMatch) return false;
+            // 1c. Text matching fallback (if no coordinates sent)
+            if (!isPickupMatch) {
+                const routeFrom = normalizeLocation(route.fromName);
+                isPickupMatch = (routeFrom.includes(pickupNorm) || pickupNorm.includes(routeFrom));
+            }
+
+            if (!isPickupMatch) return false;
+
+            // 2. DROPOFF Location Check (to → user's dropoff)
+            let isDropoffMatch = false;
+
+            // 2a. Hub code matching (preferred — compare route's toHubCode with detected hub from dropoff text)
+            const routeMeta = route.metadata || {};
+            const routeToHubCode = routeMeta.toHubCode;
+            if (routeToHubCode) {
+                // Detect which hub the user's dropoff text maps to
+                const dropoffHubCode = detectRegionCode(dropoff, hubs);
+                if (dropoffHubCode && dropoffHubCode === routeToHubCode) {
+                    isDropoffMatch = true;
+                }
+            }
+
+            // 2b. Text matching fallback
+            if (!isDropoffMatch) {
+                const routeTo = normalizeLocation(route.toName);
+                isDropoffMatch = (routeTo.includes(dropoffNorm) || dropoffNorm.includes(routeTo));
+            }
+
+            if (!isDropoffMatch) return false;
 
             // Schedule Check
             let passesSchedule = false;

@@ -1225,6 +1225,9 @@ model ShuttleRoute {
   pickupRadius    Float?
   pickupPolygon   Json?
 
+  // Metadata (zone/hub references etc.)
+  metadata  Json?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
