@@ -257,7 +257,7 @@ const AccountingDashboard: React.FC = () => {
 
         return (
             <Card
-                bordered={false}
+                variant="borderless"
                 style={{
                     borderRadius: 16, marginBottom: 20,
                     boxShadow: '0 2px 16px rgba(0,0,0,0.06)',
@@ -484,7 +484,7 @@ const AccountingDashboard: React.FC = () => {
                         {/* Donut */}
                         <Col xs={24} md={8}>
                             <Card
-                                bordered={false}
+                                variant="borderless"
                                 style={{
                                     borderRadius: 16, height: '100%',
                                     boxShadow: '0 2px 16px rgba(0,0,0,0.06)',
@@ -511,7 +511,7 @@ const AccountingDashboard: React.FC = () => {
                         {/* Trend Sparkline */}
                         <Col xs={24} md={8}>
                             <Card
-                                bordered={false}
+                                variant="borderless"
                                 style={{
                                     borderRadius: 16, height: '100%',
                                     boxShadow: '0 2px 16px rgba(0,0,0,0.06)',
@@ -550,7 +550,7 @@ const AccountingDashboard: React.FC = () => {
                         {/* Risk / Health Score */}
                         <Col xs={24} md={8}>
                             <Card
-                                bordered={false}
+                                variant="borderless"
                                 style={{
                                     borderRadius: 16, height: '100%',
                                     boxShadow: '0 2px 16px rgba(0,0,0,0.06)',
@@ -612,7 +612,7 @@ const AccountingDashboard: React.FC = () => {
                         {/* Top Debtors */}
                         <Col xs={24} lg={12}>
                             <Card
-                                bordered={false}
+                                variant="borderless"
                                 title={
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                         <FallOutlined style={{ color: '#dc2626' }} />
@@ -681,7 +681,7 @@ const AccountingDashboard: React.FC = () => {
                         {/* Top Creditors */}
                         <Col xs={24} lg={12}>
                             <Card
-                                bordered={false}
+                                variant="borderless"
                                 title={
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                         <RiseOutlined style={{ color: '#16a34a' }} />
@@ -751,7 +751,7 @@ const AccountingDashboard: React.FC = () => {
                     {/* ── Personnel Payroll Summary ── */}
                     {metrics.personnel.count > 0 && (
                         <Card
-                            bordered={false}
+                            variant="borderless"
                             title={
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                     <UserOutlined style={{ color: '#d97706' }} />

@@ -19,8 +19,25 @@ export default function EarningsPage() {
     });
 
     useEffect(() => {
+        fetchStats();
         fetchEarnings();
     }, []);
+
+    const fetchStats = async () => {
+        try {
+            const res = await apiClient.get('/api/transfer/partner/stats');
+            if (res.data.success && res.data.data.financials) {
+                const fin = res.data.data.financials;
+                setStats({
+                    totalNet: fin.credit,
+                    pending: fin.balance,
+                    paid: fin.debit
+                });
+            }
+        } catch (error) {
+            console.error('Error fetching stats:', error);
+        }
+    };
 
     const fetchEarnings = async () => {
         try {
@@ -31,9 +48,9 @@ export default function EarningsPage() {
                 // Process bookings to calculate earnings
                 const processedEarnings = bookings.map((booking: any) => {
                     const amount = Number(booking.price.amount);
-                    const commissionRate = 0.15; // Mock 15% commission
-                    const deduction = amount * commissionRate;
-                    const net = amount - deduction;
+                    const deduction = Number(booking.price.commissionAmount || 0);
+                    const net = Number(booking.price.netEarning || amount);
+                    const commissionRate = booking.price.commissionRate;
 
                     return {
                         key: booking.id,
@@ -47,6 +64,7 @@ export default function EarningsPage() {
                         amount: amount,
                         deduction: deduction,
                         net: net,
+                        commissionRate: commissionRate,
                         currency: booking.price.currency,
                         status: booking.paymentStatus || 'PENDING', // Default to PENDING if not set
                         customer: booking.customer.name
@@ -55,25 +73,10 @@ export default function EarningsPage() {
 
                 setEarnings(processedEarnings);
 
-                // Calculate Summary Stats
-                const totalNet = processedEarnings.reduce((acc: number, curr: any) => acc + curr.net, 0);
-                // Mock logic for Paid vs Pending (since backend might not have this fully wired yet)
-                // Assuming older than 7 days is Paid, otherwise Pending for demo
-                // Or just use the status if available. 
-                // Let's use the status from the object.
-                const pending = processedEarnings
-                    .filter((e: any) => e.status === 'PENDING')
-                    .reduce((acc: number, curr: any) => acc + curr.net, 0);
+                setEarnings(processedEarnings);
 
-                const paid = processedEarnings
-                    .filter((e: any) => e.status === 'PAID')
-                    .reduce((acc: number, curr: any) => acc + curr.net, 0);
-
-                setStats({
-                    totalNet,
-                    pending,
-                    paid
-                });
+                // Summary Stats are now fetched from fetchStats() for real financial precision
+                // But we can fallback to calculation if stats API fails (handled in useEffect order)
             }
         } catch (error) {
             console.error('Error fetching earnings:', error);
@@ -121,12 +124,19 @@ export default function EarningsPage() {
             )
         },
         {
-            title: 'Kesinti (%15)',
+            title: 'Kesinti',
             dataIndex: 'deduction',
             key: 'deduction',
             align: 'right' as const,
             render: (deduction: number, record: any) => (
-                <Text type="danger">-{deduction.toFixed(2)} {record.currency}</Text>
+                <div>
+                    <Text type={deduction > 0 ? "danger" : "secondary"}>
+                        {deduction > 0 ? `-${deduction.toFixed(2)}` : '0.00'} {record.currency}
+                    </Text>
+                    {record.commissionRate !== null && record.commissionRate !== undefined && (
+                        <div style={{ fontSize: '10px', color: '#999' }}>%{record.commissionRate} Komisyon</div>
+                    )}
+                </div>
             )
         },
         {

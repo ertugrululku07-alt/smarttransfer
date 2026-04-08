@@ -141,7 +141,8 @@ router.put('/settings', authMiddleware, async (req, res) => {
             homepageStats: homepageStats !== undefined ? homepageStats : currentSettings.homepageStats,
             homepageRoutes: homepageRoutes !== undefined ? homepageRoutes : currentSettings.homepageRoutes,
             homepageFeatures: homepageFeatures !== undefined ? homepageFeatures : currentSettings.homepageFeatures,
-            customTheme: customTheme !== undefined ? customTheme : currentSettings.customTheme
+            customTheme: customTheme !== undefined ? customTheme : currentSettings.customTheme,
+            partnerCommissionRate: req.body.partnerCommissionRate !== undefined ? req.body.partnerCommissionRate : currentSettings.partnerCommissionRate
         };
 
         const updatedTenant = await prisma.tenant.update({

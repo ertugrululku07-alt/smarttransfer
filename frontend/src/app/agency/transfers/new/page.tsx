@@ -943,6 +943,7 @@ const AgencyNewTransferPage = () => {
 
                 <Collapse
                     ghost
+                    defaultActiveKey={['1']}
                     expandIconPlacement="end"
                     items={[{
                         key: '1',

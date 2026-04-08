@@ -775,6 +775,11 @@ router.get('/shuttle-runs', authMiddleware, async (req, res, next) => {
                 assignedVehicleId: m.assignedVehicleId || null,
                 agencyName: b.agency?.name || null,
                 flightNumber: m.flightNumber || null,
+                flightTime: m.flightTime || null,
+                pickupRegionCode: m.pickupRegionCode || null,
+                dropoffRegionCode: m.dropoffRegionCode || null,
+                shuttleSortOrder: m.shuttleSortOrder || null,
+                extraServices: m.extraServices || null,
                 notes: b.specialRequests || m.notes || null,
             });
         });
@@ -782,6 +787,13 @@ router.get('/shuttle-runs', authMiddleware, async (req, res, next) => {
         LOG_TAG = "POST_PROCESS_TIMES";
         Object.values(runsMap).forEach(run => {
             run.bookings.sort((a, b) => {
+                const orderA = a.shuttleSortOrder ?? Number.MAX_SAFE_INTEGER;
+                const orderB = b.shuttleSortOrder ?? Number.MAX_SAFE_INTEGER;
+                
+                if (orderA !== orderB) {
+                    return orderA - orderB;
+                }
+
                 const dA = a.pickupDateTime ? new Date(a.pickupDateTime).getTime() : 0;
                 const dB = b.pickupDateTime ? new Date(b.pickupDateTime).getTime() : 0;
                 return dA - dB;
@@ -978,6 +990,325 @@ router.post('/shuttle-runs/move', authMiddleware, async (req, res) => {
     } catch (error) {
         console.error('shuttle-runs/move error:', error);
         res.status(500).json({ success: false, error: 'Geçiş işlemi başarısız: ' + error.message });
+    }
+});
+// ---------------------------------------------------------------------------
+// POST /api/operations/shuttle-runs/sort
+// Body: { items: [{ bookingId: string, sortOrder: number }, ...] }
+// Updates shuttleSortOrder in Booking metadata
+// ---------------------------------------------------------------------------
+router.post('/shuttle-runs/sort', authMiddleware, async (req, res) => {
+    try {
+        const { items } = req.body;
+        if (!Array.isArray(items) || items.length === 0) {
+            return res.status(400).json({ success: false, error: 'items dizisi zorunlu' });
+        }
+
+        let updatedCount = 0;
+        for (const item of items) {
+            const booking = await prisma.booking.findUnique({ where: { id: item.bookingId } });
+            if (booking) {
+                await prisma.booking.update({
+                    where: { id: item.bookingId },
+                    data: {
+                        metadata: {
+                            ...(booking.metadata || {}),
+                            shuttleSortOrder: item.sortOrder
+                        }
+                    }
+                });
+                updatedCount++;
+            }
+        }
+
+        const io = req.app.get('io');
+        if (io) {
+            io.to('admin_monitoring').emit('shuttle_runs_updated', { updatedCount });
+        }
+
+        res.json({ success: true, updatedCount });
+    } catch (error) {
+        console.error('shuttle-runs/sort error:', error);
+        res.status(500).json({ success: false, error: 'Sıralama işlemi başarısız: ' + error.message });
+    }
+});
+
+// ---------------------------------------------------------------------------
+// PATCH /api/operations/shuttle-runs/update
+// Body: { runKey: string, departureTime: string, routeName: string, bookingIds: string[] }
+// Updates shuttleMasterTime and/or manualRunName for all bookings in a run
+// ---------------------------------------------------------------------------
+router.patch('/shuttle-runs/update', authMiddleware, async (req, res) => {
+    try {
+        const { runKey, departureTime, routeName, bookingIds } = req.body;
+        
+        if (!bookingIds || !Array.isArray(bookingIds) || bookingIds.length === 0) {
+            return res.status(400).json({ success: false, error: 'bookingIds dizisi zorunlu' });
+        }
+
+        let updatedCount = 0;
+        for (const bookingId of bookingIds) {
+            const booking = await prisma.booking.findUnique({ where: { id: bookingId } });
+            if (!booking) continue;
+
+            const meta = booking.metadata || {};
+            const updatedMeta = { ...meta };
+
+            // Update departure time
+            if (departureTime !== undefined) {
+                updatedMeta.shuttleMasterTime = departureTime;
+            }
+
+            // Update route name for manual runs
+            if (routeName !== undefined && meta.manualRunId) {
+                updatedMeta.manualRunName = routeName;
+            }
+
+            await prisma.booking.update({
+                where: { id: bookingId },
+                data: { metadata: updatedMeta }
+            });
+            updatedCount++;
+        }
+
+        const io = req.app.get('io');
+        if (io) {
+            io.to('admin_monitoring').emit('shuttle_runs_updated', { runKey, updatedCount });
+        }
+
+        res.json({ success: true, updatedCount });
+    } catch (error) {
+        console.error('shuttle-runs/update error:', error);
+        res.status(500).json({ success: false, error: 'Sefer güncelleme başarısız: ' + error.message });
+    }
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/operations/shuttle-runs/optimize-route
+// Body: { bookingIds: string[], destinationAddress: string }
+// Geocodes pickup addresses and sorts by distance to destination (farthest first)
+// Returns optimized order of booking IDs
+// ---------------------------------------------------------------------------
+router.post('/shuttle-runs/optimize-route', authMiddleware, async (req, res) => {
+    try {
+        const { bookingIds, destinationAddress } = req.body;
+        
+        if (!bookingIds || !Array.isArray(bookingIds) || bookingIds.length === 0) {
+            return res.status(400).json({ success: false, error: 'bookingIds dizisi zorunlu' });
+        }
+
+        const { getRouteDuration } = require('../services/RouteService');
+        
+        // Geocode helper (same as RouteService)
+        const geocodeAddress = (address) => {
+            return new Promise((resolve, reject) => {
+                const https = require('https');
+                const query = encodeURIComponent(address);
+                const options = {
+                    hostname: 'nominatim.openstreetmap.org',
+                    path: `/search?q=${query}&format=json&limit=1`,
+                    method: 'GET',
+                    headers: { 'User-Agent': 'SmartTransfer/1.0 (contact@smartransfer.com)' }
+                };
+                const req = https.request(options, (res) => {
+                    let data = '';
+                    res.on('data', chunk => data += chunk);
+                    res.on('end', () => {
+                        try {
+                            const results = JSON.parse(data);
+                            if (results && results.length > 0) {
+                                resolve({ lat: parseFloat(results[0].lat), lng: parseFloat(results[0].lon) });
+                            } else {
+                                resolve(null); // Could not geocode
+                            }
+                        } catch (e) { resolve(null); }
+                    });
+                });
+                req.on('error', () => resolve(null));
+                req.setTimeout(8000, () => { req.destroy(); resolve(null); });
+                req.end();
+            });
+        };
+
+        // Haversine distance in km
+        const haversine = (lat1, lng1, lat2, lng2) => {
+            const R = 6371;
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLng = (lng2 - lng1) * Math.PI / 180;
+            const a = Math.sin(dLat / 2) ** 2 +
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                Math.sin(dLng / 2) ** 2;
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        };
+
+        // 1. Get bookings with metadata (pickup is stored in metadata)
+        const bookings = await prisma.booking.findMany({
+            where: { id: { in: bookingIds } },
+            select: { id: true, metadata: true }
+        });
+
+        // 2. Geocode destination - try multiple formats
+        console.log('[optimize-route] Destination address:', destinationAddress);
+        let destCoords = null;
+        
+        // Try the provided address first
+        if (destinationAddress) {
+            destCoords = await geocodeAddress(destinationAddress);
+        }
+        
+        // Fallback attempts
+        if (!destCoords) {
+            console.log('[optimize-route] Trying fallback: Gazipaşa Havalimanı, Alanya');
+            destCoords = await geocodeAddress('Gazipaşa Havalimanı, Alanya, Antalya, Türkiye');
+        }
+        if (!destCoords) {
+            console.log('[optimize-route] Trying fallback: Gazipasa Airport');
+            destCoords = await geocodeAddress('Gazipasa Airport, Alanya, Turkey');
+        }
+        if (!destCoords) {
+            // Last resort: use known coords for Gazipaşa Airport
+            console.log('[optimize-route] Using hardcoded Gazipaşa Airport coords');
+            destCoords = { lat: 36.2992, lng: 32.3006 };
+        }
+
+        // 3. Geocode each booking's pickup and calculate distance
+        const results = [];
+        for (const booking of bookings) {
+            const m = booking.metadata || {};
+            const pickupAddr = m.pickup || m.pickupLocation || m.pickupAddress || '';
+            
+            // Add delay between requests to respect Nominatim rate limits (1 req/sec)
+            if (results.length > 0) {
+                await new Promise(r => setTimeout(r, 1100));
+            }
+            
+            const coords = await geocodeAddress(pickupAddr);
+            const distanceKm = coords ? haversine(coords.lat, coords.lng, destCoords.lat, destCoords.lng) : 0;
+            
+            results.push({
+                bookingId: booking.id,
+                pickup: pickupAddr,
+                coords,
+                distanceKm: Math.round(distanceKm * 10) / 10
+            });
+        }
+
+        // 4. Sort by distance to destination: farthest first (picked up first on the way)
+        results.sort((a, b) => b.distanceKm - a.distanceKm);
+
+        // 5. Update sort order in metadata
+        let sortOrder = 1;
+        for (const item of results) {
+            const booking = await prisma.booking.findUnique({ where: { id: item.bookingId } });
+            if (booking) {
+                await prisma.booking.update({
+                    where: { id: item.bookingId },
+                    data: {
+                        metadata: {
+                            ...(booking.metadata || {}),
+                            shuttleSortOrder: sortOrder
+                        }
+                    }
+                });
+            }
+            sortOrder++;
+        }
+
+        const io = req.app.get('io');
+        if (io) {
+            io.to('admin_monitoring').emit('shuttle_runs_updated', { optimized: true });
+        }
+
+        res.json({ 
+            success: true, 
+            optimizedOrder: results.map(r => ({
+                bookingId: r.bookingId,
+                pickup: r.pickup,
+                distanceKm: r.distanceKm,
+                sortOrder: results.indexOf(r) + 1
+            })),
+            destination: destinationAddress || 'Gazipaşa Alanya Havalimanı'
+        });
+    } catch (error) {
+        console.error('shuttle-runs/optimize-route error:', error);
+        res.status(500).json({ success: false, error: 'Güzergah optimizasyonu başarısız: ' + error.message });
+    }
+});
+
+/**
+ * POST /api/operations/migrate-region-codes
+ * One-time migration: detect and save region codes for existing bookings
+ */
+router.post('/migrate-region-codes', authMiddleware, async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId;
+        if (!tenantId) return res.status(400).json({ success: false, error: 'Tenant context missing' });
+
+        // Load hubs
+        const tenantInfo = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { settings: true } });
+        const hubs = tenantInfo?.settings?.hubs || [];
+        if (!hubs.length) return res.json({ success: true, message: 'No hubs defined', updated: 0 });
+
+        const trLower = (s) => (s || '').toLocaleLowerCase('tr');
+        const SKIP_WORDS = new Set(['havalimanı', 'havalimani', 'airport', 'havaalanı', 'merkez', 'center', 'terminal']);
+        function detectCode(text) {
+            if (!text) return null;
+            const lower = trLower(text);
+            let bestCode = null;
+            let bestPos = Infinity;
+            let bestLen = 0;
+            for (const hub of hubs) {
+                const keys = hub.keywords ? hub.keywords.split(',').map(k => trLower(k).trim()).filter(k => k) : [];
+                keys.push(trLower(hub.code));
+                if (hub.name) {
+                    const nameParts = trLower(hub.name).split(/[\s\/,]+/).filter(p => p.length >= 3 && !SKIP_WORDS.has(p));
+                    keys.push(...nameParts);
+                }
+                for (const k of keys) {
+                    const pos = lower.indexOf(k);
+                    if (pos !== -1 && (pos < bestPos || (pos === bestPos && k.length > bestLen))) {
+                        bestCode = hub.code;
+                        bestPos = pos;
+                        bestLen = k.length;
+                    }
+                }
+            }
+            return bestCode;
+        }
+
+        // Find all bookings without region codes
+        const bookings = await prisma.booking.findMany({
+            where: { tenantId, productType: 'TRANSFER' },
+            select: { id: true, metadata: true }
+        });
+
+        let updated = 0;
+        for (const b of bookings) {
+            const m = b.metadata || {};
+            
+            // Always recalculate (don't skip existing)
+            const pickupRC = detectCode(m.pickup);
+            const dropoffRC = detectCode(m.dropoff);
+            
+            if (pickupRC || dropoffRC) {
+                await prisma.booking.update({
+                    where: { id: b.id },
+                    data: {
+                        metadata: {
+                            ...m,
+                            pickupRegionCode: pickupRC || null,
+                            dropoffRegionCode: dropoffRC || null
+                        }
+                    }
+                });
+                updated++;
+            }
+        }
+
+        res.json({ success: true, message: `Region codes updated for ${updated} bookings`, updated });
+    } catch (error) {
+        console.error('migrate-region-codes error:', error);
+        res.status(500).json({ success: false, error: error.message });
     }
 });
 

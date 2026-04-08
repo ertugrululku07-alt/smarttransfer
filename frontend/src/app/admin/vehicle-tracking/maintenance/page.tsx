@@ -136,7 +136,7 @@ const MaintenancePage: React.FC = () => {
 
                     <Row gutter={[16, 16]}>
                         <Col xs={24} md={6}>
-                            <Card bordered={false} style={{ borderRadius: 14, border: '1px solid #f0f0f0' }} bodyStyle={{ padding: 12 }}>
+                            <Card variant="borderless" style={{ borderRadius: 14, border: '1px solid #f0f0f0' }} bodyStyle={{ padding: 12 }}>
                                 <div style={{ fontWeight: 700, marginBottom: 10, fontSize: 12, color: '#6b7280', textTransform: 'uppercase' }}>Araç Seçin</div>
                                 {vehicles.map(v => (
                                     <div key={v.id} onClick={() => selectVehicle(v)} style={{
@@ -153,19 +153,19 @@ const MaintenancePage: React.FC = () => {
                         </Col>
                         <Col xs={24} md={18}>
                             <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
-                                <Col xs={8}><Card bordered={false} style={{ borderRadius: 10, background: 'linear-gradient(135deg,#faf5ff,#ede9fe)', border: '1px solid #c4b5fd' }} bodyStyle={{ padding: '12px 16px' }}>
-                                    <Statistic title={<Text style={{ color: '#7c3aed', fontSize: 11 }}>Toplam Bakım Gideri</Text>} value={totalCost} precision={2} suffix="₺" valueStyle={{ color: '#7c3aed', fontSize: 16, fontWeight: 700 }} />
+                                <Col xs={8}><Card variant="borderless" style={{ borderRadius: 10, background: 'linear-gradient(135deg,#faf5ff,#ede9fe)', border: '1px solid #c4b5fd' }} bodyStyle={{ padding: '12px 16px' }}>
+                                    <Statistic title={<Text style={{ color: '#7c3aed', fontSize: 11 }}>Toplam Bakım Gideri</Text>} value={totalCost} precision={2} suffix="₺" styles={{content: { color: '#7c3aed', fontSize: 16, fontWeight: 700 }}} />
                                 </Card></Col>
-                                <Col xs={8}><Card bordered={false} style={{ borderRadius: 10, background: 'linear-gradient(135deg,#eff6ff,#dbeafe)', border: '1px solid #93c5fd' }} bodyStyle={{ padding: '12px 16px' }}>
-                                    <Statistic title={<Text style={{ color: '#2563eb', fontSize: 11 }}>Toplam Kayıt</Text>} value={records.length} valueStyle={{ color: '#2563eb', fontSize: 20, fontWeight: 700 }} />
+                                <Col xs={8}><Card variant="borderless" style={{ borderRadius: 10, background: 'linear-gradient(135deg,#eff6ff,#dbeafe)', border: '1px solid #93c5fd' }} bodyStyle={{ padding: '12px 16px' }}>
+                                    <Statistic title={<Text style={{ color: '#2563eb', fontSize: 11 }}>Toplam Kayıt</Text>} value={records.length} styles={{content: { color: '#2563eb', fontSize: 20, fontWeight: 700 }}} />
                                 </Card></Col>
-                                <Col xs={8}><Card bordered={false} style={{ borderRadius: 10, background: 'linear-gradient(135deg,#fff7ed,#fed7aa)', border: '1px solid #fdba74' }} bodyStyle={{ padding: '12px 16px' }}>
+                                <Col xs={8}><Card variant="borderless" style={{ borderRadius: 10, background: 'linear-gradient(135deg,#fff7ed,#fed7aa)', border: '1px solid #fdba74' }} bodyStyle={{ padding: '12px 16px' }}>
                                     <div style={{ fontSize: 11, color: '#d97706', fontWeight: 700 }}>En Maliyetli Tür</div>
                                     <div style={{ fontSize: 15, fontWeight: 700, color: '#d97706', marginTop: 4 }}>{topType ? topType[0] : '—'}</div>
                                     {topType && <div style={{ fontSize: 12, color: '#d97706', fontFamily: 'monospace' }}>{fmtTRY(topType[1])}</div>}
                                 </Card></Col>
                             </Row>
-                            <Card bordered={false} style={{ borderRadius: 14, border: '1px solid #f0f0f0' }} bodyStyle={{ padding: 0 }}>
+                            <Card variant="borderless" style={{ borderRadius: 14, border: '1px solid #f0f0f0' }} bodyStyle={{ padding: 0 }}>
                                 <Table columns={columns} dataSource={[...records].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())} rowKey="id" loading={loading} pagination={{ pageSize: 12 }} size="middle" locale={{ emptyText: 'Bakım kaydı yok.' }} />
                             </Card>
                         </Col>

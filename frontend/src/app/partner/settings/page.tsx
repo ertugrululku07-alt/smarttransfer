@@ -56,19 +56,24 @@ export default function SettingsPage() {
                 firstName: user.firstName,
                 lastName: user.lastName,
                 email: user.email,
-                phone: (user as any).phone || '' // Assuming phone might be added to user object
+                phone: (user as any).phone || '' 
             });
         }
-        // Mock Bank Data Load
         if (activeTab === 'bank') {
-            bankForm.setFieldsValue({
-                bankName: 'Garanti BBVA',
-                tckn: '12345678901',
-                accountHolder: user?.fullName,
-                iban: 'TR12 0006 2000 0001 2345 6789 01'
-            });
+            fetchBankInfo();
         }
     }, [activeTab, user]);
+
+    const fetchBankInfo = async () => {
+        try {
+            const response = await apiClient.get('/api/auth/metadata');
+            if (response.data.success && response.data.data.bankInfo) {
+                bankForm.setFieldsValue(response.data.data.bankInfo);
+            }
+        } catch (error) {
+            console.error('Error fetching bank info:', error);
+        }
+    };
 
     // --- Vehicle Handlers ---
     const fetchVehicles = async () => {
@@ -189,12 +194,25 @@ export default function SettingsPage() {
     // --- Bank Info Handlers ---
     const handleSaveBankInfo = async () => {
         try {
-            await bankForm.validateFields();
-            // Mock API Call
-            setTimeout(() => {
+            const values = await bankForm.validateFields();
+            
+            // Clean IBAN (remove spaces)
+            const cleanValues = {
+                ...values,
+                iban: values.iban.replace(/\s/g, '').toUpperCase()
+            };
+
+            const response = await apiClient.put('/api/auth/metadata', { 
+                preferences: { bankInfo: cleanValues } 
+            });
+
+            if (response.data.success) {
                 messageApi.success('Banka bilgileri başarıyla güncellendi');
-            }, 800);
+            } else {
+                messageApi.error('Kayıt sırasında bir hata oluştu');
+            }
         } catch (error) {
+            console.error('Bank info save error:', error);
             messageApi.error('Lütfen bilgileri kontrol edin');
         }
     };
@@ -275,8 +293,19 @@ export default function SettingsPage() {
                                     </Form.Item>
                                 </Col>
                                 <Col span={24}>
-                                    <Form.Item label="IBAN Numarası" name="iban" rules={[{ required: true }]} help="TR ile başlayan 26 haneli IBAN numaranızı giriniz.">
-                                        <Input size="large" prefix="TR" maxLength={24} style={{ letterSpacing: '1px' }} />
+                                    <Form.Item 
+                                        label="IBAN Numarası" 
+                                        name="iban" 
+                                        rules={[
+                                            { required: true, message: 'IBAN zorunludur' },
+                                            { 
+                                                pattern: /^(TR[0-9]{2}\s?([0-9]{4}\s?){5}[0-9]{2})|TR[0-9]{24}$/i, 
+                                                message: 'Geçerli bir TR IBAN formatı giriniz (26 karakter)' 
+                                            }
+                                        ]}
+                                        help="TR ile başlayan 26 haneli IBAN numaranızı giriniz."
+                                    >
+                                        <Input size="large" placeholder="TR00 0000 0000 0000 0000 0000 00" maxLength={34} style={{ letterSpacing: '1px' }} />
                                     </Form.Item>
                                 </Col>
                                 <Col span={24}>

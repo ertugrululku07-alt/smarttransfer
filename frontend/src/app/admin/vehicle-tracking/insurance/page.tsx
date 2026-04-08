@@ -204,7 +204,7 @@ const VehicleInsurancePage: React.FC = () => {
                     <Row gutter={[16, 16]}>
                         {/* Vehicle Selector */}
                         <Col xs={24} md={6}>
-                            <Card bordered={false} style={{ borderRadius: 14, border: '1px solid #f0f0f0' }} bodyStyle={{ padding: 12 }}>
+                            <Card variant="borderless" style={{ borderRadius: 14, border: '1px solid #f0f0f0' }} bodyStyle={{ padding: 12 }}>
                                 <div style={{ fontWeight: 700, marginBottom: 10, fontSize: 12, color: '#6b7280', textTransform: 'uppercase' }}>Araç Seçin</div>
                                 {vehicles.map(v => (
                                     <div
@@ -230,22 +230,22 @@ const VehicleInsurancePage: React.FC = () => {
                             {/* Summary */}
                             <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
                                 <Col xs={8}>
-                                    <Card bordered={false} style={{ borderRadius: 10, background: 'linear-gradient(135deg,#f0fdf4,#dcfce7)', border: '1px solid #bbf7d0' }} bodyStyle={{ padding: '12px 16px' }}>
-                                        <Statistic title={<Text style={{ color: '#16a34a', fontSize: 11 }}>Aktif Sigorta</Text>} value={activeIns} valueStyle={{ color: '#16a34a', fontSize: 20, fontWeight: 700 }} />
+                                    <Card variant="borderless" style={{ borderRadius: 10, background: 'linear-gradient(135deg,#f0fdf4,#dcfce7)', border: '1px solid #bbf7d0' }} bodyStyle={{ padding: '12px 16px' }}>
+                                        <Statistic title={<Text style={{ color: '#16a34a', fontSize: 11 }}>Aktif Sigorta</Text>} value={activeIns} styles={{content: { color: '#16a34a', fontSize: 20, fontWeight: 700 }}} />
                                     </Card>
                                 </Col>
                                 <Col xs={8}>
-                                    <Card bordered={false} style={{ borderRadius: 10, background: 'linear-gradient(135deg,#fef2f2,#fecaca)', border: '1px solid #fca5a5' }} bodyStyle={{ padding: '12px 16px' }}>
-                                        <Statistic title={<Text style={{ color: '#dc2626', fontSize: 11 }}>Toplam Prim</Text>} value={totalCost} precision={2} suffix="₺" valueStyle={{ color: '#dc2626', fontSize: 16, fontWeight: 700 }} />
+                                    <Card variant="borderless" style={{ borderRadius: 10, background: 'linear-gradient(135deg,#fef2f2,#fecaca)', border: '1px solid #fca5a5' }} bodyStyle={{ padding: '12px 16px' }}>
+                                        <Statistic title={<Text style={{ color: '#dc2626', fontSize: 11 }}>Toplam Prim</Text>} value={totalCost} precision={2} suffix="₺" styles={{content: { color: '#dc2626', fontSize: 16, fontWeight: 700 }}} />
                                     </Card>
                                 </Col>
                                 <Col xs={8}>
-                                    <Card bordered={false} style={{ borderRadius: 10, background: 'linear-gradient(135deg,#eff6ff,#dbeafe)', border: '1px solid #93c5fd' }} bodyStyle={{ padding: '12px 16px' }}>
-                                        <Statistic title={<Text style={{ color: '#2563eb', fontSize: 11 }}>Toplam Kayıt</Text>} value={records.length} valueStyle={{ color: '#2563eb', fontSize: 20, fontWeight: 700 }} />
+                                    <Card variant="borderless" style={{ borderRadius: 10, background: 'linear-gradient(135deg,#eff6ff,#dbeafe)', border: '1px solid #93c5fd' }} bodyStyle={{ padding: '12px 16px' }}>
+                                        <Statistic title={<Text style={{ color: '#2563eb', fontSize: 11 }}>Toplam Kayıt</Text>} value={records.length} styles={{content: { color: '#2563eb', fontSize: 20, fontWeight: 700 }}} />
                                     </Card>
                                 </Col>
                             </Row>
-                            <Card bordered={false} style={{ borderRadius: 14, border: '1px solid #f0f0f0' }} bodyStyle={{ padding: 0 }}>
+                            <Card variant="borderless" style={{ borderRadius: 14, border: '1px solid #f0f0f0' }} bodyStyle={{ padding: 0 }}>
                                 <Table
                                     columns={columns}
                                     dataSource={[...records].sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())}

@@ -9,9 +9,9 @@ import {
   Col,
   Card,
   DatePicker,
+  TimePicker,
   Radio,
   Button,
-  Select,
   Modal,
   Checkbox,
   message,
@@ -43,6 +43,30 @@ import {
 } from '@ant-design/icons';
 import axios from 'axios';
 import dayjs, { Dayjs } from 'dayjs';
+
+// ─── Havalimanı Tespiti ───
+const AIRPORT_CODES = [
+  'AYT', 'DLM', 'GZP', 'BJV', 'IST', 'SAW', 'ESB', 'ADB', 'ADA',
+  'TZX', 'MSR', 'ASR', 'VAS', 'KYA', 'KSY', 'MLX', 'ERZ', 'EZS',
+  'DIY', 'GZT', 'HTY', 'SZF', 'KCM', 'NAV', 'AFY', 'USQ', 'BAL',
+  'IGL', 'ONQ', 'MQM', 'SIC', 'YEI', 'TEQ', 'EDO', 'CKZ', 'KZR',
+  'AOE', 'KIF', 'AJI', 'NOP', 'IGD', 'VAN', 'BXN',
+];
+
+// Türkçe "havalimanı" kelimesi VEYA IATA kodu içeriyorsa havalimanı sayılır
+const isAirportLocation = (text: string): boolean => {
+  if (!text) return false;
+  const lower = text.toLowerCase();
+  const upper = text.toUpperCase();
+  // Türkçe/İngilizce havalimanı anahtar kelimeleri
+  const keywords = ['havalimanı', 'havalimani', 'hava limanı', 'airport', 'airfield', 'hava alanı', 'havaalanı'];
+  if (keywords.some(kw => lower.includes(kw))) return true;
+  // IATA kodu kontrolü (kelime sınırıyla)
+  return AIRPORT_CODES.some(code => {
+    const regex = new RegExp(`(^|[\\s\\(\\-\/])${code}([\\s\\)\\-\/]|$)`);
+    return regex.test(upper);
+  });
+};
 import TopBar from './components/TopBar';
 import HereLocationSearchInput from './components/HereLocationSearchInput';
 import MapPickerModal from './components/MapPickerModal';
@@ -88,8 +112,7 @@ const HomePage: React.FC = () => {
   const [dropoff, setDropoff] = useState('');
   const [dropoffLocation, setDropoffLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [pickupDate, setPickupDate] = useState<Dayjs | null>(null);
-  const [pickupHour, setPickupHour] = useState<string>('12');
-  const [pickupMinute, setPickupMinute] = useState<string>('00');
+  const [pickupTime, setPickupTime] = useState<Dayjs | null>(dayjs().hour(12).minute(0).second(0));
   const [returnDate, setReturnDate] = useState<Dayjs | null>(null);
   const [tripType, setTripType] = useState<'oneway' | 'return'>('oneway');
   const [passengerCounts, setPassengerCounts] = useState({ adults: 1, children: 0, babies: 0 });
@@ -167,16 +190,24 @@ const HomePage: React.FC = () => {
     }
   };
 
+  const isAirportTransfer = isAirportLocation(pickup) || isAirportLocation(dropoff);
+  const timeLabel = isAirportTransfer ? 'Uçuş Saati' : 'Alınış Saati';
+
   const handleTransferSearch = () => {
     if (!pickup || !dropoff || !pickupDate) {
-      message.warning('Lütfen alış, bırakış ve tarihi doldurun.');
+      message.warning('Lütfen nereden, nereye ve tarihi doldurun.');
       return;
     }
+    const timeHour = pickupTime ? pickupTime.hour().toString().padStart(2, '0') : '12';
+    const timeMin = pickupTime ? pickupTime.minute().toString().padStart(2, '0') : '00';
     const params = new URLSearchParams();
     params.set('pickup', pickup);
     params.set('dropoff', dropoff);
     params.set('date', pickupDate.format('YYYY-MM-DD'));
-    params.set('time', `${pickupHour}:${pickupMinute}`);
+    params.set('time', `${timeHour}:${timeMin}`);
+    if (isAirportTransfer) {
+      params.set('flightTime', `${timeHour}:${timeMin}`);
+    }
     const totalPassengers = passengerCounts.adults + passengerCounts.children + passengerCounts.babies;
     params.set('passengers', totalPassengers.toString());
     params.set('type', tripType === 'return' ? 'ROUND_TRIP' : 'ONE_WAY');
@@ -196,10 +227,12 @@ const HomePage: React.FC = () => {
       setBookingLoading(true);
       if (selectedTransfer) {
         if (!pickupDate) { message.error('Alış tarihi bulunamadı.'); return; }
-        const pickupDateTime = dayjs(pickupDate).hour(parseInt(pickupHour)).minute(parseInt(pickupMinute)).second(0).millisecond(0).toISOString();
+        const tHour = pickupTime ? pickupTime.hour() : 12;
+        const tMin = pickupTime ? pickupTime.minute() : 0;
+        const pickupDateTime = dayjs(pickupDate).hour(tHour).minute(tMin).second(0).millisecond(0).toISOString();
         let returnDateTime: string | null = null;
         if (tripType === 'return' && returnDate) {
-          returnDateTime = dayjs(returnDate).hour(parseInt(pickupHour)).minute(parseInt(pickupMinute)).second(0).millisecond(0).toISOString();
+          returnDateTime = dayjs(returnDate).hour(tHour).minute(tMin).second(0).millisecond(0).toISOString();
         }
         const payload = {
           vehicleType: selectedTransfer.vehicleType, vendor: selectedTransfer.vendor,
@@ -286,14 +319,20 @@ const HomePage: React.FC = () => {
         </Col>
         <Col xs={12} md={5}>
           <Text strong style={{ display: 'block', marginBottom: 8, color: theme.labelColor, fontSize: 14 }}>
-            <ClockCircleOutlined style={{ color: theme.primaryColor }} /> Saat
+            <ClockCircleOutlined style={{ color: theme.primaryColor }} />{' '}
+            <span style={{ transition: 'all 0.3s' }}>{timeLabel}</span>
           </Text>
-          <Space.Compact style={{ width: '100%' }}>
-            <Select size="large" value={pickupHour} onChange={setPickupHour} style={{ width: '50%' }}
-              options={Array.from({ length: 24 }, (_, i) => ({ value: i.toString().padStart(2, '0'), label: i.toString().padStart(2, '0') }))} />
-            <Select size="large" value={pickupMinute} onChange={setPickupMinute} style={{ width: '50%' }}
-              options={['00', '15', '30', '45'].map(m => ({ value: m, label: m }))} />
-          </Space.Compact>
+          <TimePicker
+            size="large"
+            style={{ width: '100%', borderRadius: 12 }}
+            format="HH:mm"
+            minuteStep={5}
+            value={pickupTime}
+            onChange={(time) => setPickupTime(time)}
+            placeholder="Saat seçin"
+            needConfirm={false}
+            showNow={false}
+          />
         </Col>
         <Col xs={12} md={5}>
           <Text strong style={{ display: 'block', marginBottom: 8, color: theme.labelColor, fontSize: 14 }}>

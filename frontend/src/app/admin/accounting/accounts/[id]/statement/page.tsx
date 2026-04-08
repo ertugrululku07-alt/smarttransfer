@@ -582,7 +582,7 @@ export default function AccountStatementPage() {
                     <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
                         <Col xs={24} sm={8}>
                             <Card
-                                bordered={false}
+                                variant="borderless"
                                 style={{ borderRadius: 12, border: '1px solid #ffccc7', background: 'linear-gradient(135deg, #fff1f0 0%, #fff7f5 100%)' }}
                                 bodyStyle={{ padding: '20px 24px' }}
                             >
@@ -606,7 +606,7 @@ export default function AccountStatementPage() {
                         </Col>
                         <Col xs={24} sm={8}>
                             <Card
-                                bordered={false}
+                                variant="borderless"
                                 style={{ borderRadius: 12, border: '1px solid #b7eb8f', background: 'linear-gradient(135deg, #f6ffed 0%, #f9fff4 100%)' }}
                                 bodyStyle={{ padding: '20px 24px' }}
                             >
@@ -630,7 +630,7 @@ export default function AccountStatementPage() {
                         </Col>
                         <Col xs={24} sm={8}>
                             <Card
-                                bordered={false}
+                                variant="borderless"
                                 style={{ borderRadius: 12, border: `1px solid ${balStatus.border}`, background: `linear-gradient(135deg, ${balStatus.bg} 0%, #ffffff 100%)` }}
                                 bodyStyle={{ padding: '20px 24px' }}
                             >
@@ -656,7 +656,7 @@ export default function AccountStatementPage() {
 
                     {/* ===== FILTER PANEL ===== */}
                     <Card
-                        bordered={false}
+                        variant="borderless"
                         style={{ borderRadius: 12, marginBottom: 16, border: '1px solid #e8e8e8' }}
                         bodyStyle={{ padding: '16px 20px' }}
                     >
@@ -740,7 +740,7 @@ export default function AccountStatementPage() {
 
                     {/* ===== TABLE ===== */}
                     <Card
-                        bordered={false}
+                        variant="borderless"
                         style={{ borderRadius: 12, border: '1px solid #e8e8e8' }}
                         bodyStyle={{ padding: 0 }}
                         title={

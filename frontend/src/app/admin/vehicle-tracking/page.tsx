@@ -387,7 +387,7 @@ const VehicleTrackingDashboard: React.FC = () => {
                         {/* Insurance status breakdown */}
                         <Col xs={24} md={8}>
                             <Card
-                                bordered={false}
+                                variant="borderless"
                                 title={<span><SafetyOutlined style={{ color: '#16a34a', marginRight: 6 }} />Sigorta Durumu</span>}
                                 style={{ borderRadius: 16, boxShadow: '0 2px 16px rgba(0,0,0,0.06)', border: '1px solid #f0f0f0' }}
                                 extra={<Button size="small" type="link" onClick={() => router.push('/admin/vehicle-tracking/insurance')}>Yönet</Button>}
@@ -416,7 +416,7 @@ const VehicleTrackingDashboard: React.FC = () => {
                         {/* Inspection status breakdown */}
                         <Col xs={24} md={8}>
                             <Card
-                                bordered={false}
+                                variant="borderless"
                                 title={<span><ToolOutlined style={{ color: '#2563eb', marginRight: 6 }} />Muayene Durumu</span>}
                                 style={{ borderRadius: 16, boxShadow: '0 2px 16px rgba(0,0,0,0.06)', border: '1px solid #f0f0f0' }}
                                 extra={<Button size="small" type="link" onClick={() => router.push('/admin/vehicle-tracking/inspection')}>Yönet</Button>}
@@ -445,7 +445,7 @@ const VehicleTrackingDashboard: React.FC = () => {
                         {/* Expense breakdown */}
                         <Col xs={24} md={8}>
                             <Card
-                                bordered={false}
+                                variant="borderless"
                                 title={<span><ExperimentOutlined style={{ color: '#dc2626', marginRight: 6 }} />Gider Dağılımı</span>}
                                 style={{ borderRadius: 16, boxShadow: '0 2px 16px rgba(0,0,0,0.06)', border: '1px solid #f0f0f0' }}
                             >
@@ -479,7 +479,7 @@ const VehicleTrackingDashboard: React.FC = () => {
 
                     {/* ── Main Table ── */}
                     <Card
-                        bordered={false}
+                        variant="borderless"
                         title={
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                 <CarOutlined style={{ color: '#6366f1' }} />

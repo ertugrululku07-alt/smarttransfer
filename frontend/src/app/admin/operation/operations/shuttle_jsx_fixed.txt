@@ -1,0 +1,212 @@
+                                {shuttleRuns.map((run: any) => {
+                                    const totalPax = run.bookings.reduce((s: number, b: any) => s + (b.adults || 1), 0);
+                                    const capacity = run.maxSeats || 0;
+                                    const pct = capacity > 0 ? Math.round((totalPax / capacity) * 100) : 0;
+                                    const fillColor = pct >= 90 ? '#dc2626' : pct >= 70 ? '#d97706' : '#16a34a';
+                                    const isAssigned = run.driverId && run.vehicleId;
+                                    const isPartial = (run.driverId || run.vehicleId) && !isAssigned;
+                                    const isExpanded = expandedRunKeys.includes(run.runKey);
+
+                                    const driverName = run.driverId
+                                        ? (() => { const d = drivers.find((dr: any) => (dr.user?.id || dr.id) === run.driverId); return d ? `${d.firstName} ${d.lastName}` : run.driverId.substring(0, 8); })()
+                                        : null;
+
+                                    const vehiclePlate = run.vehicleId
+                                        ? (() => { const v = vehicles.find((vh: any) => vh.id === run.vehicleId); return v ? v.plateNumber : null; })()
+                                        : null;
+
+                                    return (
+                                        <DroppableShuttleRun key={run.runKey} runId={run.runKey}>
+                                        <div style={{
+                                            background: '#fff', borderRadius: 12, overflow: 'hidden',
+                                            boxShadow: '0 2px 8px rgba(0,0,0,0.05)', border: '1px solid #eef2f6',
+                                            marginBottom: 6
+                                        }}>
+                                            {/* ── CARD HEADER ── */}
+                                            <div style={{
+                                                display: 'flex', alignItems: 'center', gap: 12,
+                                                padding: '10px 14px',
+                                                background: isAssigned
+                                                    ? 'linear-gradient(135deg, #f0fdf4, #dcfce7)'
+                                                    : isPartial
+                                                    ? 'linear-gradient(135deg, #fffbeb, #fef3c7)'
+                                                    : 'linear-gradient(135deg, #f8fafc, #f1f5f9)',
+                                                borderBottom: '1px solid #e5e7eb',
+                                            }}>
+                                                <div
+                                                    style={{
+                                                        background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                                                        color: '#fff', borderRadius: 8,
+                                                        padding: '8px 14px', fontSize: 20, fontWeight: 800,
+                                                        letterSpacing: 1, minWidth: 72, textAlign: 'center', flexShrink: 0,
+                                                        cursor: 'pointer',
+                                                    }}
+                                                    onClick={() => setEditRunModal({ run, time: run.departureTime, name: run.routeName || '' })}
+                                                >
+                                                    {run.departureTime}
+                                                </div>
+
+                                                <div style={{ flex: 1, minWidth: 0 }}>
+                                                    <div style={{ fontWeight: 800, fontSize: 15, color: '#1e293b', marginBottom: 3, display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                        🏁 {run.routeName || 'İsimsiz Rota'}
+                                                        <Button
+                                                            type="text" size="small"
+                                                            icon={<EditOutlined />}
+                                                            onClick={() => setEditRunModal({ run, time: run.departureTime, name: run.routeName || '' })}
+                                                            style={{ padding: '0 4px', color: '#6366f1', fontSize: 11 }}
+                                                        />
+                                                    </div>
+                                                    <div style={{ fontSize: 11, color: '#64748b' }}>
+                                                        <span style={{ fontWeight: 600, color: '#6366f1' }}>📍 {run.bookings.length} durak:</span>
+                                                        {run.bookings.slice(0, 3).map((b: any) => (
+                                                            <span key={b.id} style={{ marginLeft: 6, opacity: 0.7 }}>{b.contactName?.split(' ')[0]}</span>
+                                                        ))}
+                                                        {run.bookings.length > 3 && <span style={{ marginLeft: 4 }}>...</span>}
+                                                    </div>
+                                                </div>
+
+                                                <div style={{ textAlign: 'center', flexShrink: 0 }}>
+                                                    <div style={{ fontWeight: 800, fontSize: 20, color: fillColor, lineHeight: 1 }}>{totalPax}</div>
+                                                    <div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600, marginTop: 2 }}>/{capacity} PAX</div>
+                                                </div>
+
+                                                <div style={{ width: 1, height: 32, background: '#e2e8f0', margin: '0 4px' }} />
+
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                    <Select
+                                                        placeholder="Şoför Seç"
+                                                        value={run.driverId}
+                                                        onChange={(val) => handleShuttleAssign(run, val, run.vehicleId)}
+                                                        style={{ width: 140 }}
+                                                        allowClear
+                                                    >
+                                                        {drivers.map((d: any) => (
+                                                            <Option key={d.id} value={d.user?.id || d.id}>{d.firstName} {d.lastName}</Option>
+                                                        ))}
+                                                    </Select>
+                                                    <Select
+                                                        placeholder="Araç Seç"
+                                                        value={run.vehicleId}
+                                                        onChange={(val) => handleShuttleAssign(run, run.driverId, val)}
+                                                        style={{ width: 140 }}
+                                                        allowClear
+                                                    >
+                                                        {vehicles.map((v: any) => (
+                                                            <Option key={v.id} value={v.id}>{v.plateNumber} — {v.brand} {v.model}</Option>
+                                                        ))}
+                                                    </Select>
+                                                    
+                                                    <Button
+                                                        type="text"
+                                                        danger
+                                                        icon={<DeleteOutlined />}
+                                                        onClick={() => handleDeleteManualRun(run.runKey)}
+                                                        title="Seferi Sil"
+                                                    />
+
+                                                    <Button
+                                                        icon={isExpanded ? <CaretUpOutlined /> : <CaretDownOutlined />}
+                                                        onClick={() => setExpandedRunKeys(prev => isExpanded ? prev.filter(k => k !== run.runKey) : [...prev, run.runKey])}
+                                                        style={{ borderRadius: 6 }}
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            {isExpanded && (
+                                                <div style={{ background: '#fafafa', borderTop: '1px solid #f1f5f9' }}>
+                                                    {/* Passenger Columns Header */}
+                                                    <div style={{ 
+                                                        display: 'grid', 
+                                                        gridTemplateColumns: shuttleCols.filter(c => !c.hidden).map(c => `${c.width}px`).join(' '),
+                                                        background: '#f8fafc', borderBottom: '1px solid #e2e8f0', padding: '0 4px'
+                                                    }}>
+                                                        {shuttleCols.filter(c => !c.hidden).map(col => (
+                                                            <div key={col.key} style={{ padding: '6px 8px', fontSize: 10, fontWeight: 700, color: '#64748b', position: 'relative' }}>
+                                                                {col.label}
+                                                                <div 
+                                                                    onMouseDown={(e) => {
+                                                                        e.preventDefault();
+                                                                        const startX = e.clientX;
+                                                                        const startW = col.width;
+                                                                        const onMove = (me: MouseEvent) => resizeShuttleCol(col.key, startW + me.clientX - startX);
+                                                                        const onUp = () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+                                                                        window.addEventListener('mousemove', onMove);
+                                                                        window.addEventListener('mouseup', onUp);
+                                                                    }}
+                                                                    style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 4, cursor: 'col-resize' }} 
+                                                                />
+                                                            </div>
+                                                        ))}
+                                                    </div>
+
+                                                    {/* Passenger Body Rows */}
+                                                    <div style={{ minHeight: 20 }}>
+                                                        <SortableContext items={run.bookings.map((b: any) => b.id)} strategy={verticalListSortingStrategy}>
+                                                            {run.bookings.map((b: any, idx: number) => {
+                                                                const rowBg = (shuttleColors as any)[b.status] || (idx % 2 === 0 ? '#fff' : '#fafafa');
+                                                                const pickupTime = b.pickupDateTime ? new Date(b.pickupDateTime).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }) : run.departureTime;
+
+                                                                const renderCell = (key: string) => {
+                                                                    const statusMap: any = {
+                                                                        CONFIRMED: { color: '#2563eb', label: 'Onaylı' },
+                                                                        PENDING: { color: '#d97706', label: 'Bekliyor' },
+                                                                        COMPLETED: { color: '#16a34a', label: 'Tamamlandı' },
+                                                                        CANCELLED: { color: '#dc2626', label: 'İptal' },
+                                                                    };
+                                                                    const st = statusMap[b.status] || { color: '#6b7280', label: b.status };
+                                                                    
+                                                                    switch(key) {
+                                                                        case 'sort': return (
+                                                                            <div style={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
+                                                                                <span style={{ cursor: 'grab', color: '#9ca3af' }}>⠿</span>
+                                                                            </div>
+                                                                        );
+                                                                        case 'index': return <span style={{ fontWeight: 700 }}>{idx + 1}</span>;
+                                                                        case 'customer': return <div><div style={{ fontWeight: 700 }}>{b.contactName}</div><div style={{ fontSize: 9, opacity: 0.6 }}>{b.bookingNumber}</div></div>;
+                                                                        case 'pickupTime': return <span style={{ fontWeight: 700 }}>{pickupTime}</span>;
+                                                                        case 'pickup': return <span onDoubleClick={() => setMapModal({ name: b.contactName, pickup: b.pickup || '' })}>📍 {b.pickup || '-'}</span>;
+                                                                        case 'flight': return <span>✈️ {b.flightNumber || '-'}</span>;
+                                                                        case 'pax': return <span>{b.adults || 1} p</span>;
+                                                                        case 'phone': return <span>{b.contactPhone}</span>;
+                                                                        case 'status': return <span style={{ fontWeight: 700, color: st.color }}>{st.label}</span>;
+                                                                        default: return null;
+                                                                    }
+                                                                };
+
+                                                                return (
+                                                                    <DraggablePassengerItem key={b.id} booking={b}>
+                                                                        {(dnd) => (
+                                                                            <div 
+                                                                                ref={dnd.setNodeRef} 
+                                                                                style={{
+                                                                                    ...dnd.style,
+                                                                                    display: 'grid', 
+                                                                                    gridTemplateColumns: shuttleCols.filter(c => !c.hidden).map(c => `${c.width}px`).join(' '),
+                                                                                    background: dnd.isDragging ? '#e0e7ff' : rowBg,
+                                                                                    borderBottom: '1px solid #f1f5f9', padding: '0 4px'
+                                                                                }}
+                                                                            >
+                                                                                {shuttleCols.filter(c => !c.hidden).map(col => (
+                                                                                    <div key={col.key} style={{ padding: '6px 8px', overflow: 'hidden' }} {...(col.key === 'sort' ? dnd.listeners : {})}>
+                                                                                        {col.key === 'sort' ? <div {...dnd.attributes} style={{ display: 'flex', justifyContent: 'center' }}>⠿</div> : renderCell(col.key)}
+                                                                                    </div>
+                                                                                ))}
+                                                                            </div>
+                                                                        )}
+                                                                    </DraggablePassengerItem>
+                                                                );
+                                                            })}
+                                                        </SortableContext>
+                                                    </div>
+                                                    
+                                                    {run.bookings.length === 0 && (
+                                                        <div style={{ padding: '30px', textAlign: 'center', color: '#94a3b8', fontSize: 12 }}>
+                                                            Henüz yolcu yok. Yolcuları buraya sürükleyebilirsiniz.
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+                                        </DroppableShuttleRun>
+                                    );
+                                })}

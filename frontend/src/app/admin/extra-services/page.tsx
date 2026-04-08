@@ -95,6 +95,7 @@ const ExtraServicesPage: React.FC = () => {
     const [form] = Form.useForm();
     const [uploadLoading, setUploadLoading] = useState(false);
     const [imageUrl, setImageUrl] = useState<string>();
+    const [currencies, setCurrencies] = useState<any[]>([]);
 
     const sensors = useSensors(
         useSensor(PointerSensor, {
@@ -122,15 +123,35 @@ const ExtraServicesPage: React.FC = () => {
         }
     };
 
+    const fetchDefinitions = async () => {
+        try {
+            const res = await apiClient.get('/api/tenant/info');
+            const settings = res.data?.data?.tenant?.settings || {};
+            const defs = settings.definitions || { currencies: [] };
+
+            const sortedCurrencies = [...(defs.currencies || [])].sort((a: any, b: any) => {
+                if (a.isDefault) return -1;
+                if (b.isDefault) return 1;
+                return 0;
+            });
+
+            setCurrencies(sortedCurrencies);
+        } catch (error) {
+            console.error('Error fetching definitions:', error);
+        }
+    };
+
     useEffect(() => {
         fetchServices();
+        fetchDefinitions();
     }, []);
 
     const handleAdd = () => {
         setEditingId(null);
         setImageUrl(undefined);
         form.resetFields();
-        form.setFieldsValue({ currency: 'EUR', isPerPerson: false, excludeFromShuttle: true });
+        const defaultCurrency = currencies.find(c => c.isDefault)?.code || 'EUR';
+        form.setFieldsValue({ currency: defaultCurrency, isPerPerson: false, excludeFromShuttle: true });
         setModalVisible(true);
     };
 
@@ -377,17 +398,11 @@ const ExtraServicesPage: React.FC = () => {
                             <Form.Item
                                 name="currency"
                                 label="Para Birimi"
-                                initialValue="EUR"
                                 rules={[{ required: true, message: 'Gerekli' }]}
                                 style={{ width: 120 }}
                             >
                                 <Select
-                                    options={[
-                                        { label: 'EUR', value: 'EUR' },
-                                        { label: 'USD', value: 'USD' },
-                                        { label: 'TRY', value: 'TRY' },
-                                        { label: 'GBP', value: 'GBP' }
-                                    ]}
+                                    options={currencies.map(c => ({ label: c.code, value: c.code }))}
                                 />
                             </Form.Item>
                         </div>

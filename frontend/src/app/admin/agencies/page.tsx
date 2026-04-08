@@ -177,7 +177,7 @@ const AdminAgenciesPage = () => {
     return (
         <AdminGuard>
             <AdminLayout selectedKey="agencies">
-                <Card bordered={false}>
+                <Card variant="borderless">
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
                         <div>
                             <Title level={4} style={{ margin: 0 }}>Alt Acenteler (B2B)</Title>

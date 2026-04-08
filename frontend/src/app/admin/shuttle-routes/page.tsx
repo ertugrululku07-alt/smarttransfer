@@ -505,6 +505,30 @@ const AdminShuttleRoutesPage: React.FC = () => {
                 options={timeOptions}
                 allowClear
                 tokenSeparators={[',', ' ']}
+                dropdownRender={(menu) => (
+                  <>
+                    <div style={{ padding: '8px', borderBottom: '1px solid #f0f0f0', display: 'flex', justifyContent: 'space-between', gap: '8px' }}>
+                      <Button 
+                        type="primary" 
+                        size="small"
+                        style={{ flex: 1 }}
+                        onClick={() => form.setFieldsValue({ departureTimes: timeOptions.map(t => t.value) })}
+                      >
+                        Tümünü Seç
+                      </Button>
+                      <Button 
+                        type="default" 
+                        danger
+                        size="small"
+                        style={{ flex: 1 }}
+                        onClick={() => form.setFieldsValue({ departureTimes: [] })}
+                      >
+                        Tümünü Temizle
+                      </Button>
+                    </div>
+                    {menu}
+                  </>
+                )}
               />
             </Form.Item>
 
@@ -524,6 +548,30 @@ const AdminShuttleRoutesPage: React.FC = () => {
                       options={timeOptions}
                       allowClear
                       tokenSeparators={[',', ' ']}
+                      dropdownRender={(menu) => (
+                        <>
+                          <div style={{ padding: '8px', borderBottom: '1px solid #f0f0f0', display: 'flex', justifyContent: 'space-between', gap: '8px' }}>
+                            <Button 
+                              type="primary" 
+                              size="small"
+                              style={{ flex: 1 }}
+                              onClick={() => form.setFieldsValue({ returnDepartureTimes: timeOptions.map(t => t.value) })}
+                            >
+                              Tümünü Seç
+                            </Button>
+                            <Button 
+                              type="default" 
+                              danger
+                              size="small"
+                              style={{ flex: 1 }}
+                              onClick={() => form.setFieldsValue({ returnDepartureTimes: [] })}
+                            >
+                              Tümünü Temizle
+                            </Button>
+                          </div>
+                          {menu}
+                        </>
+                      )}
                     />
                   </Form.Item>
                 ) : null

@@ -23,7 +23,7 @@ const fmtDate = (v: string | undefined) => v ? new Date(v).toLocaleDateString('t
 const fmtKm = (v: number) => `${Number(v || 0).toLocaleString('tr-TR')} km`;
 
 const StatCard = ({ icon, label, value, gradient, sub }: { icon: React.ReactNode; label: string; value: string; gradient: string; sub?: string; }) => (
-    <Card bordered={false} style={{ borderRadius: 16, background: gradient, border: 'none' }} bodyStyle={{ padding: '16px 20px' }}>
+    <Card variant="borderless" style={{ borderRadius: 16, background: gradient, border: 'none' }} bodyStyle={{ padding: '16px 20px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
             <div style={{ fontSize: 20, color: 'rgba(255,255,255,0.85)' }}>{icon}</div>
             <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.8)', fontWeight: 600, textTransform: 'uppercase' }}>{label}</Text>

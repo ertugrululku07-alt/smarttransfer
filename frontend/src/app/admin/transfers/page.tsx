@@ -12,7 +12,7 @@ import {
     SafetyCertificateOutlined, TeamOutlined, DownloadOutlined, PrinterOutlined,
     FilterOutlined, SettingOutlined, FileExcelOutlined, FilePdfOutlined,
     FilterFilled, ClearOutlined, BgColorsOutlined, ReloadOutlined as ResetOutlined,
-    EditOutlined
+    EditOutlined, RocketOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import 'dayjs/locale/tr';
@@ -54,8 +54,9 @@ const ResizableTitle = (props: any) => {
 const DEFAULT_COL_WIDTHS: Record<string, number> = {
     bookingNumber: 110, pickupDateTime: 110, createdAt: 110,
     agency: 100, passengerName: 130, pickupLoc: 200, dropoffLoc: 200,
-    airportCode: 100, vehicleType: 130, price: 90, status: 120,
-    paymentStatus: 100, flightNumber: 90, adults: 90, action: 120,
+    airportCode: 100, pickupRegionCode: 80, dropoffRegionCode: 80,
+    vehicleType: 130, price: 90, status: 120,
+    paymentStatus: 100, flightNumber: 90, adults: 90, extraServices: 150, action: 120,
 };
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -75,12 +76,14 @@ interface Booking {
     createdAt: string;
     notes?: string;
     flightNumber?: string;
+    flightTime?: string;
     operationalStatus?: string;
     metadata?: any;
     adults?: number;
     agencyName?: string;
     agency?: { name: string };
     partnerName?: string;
+    internalNotes?: string;
 }
 
 interface ColFilter {
@@ -142,27 +145,37 @@ const AIRPORT_MAP: Record<string, string> = {
 
 function getAirportCode(location: string): string | null {
     if (!location) return null;
-    const lower = location.toLowerCase();
+    const lower = location.toLocaleLowerCase('tr');
     // Must contain "havalimanı" or "airport" or "havaalanı"
     const isAirport = lower.includes('havalimanı') || lower.includes('havaalanı') || lower.includes('airport');
     if (!isAirport) return null;
+    let bestCode: string | null = null;
+    let bestPos = Infinity;
+    let bestLen = 0;
     for (const [keyword, code] of Object.entries(AIRPORT_MAP)) {
-        if (lower.includes(keyword)) return code;
+        const pos = lower.indexOf(keyword);
+        if (pos !== -1 && (pos < bestPos || (pos === bestPos && keyword.length > bestLen))) {
+            bestCode = code;
+            bestPos = pos;
+            bestLen = keyword.length;
+        }
     }
-    return '✈';
+    return bestCode || '✈';
 }
 
 // ─── Column Definitions ──────────────────────────────────────────────────────
 const ALL_COL_KEYS = [
     'bookingNumber', 'pickupDateTime', 'createdAt', 'agency',
     'passengerName', 'pickupLoc', 'dropoffLoc', 'airportCode',
+    'pickupRegionCode', 'dropoffRegionCode',
     'vehicleType', 'price', 'status', 'paymentStatus',
-    'flightNumber', 'adults', 'action'
+    'flightNumber', 'adults', 'extraServices', 'customerNote', 'internalNotes', 'action'
 ];
 const DEFAULT_VISIBLE_COLS = [
     'bookingNumber', 'pickupDateTime', 'createdAt', 'agency',
     'passengerName', 'pickupLoc', 'dropoffLoc', 'airportCode',
-    'vehicleType', 'price', 'status', 'action'
+    'pickupRegionCode', 'dropoffRegionCode',
+    'vehicleType', 'price', 'status', 'customerNote', 'internalNotes', 'extraServices', 'action'
 ];
 const DEFAULT_COL_TITLES: Record<string, string> = {
     bookingNumber:  'No',
@@ -172,13 +185,18 @@ const DEFAULT_COL_TITLES: Record<string, string> = {
     passengerName:  'Yolcu',
     pickupLoc:      'Alış Yeri',
     dropoffLoc:     'Bırakış Yeri',
-    airportCode:    'İste Kodu',
+    airportCode:    'Iata',
+    pickupRegionCode: 'Alış Bölge',
+    dropoffRegionCode: 'Varış Bölge',
     vehicleType:    'Araç',
     price:          'Tutar',
     status:         'Durum',
     paymentStatus:  'Ödeme',
     flightNumber:   'Uçuş No',
     adults:         'Yolcu Sayısı',
+    extraServices:  'Ekstra Hizmet',
+    customerNote:   'Müşteri Notu',
+    internalNotes:  'Op. Notu',
     action:         'İşlem',
 };
 
@@ -336,6 +354,95 @@ const TransfersPage: React.FC = () => {
     const [colTitles, setColTitles] = useState<Record<string,string>>(DEFAULT_COL_TITLES);
     const [colManagerOpen, setColManagerOpen] = useState(false);
     const [colFilters, setColFilters] = useState<ColFilters>({});
+
+    // Inline cell editing state
+    const [editingCell, setEditingCell] = useState<{ id: string; field: string; value: any } | null>(null);
+    const [cellSaving, setCellSaving] = useState(false);
+
+    const saveCellEdit = async (bookingId: string, field: string, value: any) => {
+        setCellSaving(true);
+        try {
+            const payload: any = {};
+            if (field === 'contactName') payload.contactName = value;
+            else if (field === 'contactPhone') payload.contactPhone = value;
+            else if (field === 'pickupDateTime') payload.pickupDateTime = value;
+            else if (field === 'pickup') payload.pickupLocation = value;
+            else if (field === 'dropoff') payload.dropoffLocation = value;
+            else if (field === 'flightNumber') payload.flightNumber = value;
+            else if (field === 'flightTime') payload.flightTime = value;
+            else if (field === 'adults') payload.adults = value;
+            else if (field === 'price') payload.price = value;
+            else if (field === 'internalNotes') payload.internalNotes = value;
+            else if (field === 'status') payload.status = value;
+            await apiClient.patch(`/api/transfer/bookings/${bookingId}`, payload);
+            
+            setBookings(prev => prev.map((b: any) => {
+                if (b.id !== bookingId) return b;
+                const updated: any = { ...b };
+                if (field === 'contactName') { updated.contactName = value; updated.passengerName = value; }
+                else if (field === 'contactPhone') { updated.contactPhone = value; updated.passengerPhone = value; if (updated.customer) updated.customer.phone = value; }
+                else if (field === 'pickupDateTime') updated.pickupDateTime = value;
+                else if (field === 'pickup') { updated.pickup = value; if(!updated.metadata) updated.metadata={}; updated.metadata.pickup = value; }
+                else if (field === 'dropoff') { updated.dropoff = value; if(!updated.metadata) updated.metadata={}; updated.metadata.dropoff = value; }
+                else if (field === 'flightNumber') updated.flightNumber = value;
+                else if (field === 'flightTime') updated.flightTime = value;
+                else if (field === 'adults') updated.adults = Number(value);
+                else if (field === 'price') { updated.price = Number(value); updated.total = Number(value); }
+                else if (field === 'internalNotes') updated.internalNotes = value;
+                else if (field === 'status') updated.status = value;
+                return updated;
+            }));
+            message.success('Güncellendi');
+        } catch (e: any) {
+            message.error('Hata: ' + (e?.response?.data?.error || e.message));
+        } finally {
+            setCellSaving(false);
+            setEditingCell(null);
+        }
+    };
+
+    const renderEditableCell = (record: any, field: string, displayValue: React.ReactNode, editComponent?: React.ReactNode) => {
+        const isEditing = editingCell?.id === record.id && editingCell?.field === field;
+        if (isEditing) {
+            return (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    {editComponent || (
+                        <Input
+                            size="small"
+                            autoFocus
+                            defaultValue={editingCell.value}
+                            onBlur={(e) => saveCellEdit(record.id, field, e.target.value)}
+                            onPressEnter={(e) => saveCellEdit(record.id, field, (e.target as HTMLInputElement).value)}
+                            style={{ minWidth: 80 }}
+                        />
+                    )}
+                </div>
+            );
+        }
+        return (
+            <div
+                onDoubleClick={() => {
+                    let initVal: any = '';
+                    if (field === 'contactName') initVal = record.contactName || record.customer?.name || record.passengerName || '';
+                    else if (field === 'contactPhone') initVal = record.contactPhone || record.customer?.phone || record.passengerPhone || '';
+                    else if (field === 'pickupDateTime') initVal = record.pickupDateTime ? dayjs(record.pickupDateTime).format('YYYY-MM-DDTHH:mm') : '';
+                    else if (field === 'pickup') initVal = record.metadata?.pickup || record.pickup || record.pickupLocation || '';
+                    else if (field === 'dropoff') initVal = record.metadata?.dropoff || record.dropoff || record.dropoffLocation || '';
+                    else if (field === 'flightNumber') initVal = record.flightNumber || '';
+                    else if (field === 'flightTime') initVal = record.flightTime || '';
+                    else if (field === 'adults') initVal = record.adults || 1;
+                    else if (field === 'price') initVal = record.price || record.total || 0;
+                    else if (field === 'internalNotes') initVal = record.internalNotes || '';
+                    else if (field === 'status') initVal = record.status || '';
+                    setEditingCell({ id: record.id, field, value: initVal });
+                }}
+                title="Düzenlemek için çift tıklayın"
+                style={{ cursor: 'text', minHeight: 20 }}
+            >
+                {displayValue}
+            </div>
+        );
+    };
 
     // Color settings
     const [statusColors, setStatusColors] = useState<Record<string,StatusConf>>(DEFAULT_STATUS_COLORS);
@@ -568,7 +675,7 @@ const TransfersPage: React.FC = () => {
           }},
         { ...makeHeader('pickupDateTime'), dataIndex:'pickupDateTime', key:'pickupDateTime', width:colWidths.pickupDateTime,
           sorter:(a:Booking,b:Booking)=>dayjs(a.pickupDateTime).unix()-dayjs(b.pickupDateTime).unix(),
-          render:(d:string)=><Space direction="vertical" size={0}><Text style={{fontSize:12}}>{dayjs(d).format('DD.MM.YYYY')}</Text><Text type="secondary" style={{fontSize:11}}>{dayjs(d).format('HH:mm')}</Text></Space>},
+          render:(d:string, r:Booking)=>renderEditableCell(r, 'pickupDateTime', <Space direction="vertical" size={0}><Text style={{fontSize:12}}>{dayjs(d).format('DD.MM.YYYY')}</Text><Text type="secondary" style={{fontSize:11}}>{dayjs(d).format('HH:mm')}</Text></Space>, <Input type="datetime-local" size="small" autoFocus defaultValue={dayjs(d).format('YYYY-MM-DDTHH:mm')} onBlur={(e) => saveCellEdit(r.id, 'pickupDateTime', e.target.value)} onPressEnter={(e) => saveCellEdit(r.id, 'pickupDateTime', (e.target as HTMLInputElement).value)} style={{width: 140}} />)},
         { ...makeHeader('createdAt'), dataIndex:'createdAt', key:'createdAt', width:colWidths.createdAt,
           sorter:(a:Booking,b:Booking)=>dayjs(a.createdAt).unix()-dayjs(b.createdAt).unix(),
           render:(d:string)=><Space direction="vertical" size={0}><Text style={{fontSize:12}}>{dayjs(d).format('DD.MM.YYYY')}</Text><Text type="secondary" style={{fontSize:11}}>{dayjs(d).format('HH:mm')}</Text></Space>},
@@ -577,35 +684,91 @@ const TransfersPage: React.FC = () => {
           render:(_:any,r:any)=>{const n=r.agencyName||r.agency?.name||r.partnerName||r.metadata?.agencyName||'Direkt';return <Text strong style={{fontSize:12}}>{n}</Text>;}},
         { ...makeHeader('passengerName'), dataIndex:'passengerName', key:'passengerName', width:colWidths.passengerName,
           sorter:(a:Booking,b:Booking)=>a.passengerName.localeCompare(b.passengerName),
-          render:(text:string,r:Booking)=><Space direction="vertical" size={0}><Text strong style={{fontSize:12}}>{text}</Text><Text type="secondary" style={{fontSize:11}}>{r.passengerPhone}</Text></Space>},
+          render:(text:string,r:Booking)=><Space direction="vertical" size={0}>{renderEditableCell(r, 'contactName', <Text strong style={{fontSize:12}}>{text}</Text>)}{renderEditableCell(r, 'contactPhone', <Text type="secondary" style={{fontSize:11}}>{r.passengerPhone}</Text>)}</Space>},
         { ...makeHeader('pickupLoc'), key:'pickupLoc', width:colWidths.pickupLoc, ellipsis: true,
-          render:(_:any,r:Booking)=><EnvironmentItem text={getPickup(r)} color="green" />},
+          render:(_:any,r:Booking)=>renderEditableCell(r, 'pickup', <EnvironmentItem text={getPickup(r)} color="green" />)},
         { ...makeHeader('dropoffLoc'), key:'dropoffLoc', width:colWidths.dropoffLoc, ellipsis: true,
-          render:(_:any,r:Booking)=><EnvironmentItem text={getDropoff(r)} color="red" />},
+          render:(_:any,r:Booking)=>renderEditableCell(r, 'dropoff', <EnvironmentItem text={getDropoff(r)} color="red" />)},
         { ...makeHeader('airportCode'), key:'airportCode', width:colWidths.airportCode,
           sorter:(a:Booking,b:Booking)=>(getAirportForRow(a)||'').localeCompare(getAirportForRow(b)||''),
           render:(_:any,r:Booking)=>{
               const code=getAirportForRow(r);
               return code ? <Tag style={{fontWeight:700,fontSize:12,letterSpacing:1,background:'#eef2ff',borderColor:'#6366f1',color:'#6366f1',borderRadius:6}}>✈ {code}</Tag> : <Text type="secondary" style={{fontSize:11}}>-</Text>;
           }},
+        { ...makeHeader('pickupRegionCode'), key:'pickupRegionCode', width:colWidths.pickupRegionCode,
+          sorter:(a:Booking,b:Booking)=>((a as any).pickupRegionCode||(a as any).metadata?.pickupRegionCode||'').localeCompare((b as any).pickupRegionCode||(b as any).metadata?.pickupRegionCode||''),
+          render:(_:any,r:Booking)=>{
+              const code=(r as any).pickupRegionCode||(r as any).metadata?.pickupRegionCode;
+              return code ? <Tag style={{margin:0,fontSize:11,fontWeight:700,fontFamily:'monospace',letterSpacing:0.5,background:'#f0fdf4',border:'1px solid #bbf7d0',color:'#166534',borderRadius:4,padding:'1px 6px'}}>{code}</Tag> : <Text type="secondary" style={{fontSize:11}}>-</Text>;
+          }},
+        { ...makeHeader('dropoffRegionCode'), key:'dropoffRegionCode', width:colWidths.dropoffRegionCode,
+          sorter:(a:Booking,b:Booking)=>((a as any).dropoffRegionCode||(a as any).metadata?.dropoffRegionCode||'').localeCompare((b as any).dropoffRegionCode||(b as any).metadata?.dropoffRegionCode||''),
+          render:(_:any,r:Booking)=>{
+              const code=(r as any).dropoffRegionCode||(r as any).metadata?.dropoffRegionCode;
+              return code ? <Tag style={{margin:0,fontSize:11,fontWeight:700,fontFamily:'monospace',letterSpacing:0.5,background:'#fef3c7',border:'1px solid #fde68a',color:'#92400e',borderRadius:4,padding:'1px 6px'}}>{code}</Tag> : <Text type="secondary" style={{fontSize:11}}>-</Text>;
+          }},
         { ...makeHeader('vehicleType'), key:'vehicleType', width:colWidths.vehicleType,
           sorter:(a:Booking,b:Booking)=>(a.metadata?.vehicleType||a.vehicleType||'').localeCompare(b.metadata?.vehicleType||b.vehicleType||''),
           render:(_:any,r:Booking)=><Space size={4}><CarOutlined style={{color:'#6366f1'}}/><Text style={{fontSize:11}}>{r.metadata?.vehicleType||r.vehicleType||'Bilinmiyor'}</Text></Space>},
         { ...makeHeader('price'), dataIndex:'price', key:'price', width:colWidths.price,
           sorter:(a:Booking,b:Booking)=>(a.price||0)-(b.price||0),
-          render:(p:number)=><Text strong style={{color:'#6366f1',fontSize:13}}>₺{p?.toLocaleString('tr-TR')}</Text>},
+          render:(p:number, r:Booking)=>renderEditableCell(r, 'price', <Text strong style={{color:'#6366f1',fontSize:13}}>₺{p?.toLocaleString('tr-TR')}</Text>)},
         { ...makeHeader('status'), dataIndex:'status', key:'status', width:colWidths.status,
           sorter:(a:Booking,b:Booking)=>getEffectiveStatus(a).localeCompare(getEffectiveStatus(b)),
-          render:(_:any,r:Booking)=>{const conf=getStatusConf(r);return(
-              <Tag style={{background:conf.bg,borderColor:conf.color,color:conf.color,fontWeight:600,fontSize:11,padding:'2px 8px',borderRadius:20}}>{conf.label}</Tag>
-          );}},
+          render:(_:any,r:Booking)=>{const conf=getStatusConf(r);return renderEditableCell(r, 'status', <Tag style={{background:conf.bg,borderColor:conf.color,color:conf.color,fontWeight:600,fontSize:11,padding:'2px 8px',borderRadius:20,cursor:'pointer'}}>{conf.label}</Tag>, <Select size="small" autoFocus defaultOpen defaultValue={r.status} style={{ width: 100 }} onChange={(val) => saveCellEdit(r.id, 'status', val)} onBlur={() => setEditingCell(null)} options={Object.keys(DEFAULT_STATUS_COLORS).map(k => ({ value: k, label: DEFAULT_STATUS_COLORS[k].label }))} />);}},
         { ...makeHeader('paymentStatus'), dataIndex:'paymentStatus', key:'paymentStatus', width:colWidths.paymentStatus,
           render:(ps:string)=><Tag color={ps==='PAID'?'green':ps==='REFUNDED'?'red':'orange'} style={{fontSize:11}}>{ps==='PAID'?'Ödendi':ps==='REFUNDED'?'İade':'Bekliyor'}</Tag>},
-        { ...makeHeader('flightNumber'), dataIndex:'flightNumber', key:'flightNumber', width:colWidths.flightNumber,
-          render:(fn:string)=><Text style={{fontSize:12}}>{fn||'-'}</Text>},
-        { ...makeHeader('adults'), dataIndex:'adults', key:'adults', width:colWidths.adults,
-          sorter:(a:Booking,b:Booking)=>(a.adults||0)-(b.adults||0),
-          render:(n:number)=><Text style={{fontSize:12}}>{n?`${n} kişi`:'-'}</Text>},
+        { ...makeHeader('flightNumber'), key:'flightNumber', width:colWidths.flightNumber,
+          render:(_:any, fn:Booking)=>(
+              <Space direction="vertical" size={2}>
+                  {renderEditableCell(fn, 'flightNumber', fn.flightNumber ? <Text style={{fontSize:12}}>{fn.flightNumber}</Text> : <Text type="secondary" style={{fontSize:11}}>-</Text>)}
+                  {renderEditableCell(fn, 'flightTime', fn.flightTime ? <Tag icon={<RocketOutlined />} color="cyan" style={{margin:0, fontSize: 10}}>{fn.flightTime}</Tag> : <Text type="secondary" style={{fontSize:11}}>-</Text>)}
+              </Space>
+          )},
+        { ...makeHeader('adults'), key:'adults', width:colWidths.adults,
+          sorter:(a:Booking,b:Booking)=>((a as any).passengers||a.adults||0)-((b as any).passengers||b.adults||0),
+          render:(_:any, r:Booking)=>{
+              const n = (r as any).passengers || r.adults || r.metadata?.passengerDetails?.length || r.metadata?.passengersList?.length || 0;
+              return renderEditableCell(r, 'adults', <Text style={{fontSize:12}}>{n?`${n} kişi`:'-'}</Text>);
+          }},
+        { ...makeHeader('customerNote'), key:'customerNote', width:colWidths.customerNote || 120,
+          render:(_:any,r:Booking)=>{
+              const req = r.metadata?.specialRequests || '';
+              return req ? (
+                  <Popover content={<div style={{maxWidth:250,wordWrap:'break-word'}}>{req}</div>} title="Müşteri Notu">
+                      <Tag color="purple" style={{fontSize:10,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',maxWidth:'100%',cursor:'pointer'}}>
+                          {req.substring(0, 15)}...
+                      </Tag>
+                  </Popover>
+              ) : <span style={{fontSize:11,color:'#aaa'}}>-</span>;
+          }},
+        { ...makeHeader('internalNotes'), key:'internalNotes', width:colWidths.internalNotes || 150,
+          render:(_:any,r:Booking)=>{
+              const val = r.internalNotes || '';
+              return renderEditableCell(r, 'internalNotes', val ? (
+                  <Popover content={<div style={{maxWidth:250,wordWrap:'break-word'}}>{val}</div>} title="Operasyon Notu">
+                      <Tag color="blue" style={{fontSize:10,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',maxWidth:'100%',cursor:'pointer'}}>
+                          {val.substring(0, 20)}...
+                      </Tag>
+                  </Popover>
+              ) : <span style={{fontSize:11,color:'#aaa',cursor:'text'}}>- (Not Ekle) -</span>,
+              <Input.TextArea size="small" autoFocus defaultValue={val} onBlur={(e) => saveCellEdit(r.id, 'internalNotes', e.target.value)} style={{ minWidth: 140 }} />
+              );
+          }},
+        { ...makeHeader('extraServices'), key:'extraServices', width:colWidths.extraServices,
+          render:(_:any,r:Booking)=>{
+              const services = r.metadata?.extraServices || [];
+              if (!services.length) return <Text type="secondary" style={{fontSize:11}}>-</Text>;
+              return (
+                  <Space direction="vertical" size={2}>
+                      {services.map((s:any, idx:number) => (
+                         <div key={idx} style={{ fontSize: 11, background: '#f8fafc', padding: '2px 6px', borderRadius: 4, border: '1px solid #e2e8f0', whiteSpace: 'nowrap' }}>
+                            {s.quantity}x {s.name}
+                         </div>
+                      ))}
+                  </Space>
+              );
+          }},
         { ...makeHeader('action'), key:'action', width:colWidths.action,
           render:(_:any,record:Booking)=>(
               <Space size="small">

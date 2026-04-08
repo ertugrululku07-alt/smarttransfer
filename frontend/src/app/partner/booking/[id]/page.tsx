@@ -348,7 +348,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <Text style={{ fontSize: '16px' }}>Toplam Tutar</Text>
                                     <Text style={{ fontSize: '24px', fontWeight: 700, color: '#10B981' }}>
-                                        {booking.price.amount} {booking.price.currency}
+                                        {booking.price.poolPrice || booking.price.amount} {booking.price.currency}
                                     </Text>
                                 </div>
                             </Card>

@@ -295,11 +295,44 @@ const TransferBookingContent: React.FC = () => {
                 };
             });
 
+            let finalPickupDateTime = time ? `${date}T${time}:00.000` : date;
+            let flightTimeToSend = values.flightTime ? values.flightTime.format('HH:mm') : undefined;
+
+            const isAirportDropoff = [
+                'AYT', 'IST', 'GZP', 'HAVALIMANI', 'AIRPORT', 'HAVAALANI'
+            ].some(code => dropoff?.toUpperCase().includes(code));
+
+            if (isAirportDropoff && flightTimeToSend && durationParam) {
+                // Parse duration
+                let durationMinutes = 0;
+                const hourMatch = durationParam.match(/(\d+)\s*(hour|saat)/i);
+                const minMatch = durationParam.match(/(\d+)\s*(min|dk)/i);
+                if (hourMatch) durationMinutes += parseInt(hourMatch[1]) * 60;
+                if (minMatch) durationMinutes += parseInt(minMatch[1]);
+                
+                if (durationMinutes > 0) {
+                    const isShuttle = vehicleDetails?.isShuttle || vehicleDetails?.vehicleType?.toLowerCase().includes('shuttle');
+                    const bufferHours = isShuttle ? 3 : 2;
+                    // Add 30 mins extra buffer and duration and check-in time
+                    const totalBuffer = durationMinutes + (bufferHours * 60) + 30;
+
+                    const flightDate = dayjs(`${date}T${flightTimeToSend}`);
+                    let recommendedPickup = flightDate.subtract(totalBuffer, 'minute');
+                    
+                    // Floor to nearest 5 minutes
+                    const mins = recommendedPickup.minute();
+                    const remainder = mins % 5;
+                    recommendedPickup = recommendedPickup.subtract(remainder, 'minute');
+
+                    finalPickupDateTime = recommendedPickup.format('YYYY-MM-DDTHH:mm:00.000');
+                }
+            }
+
             const payload = {
                 vehicleType: vehicleDetails.vehicleType,
                 pickup,
                 dropoff,
-                pickupDateTime,
+                pickupDateTime: finalPickupDateTime,
                 passengers: Number(passengers),
                 price: grandTotal, 
                 currency: selectedCurrency,
@@ -309,8 +342,8 @@ const TransferBookingContent: React.FC = () => {
                     phone: fullPhone
                 },
                 flightNumber: values.flightNumber,
-                flightTime: values.flightTime ? values.flightTime.format('HH:mm') : undefined,
-                notes: values.notes || (values.flightTime ? `Uçuş Saati: ${values.flightTime.format('HH:mm')}` : undefined),
+                flightTime: flightTimeToSend,
+                notes: values.notes || (flightTimeToSend ? `Uçuş Saati: ${flightTimeToSend}` : undefined),
                 passengerDetails: [
                     // Passenger 1: Main Contact
                     {
@@ -392,9 +425,14 @@ const TransferBookingContent: React.FC = () => {
                                         // Buffer: 3 hours for Shuttle, 2 hours for Private
                                         const isShuttle = vehicleDetails?.isShuttle || vehicleDetails?.vehicleType?.toLowerCase().includes('shuttle');
                                         const bufferHours = isShuttle ? 3 : 2;
-                                        const totalBuffer = durationMinutes + (bufferHours * 60);
+                                        const totalBuffer = durationMinutes + (bufferHours * 60) + 30; // 30 min extra buffer matching backend payload
 
-                                        const recommendedPickup = flightDate.subtract(totalBuffer, 'minute');
+                                        let recommendedPickup = flightDate.subtract(totalBuffer, 'minute');
+
+                                        // Floor to nearest 5 minutes
+                                        const mins = recommendedPickup.minute();
+                                        const remainder = mins % 5;
+                                        recommendedPickup = recommendedPickup.subtract(remainder, 'minute');
 
                                         return (
                                             <div style={{ marginTop: 24, padding: 16, background: '#e6f7ff', border: '1px solid #91d5ff', borderRadius: 8 }}>
@@ -404,9 +442,9 @@ const TransferBookingContent: React.FC = () => {
                                                 <Text>
                                                     Uçuş saatiniz <strong>{time}</strong> olarak kabul edilmiştir.
                                                     <br />
-                                                    Uçuşunuzdan <strong>{bufferHours} saat</strong> önce havalimanında olmanız ve <strong>{durationParam}</strong> yolculuk süresi dikkate alınarak;
+                                                    Uçuşunuzdan <strong>{bufferHours} saat</strong> önce havalimanında olmanız, <strong>{durationParam}</strong> yolculuk süresi ve <strong>30 dk güvenlik payı</strong> dikkate alınarak;
                                                     <br />
-                                                    Aracımızın sizi alacağı saat: <strong>{recommendedPickup.format('HH:mm')}</strong>
+                                                    Aracımızın sizi alacağı (Transfer) saat: <strong>{recommendedPickup.format('HH:mm')}</strong>
                                                 </Text>
                                             </div>
                                         );
@@ -717,6 +755,7 @@ const TransferBookingContent: React.FC = () => {
                                 <div style={{ marginBottom: 24 }}>
                                     <Collapse
                                         ghost
+                                        defaultActiveKey={['1']}
                                         expandIconPlacement="end"
                                         items={[
                                             {

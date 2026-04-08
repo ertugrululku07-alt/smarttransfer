@@ -11,6 +11,69 @@ const router = express.Router();
 const prisma = require('../lib/prisma');
 
 /**
+ * Detect region code from a location text using tenant hubs
+ * @param {string} locationText - The location string (e.g. "Alanya/Antalya, Türkiye")
+ * @param {Array} hubs - Array of hub objects [{code, keywords, name}, ...]
+ * @returns {string|null} - The matched hub code (e.g. "ALY") or null
+ */
+function detectRegionCode(locationText, hubs) {
+    if (!locationText || !hubs || !Array.isArray(hubs)) return null;
+    // Use Turkish locale for correct İ→i, Ş→ş etc.
+    const trLower = (s) => (s || '').toLocaleLowerCase('tr');
+    const text = trLower(locationText);
+    const SKIP_WORDS = new Set(['havalimanı', 'havalimani', 'airport', 'havaalanı', 'merkez', 'center', 'terminal']);
+    
+    let bestCode = null;
+    let bestPosition = Infinity;
+    let bestLength = 0;
+
+    for (const hub of hubs) {
+        const keys = hub.keywords ? hub.keywords.split(',').map(k => trLower(k).trim()).filter(k => k) : [];
+        keys.push(trLower(hub.code));
+        // Also add hub name parts (min 3 chars, skip common words)
+        if (hub.name) {
+            const nameParts = trLower(hub.name).split(/[\s\/,]+/).filter(p => p.length >= 3 && !SKIP_WORDS.has(p));
+            keys.push(...nameParts);
+        }
+        
+        for (const k of keys) {
+            const pos = text.indexOf(k);
+            if (pos !== -1) {
+                // Prefer earliest position in text, then longest keyword as tiebreaker
+                if (pos < bestPosition || (pos === bestPosition && k.length > bestLength)) {
+                    bestCode = hub.code;
+                    bestPosition = pos;
+                    bestLength = k.length;
+                }
+            }
+        }
+    }
+    return bestCode;
+}
+
+/**
+ * Load tenant hubs from settings
+ * @param {string} tenantId
+ * @returns {Array} hubs
+ */
+async function loadTenantHubs(tenantId) {
+    const defaultHubs = [
+        { code: 'AYT', keywords: 'ayt, antalya havalimanı, antalya airport', name: 'Antalya Havalimanı' },
+        { code: 'GZP', keywords: 'gzp, gazipasa, gazipaşa', name: 'Gazipaşa Havalimanı' },
+    ];
+    if (!tenantId) return defaultHubs;
+    try {
+        const tenantInfo = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { settings: true } });
+        if (tenantInfo?.settings?.hubs && Array.isArray(tenantInfo.settings.hubs)) {
+            return tenantInfo.settings.hubs;
+        }
+    } catch (e) {
+        console.error("Failed to fetch tenant hubs for region detection", e);
+    }
+    return defaultHubs;
+}
+
+/**
  * POST /api/transfer/search
  * Search available transfers (Mock algorithm, real future impl would use Google Distance Matrix)
  */
@@ -609,6 +672,7 @@ router.post('/book', optionalAuthMiddleware, async (req, res) => {
             currency, // New field
             customerInfo,
             flightNumber,
+            flightTime, // New field for Explicit Flight Time
             notes,
             extraServices, // New field
             passengerDetails, // New field
@@ -631,6 +695,11 @@ router.post('/book', optionalAuthMiddleware, async (req, res) => {
         const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
         const randomSuffix = Math.floor(1000 + Math.random() * 9000);
         const bookingNumber = `TR-${dateStr}-${randomSuffix}`;
+
+        // Detect region codes from hub keywords
+        const hubs = await loadTenantHubs(tenantId);
+        const pickupRegionCode = detectRegionCode(pickup, hubs);
+        const dropoffRegionCode = detectRegionCode(dropoff, hubs);
 
         // Create booking in Database
         const booking = await prisma.booking.create({
@@ -669,6 +738,7 @@ router.post('/book', optionalAuthMiddleware, async (req, res) => {
                     dropoff,
                     returnDateTime,
                     flightNumber,
+                    flightTime, // Save actual flight time regardless of pickup time
                     notes,
                     distance: req.body.distance || '0 km',
                     duration: req.body.duration || '0 dk',
@@ -677,7 +747,9 @@ router.post('/book', optionalAuthMiddleware, async (req, res) => {
                     billingDetails: billingDetails || null, // Fatura detayları
                     passengerDetails: passengerDetails || [], // Move passengerDetails inside metadata
                     shuttleRouteId: shuttleRouteId || null,
-                    shuttleMasterTime: shuttleMasterTime || null
+                    shuttleMasterTime: shuttleMasterTime || null,
+                    pickupRegionCode: pickupRegionCode || null,
+                    dropoffRegionCode: dropoffRegionCode || null
                 }
             }
         });
@@ -873,11 +945,19 @@ router.get('/bookings', authMiddleware, async (req, res) => {
             paymentStatus: b.paymentStatus,
             createdAt: b.createdAt,
             notes: b.specialRequests,
+            specialRequests: b.specialRequests,   // Customer notes
+            internalNotes: b.metadata?.internalNotes || b.internalNotes || '', // Operations note
+            adults: b.adults,
             flightNumber: b.metadata?.flightNumber,
+            flightTime: b.metadata?.flightTime,
+            pickupRegionCode: b.metadata?.pickupRegionCode || null,
+            dropoffRegionCode: b.metadata?.dropoffRegionCode || null,
             operationalStatus: b.metadata?.operationalStatus, // Added for Op/Pool tracking
+            returnReason: b.metadata?.returnReason || null, // Return to reservation reason
+            returnedAt: b.metadata?.returnedAt || null,
             partnerName: b.confirmedBy ? (userMap[b.confirmedBy] || 'Bilinmiyor') : null, // Map Partner Name
             partnerRole: b.confirmedBy ? (roleMap[b.confirmedBy] || 'UNKNOWN') : null, // Map Partner Role
-            driverId: b.metadata?.driverId || null, // Driver assignment
+            driverId: b.metadata?.driverId || b.driverId || null, // Driver assignment
             assignedVehicleId: b.metadata?.assignedVehicleId || null, // Vehicle assignment
             // Nested relations mapping expected by the frontend:
             customer: b.customer,
@@ -1015,11 +1095,15 @@ router.get('/bookings/:id', authMiddleware, async (req, res) => {
             },
             price: {
                 amount: Number(booking.total),
+                poolPrice: booking.metadata?.poolPrice ? Number(booking.metadata.poolPrice) : null,
                 currency: booking.currency
             },
             status: booking.status,
             operationalStatus: booking.metadata?.operationalStatus || 'POOL',
             flightNumber: booking.metadata?.flightNumber,
+            flightTime: booking.metadata?.flightTime,
+            pickupRegionCode: booking.metadata?.pickupRegionCode || null,
+            dropoffRegionCode: booking.metadata?.dropoffRegionCode || null,
             createdAt: booking.createdAt
         };
 
@@ -1072,6 +1156,7 @@ router.get('/partner/active-bookings', authMiddleware, async (req, res) => {
                 note: b.specialRequests
             },
             flightNumber: b.metadata?.flightNumber,
+            flightTime: b.metadata?.flightTime,
             dropoff: {
                 location: b.metadata?.dropoff || 'Belirtilmemiş',
                 dist: b.metadata?.distance || 'KM Bilgisi Yok',
@@ -1147,7 +1232,10 @@ router.get('/partner/completed-bookings', authMiddleware, async (req, res) => {
             },
             price: {
                 amount: b.metadata?.poolPrice ? Number(b.metadata.poolPrice) : Number(b.total),
-                currency: b.currency
+                currency: b.currency,
+                commissionRate: b.metadata?.partnerCommissionRate !== undefined ? Number(b.metadata.partnerCommissionRate) : null,
+                commissionAmount: b.metadata?.partnerCommissionAmount !== undefined ? Number(b.metadata.partnerCommissionAmount) : 0,
+                netEarning: b.metadata?.partnerNetEarning !== undefined ? Number(b.metadata.partnerNetEarning) : (b.metadata?.poolPrice ? Number(b.metadata.poolPrice) : Number(b.total))
             },
             paymentStatus: b.paymentStatus, // PAID, PENDING, DISPUTED
             completedAt: b.updatedAt // Or a specific completedAt field if added
@@ -1203,11 +1291,26 @@ router.get('/partner/stats', authMiddleware, async (req, res) => {
             }
         });
 
+        // 3. Financial Summary - Get from User account
+        const user = await prisma.user.findUnique({
+            where: { id: userId },
+            select: {
+                balance: true,
+                debit: true,
+                credit: true
+            }
+        });
+
         res.json({
             success: true,
             data: {
                 pending: pendingCount,
-                today: todayCount
+                today: todayCount,
+                financials: {
+                    balance: Number(user?.balance || 0),
+                    debit: Number(user?.debit || 0),
+                    credit: Number(user?.credit || 0)
+                }
             }
         });
     } catch (error) {
@@ -1226,7 +1329,10 @@ router.get('/partner/stats', authMiddleware, async (req, res) => {
 router.patch('/bookings/:id', authMiddleware, async (req, res) => {
     try {
         const { id } = req.params;
-        const { driverId, assignedVehicleId, skipConflictCheck } = req.body;
+        const { driverId, assignedVehicleId, skipConflictCheck, internalNotes, returnToReservation, returnReason,
+                // Inline cell editing fields:
+                contactName, contactPhone, pickupDateTime, pickupLocation, dropoffLocation,
+                flightNumber, flightTime, adults, price, status: newStatus, operationalStatus } = req.body;
 
         const currentBooking = await prisma.booking.findUnique({ where: { id } });
         if (!currentBooking) {
@@ -1253,11 +1359,11 @@ router.patch('/bookings/:id', authMiddleware, async (req, res) => {
 
         // ---- Conflict Check (unless explicitly skipped) ----
         if (!skipConflictCheck && (driverId || assignedVehicleId)) {
-            const pickupDateTime = currentBooking.startDate;
+            const effectiveStartDate = pickupDateTime || currentBooking.startDate;
             const REST_MINUTES = 30;
             const totalMinutes = (estimatedDurationMinutes || 120) + REST_MINUTES;
 
-            const newStart = new Date(pickupDateTime);
+            const newStart = new Date(effectiveStartDate);
             const newEnd = new Date(newStart.getTime() + totalMinutes * 60000);
 
             // Get same-day bookings
@@ -1324,8 +1430,8 @@ router.patch('/bookings/:id', authMiddleware, async (req, res) => {
         }
 
         // ---- Calculate freeAt time ----
-        const pickupDateTime = currentBooking.startDate;
-        const freeAt = new Date(new Date(pickupDateTime).getTime() + ((estimatedDurationMinutes || 120) + 30) * 60000);
+        const effectiveStartDate = pickupDateTime || currentBooking.startDate;
+        const freeAt = new Date(new Date(effectiveStartDate).getTime() + ((estimatedDurationMinutes || 120) + 30) * 60000);
 
         const newMetadata = {
             ...(currentBooking.metadata || {}),
@@ -1334,10 +1440,41 @@ router.patch('/bookings/:id', authMiddleware, async (req, res) => {
             freeAt: freeAt.toISOString()
         };
 
+        // Handle inline cell editing fields
+        if (pickupLocation !== undefined) newMetadata.pickup = pickupLocation;
+        if (dropoffLocation !== undefined) newMetadata.dropoff = dropoffLocation;
+        if (flightNumber !== undefined) newMetadata.flightNumber = flightNumber;
+        if (flightTime !== undefined) newMetadata.flightTime = flightTime;
+        if (internalNotes !== undefined) newMetadata.internalNotes = internalNotes;
+        if (operationalStatus !== undefined) newMetadata.operationalStatus = operationalStatus;
+
+        // Handle return to reservation flow
+        if (returnToReservation) {
+            newMetadata.operationalStatus = null;
+            newMetadata.returnReason = returnReason || '';
+            newMetadata.returnedAt = new Date().toISOString();
+            newMetadata.returnedBy = req.user?.id;
+            // Also clear driver/vehicle
+            newMetadata.driverId = null;
+            newMetadata.assignedVehicleId = null;
+        }
+
         // Prepare update data
         const updateData = {
             metadata: newMetadata
         };
+
+        // Inline field updates
+        if (contactName !== undefined) updateData.contactName = contactName;
+        if (contactPhone !== undefined) updateData.contactPhone = contactPhone;
+        if (pickupDateTime !== undefined) { updateData.startDate = new Date(pickupDateTime); updateData.endDate = new Date(pickupDateTime); }
+        if (adults !== undefined) updateData.adults = Number(adults);
+        if (price !== undefined) { updateData.total = Number(price); updateData.subtotal = Number(price); }
+        if (newStatus !== undefined) updateData.status = newStatus;
+        if (returnToReservation) {
+            updateData.status = 'PENDING';
+            updateData.driverId = null;
+        }
 
         if (driverId !== undefined) {
             updateData.driverId = driverId; // Update real column
@@ -1431,13 +1568,20 @@ router.post('/bookings/admin', authMiddleware, async (req, res) => {
         const randomSuffix = Math.floor(1000 + Math.random() * 9000);
         const bookingNumber = `TR-${dateStr}-${randomSuffix}`;
 
+        // Detect region codes from hub keywords
+        const hubs = await loadTenantHubs(tenantId);
+        const pickupRegionCode = detectRegionCode(pickup, hubs);
+        const dropoffRegionCode = detectRegionCode(dropoff, hubs);
+
         const metadata = {
             pickup,
             dropoff,
             flightNumber,
             vehicleType,
             passengerName,
-            creationSource: 'ADMIN_MANUAL'
+            creationSource: 'ADMIN_MANUAL',
+            pickupRegionCode: pickupRegionCode || null,
+            dropoffRegionCode: dropoffRegionCode || null
         };
 
         const booking = await prisma.booking.create({
@@ -1552,6 +1696,61 @@ router.put('/bookings/:id/status', authMiddleware, async (req, res) => {
 
         await prisma.$transaction(async (tx) => {
             let paymentStatusUpdate = {};
+
+            // Partner/Driver Reconciliation Logic
+            if (status === 'COMPLETED' && currentBooking.status !== 'COMPLETED' && currentBooking.confirmedBy) {
+                const confirmedByUser = await tx.user.findUnique({
+                    where: { id: currentBooking.confirmedBy },
+                    include: { role: true }
+                });
+
+                if (confirmedByUser && confirmedByUser.role?.type === 'PARTNER') {
+                    // Fetch tenant settings to get current commission rate
+                    const tenant = await tx.tenant.findUnique({
+                        where: { id: req.tenant.id },
+                        select: { settings: true }
+                    });
+                    
+                    const settings = tenant?.settings || {};
+                    const commissionRate = settings.partnerCommissionRate !== undefined ? Number(settings.partnerCommissionRate) : 0;
+                    
+                    const partnerGross = newMetadata.poolPrice !== undefined ? Number(newMetadata.poolPrice) : Number(currentBooking.total || 0);
+                    const commissionAmount = (partnerGross * commissionRate) / 100;
+                    const partnerNetEarning = partnerGross - commissionAmount;
+
+                    // Snapshot to metadata
+                    newMetadata = {
+                        ...newMetadata,
+                        partnerCommissionRate: commissionRate,
+                        partnerCommissionAmount: commissionAmount,
+                        partnerNetEarning: partnerNetEarning
+                    };
+
+                    if (partnerNetEarning > 0) {
+                        // Partner's balance increases (System owes Partner)
+                        await tx.user.update({
+                            where: { id: confirmedByUser.id },
+                            data: {
+                                balance: { increment: partnerNetEarning },
+                                credit: { increment: partnerNetEarning }
+                            }
+                        });
+
+                        await tx.transaction.create({
+                            data: {
+                                tenantId: req.tenant.id,
+                                accountId: `partner-${confirmedByUser.id}`,
+                                type: 'MANUAL_IN', 
+                                amount: partnerNetEarning,
+                                isCredit: true, 
+                                description: `Transfer Hakedişi (PNR: ${currentBooking.bookingNumber}) (Komisyon: %${commissionRate})`,
+                                date: new Date(),
+                                referenceId: currentBooking.id
+                            }
+                        });
+                    }
+                }
+            }
 
             // Agency Reconciliation Logic
             if (status === 'COMPLETED' && currentBooking.agencyId && newMetadata.paymentMethod === 'PAY_IN_VEHICLE' && currentBooking.paymentStatus !== 'PAID') {

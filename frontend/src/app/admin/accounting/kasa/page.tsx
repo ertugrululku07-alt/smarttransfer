@@ -247,7 +247,7 @@ const KasaPage: React.FC = () => {
                 return (
                     <Col key={acc.value} xs={12} sm={8} md={6} xl={3}>
                         <Card
-                            bordered={false}
+                            variant="borderless"
                             style={{ borderRadius: 16, background: GRAD[acc.value], border: 'none', cursor: 'pointer', transition: 'transform 0.2s', boxShadow: '0 4px 16px rgba(0,0,0,0.12)' }}
                             bodyStyle={{ padding: '14px 16px' }}
                             onClick={() => setActiveAccTab(activeAccTab === acc.value ? 'ALL' : acc.value)}
@@ -279,19 +279,19 @@ const KasaPage: React.FC = () => {
         return (
             <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
                 <Col xs={24} md={6}>
-                    <Card bordered={false} style={{ borderRadius: 12, background: '#f0fdf4', border: '1px solid #bbf7d0' }} bodyStyle={{ padding: '12px 16px' }}>
+                    <Card variant="borderless" style={{ borderRadius: 12, background: '#f0fdf4', border: '1px solid #bbf7d0' }} bodyStyle={{ padding: '12px 16px' }}>
                         <div style={{ fontSize: 11, color: '#16a34a', fontWeight: 700, textTransform: 'uppercase' }}>Toplam Gelir</div>
                         <div style={{ fontSize: 22, fontWeight: 800, color: '#16a34a', fontFamily: 'monospace' }}>+{fmt(totals.in)}</div>
                     </Card>
                 </Col>
                 <Col xs={24} md={6}>
-                    <Card bordered={false} style={{ borderRadius: 12, background: '#fef2f2', border: '1px solid #fca5a5' }} bodyStyle={{ padding: '12px 16px' }}>
+                    <Card variant="borderless" style={{ borderRadius: 12, background: '#fef2f2', border: '1px solid #fca5a5' }} bodyStyle={{ padding: '12px 16px' }}>
                         <div style={{ fontSize: 11, color: '#dc2626', fontWeight: 700, textTransform: 'uppercase' }}>Toplam Gider</div>
                         <div style={{ fontSize: 22, fontWeight: 800, color: '#dc2626', fontFamily: 'monospace' }}>-{fmt(totals.out)}</div>
                     </Card>
                 </Col>
                 <Col xs={24} md={6}>
-                    <Card bordered={false} style={{ borderRadius: 12, background: absoluteNetKasa >= 0 ? '#eff6ff' : '#fef2f2', border: `1px solid ${absoluteNetKasa >= 0 ? '#bfdbfe' : '#fca5a5'}` }} bodyStyle={{ padding: '12px 16px' }}>
+                    <Card variant="borderless" style={{ borderRadius: 12, background: absoluteNetKasa >= 0 ? '#eff6ff' : '#fef2f2', border: `1px solid ${absoluteNetKasa >= 0 ? '#bfdbfe' : '#fca5a5'}` }} bodyStyle={{ padding: '12px 16px' }}>
                         <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: absoluteNetKasa >= 0 ? '#2563eb' : '#dc2626' }}>Net Kasa</div>
                         <div style={{ fontSize: 22, fontWeight: 800, fontFamily: 'monospace', color: absoluteNetKasa >= 0 ? '#2563eb' : '#dc2626' }}>
                             {absoluteNetKasa >= 0 ? '+' : ''}{fmt(absoluteNetKasa)}
@@ -299,7 +299,7 @@ const KasaPage: React.FC = () => {
                     </Card>
                 </Col>
                 <Col xs={24} md={6}>
-                    <Card bordered={false} style={{ borderRadius: 12, background: '#f8fafc', border: '1px solid #e2e8f0' }} bodyStyle={{ padding: '12px 16px' }}>
+                    <Card variant="borderless" style={{ borderRadius: 12, background: '#f8fafc', border: '1px solid #e2e8f0' }} bodyStyle={{ padding: '12px 16px' }}>
                         <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: '#6b7280' }}>Kayıt Sayısı</div>
                         <div style={{ fontSize: 22, fontWeight: 800, color: '#111' }}>{entries.length}</div>
                     </Card>
@@ -353,7 +353,7 @@ const KasaPage: React.FC = () => {
                     {renderAccountCards()}
 
                     {/* Filters */}
-                    <Card bordered={false} style={{ borderRadius: 12, border: '1px solid #f0f0f0', marginBottom: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }} bodyStyle={{ padding: '12px 16px' }}>
+                    <Card variant="borderless" style={{ borderRadius: 12, border: '1px solid #f0f0f0', marginBottom: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }} bodyStyle={{ padding: '12px 16px' }}>
                         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
                             <FilterOutlined style={{ color: '#6b7280' }} />
                             <RangePicker
@@ -400,7 +400,7 @@ const KasaPage: React.FC = () => {
 
                     {/* Unified Ledger */}
                     <Card
-                        bordered={false}
+                        variant="borderless"
                         style={{ borderRadius: 16, border: '1px solid #f0f0f0', boxShadow: '0 2px 16px rgba(0,0,0,0.06)' }}
                         bodyStyle={{ padding: 0 }}
                         title={

@@ -6,6 +6,8 @@ import {
     Row, Col, DatePicker, Select, Input, Checkbox, Popover, Badge,
     Avatar, Tooltip, Modal, Segmented, Spin
 } from 'antd';
+import { Resizable } from 'react-resizable';
+import 'react-resizable/css/styles.css';
 import {
     ReloadOutlined,
     CarOutlined,
@@ -29,16 +31,24 @@ import {
     FullscreenExitOutlined,
     EyeOutlined,
     EyeInvisibleOutlined,
-    PlusOutlined
+    PlusOutlined,
+    RocketOutlined,
+    CaretUpOutlined,
+    CaretDownOutlined,
+    SettingOutlined,
+    DeleteOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import 'dayjs/locale/tr';
+dayjs.extend(require('dayjs/plugin/customParseFormat'));
+dayjs.locale('tr');
 import AdminLayout from '../../AdminLayout';
 import AdminGuard from '../../AdminGuard';
 import apiClient from '@/lib/api-client';
 import type { ColumnsType } from 'antd/es/table';
 
 import { useSocket } from '@/app/context/SocketContext';
+import OperationsTable from './OperationsTable';
 
 // DnD Imports
 import type { DragEndEvent } from '@dnd-kit/core';
@@ -49,6 +59,7 @@ import {
     SortableContext,
     useSortable,
     horizontalListSortingStrategy,
+    verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
@@ -58,102 +69,26 @@ const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
 const { Option } = Select;
 
-// Custom Resizable & Draggable Title Component
+// Resizable Title Component using react-resizable
 const ResizableTitle = (props: any) => {
-    const { onResize, width, id, ...restProps } = props;
-
-    // Sortable Hook
-    const {
-        attributes,
-        listeners,
-        setNodeRef,
-        transform,
-        transition,
-        isDragging,
-    } = useSortable({
-        id: id,
-    });
-
-    const style: React.CSSProperties = {
-        ...restProps.style,
-        transform: CSS.Translate.toString(transform),
-        transition,
-        position: 'relative',
-        cursor: 'move',
-        zIndex: isDragging ? 9999 : undefined,
-    };
+    const { onResize, width, ...restProps } = props;
 
     if (!width) {
         return <th {...restProps} />;
     }
 
-    // State to track if resizing is active
-    const [isResizing, setIsResizing] = useState(false);
-    // Ref to track start position and width
-    const resizingRef = useRef<{ startX: number; startWidth: number } | null>(null);
-
-    const handleMouseDown = (e: React.MouseEvent) => {
-        e.preventDefault();
-        e.stopPropagation(); // Stop propagation to prevent drag start
-        setIsResizing(true);
-        resizingRef.current = {
-            startX: e.clientX,
-            startWidth: width,
-        };
-
-        // Add listeners to window to handle movement outside the header
-        window.addEventListener('mousemove', handleMouseMove);
-        window.addEventListener('mouseup', handleMouseUp);
-    };
-
-    const handleMouseMove = (e: MouseEvent) => {
-        if (!resizingRef.current) return;
-
-        const deltaX = e.clientX - resizingRef.current.startX;
-        const newWidth = Math.max(50, resizingRef.current.startWidth + deltaX); // Min width 50px
-
-        onResize(e, { size: { width: newWidth } });
-    };
-
-    const handleMouseUp = () => {
-        setIsResizing(false);
-        resizingRef.current = null;
-        window.removeEventListener('mousemove', handleMouseMove);
-        window.removeEventListener('mouseup', handleMouseUp);
-    };
-
     return (
-        <th
-            {...restProps}
-            ref={setNodeRef}
-            style={style}
-            {...attributes}
-            {...listeners}
+        <Resizable
+            width={width}
+            height={0}
+            onResize={onResize}
+            draggableOpts={{ enableUserSelectHack: false }}
         >
-            {restProps.children}
-            <div
-                onMouseDown={handleMouseDown}
-                onClick={(e) => e.stopPropagation()}
-                title="Genişliği Ayarla"
-                style={{
-                    position: 'absolute',
-                    right: 0,
-                    top: 0,
-                    bottom: 0,
-                    width: '10px',
-                    cursor: 'col-resize',
-                    zIndex: 10,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    backgroundColor: isResizing ? '#1890ff' : 'transparent', // Highlight when resizing
-                }}
-            >
-                <div style={{ width: '1px', height: '60%', backgroundColor: '#ccc' }} />
-            </div>
-        </th>
+            <th {...restProps} style={{ ...restProps.style, userSelect: 'none' }} />
+        </Resizable>
     );
 };
+
 
 // --- Shuttle DnD Components ---
 const DroppableShuttleRun = ({ runId, children }: { runId: string, children: React.ReactNode }) => {
@@ -165,20 +100,81 @@ const DroppableShuttleRun = ({ runId, children }: { runId: string, children: Rea
     );
 };
 
-const DraggablePassengerItem = ({ booking, children }: { booking: any, children: React.ReactNode }) => {
-    const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+// DraggablePassengerItem: Provide Sortable props to children.
+const DraggablePassengerItem = ({
+    booking,
+    children,
+}: {
+    booking: any;
+    children: (dndProps: { setNodeRef: any; style: any; attributes: any; listeners: any; isDragging: boolean }) => React.ReactNode;
+}) => {
+    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
         id: booking.id,
-        data: { booking }
+        data: { booking },
     });
-    const style = transform ? {
-        transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
+    const style = {
+        transform: CSS.Translate.toString(transform),
+        transition,
         zIndex: isDragging ? 999 : 1,
-        opacity: isDragging ? 0.8 : 1,
-        boxShadow: isDragging ? '0 5px 15px rgba(0,0,0,0.2)' : 'none',
-    } : undefined;
+        opacity: isDragging ? 0.85 : 1,
+    };
+    
+    return <>{children({ setNodeRef, style, attributes, listeners, isDragging })}</>;
+};
+// ------------------------------
+
+// ColSortableItem: Sortable row for shuttle column reorder modal
+const ColSortableItem = ({
+    col,
+    onLabelChange,
+    onVisibilityChange,
+}: {
+    col: { key: string; label: string; hidden: boolean; width: number };
+    onLabelChange: (v: string) => void;
+    onVisibilityChange: (checked: boolean) => void;
+}) => {
+    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: col.key });
+    const style: React.CSSProperties = {
+        transform: CSS.Translate.toString(transform),
+        transition,
+        zIndex: isDragging ? 9999 : 1,
+        opacity: isDragging ? 0.7 : 1,
+    };
     return (
-        <div ref={setNodeRef} style={style} {...listeners} {...attributes}>
-            {children}
+        <div
+            ref={setNodeRef}
+            style={{
+                ...style,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                background: isDragging ? '#ede9fe' : '#fff',
+                border: '1px solid #e5e7eb',
+                borderRadius: 8,
+                padding: '8px 12px',
+                cursor: 'auto',
+                boxShadow: isDragging ? '0 4px 16px rgba(99,102,241,0.2)' : 'none',
+            }}
+        >
+            <div
+                {...attributes}
+                {...listeners}
+                style={{ cursor: 'grab', color: '#a78bfa', fontSize: 16, padding: '0 4px', flexShrink: 0 }}
+                title="Sürükleyerek sırayı değiştir"
+            >
+                ⠿
+            </div>
+            <Checkbox
+                checked={!col.hidden}
+                onChange={(e) => onVisibilityChange(e.target.checked)}
+            />
+            <span style={{ fontSize: 11, color: '#64748b', width: 80, flexShrink: 0, fontWeight: 600 }}>{col.key}</span>
+            <Input
+                size="small"
+                value={col.label}
+                onChange={(e) => onLabelChange(e.target.value)}
+                style={{ flex: 1 }}
+            />
         </div>
     );
 };
@@ -198,9 +194,165 @@ export default function OperationsPage() {
     });
     const { socket } = useSocket();
 
+    // ── Inline cell editing state ──
+    const [editingCell, setEditingCell] = useState<{ id: string; field: string; value: any } | null>(null);
+    const [cellSaving, setCellSaving] = useState(false);
+
+    // ── Return to reservation modal state ──
+    const [returnModal, setReturnModal] = useState<{ booking: any; reason: string } | null>(null);
+    const [returnSaving, setReturnSaving] = useState(false);
+
+    // ── Column titles from user metadata ──
+    const [columnTitles, setColumnTitles] = useState<Record<string, string>>({});
+
+    const saveColumnTitleToAPI = async (key: string, title: string) => {
+        try {
+            const res = await apiClient.get('/api/auth/metadata');
+            const currentMeta = res.data?.data || {};
+            const currentPrefs = currentMeta.operations_preferences || {};
+            const newTitles = { ...(currentPrefs.columnTitles || {}), [key]: title };
+            await apiClient.put('/api/auth/metadata', { preferences: { operations_preferences: { ...currentPrefs, columnTitles: newTitles } } });
+        } catch (e) {
+            // Fallback: save to localStorage only
+            try {
+                const saved = JSON.parse(localStorage.getItem('operationsColumnTitles') || '{}');
+                localStorage.setItem('operationsColumnTitles', JSON.stringify({ ...saved, [key]: title }));
+            } catch {}
+        }
+    };
+
+    const handleColumnTitleChange = (key: string, newTitle: string) => {
+        setColumnTitles(prev => ({ ...prev, [key]: newTitle }));
+        setColumnConfig(prev => prev.map(c => c.key === key ? { ...c, title: newTitle } : c));
+        
+        // Let's also update the "operationsTableColumns" so it doesn't get reverted on refresh if we don't hit global Kaydet
+        try {
+            const savedColumns = localStorage.getItem('operationsTableColumns');
+            if (savedColumns) {
+                const parsed = JSON.parse(savedColumns);
+                const updated = parsed.map((p: any) => p.key === key ? { ...p, title: newTitle } : p);
+                localStorage.setItem('operationsTableColumns', JSON.stringify(updated));
+            }
+        } catch(e) {}
+        
+        saveColumnTitleToAPI(key, newTitle);
+    };
+
+    // ── Cell save helper ──
+    const saveCellEdit = async (bookingId: string, field: string, value: any) => {
+        setCellSaving(true);
+        try {
+            const payload: any = {};
+            if (field === 'contactName') payload.contactName = value;
+            else if (field === 'contactPhone') payload.contactPhone = value;
+            else if (field === 'pickupDateTime') payload.pickupDateTime = value;
+            else if (field === 'pickup') payload.pickupLocation = value;
+            else if (field === 'dropoff') payload.dropoffLocation = value;
+            else if (field === 'flightNumber') payload.flightNumber = value;
+            else if (field === 'flightTime') payload.flightTime = value;
+            else if (field === 'adults') payload.adults = value;
+            else if (field === 'price') payload.price = value;
+            else if (field === 'internalNotes') payload.internalNotes = value;
+            else if (field === 'customerNote') payload.specialRequests = value;
+            else if (field === 'status') { payload.status = value; payload.operationalStatus = value; }
+            await apiClient.patch(`/api/transfer/bookings/${bookingId}`, payload);
+            setBookings(prev => prev.map(b => {
+                if (b.id !== bookingId) return b;
+                const updated: any = { ...b };
+                if (field === 'contactName') updated.contactName = value;
+                else if (field === 'contactPhone') { updated.contactPhone = value; if (updated.customer) updated.customer.phone = value; }
+                else if (field === 'pickupDateTime') updated.pickupDateTime = value;
+                else if (field === 'pickup') { updated.pickup = { location: value, rawLocation: value }; }
+                else if (field === 'dropoff') { updated.dropoff = { location: value, rawLocation: value }; }
+                else if (field === 'flightNumber') updated.flightNumber = value;
+                else if (field === 'flightTime') updated.flightTime = value;
+                else if (field === 'adults') updated.adults = Number(value);
+                else if (field === 'price') { updated.price = Number(value); updated.total = Number(value); }
+                else if (field === 'internalNotes') updated.internalNotes = value;
+                else if (field === 'customerNote') updated.specialRequests = value;
+                else if (field === 'status') { updated.status = value; updated.operationalStatus = value; }
+                return updated;
+            }));
+            message.success('✅ Güncellendi');
+        } catch (e: any) {
+            message.error('Güncelleme başarısız: ' + (e?.response?.data?.error || e.message));
+        } finally {
+            setCellSaving(false);
+            setEditingCell(null);
+        }
+    };
+
+    // ── Return to reservation handler ──
+    const handleReturnToReservation = async () => {
+        if (!returnModal) return;
+        setReturnSaving(true);
+        try {
+            await apiClient.patch(`/api/transfer/bookings/${returnModal.booking.id}`, {
+                returnToReservation: true,
+                returnReason: returnModal.reason
+            });
+            message.success('Rezervasyon beklemede durumuna alındı');
+            setReturnModal(null);
+            fetchBookings();
+        } catch (e: any) {
+            message.error('İşlem başarısız: ' + (e?.response?.data?.error || e.message));
+        } finally {
+            setReturnSaving(false);
+        }
+    };
+
+    // ── Inline editable cell renderer ──
+    const renderEditableCell = (record: any, field: string, displayValue: React.ReactNode, editComponent?: React.ReactNode) => {
+        const isEditing = editingCell?.id === record.id && editingCell?.field === field;
+        if (isEditing) {
+            return (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    {editComponent || (
+                        <Input
+                            size="small"
+                            autoFocus
+                            defaultValue={editingCell.value}
+                            onBlur={(e) => saveCellEdit(record.id, field, e.target.value)}
+                            onPressEnter={(e) => saveCellEdit(record.id, field, (e.target as HTMLInputElement).value)}
+                            style={{ minWidth: 80 }}
+                        />
+                    )}
+                </div>
+            );
+        }
+        return (
+            <div
+                onDoubleClick={() => {
+                    let initVal: any = '';
+                    if (field === 'contactName') initVal = record.contactName || record.customer?.name || '';
+                    else if (field === 'contactPhone') initVal = record.contactPhone || record.customer?.phone || '';
+                    else if (field === 'pickupDateTime') initVal = record.pickupDateTime ? dayjs(record.pickupDateTime).format('YYYY-MM-DDTHH:mm') : '';
+                    else if (field === 'pickup') initVal = record.pickup?.rawLocation || record.pickup?.location || '';
+                    else if (field === 'dropoff') initVal = record.dropoff?.rawLocation || record.dropoff?.location || '';
+                    else if (field === 'flightNumber') initVal = record.flightNumber || '';
+                    else if (field === 'flightTime') initVal = record.flightTime || '';
+                    else if (field === 'adults') initVal = record.adults || 1;
+                    else if (field === 'price') initVal = record.price || record.total || 0;
+                    else if (field === 'internalNotes') initVal = record.internalNotes || '';
+                    else if (field === 'customerNote') initVal = record.specialRequests || record.notes || record.agencyNote || '';
+                    else if (field === 'status') initVal = record.status || '';
+                    setEditingCell({ id: record.id, field, value: initVal });
+                }}
+                title="Düzenlemek için çift tıklayın"
+                style={{ cursor: 'text', minHeight: 20 }}
+            >
+                {displayValue}
+            </div>
+        );
+    };
+
     const [isManualModalVisible, setIsManualModalVisible] = useState(false);
     const [manualRunTime, setManualRunTime] = useState('');
     const [manualRunName, setManualRunName] = useState('');
+
+    // ── Inline header title editing state ──
+    const [editingHeaderKey, setEditingHeaderKey] = useState<string | null>(null);
+    const [editingHeaderValue, setEditingHeaderValue] = useState<string>('');
 
     const handleAddManualRun = () => {
         if (!manualRunTime || !manualRunName) {
@@ -208,16 +360,17 @@ export default function OperationsPage() {
             return;
         }
         const newRunId = `MANUAL::${Date.now()}`;
+        const dateStr = filters.dateRange[0].format('YYYY-MM-DD');
         const newRun = {
             runKey: newRunId,
             departureTime: manualRunTime,
             routeName: manualRunName,
             isManual: true,
             manualRunId: newRunId,
+            date: dateStr,
             bookings: []
         };
-        // Ensure shuttleRuns is preserved if it already exists, otherwise need to adjust where this goes
-        // Because shuttleRuns is not in this chunk, I will use setShuttleRuns directly assuming it exists.
+        setPersistedManualRuns(prev => [newRun, ...prev]);
         setShuttleRuns(prev => {
             const arr = [newRun, ...prev];
             return arr.sort((a, b) => (a.departureTime || '').localeCompare(b.departureTime || ''));
@@ -314,6 +467,7 @@ export default function OperationsPage() {
         CANCELLED: 'İptal',
         // Operasyonel alt durumlar
         OPERASYONDA: 'Operasyonda',
+        IN_OPERATION: 'Operasyonda',
         HAVUZDA: 'Havuzda',
     };
     const DEFAULT_COLORS: Record<string, string> = {
@@ -323,17 +477,16 @@ export default function OperationsPage() {
         ON_THE_WAY: '#e6fffb',
         COMPLETED: '#f9f9f9',
         CANCELLED: '#fff1f0',
-        OPERASYONDA: '#f0f5ff',
+        OPERASYONDA: '#91caff',
+        IN_OPERATION: '#91caff',
         HAVUZDA: '#fff0f6',
     };
-    const [statusColors, setStatusColors] = useState<Record<string, string>>(() => {
-        try {
-            const saved = localStorage.getItem('operationsStatusColors');
-            return saved ? { ...DEFAULT_COLORS, ...JSON.parse(saved) } : DEFAULT_COLORS;
-        } catch { return DEFAULT_COLORS; }
-    });
+    const [statusColors, setStatusColors] = useState<Record<string, string>>(DEFAULT_COLORS);
+    const [airportColors, setAirportColors] = useState<Record<string, string>>({});
     const [colorModalVisible, setColorModalVisible] = useState(false);
     const [tempColors, setTempColors] = useState<Record<string, string>>(DEFAULT_COLORS);
+    const [columnTitlesModalVisible, setColumnTitlesModalVisible] = useState(false);
+    const [tempColumnTitles, setTempColumnTitles] = useState<Record<string, string>>({});
 
 
     // Filters — default to PRIVATE so only Özel Transferler show on load
@@ -354,21 +507,21 @@ export default function OperationsPage() {
         {
             title: '#',
             key: 'index',
-            width: 50,
-            render: (_: any, __: any, index: number) => index + 1,
+            width: 45,
+            render: (_: any, __: any, index: number) => <Text style={{ fontSize: 11, color: '#64748b', fontWeight: 600 }}>{index + 1}</Text>,
         },
         {
             title: 'T.KOD',
             dataIndex: 'bookingNumber',
             key: 'bookingNumber',
-            width: 120,
-            render: (text: string) => <Tag color="blue">{text}</Tag>,
+            width: 105,
+            render: (text: string) => <Tag color="blue" style={{ fontSize: 11, fontWeight: 600 }}>{text}</Tag>,
         },
         {
             title: 'YÖN',
             dataIndex: 'direction',
             key: 'direction',
-            width: 110,
+            width: 95,
             render: (text: string, record: any) => {
                 let color = 'default';
                 if (text === 'Geliş') color = 'green';
@@ -385,97 +538,132 @@ export default function OperationsPage() {
             }
         },
         {
-            title: 'S/N',
-            key: 'sn',
-            width: 60,
-            render: () => <Button size="small" type="text" icon={<InfoCircleOutlined />} />
-        },
-        {
-            title: 'ALT ACENTE',
-            key: 'subAgency',
-            width: 120,
-            render: () => <Text type="secondary">-</Text>
-        },
-        {
             title: 'ACENTE',
             key: 'partnerName',
-            width: 150,
+            width: 130,
             render: (_: any, record: any) => {
                 const name = record.agencyName || record.agency?.name || record.partnerName;
                 return <Text strong>{name || 'Direkt'}</Text>;
             }
         },
         {
-            title: 'ACENTE NOT',
-            dataIndex: 'agencyNote',
-            key: 'agencyNote',
-            width: 100,
-            render: (text: string) => (
-                text ?
-                    <Popover content={text} title="Acente Notu">
-                        <InfoCircleOutlined style={{ color: '#faad14' }} />
-                    </Popover> : '-'
-            )
-        },
-        {
-            title: 'AD SOYAD',
-            key: 'customerName',
-            width: 180,
+            title: 'MÜŞTERİ NOTU',
+            key: 'customerNote',
+            width: 120,
             render: (_: any, record: any) => {
-                const name = record.contactName || record.customer?.name || record.passengerName || '';
-                return <Text style={{ textTransform: 'uppercase' }}>{name || <Text type="secondary">—</Text>}</Text>;
+                const note = record.specialRequests || record.notes || record.agencyNote || '';
+                if (!note) return renderEditableCell(record, 'customerNote', <Text type="secondary" style={{ fontSize: 10, cursor: 'text' }}>⊕ Not ekle...</Text>);
+                return renderEditableCell(
+                    record, 'customerNote',
+                    <Popover
+                        content={<div style={{ maxWidth: 280, whiteSpace: 'pre-wrap' }}>{note}</div>}
+                        title={<span style={{ color: '#6366f1' }}>✏️ Müşteri Notu</span>}
+                    >
+                        <div style={{
+                            fontSize: 10, color: '#374151',
+                            background: '#fffbeb', border: '1px solid #fde68a',
+                            borderRadius: 5, padding: '2px 6px',
+                            cursor: 'text', maxWidth: 105, overflow: 'hidden',
+                            textOverflow: 'ellipsis', whiteSpace: 'nowrap'
+                        }}>
+                            💬 {note}
+                        </div>
+                    </Popover>
+                );
             }
         },
         {
-            title: 'REZ. TARİHİ',
-            dataIndex: 'createdAt',
-            key: 'createdAt',
-            width: 110,
-            render: (val: string) => val ? (
-                <Space direction="vertical" size={0}>
-                    <Text style={{ fontSize: 12 }}>{dayjs(val).format('DD.MM.YYYY')}</Text>
-                    <Text type="secondary" style={{ fontSize: 10 }}>{dayjs(val).format('HH:mm')}</Text>
-                </Space>
-            ) : '-'
+            title: 'OP. NOTU',
+            key: 'internalNotes',
+            width: 120,
+            render: (_: any, record: any) => {
+                const note = record.internalNotes || record.metadata?.internalNotes || '';
+                return renderEditableCell(
+                    record, 'internalNotes',
+                    note ? (
+                        <Popover
+                            content={<div style={{ maxWidth: 280, whiteSpace: 'pre-wrap' }}>{note}</div>}
+                            title={<span style={{ color: '#10b981' }}>📋 Operasyon Notu (Şoför Görecek)</span>}
+                        >
+                            <div style={{
+                                fontSize: 10, color: '#065f46',
+                                background: '#d1fae5', border: '1px solid #6ee7b7',
+                                borderRadius: 5, padding: '2px 6px',
+                                cursor: 'text', maxWidth: 105, overflow: 'hidden',
+                                textOverflow: 'ellipsis', whiteSpace: 'nowrap'
+                            }}>
+                                📋 {note}
+                            </div>
+                        </Popover>
+                    ) : (
+                        <Text type="secondary" style={{ fontSize: 10, cursor: 'text' }}>⊕ Not ekle...</Text>
+                    )
+                );
+            }
+        },
+        {
+            title: 'MÜŞTERİ ADI',
+            key: 'customerName',
+            width: 160,
+            render: (_: any, record: any) => {
+                const name = record.contactName || record.customer?.name || record.passengerName || '';
+                return renderEditableCell(record, 'contactName',
+                    <Text strong style={{ fontSize: 11, textTransform: 'uppercase', cursor: 'text' }}>{name || <Text type="secondary">—</Text>}</Text>
+                );
+            }
+        },
+        {
+            title: 'TELEFON',
+            key: 'contactPhone',
+            width: 115,
+            render: (_: any, record: any) => {
+                const phone = record.contactPhone || record.customer?.phone || record.passengerPhone || '';
+                return renderEditableCell(record, 'contactPhone',
+                    <Text type="secondary" style={{ fontSize: 11, cursor: 'text' }} copyable>{phone || '-'}</Text>
+                );
+            }
         },
         {
             title: 'TARİH',
             dataIndex: 'pickupDateTime',
             key: 'date',
-            width: 100,
-            render: (val: string) => dayjs(val).format('DD.MM.YYYY')
+            width: 90,
+            render: (val: string, record: any) => renderEditableCell(
+                record, 'pickupDateTime',
+                <Text style={{ fontSize: 11, cursor: 'text' }}>{val ? dayjs(val).format('DD.MM.YY') : '-'}</Text>
+            )
         },
         {
             title: 'DURUM',
             dataIndex: 'status',
             key: 'status',
-            width: 120,
-            render: (status: string) => {
-                const map: any = { 'CONFIRMED': 'blue', 'PENDING': 'orange', 'COMPLETED': 'green', 'CANCELLED': 'red', 'IN_PROGRESS': 'purple' };
-                const label: any = { 'CONFIRMED': 'Onaylı', 'PENDING': 'Bekliyor', 'COMPLETED': 'Tamamlandı', 'CANCELLED': 'İptal', 'IN_PROGRESS': 'Müşteri Alındı' };
-                return <Badge status={status === 'CONFIRMED' || status === 'IN_PROGRESS' ? 'processing' : 'default'} color={map[status]} text={label[status] || status} />;
-            }
-        },
-        {
-            title: 'T.DURUM',
-            dataIndex: 'operationalStatus',
-            key: 'opStatus',
-            width: 120,
+            width: 100,
             render: (status: string, record: any) => {
-                let color = 'default';
-                let text = status || 'Beklemede';
-                if (status === 'IN_POOL') { color = 'cyan'; text = 'Havuzda'; }
-                // Override with master status if driver has started/completed
-                if (record.status === 'IN_PROGRESS') { color = 'purple'; text = 'Müşteri Alındı'; }
-                if (record.status === 'COMPLETED') { color = 'green'; text = 'Tamamlandı'; }
-                return <Tag color={color}>{text}</Tag>;
+                const map: any = { 'CONFIRMED': 'blue', 'PENDING': 'orange', 'COMPLETED': 'green', 'CANCELLED': 'red', 'IN_PROGRESS': 'purple' };
+                const label: any = { 'CONFIRMED': 'Onaylı', 'PENDING': 'Bekliyor', 'COMPLETED': 'Tamamlandı', 'CANCELLED': 'İptal', 'IN_PROGRESS': 'Alındı' };
+                return renderEditableCell(
+                    record, 'status',
+                    <Tag color={map[status]} style={{ fontSize: 10, margin: 0, cursor: 'text' }}>{label[status] || status}</Tag>,
+                    <Select size="small" autoFocus defaultValue={status}
+                        onBlur={(e: any) => saveCellEdit(record.id, 'status', e.target.value)}
+                        onChange={(val) => saveCellEdit(record.id, 'status', val)}
+                        style={{ width: 100 }}
+                        options={[
+                            { value: 'PENDING', label: 'Bekliyor' },
+                            { value: 'CONFIRMED', label: 'Onaylı' },
+                            { value: 'IN_PROGRESS', label: 'Alındı' },
+                            { value: 'COMPLETED', label: 'Tamamlandı' },
+                            { value: 'CANCELLED', label: 'İptal' }
+                        ]}
+                    />
+                );
             }
         },
         {
             title: 'ŞOFÖR',
             dataIndex: 'driverId',
             key: 'driver',
-            width: 170,
+            width: 155,
             render: (val: string, record: any) => {
                 const isShuttle = record.transferType === 'SHUTTLE';
 
@@ -516,39 +704,28 @@ export default function OperationsPage() {
                 }
 
                 return (
-                    <Space size={2}>
+                    <Space size={1}>
                         <Select
                             size="small"
                             placeholder="Seçiniz"
-                            style={{ width: 120 }}
-                            bordered={false}
+                            style={{ width: 110, fontSize: 11 }}
+                            variant="borderless"
                             showSearch
                             optionFilterProp="children"
                             value={record.driverId || undefined}
                             onChange={(driverId) => handleDriverChange(record.id, driverId)}
                             options={options}
                         />
-                        <Tooltip title="AI Şöför & Araç Önerisi">
+                        <Tooltip title="AI Öneri">
                             <Button
                                 size="small"
                                 type="text"
                                 onClick={() => handleAISuggest(record.id)}
-                                style={{ padding: '0 2px', fontSize: 14 }}
+                                style={{ padding: '0 2px', fontSize: 12 }}
                             >
                                 🤖
                             </Button>
                         </Tooltip>
-                        {record.driverId && (
-                            <Tooltip title="Sürücüye Mesaj At">
-                                <Button
-                                    size="small"
-                                    type="text"
-                                    icon={<MessageOutlined style={{ color: '#1890ff' }} />}
-                                    onClick={() => handleOpenMessageModal(record.driverId)}
-                                />
-                            </Tooltip>
-
-                        )}
                     </Space>
                 );
             }
@@ -557,7 +734,7 @@ export default function OperationsPage() {
             title: 'ARAÇ',
             dataIndex: 'assignedVehicleId',
             key: 'vehicle',
-            width: 210,
+            width: 165,
             render: (val: string, record: any) => {
                 const isShuttle = record.transferType === 'SHUTTLE';
 
@@ -586,81 +763,85 @@ export default function OperationsPage() {
                 }
 
                 return (
-                    <Space direction="vertical" size={2} style={{ width: '100%' }}>
-                        {record.vehicleType && record.vehicleType !== 'Unknown' && (
-                            <Text type="secondary" style={{ fontSize: 11 }} ellipsis={{ tooltip: record.vehicleType }}>
-                                <CarOutlined style={{ marginRight: 3 }} />{record.vehicleType}
-                            </Text>
-                        )}
-                        {fallback && (
-                            <Text type="warning" style={{ fontSize: 10 }}>
-                                ⚠ Araç Yönetiminden tipi ayarlayın
-                            </Text>
-                        )}
-                        <Select
-                            style={{ width: 190 }}
-                            placeholder={isShuttle ? 'Shuttle Araç Ata' : 'Özel Araç Ata'}
-                            size="small"
-                            value={record.assignedVehicleId || undefined}
-                            onChange={(vehicleId) => handleVehicleChange(record.id, vehicleId)}
-                            bordered={false}
-                            showSearch
-                            optionFilterProp="children"
-                            options={options}
-                        />
-                    </Space>
+                    <Select
+                        style={{ width: 150, fontSize: 11 }}
+                        placeholder={isShuttle ? 'Shuttle' : 'Araç Seç'}
+                        size="small"
+                        value={record.assignedVehicleId || undefined}
+                        onChange={(vehicleId) => handleVehicleChange(record.id, vehicleId)}
+                        variant="borderless"
+                        showSearch
+                        optionFilterProp="children"
+                        options={options}
+                    />
                 );
             }
         },
         {
-            title: 'A.SAAT',
+            title: 'SAAT',
             dataIndex: 'pickupDateTime',
             key: 'time',
-            width: 80,
-            render: (val: string) => <Tag>{dayjs(val).format('HH:mm')}</Tag>
+            width: 75,
+            render: (val: string, record: any) => renderEditableCell(
+                record, 'pickupDateTime',
+                <Tag icon={<CarOutlined />} color="blue" style={{ margin: 0, cursor: 'text', fontSize: 11 }}>{val ? dayjs(val).format('HH:mm') : '-'}</Tag>,
+                <Input
+                    size="small"
+                    type="time"
+                    autoFocus
+                    defaultValue={val ? dayjs(val).format('HH:mm') : ''}
+                    onBlur={(e) => {
+                        if (e.target.value && val) {
+                            const date = dayjs(val).format('YYYY-MM-DD');
+                            saveCellEdit(record.id, 'pickupDateTime', `${date}T${e.target.value}`);
+                        }
+                    }}
+                    onPressEnter={(e) => {
+                        if ((e.target as HTMLInputElement).value && val) {
+                            const date = dayjs(val).format('YYYY-MM-DD');
+                            saveCellEdit(record.id, 'pickupDateTime', `${date}T${(e.target as HTMLInputElement).value}`);
+                        }
+                    }}
+                    style={{ width: 90 }}
+                />
+            )
         },
         {
-            title: 'UÇUŞ KODU',
+            title: 'UÇUŞ',
             dataIndex: 'flightNumber',
             key: 'flightCode',
-            width: 100,
-            render: (text: string) => text || '-'
-        },
-        {
-            title: 'TC/PASAPORT',
-            dataIndex: 'passport',
-            key: 'passport',
-            width: 120,
-        },
-        {
-            title: 'TELEFON',
-            dataIndex: ['customer', 'phone'],
-            key: 'phone',
-            width: 130,
-            render: (text: string) => <Text copyable>{text}</Text>
+            width: 90,
+            render: (text: string, record: any) => renderEditableCell(
+                record, 'flightNumber',
+                <Text style={{ fontSize: 11, cursor: 'text' }}>{text || '-'}</Text>
+            )
         },
         {
             title: 'PAX',
-            dataIndex: ['vehicle', 'pax'],
             key: 'pax',
-            width: 60,
-        },
-        {
-            title: 'U-ETDS',
-            dataIndex: 'uetds',
-            key: 'uetds',
-            width: 120,
-            render: (text: string) => <Tag>{text}</Tag>
+            width: 50,
+            render: (_: any, record: any) => {
+                const n = record.passengers || record.adults || record.metadata?.passengerDetails?.length || record.metadata?.passengersList?.length || 0;
+                return renderEditableCell(record, 'adults',
+                    <Text strong style={{ fontSize: 11, cursor: 'text' }}>{n ? n.toString() : '-'}</Text>,
+                    <Input size="small" type="number" autoFocus min={1}
+                        defaultValue={n || 1}
+                        onBlur={(e) => saveCellEdit(record.id, 'adults', e.target.value)}
+                        onPressEnter={(e) => saveCellEdit(record.id, 'adults', (e.target as HTMLInputElement).value)}
+                        style={{ width: 50 }}
+                    />
+                );
+            }
         },
         {
             title: 'ALIŞ YERİ',
             key: 'pickup',
-            width: 220,
+            width: 180,
             render: (_: any, record: any) => {
                 const loc = record.pickup?.rawLocation || record.pickup?.location || record.pickupLocation || '—';
-                return (
-                    <Text ellipsis={{ tooltip: loc }} style={{ fontSize: 12, maxWidth: 200 }}>
-                        <EnvironmentOutlined style={{ color: '#16a34a', marginRight: 4 }} />{loc}
+                return renderEditableCell(record, 'pickup',
+                    <Text ellipsis={{ tooltip: loc }} style={{ fontSize: 11, maxWidth: 165, cursor: 'text' }}>
+                        <EnvironmentOutlined style={{ color: '#16a34a', marginRight: 3, fontSize: 10 }} />{loc}
                     </Text>
                 );
             }
@@ -668,25 +849,53 @@ export default function OperationsPage() {
         {
             title: 'BIRAKIŞ YERİ',
             key: 'dropoff',
-            width: 220,
+            width: 180,
             render: (_: any, record: any) => {
                 const loc = record.dropoff?.rawLocation || record.dropoff?.location || record.dropoffLocation || '—';
-                return (
-                    <Text ellipsis={{ tooltip: loc }} style={{ fontSize: 12, maxWidth: 200 }}>
-                        <EnvironmentOutlined style={{ color: '#dc2626', marginRight: 4 }} />{loc}
+                return renderEditableCell(record, 'dropoff',
+                    <Text ellipsis={{ tooltip: loc }} style={{ fontSize: 11, maxWidth: 165, cursor: 'text' }}>
+                        <EnvironmentOutlined style={{ color: '#dc2626', marginRight: 3, fontSize: 10 }} />{loc}
                     </Text>
+                );
+            }
+        },
+        {
+            title: 'EKSTRA',
+            key: 'extraServices',
+            width: 110,
+            render: (_: any, record: any) => {
+                const services = record.metadata?.extraServices || [];
+                if (!services.length) return <Text type="secondary" style={{fontSize: 10}}>-</Text>;
+                return (
+                    <Popover
+                        content={
+                            <Space direction="vertical" size={2}>
+                                {services.map((s:any, idx:number) => (
+                                   <div key={idx} style={{ fontSize: 11, background: '#f8fafc', padding: '2px 6px', borderRadius: 4, border: '1px solid #e2e8f0' }}>
+                                      {s.quantity}x {s.name}
+                                   </div>
+                                ))}
+                            </Space>
+                        }
+                        title="Ekstra Hizmetler"
+                    >
+                        <Tag color="purple" style={{ fontSize: 10, margin: 0, cursor: 'pointer' }}>
+                            {services.length} hizmet
+                        </Tag>
+                    </Popover>
                 );
             }
         },
         {
             title: 'İŞLEM',
             key: 'actions',
-            width: 130,
+            width: 140,
             render: (_: any, record: any) => {
                 const isPayInVehicle = record.metadata?.paymentMethod === 'PAY_IN_VEHICLE';
                 const isAgencyBooking = !!record.agencyId;
                 const isCompleted = record.status === 'COMPLETED';
                 const isCancelled = record.status === 'CANCELLED';
+                const isInOperation = record.operationalStatus === 'IN_OPERATION' || record.metadata?.operationalStatus === 'IN_OPERATION';
 
                 if (isCompleted || isCancelled) {
                     return (
@@ -696,28 +905,35 @@ export default function OperationsPage() {
                     );
                 }
 
-                // Only show Tamamla for PAY_IN_VEHICLE agency bookings
-                if (isAgencyBooking && isPayInVehicle) {
-                    return (
-                        <Tooltip title="Nakit tahsilatı girerek transferi tamamla ve cari hesaba yansıt">
+                return (
+                    <Space direction="vertical" size={2}>
+                        {isAgencyBooking && isPayInVehicle && (
+                            <Tooltip title="Transferi tamamla">
+                                <Button
+                                    type="primary"
+                                    size="small"
+                                    style={{
+                                        background: 'linear-gradient(135deg, #16a34a, #22c55e)',
+                                        border: 'none', fontSize: 10, fontWeight: 600, padding: '2px 8px'
+                                    }}
+                                    onClick={() => handleOpenCompleteModal(record)}
+                                >
+                                    💵 Tamamla
+                                </Button>
+                            </Tooltip>
+                        )}
+                        <Tooltip title="Rezervasyona geri al">
                             <Button
-                                type="primary"
                                 size="small"
-                                style={{
-                                    background: 'linear-gradient(135deg, #16a34a, #22c55e)',
-                                    border: 'none',
-                                    fontSize: 11,
-                                    fontWeight: 600
-                                }}
-                                onClick={() => handleOpenCompleteModal(record)}
+                                danger
+                                style={{ fontSize: 9, fontWeight: 600, borderRadius: 4, padding: '2px 6px' }}
+                                onClick={() => setReturnModal({ booking: record, reason: '' })}
                             >
-                                💵 Tamamla
+                                ↩ Geri Al
                             </Button>
                         </Tooltip>
-                    );
-                }
-
-                return <Text type="secondary" style={{ fontSize: 12 }}>—</Text>;
+                    </Space>
+                );
             }
         },
     ];
@@ -746,7 +962,7 @@ export default function OperationsPage() {
                 };
             }).filter(Boolean);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [columnConfig, drivers, vehicles, hiddenColumns]);
+    }, [columnConfig, drivers, vehicles, hiddenColumns, editingHeaderKey, editingHeaderValue]);
 
     const sensors = useSensors(
         useSensor(PointerSensor, {
@@ -811,6 +1027,9 @@ export default function OperationsPage() {
                         || vtLower.includes('minibüs')
                         || vtLower.includes('minibus');
 
+                    // Skip processing this if it's strictly PENDING. We filter them out below, but for clarity:
+                    // we'll let it process then filter.
+
                     return {
                         ...item,
                         // Ensure UI components get the expected object structure
@@ -847,6 +1066,9 @@ export default function OperationsPage() {
                     });
                 }
 
+                // NEW: Exclude PENDING bookings (they haven't been confirmed onto operations yet)
+                data = data.filter((i: any) => i.status !== 'PENDING');
+
                 if (filters.transferType !== 'ALL') {
                     data = data.filter((i: any) => i.transferType === filters.transferType);
                 }
@@ -879,6 +1101,25 @@ export default function OperationsPage() {
             setLoading(false);
         }
     };
+
+    // Load colors from API on mount
+    useEffect(() => {
+        const loadPreferences = async () => {
+            try {
+                const res = await apiClient.get('/api/auth/metadata');
+                const prefs = res.data?.data?.operations_preferences || {};
+                if (prefs.statusColors) {
+                    setStatusColors({ ...DEFAULT_COLORS, ...prefs.statusColors });
+                }
+                if (prefs.airportColors) {
+                    setAirportColors(prefs.airportColors);
+                }
+            } catch (e) {
+                console.error('Failed to load color preferences:', e);
+            }
+        };
+        loadPreferences();
+    }, []);
 
     useEffect(() => {
         fetchBookings();
@@ -919,23 +1160,12 @@ export default function OperationsPage() {
     }, [socket, filters.transferType, filters.direction]);
 
     const handleResize = (index: number) => (_e: any, { size }: any) => {
-        setColumnConfig((prev: ColConfig[]) => {
-            const next = [...prev];
-            next[index] = { ...next[index], width: size.width };
-            return next;
-        });
-    };
-
-    // Drag End Handler
-    const handleDragEnd = (event: DragEndEvent) => {
-        const { active, over } = event;
-        if (active.id !== over?.id) {
-            setColumnConfig((prev: ColConfig[]) => {
-                const activeIndex = prev.findIndex((i: ColConfig) => i.key === active.id);
-                const overIndex = prev.findIndex((i: ColConfig) => i.key === over?.id);
-                return arrayMove(prev, activeIndex, overIndex);
-            });
-        }
+        const newColumns = [...columnConfig];
+        newColumns[index] = {
+            ...newColumns[index],
+            width: size.width,
+        };
+        setColumnConfig(newColumns);
     };
 
     // Save Columns to LocalStorage
@@ -1117,17 +1347,93 @@ export default function OperationsPage() {
 
     // Color modal handlers
     const openColorModal = () => {
-        setTempColors({ ...statusColors });
+        // Merge current statusColors with DEFAULT_COLORS to ensure all keys exist
+        const mergedColors = { ...DEFAULT_COLORS, ...statusColors };
+        console.log('Opening color modal with colors:', mergedColors);
+        setTempColors(mergedColors);
         setColorModalVisible(true);
     };
-    const saveColors = () => {
-        setStatusColors(tempColors);
-        localStorage.setItem('operationsStatusColors', JSON.stringify(tempColors));
-        setColorModalVisible(false);
-        message.success('Renkler kaydedildi');
+    const saveColors = async () => {
+        try {
+            // Sync OPERASYONDA with IN_OPERATION
+            const syncedColors = {
+                ...tempColors,
+                OPERASYONDA: tempColors.IN_OPERATION || tempColors.OPERASYONDA
+            };
+            console.log('Saving colors:', syncedColors);
+            const res = await apiClient.get('/api/auth/metadata');
+            const currentMeta = res.data?.data || {};
+            const currentPrefs = currentMeta.operations_preferences || {};
+            const newPrefs = { 
+                ...currentPrefs, 
+                statusColors: syncedColors 
+            };
+            await apiClient.put('/api/auth/metadata', { 
+                preferences: { operations_preferences: newPrefs } 
+            });
+            console.log('Colors saved successfully');
+            setStatusColors(syncedColors);
+            setColorModalVisible(false);
+            message.success('Renkler kaydedildi - Sayfa yenileniyor...');
+            setTimeout(() => window.location.reload(), 1000);
+        } catch (e) {
+            console.error('Save colors error:', e);
+            message.error('Kaydetme başarısız');
+        }
     };
-    const resetColors = () => {
-        setTempColors({ ...DEFAULT_COLORS });
+    const resetColors = async () => {
+        try {
+            const res = await apiClient.get('/api/auth/metadata');
+            const currentMeta = res.data?.data || {};
+            const currentPrefs = currentMeta.operations_preferences || {};
+            const newPrefs = { 
+                ...currentPrefs, 
+                statusColors: DEFAULT_COLORS 
+            };
+            await apiClient.put('/api/auth/metadata', { 
+                preferences: { operations_preferences: newPrefs } 
+            });
+            setTempColors(DEFAULT_COLORS);
+            setStatusColors(DEFAULT_COLORS);
+            message.success('Renkler varsayılana döndürüldü - Sayfa yenileniyor...');
+            setTimeout(() => window.location.reload(), 1000);
+        } catch (e) {
+            console.error('Reset colors error:', e);
+            setTempColors(DEFAULT_COLORS);
+            message.error('Sıfırlama başarısız');
+        }
+    };
+
+    // Airport color handler
+    const handleAirportColorChange = async (airportCode: string, color: string) => {
+        try {
+            const newColors = { ...airportColors, [airportCode]: color };
+            const res = await apiClient.get('/api/auth/metadata');
+            const currentMeta = res.data?.data || {};
+            const currentPrefs = currentMeta.operations_preferences || {};
+            const newPrefs = { 
+                ...currentPrefs, 
+                airportColors: newColors 
+            };
+            await apiClient.put('/api/auth/metadata', { 
+                preferences: { operations_preferences: newPrefs } 
+            });
+            setAirportColors(newColors);
+            message.success(`${airportCode} rengi güncellendi`);
+        } catch (e) {
+            console.error('Save airport color error:', e);
+            message.error('Kaydetme başarısız');
+        }
+    };
+
+    // Row order handler
+    const handleRowOrderChange = (newOrder: string[]) => {
+        localStorage.setItem('operationsRowOrder', JSON.stringify(newOrder));
+    };
+    
+    // Location modal handler
+    const handleOpenLocationModal = (location: string, name: string) => {
+        setMapModal({ name, pickup: location });
     };
 
     // Determine row background color based on booking status
@@ -1187,13 +1493,169 @@ export default function OperationsPage() {
         if (mode === 'private') {
             setFilters(prev => ({ ...prev, transferType: 'PRIVATE' }));
         }
-        // shuttle mode has its own table (fetchShuttleRuns), no filter change needed
     };
+
+    // ---- SHUTTLE-SPECIFIC COLUMN CONFIG (completely separate from private) ----
+    type ShuttleColCfg = { key: string; width: number; label: string; hidden: boolean };
+    const SHUTTLE_DEFAULT_COLS: ShuttleColCfg[] = [
+        { key: 'sort',       width: 40,  label: 'SIRA',           hidden: false },
+        { key: 'index',      width: 36,  label: '#',              hidden: false },
+        { key: 'customer',   width: 200, label: 'MÜŞTERİ',         hidden: false },
+        { key: 'pickupTime', width: 80,  label: 'ALIŞ SAATİ',      hidden: false },
+        { key: 'pickup',     width: 220, label: 'ALIŞ NOKTASI',    hidden: false },
+        { key: 'flight',     width: 130, label: 'UÇUŞ',            hidden: false },
+        { key: 'pax',        width: 50,  label: 'PAX',            hidden: false },
+        { key: 'phone',      width: 140, label: 'TELEFON',        hidden: false },
+        { key: 'extras',     width: 160, label: 'EKSTRA HİZMET',   hidden: false },
+        { key: 'status',     width: 100, label: 'DURUM',          hidden: false },
+    ];
+    const [shuttleCols, setShuttleCols] = useState<ShuttleColCfg[]>(SHUTTLE_DEFAULT_COLS);
+    const [shuttleColEditVisible, setShuttleColEditVisible] = useState(false);
+    const [tempShuttleCols, setTempShuttleCols] = useState<ShuttleColCfg[]>([]);
+
+    // Load shuttle cols from API on mount
+    useEffect(() => {
+        const loadShuttleCols = async () => {
+            try {
+                const res = await apiClient.get('/api/auth/metadata');
+                const prefs = res.data?.data?.shuttle_preferences || {};
+                if (prefs.shuttleCols && Array.isArray(prefs.shuttleCols) && prefs.shuttleCols.length) {
+                    // Merge saved with defaults to pick up any new columns
+                    const saved = prefs.shuttleCols as ShuttleColCfg[];
+                    const merged = saved.map((s: ShuttleColCfg) => {
+                        const def = SHUTTLE_DEFAULT_COLS.find(d => d.key === s.key);
+                        return def ? { ...def, width: s.width, label: s.label, hidden: s.hidden } : s;
+                    });
+                    // Add any new default cols not in saved
+                    for (const def of SHUTTLE_DEFAULT_COLS) {
+                        if (!merged.find((m: ShuttleColCfg) => m.key === def.key)) {
+                            merged.push(def);
+                        }
+                    }
+                    setShuttleCols(merged);
+                }
+            } catch (e) {
+                console.error('Failed to load shuttle col preferences:', e);
+            }
+        };
+        loadShuttleCols();
+    }, []);
+
+    const saveShuttleColsToAPI = async (cols: ShuttleColCfg[]) => {
+        try {
+            const res = await apiClient.get('/api/auth/metadata');
+            const currentMeta = res.data?.data || {};
+            const currentPrefs = currentMeta.shuttle_preferences || {};
+            const newPrefs = { ...currentPrefs, shuttleCols: cols };
+            await apiClient.put('/api/auth/metadata', {
+                preferences: { shuttle_preferences: newPrefs }
+            });
+        } catch (e) {
+            console.error('Failed to save shuttle col preferences:', e);
+        }
+    };
+
+    const saveShuttleCols = async () => {
+        setShuttleCols(tempShuttleCols);
+        setShuttleColEditVisible(false);
+        await saveShuttleColsToAPI(tempShuttleCols);
+        message.success('Shuttle sütunları kaydedildi');
+    };
+    const resetShuttleCols = () => setTempShuttleCols(SHUTTLE_DEFAULT_COLS.map(c => ({...c})));
+    const resizeShuttleCol = (key: string, newWidth: number) => {
+        setShuttleCols(prev => prev.map(c => c.key === key ? { ...c, width: Math.max(30, newWidth) } : c));
+    };
+    const toggleShuttleCol = (key: string) => {
+        setShuttleCols(prev => prev.map(c => c.key === key ? { ...c, hidden: !c.hidden } : c));
+    };
+    const saveShuttleColWidths = async () => {
+        await saveShuttleColsToAPI(shuttleCols);
+        message.success('Shuttle sütun genişlikleri kaydedildi');
+    };
+
+    // ---- SHUTTLE STATUS COLORS (separate from private) ----
+    const SHUTTLE_DEFAULT_COLORS: Record<string,string> = {
+        PENDING: '#fffbeb', CONFIRMED: '#f0fdf4', COMPLETED: '#ecfdf5', CANCELLED: '#fff1f0'
+    };
+    const [shuttleColors, setShuttleColors] = useState<Record<string,string>>(() => {
+        try { return { ...SHUTTLE_DEFAULT_COLORS, ...JSON.parse(localStorage.getItem('shuttleStatusColors') || '{}') }; }
+        catch { return SHUTTLE_DEFAULT_COLORS; }
+    });
+    const [shuttleColorVisible, setShuttleColorVisible] = useState(false);
+    const [tempShuttleColors, setTempShuttleColors] = useState<Record<string,string>>({...SHUTTLE_DEFAULT_COLORS});
+    const saveShuttleColors = () => {
+        localStorage.setItem('shuttleStatusColors', JSON.stringify(tempShuttleColors));
+        setShuttleColors(tempShuttleColors);
+        setShuttleColorVisible(false);
+        message.success('Shuttle renkleri kaydedildi');
+    };
+
+    // ---- SHUTTLE PICKUP TIME EDIT ----
+    const [editingPickupTime, setEditingPickupTime] = useState<{ bookingId: string; value: string } | null>(null);
+    const handlePickupTimeEdit = async (bookingId: string, newTime: string) => {
+        try {
+            await apiClient.put(`/api/transfer/bookings/${bookingId}`, { pickupDateTime: newTime });
+            setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, pickupDateTime: newTime } : b));
+            // Also update shuttle runs
+            setShuttleRuns(prev => prev.map(r => ({
+                ...r,
+                bookings: r.bookings.map((b: any) => b.id === bookingId ? { ...b, pickupDateTime: newTime } : b)
+            })));
+            setEditingPickupTime(null);
+            message.success('Alınış saati güncellendi');
+        } catch (e) {
+            console.error('Update pickup time error:', e);
+            message.error('Güncelleme başarısız');
+        }
+    };
+
+    // ---- SEFER DÜZENLE MODAL ----
+    const [editRunModal, setEditRunModal] = useState<{ run: any; time: string; name: string } | null>(null);
+    const handleEditRunSave = async () => {
+        if (!editRunModal) return;
+        try {
+            const bookingIds = editRunModal.run.bookings.map((b: any) => b.id);
+            await apiClient.patch('/api/operations/shuttle-runs/update', {
+                runKey: editRunModal.run.runKey,
+                departureTime: editRunModal.time,
+                routeName: editRunModal.name,
+                bookingIds,
+            });
+            // Optimistic UI update
+            setShuttleRuns(prev => prev.map(r => {
+                if (r.runKey !== editRunModal.run.runKey) return r;
+                return { ...r, departureTime: editRunModal.time, routeName: editRunModal.name, toName: editRunModal.name };
+            }));
+            setEditRunModal(null);
+            message.success('Sefer güncellendi ve kaydedildi');
+            // Refresh to get latest data
+            fetchShuttleRuns();
+        } catch (e: any) {
+            console.error('Edit run save error:', e);
+            message.error('Sefer güncelleme başarısız: ' + (e?.response?.data?.error || e.message));
+        }
+    };
+
+    // ---- HARİTA MODAL ----
+    const [mapModal, setMapModal] = useState<{ name: string; pickup: string; lat?: number; lng?: number } | null>(null);
 
     // ---- Shuttle Runs State ----
     const [shuttleRuns, setShuttleRuns] = useState<any[]>([]);
     const [shuttleRunsLoading, setShuttleRunsLoading] = useState(false);
     const [expandedRunKeys, setExpandedRunKeys] = useState<string[]>([]);
+    const [persistedManualRuns, setPersistedManualRuns] = useState<any[]>([]);
+
+    // Load persisted runs safely on client-side only to prevent Hydration Mismatch
+    useEffect(() => {
+        try {
+            const saved = localStorage.getItem('shuttlePersistedManualRuns');
+            if (saved) setPersistedManualRuns(JSON.parse(saved));
+        } catch(e) {}
+    }, []);
+
+    useEffect(() => {
+        localStorage.setItem('shuttlePersistedManualRuns', JSON.stringify(persistedManualRuns));
+    }, [persistedManualRuns]);
 
     const fetchShuttleRuns = async () => {
         setShuttleRunsLoading(true);
@@ -1201,7 +1663,29 @@ export default function OperationsPage() {
             const date = filters.dateRange[0].format('YYYY-MM-DD');
             const res = await apiClient.get(`/api/operations/shuttle-runs?date=${date}`);
             if (res.data.success) {
-                setShuttleRuns(res.data.data);
+                const backendRuns = res.data.data;
+                const date = filters.dateRange[0].format('YYYY-MM-DD');
+                
+                // Filter persisted manual runs to only show those for the selected date
+                // and highlight only those that DON'T have backend counterparts yet
+                const localManualsForDate = persistedManualRuns.filter(r => r.date === date);
+                
+                // Merge: if a manual run now has bookings on the backend, remove it from local
+                const updatedPersisted = persistedManualRuns.filter(lp => {
+                    const existsOnBackend = backendRuns.some((br: any) => br.runKey === lp.runKey);
+                    return !existsOnBackend;
+                });
+                if (updatedPersisted.length !== persistedManualRuns.length) {
+                    setPersistedManualRuns(updatedPersisted);
+                }
+
+                // Final list: backend runs + remaining empty manual runs for this date
+                const finalRuns = [...backendRuns, ...localManualsForDate.filter(lp => !backendRuns.some((br: any) => br.runKey === lp.runKey))];
+                finalRuns.sort((a, b) => (a.departureTime || '99:99').localeCompare(b.departureTime || '99:99'));
+                
+                setShuttleRuns(finalRuns);
+                // Auto-expand all runs
+                setExpandedRunKeys(finalRuns.map((r: any) => r.runKey));
             }
         } catch (err) {
             console.error('Shuttle runs fetch error:', err);
@@ -1246,7 +1730,7 @@ export default function OperationsPage() {
         const { active, over } = event;
         if (!over) return;
         const passengerId = active.id as string;
-        const targetRunKey = over.id as string;
+        const overId = over.id as string;
 
         // Find source run and passenger
         let sourceRun: any = null;
@@ -1259,37 +1743,101 @@ export default function OperationsPage() {
                 break;
             }
         }
-        if (!sourceRun || !passenger || sourceRun.runKey === targetRunKey) return;
+        if (!sourceRun || !passenger) return;
 
-        const targetRun = shuttleRuns.find(r => r.runKey === targetRunKey);
-        if (!targetRun) return;
+        // 1. Is it a SORT action ? (within the same run)
+        const isSameRun = sourceRun.bookings.some((b: any) => b.id === overId) || sourceRun.runKey === overId;
+        
+        if (isSameRun && active.id !== over.id) {
+            // Sort logic: Identify old and new indices
+            const oldIndex = sourceRun.bookings.findIndex((b: any) => b.id === active.id);
+            const newIndex = sourceRun.bookings.findIndex((b: any) => b.id === overId);
+            
+            if (newIndex >= 0) {
+                const newBookings = arrayMove(sourceRun.bookings, oldIndex, newIndex);
+                
+                // Optimistic Local Update
+                setShuttleRuns(prev => prev.map(r => r.runKey === sourceRun.runKey ? { ...r, bookings: newBookings } : r));
+
+                try {
+                    const sortItems = newBookings.map((b: any, idx: number) => ({ bookingId: b.id, sortOrder: idx + 1 }));
+                    const res = await apiClient.post('/api/operations/shuttle-runs/sort', { items: sortItems });
+                    if (res.data.success) message.success('Sıralama güncellendi');
+                } catch (err) {
+                    message.error('Sıralama kaydedilemedi');
+                    fetchShuttleRuns(); // Revert
+                }
+            }
+            return;
+        }
+
+        // 2. Is it a MOVE action ? (to a different run)
+        if (!isSameRun) {
+            const targetRun = shuttleRuns.find(r => r.runKey === overId || r.bookings.some((b: any) => b.id === overId));
+            if (!targetRun) return;
+
+            try {
+                const payload: any = { bookingIds: [passengerId] };
+                payload.targetRun = {
+                    manualRunId: targetRun.isManual ? (targetRun.manualRunId || targetRun.runKey) : null,
+                    shuttleRouteId: targetRun.isManual ? null : (targetRun.shuttleRouteId || null),
+                    shuttleMasterTime: targetRun.isManual ? targetRun.departureTime : (targetRun._originalMasterTime || null),
+                    manualRunName: targetRun.isManual ? targetRun.routeName : (targetRun.routeName || null)
+                };
+                if (targetRun.bookings && targetRun.bookings.length > 0) {
+                    payload.sampleBookingId = targetRun.bookings[0].id;
+                    payload.targetBookingIds = targetRun.bookings.map((b: any) => b.id);
+                }
+
+                const res = await apiClient.post('/api/operations/shuttle-runs/move', payload);
+                if (res.data.success) {
+                    fetchShuttleRuns();
+                    message.success('Yolcu taşındı');
+                }
+            } catch (err: any) {
+                message.error('Taşıma başarısız');
+            }
+        }
+    };
+
+    const handleSortPassenger = async (runKey: string, bookingId: string, direction: 'up' | 'down') => {
+        const run = shuttleRuns.find(r => r.runKey === runKey);
+        if (!run || !run.bookings) return;
+        
+        const bIndex = run.bookings.findIndex((b: any) => b.id === bookingId);
+        if (bIndex < 0) return;
+        if (direction === 'up' && bIndex === 0) return;
+        if (direction === 'down' && bIndex === run.bookings.length - 1) return;
+
+        const newBookings = [...run.bookings];
+        const swapIndex = direction === 'up' ? bIndex - 1 : bIndex + 1;
+        [newBookings[bIndex], newBookings[swapIndex]] = [newBookings[swapIndex], newBookings[bIndex]];
+
+        // Crucial: assign sortOrder to ALL items in the run to ensure persistence
+        const items = newBookings.map((b, idx) => ({ bookingId: b.id, sortOrder: idx }));
+
+        setShuttleRuns(prev => prev.map(r => {
+            if (r.runKey !== runKey) return r;
+            return { ...r, bookings: newBookings };
+        }));
 
         try {
-            const payload: any = {
-                bookingIds: [passengerId],
-            };
-
-            payload.targetRun = {
-                manualRunId: targetRun.isManual ? (targetRun.manualRunId || targetRun.runKey) : null,
-                shuttleRouteId: targetRun.isManual ? null : (targetRun.shuttleRouteId || null),
-                shuttleMasterTime: targetRun.isManual ? targetRun.departureTime : (targetRun._originalMasterTime || null),
-                manualRunName: targetRun.isManual ? targetRun.routeName : (targetRun.routeName || null)
-            };
-
-            if (targetRun.bookings && targetRun.bookings.length > 0) {
-                payload.sampleBookingId = targetRun.bookings[0].id;
-                payload.targetBookingIds = targetRun.bookings.map((b: any) => b.id);
-            }
-
-            const res = await apiClient.post('/api/operations/shuttle-runs/move', payload);
-            if (res.data.success) {
-                fetchShuttleRuns(); // Refetch to align exact backend state (drivers, vehicles, upgraded runs)
-                message.success('Yolcu taşındı');
-            }
+            await apiClient.post('/api/operations/shuttle-runs/sort', { items });
         } catch (err: any) {
-            console.error(err);
-            message.error('Taşıma başarısız: ' + (err?.response?.data?.error || err.message));
+            message.error('Sıralama kaydedilemedi: ' + (err?.response?.data?.error || err.message));
+            fetchShuttleRuns();
         }
+    };
+
+    const handleDeleteManualRun = (runKey: string) => {
+        const run = shuttleRuns.find(r => r.runKey === runKey);
+        if (run && run.bookings && run.bookings.length > 0) {
+            message.error(`Bu seferde ${run.bookings.length} yolcu var. Önce yolcuları başka bir sefere taşıyın.`);
+            return;
+        }
+        setPersistedManualRuns(prev => prev.filter(r => r.runKey !== runKey));
+        setShuttleRuns(prev => prev.filter(r => r.runKey !== runKey));
+        message.success('Manuel sefer silindi');
     };
 
     // ---- Tab State ----
@@ -1357,14 +1905,27 @@ export default function OperationsPage() {
     return (
         <AdminGuard>
             <AdminLayout selectedKey="operations-list" fullWidth>
+                <style>{`
+                    /* ── Global operations page overrides ── */
+                    .ant-btn-sm {
+                        font-size: 12px !important;
+                        border-radius: 6px !important;
+                    }
+                    .ant-segmented {
+                        border-radius: 8px !important;
+                    }
+                    .ant-select-sm .ant-select-selector {
+                        border-radius: 6px !important;
+                    }
+                `}</style>
 
                 <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 64px)', overflow: 'hidden' }}>
 
                     {/* ── FILTER BAR ── */}
                     <div style={{
-                        background: '#fff',
+                        background: 'linear-gradient(180deg, #ffffff 0%, #fafbfc 100%)',
                         borderBottom: '1px solid #e5e7eb',
-                        padding: '10px 20px',
+                        padding: '8px 16px',
                         flexShrink: 0,
                     }}>
                         {/* Row 1: Mode toggle + Direction tabs + action buttons */}
@@ -1458,46 +2019,114 @@ export default function OperationsPage() {
                                         </Button>
                                     </>
                                 )}
-                                <Popover
-                                    trigger="click"
-                                    title={<span style={{ fontWeight: 700 }}>Sütun Görünürlüğü</span>}
-                                    content={
-                                        <div style={{ maxHeight: 280, overflowY: 'auto', width: 180 }}>
-                                            {columnConfig.map(cfg => {
-                                                const def = defaultColumns.find(d => d.key === cfg.key);
-                                                const label = cfg.title || def?.title || cfg.key;
-                                                const isHidden = hiddenColumns.has(cfg.key);
-                                                return (
-                                                    <div
-                                                        key={cfg.key}
-                                                        onClick={() => toggleColumnVisibility(cfg.key)}
-                                                        style={{
-                                                            padding: '5px 8px', cursor: 'pointer', borderRadius: 4,
-                                                            display: 'flex', alignItems: 'center', gap: 8,
-                                                            background: isHidden ? '#f9fafb' : '#fff',
-                                                            marginBottom: 2,
+                                {/* ===== PRIVATE MODE TOOLS ===== */}
+                                {operationsMode === 'private' && (<>
+                                    <Popover
+                                        trigger="click"
+                                        title={<span style={{ fontWeight: 700 }}>Sütun Görünürlüğü</span>}
+                                        content={
+                                            <div style={{ maxHeight: 340, overflowY: 'auto', width: 200 }}>
+                                                {[
+                                                    { key: 'index', label: '#' },
+                                                    { key: 'bookingNumber', label: 'T.KOD' },
+                                                    { key: 'direction', label: 'YÖN' },
+                                                    { key: 'partnerName', label: 'ACENTE' },
+                                                    { key: 'customerNote', label: 'MÜŞTERİ NOTU' },
+                                                    { key: 'internalNotes', label: 'OP. NOTU' },
+                                                    { key: 'customerName', label: 'AD SOYAD' },
+                                                    { key: 'contactPhone', label: 'TELEFON' },
+                                                    { key: 'date', label: 'TARİH' },
+                                                    { key: 'status', label: 'DURUM' },
+                                                    { key: 'driver', label: 'ŞOFÖR' },
+                                                    { key: 'vehicle', label: 'ARAÇ' },
+                                                    { key: 'time', label: 'TRANSFER SAATİ' },
+                                                    { key: 'flightTime', label: 'UÇUŞ SAATİ' },
+                                                    { key: 'airportCode', label: 'IATA' },
+                                                    { key: 'pickupRegionCode', label: 'ALIŞ BÖLGE' },
+                                                    { key: 'dropoffRegionCode', label: 'VARIŞ BÖLGE' },
+                                                    { key: 'flightCode', label: 'UÇUŞ KODU' },
+                                                    { key: 'pax', label: 'PAX' },
+                                                    { key: 'pickup', label: 'ALIŞ YERİ' },
+                                                    { key: 'dropoff', label: 'BIRAKIŞ YERİ' },
+                                                    { key: 'extraServices', label: 'EKSTRA' },
+                                                    { key: 'actions', label: 'İŞLEM' },
+                                                ].map(col => {
+                                                    const hc = (window as any).getOperationsHiddenColumns?.() || new Set();
+                                                    const isHidden = hc.has(col.key);
+                                                    return (
+                                                        <div key={col.key} onClick={() => {
+                                                            (window as any).toggleOperationsColumn?.(col.key);
+                                                            // Force re-render
+                                                            setHiddenColumns(prev => {
+                                                                const next = new Set(prev);
+                                                                if (next.has(col.key)) next.delete(col.key); else next.add(col.key);
+                                                                return next;
+                                                            });
                                                         }}
+                                                            style={{ padding: '5px 8px', cursor: 'pointer', borderRadius: 4, display: 'flex', alignItems: 'center', gap: 8, background: isHidden ? '#f9fafb' : '#fff', marginBottom: 2 }}
+                                                        >
+                                                            {isHidden ? <EyeInvisibleOutlined style={{ color: '#9ca3af' }} /> : <EyeOutlined style={{ color: '#6366f1' }} />}
+                                                            <span style={{ fontSize: 12, color: isHidden ? '#9ca3af' : '#111' }}>{col.label}</span>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        }
+                                    >
+                                        <Button size="small" icon={<EyeOutlined />} style={{ borderRadius: 6 }}>Sütunlar</Button>
+                                    </Popover>
+                                    <Button size="small" icon={<EditOutlined />} onClick={async () => {
+                                        try {
+                                            const res = await apiClient.get('/api/auth/metadata');
+                                            const prefs = res.data?.data?.operations_preferences || {};
+                                            setTempColumnTitles(prefs.columnTitles || {});
+                                        } catch (e) {
+                                            setTempColumnTitles({});
+                                        }
+                                        setColumnTitlesModalVisible(true);
+                                    }} style={{ borderRadius: 6 }}>Başlıklar</Button>
+                                    <Button size="small" icon={<BgColorsOutlined />} onClick={openColorModal} style={{ borderRadius: 6 }}>Renkler</Button>
+                                    <Button size="small" icon={<SaveOutlined />} onClick={() => {
+                                        if ((window as any).saveOperationsColumnSettings) {
+                                            (window as any).saveOperationsColumnSettings();
+                                        }
+                                        saveLayout();
+                                    }} style={{ borderRadius: 6 }}>Kaydet</Button>
+                                    <Tooltip title="Varsayılana Dön">
+                                        <Button size="small" icon={<UndoOutlined />} onClick={resetLayout} style={{ borderRadius: 6 }} />
+                                    </Tooltip>
+                                    <Button size="small" icon={<ReloadOutlined />} onClick={fetchBookings} loading={loading} style={{ borderRadius: 6 }} />
+                                </>)}
+
+                                {/* ===== SHUTTLE MODE TOOLS ===== */}
+                                {operationsMode === 'shuttle' && (<>
+                                    <Popover
+                                        trigger="click"
+                                        title={<span style={{ fontWeight: 700 }}>Shuttle Sütunları</span>}
+                                        content={
+                                            <div style={{ maxHeight: 320, overflowY: 'auto', width: 200 }}>
+                                                {shuttleCols.map(col => (
+                                                    <div key={col.key} onClick={() => toggleShuttleCol(col.key)}
+                                                        style={{ padding: '5px 8px', cursor: 'pointer', borderRadius: 4, display: 'flex', alignItems: 'center', gap: 8, background: col.hidden ? '#f9fafb' : '#fff', marginBottom: 2 }}
                                                     >
-                                                        {isHidden
-                                                            ? <EyeInvisibleOutlined style={{ color: '#9ca3af' }} />
-                                                            : <EyeOutlined style={{ color: '#6366f1' }} />
-                                                        }
-                                                        <span style={{ fontSize: 12, color: isHidden ? '#9ca3af' : '#111' }}>{label}</span>
+                                                        {col.hidden ? <EyeInvisibleOutlined style={{ color: '#9ca3af' }} /> : <EyeOutlined style={{ color: '#6366f1' }} />}
+                                                        <span style={{ fontSize: 12, color: col.hidden ? '#9ca3af' : '#111' }}>{col.label}</span>
                                                     </div>
-                                                );
-                                            })}
-                                        </div>
-                                    }
-                                >
-                                    <Button size="small" icon={<EyeOutlined />} style={{ borderRadius: 6 }}>Sütunlar</Button>
-                                </Popover>
-                                <Button size="small" icon={<EditOutlined />} onClick={openEditModal} style={{ borderRadius: 6 }}>Başlıklar</Button>
-                                <Button size="small" icon={<BgColorsOutlined />} onClick={openColorModal} style={{ borderRadius: 6 }}>Renkler</Button>
-                                <Button size="small" icon={<SaveOutlined />} onClick={saveLayout} style={{ borderRadius: 6 }}>Kaydet</Button>
-                                <Tooltip title="Varsayılana Dön">
-                                    <Button size="small" icon={<UndoOutlined />} onClick={resetLayout} style={{ borderRadius: 6 }} />
-                                </Tooltip>
-                                <Button size="small" icon={<ReloadOutlined />} onClick={fetchBookings} loading={loading} style={{ borderRadius: 6 }} />
+                                                ))}
+                                            </div>
+                                        }
+                                    >
+                                        <Button size="small" icon={<EyeOutlined />} style={{ borderRadius: 6 }}>Sütunlar</Button>
+                                    </Popover>
+                                    <Button size="small" icon={<EditOutlined />} onClick={() => { setTempShuttleCols(shuttleCols.map(c=>({...c}))); setShuttleColEditVisible(true); }} style={{ borderRadius: 6 }}>Başlıklar</Button>
+                                    <Button size="small" icon={<BgColorsOutlined />} onClick={() => { setTempShuttleColors({...shuttleColors}); setShuttleColorVisible(true); }} style={{ borderRadius: 6 }}>Renkler</Button>
+                                    <Button size="small" icon={<SaveOutlined />} onClick={saveShuttleColWidths} style={{ borderRadius: 6 }}>Kaydet</Button>
+                                    <Tooltip title="Varsayılana Dön">
+                                        <Button size="small" icon={<UndoOutlined />} onClick={() => setShuttleCols(SHUTTLE_DEFAULT_COLS.map(c=>({...c})))} style={{ borderRadius: 6 }} />
+                                    </Tooltip>
+                                    <Button size="small" icon={<ReloadOutlined />} onClick={fetchShuttleRuns} loading={shuttleRunsLoading} style={{ borderRadius: 6 }} />
+                                </>)}
+
                                 <Button size="small" icon={<FileExcelOutlined />} style={{ borderRadius: 6, background: '#16a34a', color: '#fff', border: 'none' }}>Excel</Button>
                                 <Tooltip title={isFullscreen ? 'Tam ekrandan çık (ESC)' : 'Tam ekran'}>
                                     <Button
@@ -1624,7 +2253,7 @@ export default function OperationsPage() {
                         <div style={{
                             background: '#fff',
                             borderBottom: '1px solid #e5e7eb',
-                            padding: '0 20px',
+                            padding: '0 16px',
                             display: 'flex',
                             gap: 0,
                             flexShrink: 0,
@@ -1671,8 +2300,8 @@ export default function OperationsPage() {
                     {operationsMode === 'private' && (
                         <div style={{
                             background: '#f8fafc',
-                            borderBottom: '1px solid #e5e7eb',
-                            padding: '6px 20px',
+                            borderBottom: '1px solid #f1f5f9',
+                            padding: '4px 16px',
                             display: 'flex',
                             justifyContent: 'space-between',
                             alignItems: 'center',
@@ -1694,9 +2323,15 @@ export default function OperationsPage() {
                                     );
                                 })}
                             </Space>
-                            <Text type="secondary" style={{ fontSize: 11 }}>
-                                <DragOutlined /> Sütunları sürükleyip genişletebilirsiniz
-                            </Text>
+                            <Space size={6} style={{ fontSize: 10, color: '#94a3b8' }}>
+                                <span>↔ Genişlik</span>
+                                <span style={{ color: '#d1d5db' }}>·</span>
+                                <span>⇄ Sırala</span>
+                                <span style={{ color: '#d1d5db' }}>·</span>
+                                <span>🔍 Filtre</span>
+                                <span style={{ color: '#d1d5db' }}>·</span>
+                                <span>✎ Çift tık = düzenle</span>
+                            </Space>
                         </div>
                     )}
 
@@ -1730,88 +2365,37 @@ export default function OperationsPage() {
 
                     {/* ── MAIN TABLE (Private mode) ── */}
                     {operationsMode === 'private' && (
-                    <div style={{ flex: 1, overflow: 'auto', padding: '0' }}>
-                        <DndContext
-                            sensors={sensors}
-                            modifiers={[restrictToHorizontalAxis]}
-                            onDragEnd={handleDragEnd}
-                        >
-                            <SortableContext
-                                items={(columns as any[]).filter(Boolean).map((i: any) => i.key)}
-                                strategy={horizontalListSortingStrategy}
-                            >
-                                <Table
-                                    rowKey="id"
-                                    bordered
-                                    columns={(columns as any[]).filter(Boolean).map((col, index) => ({
-                                        ...col,
-                                        onHeaderCell: (column: any) => ({
-                                            width: column.width,
-                                            onResize: handleResize(index),
-                                            id: column.key,
-                                        }),
-                                    }))}
-                                    components={{
-                                        header: {
-                                            cell: ResizableTitle,
-                                        },
-                                    }}
-                                    dataSource={bookings.filter((b: any) => {
-                                        if (bookingTab === 'completed') return b.status === 'COMPLETED';
-                                        return b.status !== 'COMPLETED';
-                                    })}
-                                    rowClassName={(record: any) => {
-                                        const color = getRowColor(record);
-                                        return color ? `status-row-colored` : '';
-                                    }}
-                                    onRow={(record: any) => ({
-                                        style: { backgroundColor: getRowColor(record) || undefined }
-                                    })}
-                                    loading={loading}
-                                    pagination={{
-                                        pageSize: 20,
-                                        showSizeChanger: true,
-                                        size: 'small',
-                                        style: { padding: '8px 16px' }
-                                    }}
-                                    size="small"
-                                    scroll={{ x: 1800, y: 'calc(100vh - 240px)' }}
-                                    sticky
-                                />
-                            </SortableContext>
-                        </DndContext>
+                    <div style={{ flex: 1, overflow: 'auto', padding: '16px 20px' }}>
+                        <OperationsTable
+                            bookings={bookings.filter((b: any) => {
+                                if (bookingTab === 'completed') return b.status === 'COMPLETED';
+                                return b.status !== 'COMPLETED';
+                            })}
+                            loading={loading}
+                            drivers={drivers}
+                            vehicles={vehicles}
+                            statusColors={statusColors}
+                            airportColors={airportColors}
+                            onDriverChange={handleDriverChange}
+                            onVehicleChange={handleVehicleChange}
+                            onCellEdit={saveCellEdit}
+                            onStatusChange={(bookingId, newStatus) => saveCellEdit(bookingId, 'status', newStatus)}
+                            onAISuggest={handleAISuggest}
+                            onOpenMessageModal={handleOpenMessageModal}
+                            onOpenCompleteModal={handleOpenCompleteModal}
+                            onReturnToReservation={(booking) => setReturnModal({ booking, reason: '' })}
+                            onRowOrderChange={handleRowOrderChange}
+                            onAirportColorChange={handleAirportColorChange}
+                            onOpenLocationModal={handleOpenLocationModal}
+                        />
                     </div>
                     )}
 
                     {/* ── SHUTTLE RUNS CARD PANEL (Shuttle mode) ── */}
                     {operationsMode === 'shuttle' && (
                     <div style={{ flex: 1, overflow: 'auto', padding: '16px 20px', background: '#f8fafc' }}>
-                        {shuttleRunsLoading ? (
-                            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 300 }}>
-                                <Spin size="large" tip="Sefer verileri yükleniyor..." />
-                            </div>
-                        ) : shuttleRuns.length === 0 ? (
-                            <div style={{
-                                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                                height: 380, gap: 16
-                            }}>
-                                <div style={{ fontSize: 64 }}>🚌</div>
-                                <div style={{ fontSize: 20, fontWeight: 700, color: '#374151' }}>Bu tarihte shuttle seferi bulunamadı</div>
-                                <div style={{ fontSize: 14, color: '#9ca3af', maxWidth: 400, textAlign: 'center' }}>
-                                    Shuttle seferleri, rezervasyon yapılırken araç tipi "Shuttle" veya "Paylaşımlı" seçilen
-                                    gruplandırılmış transferlerdir. Tarih filtresini değiştirmeyi deneyin.
-                                </div>
-                                <Button
-                                    type="primary"
-                                    icon={<ReloadOutlined />}
-                                    onClick={fetchShuttleRuns}
-                                    style={{ borderRadius: 8, background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', border: 'none' }}
-                                >
-                                    Yeniden Yükle
-                                </Button>
-                            </div>
-                        ) : (
-                            <DndContext onDragEnd={handleShuttleDragEnd}>
+                        
+                        <DndContext onDragEnd={handleShuttleDragEnd}>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                                 {shuttleRuns.map((run: any) => {
                                     const totalPax = run.bookings.reduce((s: number, b: any) => s + (b.adults || 1), 0);
@@ -1825,626 +2409,814 @@ export default function OperationsPage() {
                                     const driverName = run.driverId
                                         ? (() => { const d = drivers.find((dr: any) => (dr.user?.id || dr.id) === run.driverId); return d ? `${d.firstName} ${d.lastName}` : run.driverId.substring(0, 8); })()
                                         : null;
+
                                     const vehiclePlate = run.vehicleId
                                         ? (() => { const v = vehicles.find((vh: any) => vh.id === run.vehicleId); return v ? v.plateNumber : null; })()
                                         : null;
-
-                                    const shuttleVehicles = vehicles.filter((v: any) => (Array.isArray(v.usageType) ? v.usageType.includes('SHUTTLE') : v.usageType === 'SHUTTLE') || (Array.isArray(v.metadata?.usageType) ? v.metadata?.usageType.includes('SHUTTLE') : v.metadata?.usageType === 'SHUTTLE'));
-                                    const vehicleOpts = (shuttleVehicles.length > 0 ? shuttleVehicles : vehicles).map((v: any) => ({
-                                        value: v.id,
-                                        label: `${v.plateNumber} – ${v.brand || ''} ${v.model || ''}`.trim()
-                                    }));
-                                    const driverOpts = drivers.map((d: any) => ({
-                                        value: d.user?.id || d.id,
-                                        label: `${d.firstName || ''} ${d.lastName || ''}`.trim()
-                                    }));
 
                                     return (
                                         <DroppableShuttleRun key={run.runKey} runId={run.runKey}>
                                         <div style={{
                                             background: '#fff',
-                                            borderRadius: 12,
-                                            border: `2px solid ${isAssigned ? '#10b981' : isPartial ? '#f59e0b' : '#e5e7eb'}`,
+                                            borderRadius: 14,
                                             overflow: 'hidden',
-                                            boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
+                                            boxShadow: isAssigned
+                                                ? '0 2px 12px rgba(22,163,74,0.12), 0 0 0 1.5px #bbf7d0'
+                                                : isPartial
+                                                ? '0 2px 12px rgba(217,119,6,0.10), 0 0 0 1.5px #fde68a'
+                                                : '0 2px 8px rgba(99,102,241,0.06), 0 0 0 1px #e0e7ff',
+                                            marginBottom: 6,
+                                            transition: 'box-shadow 0.2s'
                                         }}>
                                             {/* ── CARD HEADER ── */}
                                             <div style={{
                                                 display: 'flex', alignItems: 'center', gap: 12,
-                                                padding: '10px 14px',
+                                                padding: '10px 16px',
                                                 background: isAssigned
-                                                    ? 'linear-gradient(135deg, #f0fdf4, #dcfce7)'
+                                                    ? 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)'
                                                     : isPartial
-                                                    ? 'linear-gradient(135deg, #fffbeb, #fef3c7)'
-                                                    : 'linear-gradient(135deg, #f8fafc, #f1f5f9)',
-                                                borderBottom: '1px solid #e5e7eb',
+                                                    ? 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)'
+                                                    : 'linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%)',
+                                                borderBottom: `2px solid ${isAssigned ? '#86efac' : isPartial ? '#fcd34d' : '#c4b5fd'}`,
                                             }}>
-                                                {/* Kalkış saati */}
-                                                <div style={{
-                                                    background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-                                                    color: '#fff', borderRadius: 8,
-                                                    padding: '8px 14px', fontSize: 20, fontWeight: 800,
-                                                    letterSpacing: 1, minWidth: 72, textAlign: 'center', flexShrink: 0,
-                                                }}>
+                                                {/* Departure Time Badge */}
+                                                <div
+                                                    style={{
+                                                        background: 'linear-gradient(135deg, #4f46e5, #7c3aed)',
+                                                        color: '#fff',
+                                                        borderRadius: 10,
+                                                        padding: '6px 14px',
+                                                        fontSize: 22,
+                                                        fontWeight: 900,
+                                                        letterSpacing: 1,
+                                                        minWidth: 78,
+                                                        textAlign: 'center',
+                                                        flexShrink: 0,
+                                                        cursor: 'pointer',
+                                                        boxShadow: '0 2px 8px rgba(79,70,229,0.3)',
+                                                        lineHeight: 1.2,
+                                                    }}
+                                                    onClick={() => setEditRunModal({ run, time: run.departureTime, name: run.routeName || '' })}
+                                                >
                                                     {run.departureTime}
                                                 </div>
 
-                                                {/* Varış + Yolcu sayısı */}
+                                                {/* Route Info */}
                                                 <div style={{ flex: 1, minWidth: 0 }}>
-                                                    <div style={{ fontWeight: 800, fontSize: 15, color: '#1e293b', marginBottom: 3 }}>
-                                                        🏁 {run.toName || run.routeName}
+                                                    <div style={{ fontWeight: 800, fontSize: 14, color: '#1e1b4b', marginBottom: 3, display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden' }}>
+                                                        <span style={{ color: '#7c3aed', fontSize: 13 }}>🚌</span>
+                                                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{run.routeName || 'İsimsiz Rota'}</span>
+                                                        <Button
+                                                            type="text" size="small"
+                                                            icon={<EditOutlined />}
+                                                            onClick={() => setEditRunModal({ run, time: run.departureTime, name: run.routeName || '' })}
+                                                            style={{ padding: '0 4px', color: '#6366f1', fontSize: 11, flexShrink: 0 }}
+                                                        />
                                                     </div>
-                                                    <div style={{ fontSize: 11, color: '#64748b', display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-                                                        <span style={{ fontWeight: 600, color: '#6366f1' }}>📍 {run.bookings.length} durak:</span>
-                                                        {run.bookings.map((b: any, i: number) => (
-                                                            <span key={b.id} style={{ background: '#e0e7ff', color: '#4338ca', borderRadius: 4, padding: '1px 6px', fontSize: 10, fontWeight: 600 }}>
-                                                                {b.contactName?.split(' ')[0]}
-                                                            </span>
+                                                    <div style={{ fontSize: 11, color: '#6d28d9', display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                                                        <span style={{ fontWeight: 700, background: '#ede9fe', color: '#5b21b6', padding: '1px 7px', borderRadius: 8 }}>📍 {run.bookings.length} durak</span>
+                                                        {run.bookings.slice(0, 4).map((b: any) => (
+                                                            <span key={b.id} style={{ opacity: 0.75, background: '#f5f3ff', borderRadius: 4, padding: '1px 5px', fontSize: 10 }}>{b.contactName?.split(' ')[0]}</span>
+                                                        ))}
+                                                        {run.bookings.length > 4 && <span style={{ fontSize: 10, color: '#94a3b8' }}>+{run.bookings.length - 4}</span>}
+                                                    </div>
+                                                </div>
+
+                                                {/* PAX Counter */}
+                                                <div style={{ textAlign: 'center', flexShrink: 0, background: '#fff', borderRadius: 8, padding: '4px 10px', boxShadow: '0 1px 4px rgba(0,0,0,0.08)' }}>
+                                                    <div style={{ fontWeight: 900, fontSize: 22, color: fillColor, lineHeight: 1 }}>{totalPax}</div>
+                                                    <div style={{ fontSize: 9, color: '#94a3b8', fontWeight: 700, marginTop: 1 }}>/{capacity} PAX</div>
+                                                </div>
+
+                                                <div style={{ width: 1, height: 36, background: '#c4b5fd', margin: '0 4px' }} />
+
+                                                {/* Assignment Controls */}
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                    <Select
+                                                        placeholder="Şoför Seç"
+                                                        value={run.driverId}
+                                                        onChange={(val) => handleShuttleAssign(run, val, run.vehicleId)}
+                                                        style={{ width: 150 }}
+                                                        allowClear
+                                                        size="small"
+                                                    >
+                                                        {drivers.map((d: any) => (
+                                                            <Option key={d.id} value={d.user?.id || d.id}>{d.firstName} {d.lastName}</Option>
+                                                        ))}
+                                                    </Select>
+                                                    <Select
+                                                        placeholder="Araç Seç"
+                                                        value={run.vehicleId}
+                                                        onChange={(val) => handleShuttleAssign(run, run.driverId, val)}
+                                                        style={{ width: 150 }}
+                                                        allowClear
+                                                        size="small"
+                                                    >
+                                                        {vehicles.map((v: any) => (
+                                                            <Option key={v.id} value={v.id}>{v.plateNumber} — {v.brand} {v.model}</Option>
+                                                        ))}
+                                                    </Select>
+
+                                                    {!run.driverId && !run.vehicleId && (
+                                                        <span style={{
+                                                            fontSize: 10, color: '#ef4444',
+                                                            background: '#fff1f0', borderRadius: 6,
+                                                            padding: '2px 7px', fontWeight: 700,
+                                                            border: '1px solid #fecaca'
+                                                        }}>✗ Atanmadı</span>
+                                                    )}
+                                                    
+                                                    <Button
+                                                        type="text"
+                                                        size="small"
+                                                        icon={<EnvironmentOutlined />}
+                                                        onClick={async () => {
+                                                            if (!run.bookings || run.bookings.length < 2) {
+                                                                message.info('En az 2 yolcu olmalı');
+                                                                return;
+                                                            }
+                                                            message.loading({ content: 'Güzergah hesaplanıyor...', key: 'optimize', duration: 30 });
+                                                            try {
+                                                                const bookingIds = run.bookings.map((b: any) => b.id);
+                                                                const dest = run.toName || run.routeName || 'Gazipaşa Alanya Havalimanı';
+                                                                const res = await apiClient.post('/api/operations/shuttle-runs/optimize-route', {
+                                                                    bookingIds,
+                                                                    destinationAddress: dest
+                                                                });
+                                                                if (res.data.success) {
+                                                                    message.success({ content: `Güzergah optimize edildi! ${res.data.optimizedOrder.length} yolcu sıralandı`, key: 'optimize' });
+                                                                    fetchShuttleRuns(); // Refresh to get new order
+                                                                } else {
+                                                                    message.error({ content: res.data.error || 'Optimizasyon başarısız', key: 'optimize' });
+                                                                }
+                                                            } catch (e: any) {
+                                                                message.error({ content: 'Güzergah optimizasyonu başarısız: ' + (e?.response?.data?.error || e.message), key: 'optimize' });
+                                                            }
+                                                        }}
+                                                        title="Güzergaha Göre Sırala"
+                                                        style={{ borderRadius: 6, color: '#2563eb', fontWeight: 600 }}
+                                                    >
+                                                        🗺️ Güzergah Sırala
+                                                    </Button>
+
+                                                    <Button
+                                                        type="text"
+                                                        danger
+                                                        size="small"
+                                                        icon={<DeleteOutlined />}
+                                                        onClick={() => handleDeleteManualRun(run.runKey)}
+                                                        title="Seferi Sil"
+                                                        style={{ borderRadius: 6 }}
+                                                    />
+
+                                                    <Button
+                                                        size="small"
+                                                        icon={isExpanded ? <CaretUpOutlined /> : <CaretDownOutlined />}
+                                                        onClick={() => setExpandedRunKeys(prev => isExpanded ? prev.filter(k => k !== run.runKey) : [...prev, run.runKey])}
+                                                        style={{ borderRadius: 6 }}
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            {isExpanded && (
+                                                <div style={{ background: '#fcfaff', borderTop: '1px solid #e9d5ff' }}>
+                                                    {/* Passenger Columns Header */}
+                                                    <div style={{ 
+                                                        display: 'grid', 
+                                                        gridTemplateColumns: shuttleCols.filter(c => !c.hidden).map(c => `${c.width}px`).join(' '),
+                                                        background: 'linear-gradient(135deg, #f5f3ff, #ede9fe)', borderBottom: '1px solid #c4b5fd', padding: '0 4px'
+                                                    }}>
+                                                        {shuttleCols.filter(c => !c.hidden).map((col, colIdx) => (
+                                                            <div 
+                                                                key={col.key} 
+                                                                draggable={col.key !== 'sort'}
+                                                                onDragStart={(e) => {
+                                                                    e.dataTransfer.setData('shuttle-col-key', col.key);
+                                                                }}
+                                                                onDragOver={(e) => {
+                                                                    e.preventDefault();
+                                                                    e.currentTarget.style.borderLeft = '3px solid #7c3aed';
+                                                                }}
+                                                                onDragLeave={(e) => {
+                                                                    e.currentTarget.style.borderLeft = 'none';
+                                                                }}
+                                                                onDrop={(e) => {
+                                                                    e.preventDefault();
+                                                                    e.currentTarget.style.borderLeft = 'none';
+                                                                    const dragKey = e.dataTransfer.getData('shuttle-col-key');
+                                                                    if (!dragKey || dragKey === col.key) return;
+                                                                    setShuttleCols(prev => {
+                                                                        const arr = [...prev];
+                                                                        const fromIdx = arr.findIndex(c => c.key === dragKey);
+                                                                        const toIdx = arr.findIndex(c => c.key === col.key);
+                                                                        if (fromIdx === -1 || toIdx === -1) return prev;
+                                                                        const [moved] = arr.splice(fromIdx, 1);
+                                                                        arr.splice(toIdx, 0, moved);
+                                                                        // Save to API
+                                                                        saveShuttleColsToAPI(arr);
+                                                                        return arr;
+                                                                    });
+                                                                }}
+                                                                style={{ 
+                                                                    padding: '7px 8px', fontSize: 10, fontWeight: 800, color: '#5b21b6', position: 'relative', 
+                                                                    letterSpacing: 0.5, textTransform: 'uppercase',
+                                                                    cursor: col.key !== 'sort' ? 'grab' : 'default',
+                                                                    userSelect: 'none',
+                                                                }}
+                                                            >
+                                                                {col.label}
+                                                                {/* Belirgin resize handle */}
+                                                                <div 
+                                                                    onMouseDown={(e) => {
+                                                                        e.preventDefault();
+                                                                        e.stopPropagation();
+                                                                        const startX = e.clientX;
+                                                                        const startW = col.width;
+                                                                        const onMove = (me: MouseEvent) => resizeShuttleCol(col.key, startW + me.clientX - startX);
+                                                                        const onUp = () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+                                                                        window.addEventListener('mousemove', onMove);
+                                                                        window.addEventListener('mouseup', onUp);
+                                                                    }}
+                                                                    style={{ 
+                                                                        position: 'absolute', right: 0, top: '15%', bottom: '15%', width: 3, 
+                                                                        cursor: 'col-resize',
+                                                                        background: 'rgba(124, 58, 237, 0.3)',
+                                                                        borderRadius: 2,
+                                                                        transition: 'all 0.2s',
+                                                                    }} 
+                                                                    onMouseEnter={(e) => {
+                                                                        e.currentTarget.style.background = '#7c3aed';
+                                                                        e.currentTarget.style.width = '4px';
+                                                                    }}
+                                                                    onMouseLeave={(e) => {
+                                                                        e.currentTarget.style.background = 'rgba(124, 58, 237, 0.3)';
+                                                                        e.currentTarget.style.width = '3px';
+                                                                    }}
+                                                                />
+                                                            </div>
                                                         ))}
                                                     </div>
-                                                </div>
 
-                                                {/* Toplam yolcu */}
-                                                <div style={{ textAlign: 'center', flexShrink: 0 }}>
-                                                    <div style={{ fontWeight: 800, fontSize: 20, color: fillColor, lineHeight: 1 }}>{totalPax}</div>
-                                                    <div style={{ fontSize: 10, color: '#9ca3af' }}>yolcu</div>
-                                                    {capacity > 0 && (
-                                                        <div style={{ width: 50, height: 4, background: '#e5e7eb', borderRadius: 3, marginTop: 3 }}>
-                                                            <div style={{ width: `${Math.min(pct, 100)}%`, height: '100%', background: fillColor, borderRadius: 3 }} />
-                                                        </div>
-                                                    )}
-                                                </div>
+                                                    {/* Passenger Body Rows */}
+                                                    <div style={{ minHeight: 20 }}>
+                                                        <SortableContext items={run.bookings.map((b: any) => b.id)} strategy={verticalListSortingStrategy}>
+                                                            {run.bookings.map((b: any, idx: number) => {
+                                                                const rowBg = (shuttleColors as any)[b.status] || (idx % 2 === 0 ? '#fff' : '#fafafa');
+                                                                const pickupTime = b.pickupDateTime ? new Date(b.pickupDateTime).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }) : run.departureTime;
 
-                                                {/* Durum badge */}
-                                                <div style={{ flexShrink: 0 }}>
-                                                    {isAssigned
-                                                        ? <Tag color="success" style={{ fontWeight: 700 }}>✅ Atandı</Tag>
-                                                        : isPartial
-                                                        ? <Tag color="warning" style={{ fontWeight: 700 }}>⚠️ Kısmi</Tag>
-                                                        : <Tag color="error" style={{ fontWeight: 700 }}>❌ Atanmadı</Tag>
-                                                    }
-                                                </div>
-                                            </div>
+                                                                const renderCell = (key: string) => {
+                                                                    const statusMap: any = {
+                                                                        CONFIRMED: { color: '#2563eb', label: 'Onaylı' },
+                                                                        PENDING: { color: '#d97706', label: 'Bekliyor' },
+                                                                        COMPLETED: { color: '#16a34a', label: 'Tamamlandı' },
+                                                                        CANCELLED: { color: '#dc2626', label: 'İptal' },
+                                                                    };
+                                                                    const st = statusMap[b.status] || { color: '#6b7280', label: b.status };
+                                                                    
+                                                                    switch(key) {
+                                                                        case 'sort': return (
+                                                                            <div style={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
+                                                                                <span style={{ cursor: 'grab', color: '#9ca3af' }}>⠿</span>
+                                                                            </div>
+                                                                        );
+                                                                        case 'index': return <span style={{ fontWeight: 800, color: '#5b21b6' }}>{idx + 1}</span>;
+                                                                        case 'customer': {
+                                                                            const agencyName = b.agencyName || b.agency?.name || b.partnerName;
+                                                                            return (
+                                                                                <div>
+                                                                                    <div style={{ fontWeight: 700, fontSize: 12, color: '#1e1b4b' }}>{b.contactName}</div>
+                                                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 1 }}>
+                                                                                        <div style={{ fontSize: 9, color: '#7c3aed', opacity: 0.8 }}>{b.bookingNumber}</div>
+                                                                                        {agencyName ? (
+                                                                                            <span style={{ fontSize: 9, background: '#eff6ff', color: '#1d4ed8', padding: '0px 4px', borderRadius: 3, fontWeight: 700 }}>{agencyName}</span>
+                                                                                        ) : (
+                                                                                            <span style={{ fontSize: 9, background: '#f0fdf4', color: '#15803d', padding: '0px 4px', borderRadius: 3, fontWeight: 700 }}>Direkt</span>
+                                                                                        )}
+                                                                                    </div>
+                                                                                </div>
+                                                                            );
+                                                                        }
+                                                                        case 'pickupTime': {
+                                                                            if (editingPickupTime?.bookingId === b.id) {
+                                                                                return (
+                                                                                    <input
+                                                                                        type="time"
+                                                                                        defaultValue={editingPickupTime!.value}
+                                                                                        autoFocus
+                                                                                        onBlur={(e) => {
+                                                                                            if (e.target.value && e.target.value !== editingPickupTime!.value) {
+                                                                                                // Build full datetime
+                                                                                                const baseDate = b.pickupDateTime ? b.pickupDateTime.split('T')[0] : new Date().toISOString().split('T')[0];
+                                                                                                handlePickupTimeEdit(b.id, `${baseDate}T${e.target.value}:00`);
+                                                                                            } else {
+                                                                                                setEditingPickupTime(null);
+                                                                                            }
+                                                                                        }}
+                                                                                        onKeyDown={(e) => {
+                                                                                            if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                                                                                            if (e.key === 'Escape') setEditingPickupTime(null);
+                                                                                        }}
+                                                                                        style={{ 
+                                                                                            fontWeight: 700, color: '#1e3a8a', background: '#dbeafe', 
+                                                                                            padding: '2px 4px', borderRadius: 5, fontSize: 12, 
+                                                                                            border: '2px solid #3b82f6', outline: 'none', width: '70px'
+                                                                                        }}
+                                                                                    />
+                                                                                );
+                                                                            }
+                                                                            return (
+                                                                                <span 
+                                                                                    onDoubleClick={() => setEditingPickupTime({ bookingId: b.id, value: pickupTime })}
+                                                                                    title="Çift tıklayarak düzenleyin"
+                                                                                    style={{ 
+                                                                                        fontWeight: 700, color: '#1e3a8a', background: '#eff6ff', 
+                                                                                        padding: '2px 7px', borderRadius: 5, fontSize: 12, 
+                                                                                        cursor: 'pointer' 
+                                                                                    }}
+                                                                                >
+                                                                                    {pickupTime}
+                                                                                </span>
+                                                                            );
+                                                                        }
+                                                                        case 'pickup': return (
+                                                                            <span onDoubleClick={() => setMapModal({ name: b.contactName, pickup: b.pickup || '' })} style={{ cursor: 'pointer', fontSize: 12, color: '#374151' }}>
+                                                                                <span style={{ color: '#dc2626', marginRight: 3 }}>📍</span>{b.pickup || '-'}
+                                                                            </span>
+                                                                        );
+                                                                        case 'flight': return (
+                                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                                                                                <span style={{ fontSize: 11, color: '#1e40af', fontWeight: 600 }}>
+                                                                                    ✈️ {b.flightNumber || '-'}
+                                                                                </span>
+                                                                                {(b.flightTime || b.metadata?.flightTime) && (
+                                                                                    <span style={{ fontSize: 10, color: '#6366f1', fontWeight: 700 }}>
+                                                                                        🕐 {b.flightTime || b.metadata?.flightTime}
+                                                                                    </span>
+                                                                                )}
+                                                                            </div>
+                                                                        );
+                                                                        case 'pax': return <span style={{ fontWeight: 700, color: '#374151' }}>{b.adults || 1} p</span>;
+                                                                        case 'phone': return <span style={{ fontSize: 12, color: '#374151' }}>{b.contactPhone}</span>;
+                                                                        case 'extras': {
+                                                                            const extras = b.metadata?.extraServices || b.extraServices || [];
+                                                                            if (!extras.length) return <span style={{ fontSize: 11, color: '#999' }}>-</span>;
+                                                                            return (
+                                                                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+                                                                                    {extras.map((e: any, i: number) => (
+                                                                                        <span key={i} style={{ fontSize: 10, background: '#f3e8ff', color: '#7c3aed', padding: '1px 6px', borderRadius: 4, border: '1px solid #e9d5ff', whiteSpace: 'nowrap' }}>
+                                                                                            {e.quantity || 1}x {e.name || e.serviceName || 'Ekstra'}
+                                                                                        </span>
+                                                                                    ))}
+                                                                                </div>
+                                                                            );
+                                                                        }
+                                                                        case 'status': return (
+                                                                            <span style={{
+                                                                                fontWeight: 700,
+                                                                                color: st.color,
+                                                                                background: st.color + '18',
+                                                                                padding: '2px 8px',
+                                                                                borderRadius: 10,
+                                                                                fontSize: 11,
+                                                                                border: `1px solid ${st.color}40`,
+                                                                                textTransform: 'uppercase',
+                                                                                letterSpacing: 0.3
+                                                                            }}>
+                                                                                {st.label}
+                                                                            </span>
+                                                                        );
+                                                                        default: return null;
+                                                                    }
+                                                                };
 
-                                            {/* Card Body: Assignments */}
-                                            <div style={{ padding: '10px 16px', display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap', borderBottom: '1px solid #e5e7eb' }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                                    <span style={{ fontSize: 12, color: '#6b7280', fontWeight: 600, minWidth: 50 }}>ŞOFÖR</span>
-                                                    <Select
-                                                        size="small"
-                                                        style={{ width: 180 }}
-                                                        placeholder="Şoför seç..."
-                                                        showSearch
-                                                        optionFilterProp="label"
-                                                        value={run.driverId || undefined}
-                                                        options={driverOpts}
-                                                        onChange={(v) => handleShuttleAssign(run, v, undefined)}
-                                                        allowClear
-                                                    />
-                                                    {driverName && (
-                                                        <span style={{ fontSize: 12, color: '#10b981', fontWeight: 600 }}>👤 {driverName}</span>
-                                                    )}
-                                                </div>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                                    <span style={{ fontSize: 12, color: '#6b7280', fontWeight: 600, minWidth: 40 }}>ARAÇ</span>
-                                                    <Select
-                                                        size="small"
-                                                        style={{ width: 200 }}
-                                                        placeholder="Araç seç..."
-                                                        showSearch
-                                                        optionFilterProp="label"
-                                                        value={run.vehicleId || undefined}
-                                                        options={vehicleOpts}
-                                                        onChange={(v) => handleShuttleAssign(run, undefined, v)}
-                                                        allowClear
-                                                    />
-                                                    {vehiclePlate && (
-                                                        <span style={{ fontSize: 12, color: '#6366f1', fontWeight: 600 }}>🚌 {vehiclePlate}</span>
-                                                    )}
-                                                </div>
-                                                {run.pricePerSeat > 0 && (
-                                                    <div style={{ marginLeft: 'auto', fontSize: 12, color: '#6b7280' }}>
-                                                        Koltuk fiyatı: <strong style={{ color: '#1f2937' }}>₺{run.pricePerSeat}</strong>
-                                                        &nbsp;·&nbsp; Toplam: <strong style={{ color: '#6366f1' }}>₺{(run.pricePerSeat * totalPax).toLocaleString()}</strong>
+                                                                return (
+                                                                    <DraggablePassengerItem key={b.id} booking={b}>
+                                                                        {(dnd) => (
+                                                                            <div 
+                                                                                ref={dnd.setNodeRef} 
+                                                                                style={{
+                                                                                    ...dnd.style,
+                                                                                    display: 'grid', 
+                                                                                    gridTemplateColumns: shuttleCols.filter(c => !c.hidden).map(c => `${c.width}px`).join(' '),
+                                                                                    background: dnd.isDragging ? '#e0e7ff' : rowBg,
+                                                                                    borderBottom: '1px solid #ede9fe',
+                                                                                    padding: '0 4px',
+                                                                                    transition: 'background 0.15s',
+                                                                                }}
+                                                                            >
+                                                                                {shuttleCols.filter(c => !c.hidden).map(col => (
+                                                                                    <div key={col.key} style={{ padding: '7px 8px', overflow: 'hidden', display: 'flex', alignItems: 'center' }} {...(col.key === 'sort' ? dnd.listeners : {})}>
+                                                                                        {col.key === 'sort' ? <div {...dnd.attributes} style={{ display: 'flex', justifyContent: 'center', cursor: 'grab', color: '#a78bfa', fontSize: 14 }}>⠿</div> : renderCell(col.key)}
+                                                                                    </div>
+                                                                                ))}
+                                                                            </div>
+                                                                        )}
+                                                                    </DraggablePassengerItem>
+                                                                );
+                                                            })}
+                                                        </SortableContext>
                                                     </div>
-                                                )}
-                                            </div>
-
-                                            {/* ── ALWAYS-VISIBLE PASSENGER LIST ── */}
-                                            <div style={{ background: '#fafafa' }}>
-                                                {/* Column header row */}
-                                                <div style={{
-                                                    display: 'grid',
-                                                    gridTemplateColumns: '32px 1fr 80px 200px 90px 50px 120px 80px',
-                                                    gap: 0,
-                                                    padding: '5px 12px',
-                                                    background: '#f1f5f9',
-                                                    borderBottom: '1px solid #e2e8f0',
-                                                    fontSize: 11,
-                                                    fontWeight: 700,
-                                                    color: '#64748b',
-                                                    letterSpacing: 0.3,
-                                                }}>
-                                                    <span>#</span>
-                                                    <span>MÜŞTERİ</span>
-                                                    <span>ALIŞ SAATİ</span>
-                                                    <span>ALIŞ NOKTASİ</span>
-                                                    <span>UÇUŞ</span>
-                                                    <span>PAX</span>
-                                                    <span>TELEFON</span>
-                                                    <span>DURUM</span>
-                                                </div>
-                                                {run.bookings.map((b: any, idx: number) => {
-                                                    const pickupTime = b.pickupDateTime
-                                                        ? new Date(b.pickupDateTime).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })
-                                                        : run.departureTime;
-                                                    const statusMap: any = { CONFIRMED: { color: '#2563eb', label: 'Onaylı' }, PENDING: { color: '#d97706', label: 'Bekliyor' }, COMPLETED: { color: '#16a34a', label: 'Tamamlandı' }, CANCELLED: { color: '#dc2626', label: 'İptal' } };
-                                                    const st = statusMap[b.status] || { color: '#6b7280', label: b.status };
-                                                    return (
-                                                        <DraggablePassengerItem key={b.id} booking={b}>
-                                                        <div style={{
-                                                            display: 'grid',
-                                                            gridTemplateColumns: '32px 1fr 80px 200px 90px 50px 120px 80px',
-                                                            gap: 0,
-                                                            padding: '7px 12px',
-                                                            borderBottom: idx < run.bookings.length - 1 ? '1px solid #e5e7eb' : 'none',
-                                                            background: idx % 2 === 0 ? '#fff' : '#fafafa',
-                                                            alignItems: 'center',
-                                                            fontSize: 12,
-                                                        }}>
-                                                            <span style={{ color: '#94a3b8', fontWeight: 600 }}>{idx + 1}</span>
-                                                            <div>
-                                                                <div style={{ fontWeight: 700, color: '#1e293b', textTransform: 'uppercase', fontSize: 12 }}>{b.contactName}</div>
-                                                                <div style={{ fontSize: 10, color: '#94a3b8' }}>{b.bookingNumber}</div>
-                                                            </div>
-                                                            <span style={{ fontWeight: 700, color: '#6366f1', fontSize: 13 }}>{pickupTime}</span>
-                                                            <span style={{ fontSize: 11, color: '#374151', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={b.pickup}>📍 {b.pickup || '-'}</span>
-                                                            <span style={{ fontWeight: 600, color: b.flightNumber ? '#0369a1' : '#94a3b8', fontSize: 12 }}>
-                                                                {b.flightNumber ? `✈️ ${b.flightNumber}` : '—'}
-                                                            </span>
-                                                            <span style={{ fontWeight: 700, color: '#374151' }}>{b.adults || 1} kişi</span>
-                                                            <Text copyable={{ text: b.contactPhone }} style={{ fontSize: 11, color: '#374151' }}>{b.contactPhone}</Text>
-                                                            <span style={{ fontSize: 11, fontWeight: 600, color: st.color }}>{st.label}</span>
+                                                    
+                                                    {run.bookings.length === 0 && (
+                                                        <div style={{ padding: '24px', textAlign: 'center', color: '#a78bfa', fontSize: 12, background: '#faf5ff', borderTop: '1px dashed #c4b5fd' }}>
+                                                            🚌 Henüz yolcu yok. Yolcuları buraya sürükleyebilirsiniz.
                                                         </div>
-                                                        </DraggablePassengerItem>
-                                                    );
-                                                })}
-                                            </div>
+                                                    )}
+                                                </div>
+                                            )}
                                         </div>
                                         </DroppableShuttleRun>
                                     );
                                 })}
                             </div>
-                            </DndContext>
-                        )}
+                        </DndContext>
                     </div>
-                    )}
-                </div>
+                )}
+            </div>
 
-                {/* Edit Columns Modal */}
-                <Modal
-                    title="Sütun Başlıklarını Düzenle"
-                    open={editModalVisible}
-                    onOk={saveColumnTitles}
-                    onCancel={() => setEditModalVisible(false)}
-                    width={600}
-                >
-                    <Row gutter={[16, 16]} style={{ maxHeight: '60vh', overflowY: 'auto', padding: '10px 0' }}>
-                        {tempColumns.map((col: any) => (
-                            <Col span={12} key={col.key}>
-                                <div style={{ marginBottom: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <Text type="secondary" style={{ fontSize: 12 }}>{defaultColumns.find(c => c.key === col.key)?.title || col.key}</Text>
-                                    <Checkbox
-                                        checked={!tempHiddenColumns.has(col.key)}
-                                        onChange={(e) => handleVisibilityChange(col.key, e.target.checked)}
-                                    >
-                                        Göster
-                                    </Checkbox>
-                                </div>
-                                <Input
-                                    value={col.title}
-                                    onChange={(e) => handleTitleChange(col.key, e.target.value)}
-                                    placeholder={defaultColumns.find(c => c.key === col.key)?.title || col.key}
-                                />
-                            </Col>
-                        ))}
-                    </Row>
-                </Modal>
-
-                {/* Color Settings Modal */}
-                <Modal
-                    title="Renk Ayarları — Transfer Durumuna Göre Satır Rengi"
-                    open={colorModalVisible}
-                    onOk={saveColors}
-                    onCancel={() => setColorModalVisible(false)}
-                    okText="Renkleri Kaydet"
-                    cancelText="İptal"
-                    width={500}
-                    footer={[
-                        <Button key="reset" onClick={resetColors}>Varsayılana Sıfırla</Button>,
-                        <Button key="cancel" onClick={() => setColorModalVisible(false)}>İptal</Button>,
-                        <Button key="ok" type="primary" onClick={saveColors}>Renkleri Kaydet</Button>,
-                    ]}
-                >
-                    <div style={{ maxHeight: '60vh', overflowY: 'auto' }}>
-                        {Object.entries(STATUS_LABELS).map(([key, label]) => (
-                            <div key={key} style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 12 }}>
-                                <div style={{
-                                    width: 120, padding: '4px 8px', borderRadius: 4,
-                                    backgroundColor: tempColors[key] || '#fff',
-                                    border: '1px solid #d9d9d9', fontSize: 13, fontWeight: 500, textAlign: 'center',
-                                }}>
-                                    {label}
-                                </div>
-                                <input
-                                    type="color"
-                                    value={tempColors[key] || '#ffffff'}
-                                    onChange={(e) => setTempColors(prev => ({ ...prev, [key]: e.target.value }))}
-                                    style={{ width: 48, height: 36, border: 'none', cursor: 'pointer', borderRadius: 4 }}
-                                />
-                                <div style={{ flex: 1, height: 28, borderRadius: 4, backgroundColor: tempColors[key] || '#fff', border: '1px solid #eee' }} />
-                                <Button size="small" onClick={() => setTempColors(prev => ({ ...prev, [key]: DEFAULT_COLORS[key] || '#ffffff' }))}>↺</Button>
-                            </div>
-                        ))}
-                    </div>
-                </Modal>
-
-                {/* Message Driver Modal */}
-                <Modal
-                    title={`Sürücüye Mesaj Gönder: ${selectedDriver?.name || ''}`}
-                    open={messageModalVisible}
-                    onOk={handleSendMessage}
-                    onCancel={() => setMessageModalVisible(false)}
-                    okText="Gönder"
-                    cancelText="İptal"
-                    confirmLoading={messageLoading}
-                >
-                    <Input.TextArea
-                        rows={4}
-                        placeholder="Mesajınızı yazın..."
-                        value={messageContent}
-                        onChange={(e) => setMessageContent(e.target.value)}
-                    />
-                </Modal>
-
-                {/* Conflict Warning Modal */}
-                <Modal
-                    title={<span>⚠️ Çizelge Çakışması Tespit Edildi</span>}
-                    open={!!conflictModal?.visible}
-                    onCancel={() => setConflictModal(null)}
-                    footer={[
-                        <Button key="cancel" onClick={() => setConflictModal(null)}>İptal</Button>,
-                        <Button
-                            key="force"
-                            danger
-                            type="primary"
-                            onClick={() => { conflictModal?.onForceAssign(); }}
+                    {/* Edit Columns Modal — with DnD reordering */}
+                    <Modal
+                        title="Sütun Düzeni ve Başlıkları"
+                        open={shuttleColEditVisible}
+                        onOk={() => {
+                            setShuttleCols(tempShuttleCols);
+                            localStorage.setItem('shuttleColConfigs', JSON.stringify(tempShuttleCols));
+                            setShuttleColEditVisible(false);
+                            message.success('Sütun ayarları kaydedildi');
+                        }}
+                        onCancel={() => setShuttleColEditVisible(false)}
+                        width={640}
+                    >
+                        <div style={{ marginBottom: 10, fontSize: 12, color: '#6366f1', background: '#f5f3ff', padding: '6px 12px', borderRadius: 6 }}>
+                            💡 Sütunları sürükleyerek sırasını değiştirebilirsiniz.
+                        </div>
+                        <DndContext
+                            sensors={sensors}
+                            onDragEnd={(event: DragEndEvent) => {
+                                const { active, over } = event;
+                                if (active.id !== over?.id) {
+                                    setTempShuttleCols(prev => {
+                                        const oldIdx = prev.findIndex(c => c.key === active.id);
+                                        const newIdx = prev.findIndex(c => c.key === over?.id);
+                                        return arrayMove(prev, oldIdx, newIdx);
+                                    });
+                                }
+                            }}
                         >
-                            Yine de Ata (Zorla)
-                        </Button>
-                    ]}
-                    width={480}
-                >
-                    {conflictModal && (
-                        <div>
-                            <div style={{ background: '#fff7e6', border: '1px solid #ffd591', borderRadius: 8, padding: '12px 16px', marginBottom: 16 }}>
-                                <div style={{ fontWeight: 700, color: '#d46b08', marginBottom: 4 }}>
-                                    🚫 {conflictModal.message}
-                                </div>
-                                <div style={{ fontSize: 13, color: '#595959' }}>
-                                    <div>📋 Çakışan rezervasyon: <strong>{conflictModal.conflictWith}</strong></div>
-                                    <div>📍 {conflictModal.conflictPickup} → {conflictModal.conflictDropoff}</div>
-                                    <div>🕐 Transfer başlangıcı: <strong>{conflictModal.conflictStart}</strong></div>
-                                </div>
-                            </div>
-                            <div style={{ background: '#f6ffed', border: '1px solid #b7eb8f', borderRadius: 8, padding: '12px 16px' }}>
-                                <div style={{ fontWeight: 600, color: '#389e0d' }}>
-                                    ✅ En erken müsait: <span style={{ fontSize: 18 }}>{conflictModal.freeAt}</span>
-                                </div>
-                                <div style={{ fontSize: 12, color: '#8c8c8c', marginTop: 4 }}>
-                                    (transfer süresi + 30 dk mola sonrası)
-                                </div>
-                            </div>
-                        </div>
-                    )}
-                </Modal>
-
-                {/* AI Suggestion Modal */}
-                <Modal
-                    title={<span>🤖 AI Operasyon Önerisi</span>}
-                    open={!!aiModal?.visible}
-                    onCancel={() => setAiModal(null)}
-                    footer={[
-                        <Button key="cancel" onClick={() => setAiModal(null)}>Reddet</Button>,
-                        <Button
-                            key="apply"
-                            type="primary"
-                            disabled={!aiModal?.suggestion}
-                            loading={aiModal?.loading}
-                            onClick={applyAISuggestion}
-                            style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', border: 'none' }}
-                        >
-                            ✓ Onayla ve Uygula
-                        </Button>
-                    ]}
-                    width={520}
-                >
-                    {aiModal?.loading && (
-                        <div style={{ textAlign: 'center', padding: '40px 0' }}>
-                            <div style={{ fontSize: 40, marginBottom: 12 }}>🤖</div>
-                            <div style={{ color: '#595959' }}>AI en uygun şöförü ve aracı analiz ediyor...</div>
-                        </div>
-                    )}
-                    {aiModal?.suggestion && !aiModal.loading && (() => {
-                        const s = aiModal.suggestion;
-                        const confColor = s.confidence === 'high' ? '#52c41a' : s.confidence === 'medium' ? '#faad14' : '#ff4d4f';
-                        const confLabel = s.confidence === 'high' ? 'Yüksek' : s.confidence === 'medium' ? 'Orta' : 'Düşük';
-                        return (
-                            <div>
-                                <div style={{ background: 'linear-gradient(135deg, #667eea11 0%, #764ba211 100%)', border: '1px solid #d9d9d9', borderRadius: 10, padding: '16px 20px', marginBottom: 16 }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                                        <span style={{ fontWeight: 700, fontSize: 15 }}>AI Önerisi</span>
-                                        <span style={{ background: confColor + '22', color: confColor, borderRadius: 20, padding: '2px 12px', fontSize: 12, fontWeight: 600 }}>
-                                            {confLabel} Güven
-                                        </span>
-                                    </div>
-                                    {s.suggestedDriverName && (
-                                        <div style={{ marginBottom: 8 }}>
-                                            <span style={{ color: '#8c8c8c', fontSize: 12 }}>Önerilen Şöför:</span>
-                                            <div style={{ fontWeight: 600, fontSize: 14 }}>👨‍✈️ {s.suggestedDriverName}</div>
-                                        </div>
-                                    )}
-                                    {s.suggestedVehiclePlate && (
-                                        <div style={{ marginBottom: 8 }}>
-                                            <span style={{ color: '#8c8c8c', fontSize: 12 }}>Önerilen Araç:</span>
-                                            <div style={{ fontWeight: 600, fontSize: 14 }}>🚗 {s.suggestedVehiclePlate}</div>
-                                        </div>
-                                    )}
-                                    <div style={{ background: '#fff', borderRadius: 6, padding: '10px 14px', marginTop: 12, fontSize: 13, color: '#434343', borderLeft: '3px solid #667eea' }}>
-                                        💬 {s.reason}
-                                    </div>
-                                    {s.warnings && s.warnings.length > 0 && (
-                                        <div style={{ marginTop: 10 }}>
-                                            {s.warnings.map((w: string, i: number) => (
-                                                <div key={i} style={{ color: '#faad14', fontSize: 12 }}>⚠️ {w}</div>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-                                <div style={{ fontSize: 12, color: '#8c8c8c' }}>
-                                    Müsait şöför sayısı: <strong>{s.availableDrivers}</strong> &nbsp;|&nbsp;
-                                    Uygun araç sayısı: <strong>{s.availableVehicles}</strong>
-                                </div>
-                            </div>
-                        );
-                    })()}
-                </Modal>
-
-                {/* Auto-Assign Preview Modal */}
-                <Modal
-                    title={<span>⚡ Otomatik Operasyon — Önizleme</span>}
-                    open={!!autoAssignModal?.visible}
-                    onCancel={() => setAutoAssignModal(null)}
-                    width={700}
-                    footer={[
-                        <Button key="cancel" onClick={() => setAutoAssignModal(null)}>İptal</Button>,
-                        <Button
-                            key="apply"
-                            type="primary"
-                            loading={autoAssignModal?.applying}
-                            disabled={!autoAssignModal?.proposals?.length || autoAssignModal?.loading}
-                            onClick={applyAutoAssign}
-                            style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', border: 'none' }}
-                        >
-                            ✓ Onayla ve Uygula ({autoAssignModal?.proposals?.length || 0} transfer)
-                        </Button>
-                    ]}
-                >
-                    {autoAssignModal?.loading && (
-                        <div style={{ textAlign: 'center', padding: '40px 0' }}>
-                            <div style={{ fontSize: 40, marginBottom: 12 }}>⚡</div>
-                            <div>Şöförler ve araçlar analiz ediliyor...</div>
-                            <div style={{ color: '#8c8c8c', fontSize: 12, marginTop: 8 }}>Rota süreleri hesaplanıyor, çizelgeler kontrol ediliyor</div>
-                        </div>
-                    )}
-                    {autoAssignModal?.errorMsg && !autoAssignModal.loading && (
-                        <div style={{ color: '#dc2626', padding: 16, background: '#fff1f0', borderRadius: 8 }}>
-                            ❌ {autoAssignModal.errorMsg}
-                        </div>
-                    )}
-                    {!autoAssignModal?.loading && !autoAssignModal?.errorMsg && autoAssignModal && (
-                        <div>
-                            {autoAssignModal.summary && (
-                                <div style={{ display: 'flex', gap: 16, marginBottom: 16 }}>
-                                    {[
-                                        { label: 'Toplam', value: autoAssignModal.summary.total, color: '#2563eb' },
-                                        { label: 'Atanacak', value: autoAssignModal.summary.assigned, color: '#16a34a' },
-                                        { label: 'Atlanamaz', value: autoAssignModal.summary.skipped, color: '#d97706' },
-                                    ].map(s => (
-                                        <div key={s.label} style={{ flex: 1, textAlign: 'center', background: '#f8fafc', borderRadius: 8, padding: '12px 8px' }}>
-                                            <div style={{ fontSize: 22, fontWeight: 800, color: s.color }}>{s.value}</div>
-                                            <div style={{ fontSize: 11, color: '#6b7280' }}>{s.label}</div>
-                                        </div>
+                            <SortableContext items={tempShuttleCols.map(c => c.key)} strategy={verticalListSortingStrategy}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: '60vh', overflowY: 'auto', padding: '4px 2px' }}>
+                                    {tempShuttleCols.map((col: any) => (
+                                        <ColSortableItem
+                                            key={col.key}
+                                            col={col}
+                                            onLabelChange={(newLabel: string) => {
+                                                setTempShuttleCols(prev => prev.map(c => c.key === col.key ? { ...c, label: newLabel } : c));
+                                            }}
+                                            onVisibilityChange={(checked: boolean) => {
+                                                setTempShuttleCols(prev => prev.map(c => c.key === col.key ? { ...c, hidden: !checked } : c));
+                                            }}
+                                        />
                                     ))}
                                 </div>
-                            )}
+                            </SortableContext>
+                        </DndContext>
+                    </Modal>
 
-                            {autoAssignModal.proposals.length > 0 && (
-                                <div style={{ maxHeight: 340, overflowY: 'auto', marginBottom: 12 }}>
-                                    <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8, color: '#16a34a' }}>✅ Atanacak Transferler</div>
-                                    {autoAssignModal.proposals.map((p: any, i: number) => (
-                                        <div key={p.bookingId} style={{
-                                            display: 'flex', alignItems: 'flex-start', gap: 12,
-                                            padding: '10px 12px', marginBottom: 6,
-                                            background: p.outsideWorkHours ? '#fff7e6' : '#f6ffed',
-                                            border: `1px solid ${p.outsideWorkHours ? '#ffd591' : '#b7eb8f'}`,
-                                            borderRadius: 8, fontSize: 12
-                                        }}>
-                                            <div style={{ minWidth: 24, fontWeight: 700, color: '#6b7280', paddingTop: 1 }}>{i + 1}</div>
-                                            <div style={{ flex: 1 }}>
-                                                <div style={{ fontWeight: 600, marginBottom: 2 }}>
-                                                    {p.bookingNumber}
-                                                    {p.outsideWorkHours && <span style={{ color: '#d97706', marginLeft: 8 }}>⚠️ Mesai saati dışı</span>}
-                                                </div>
-                                                <div style={{ color: '#374151' }}>📍 {p.pickup} → {p.dropoff}</div>
-                                                <div style={{ color: '#6b7280', marginTop: 2 }}>
-                                                    🕐 {new Date(p.pickupDateTime).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
-                                                    &nbsp;·&nbsp;~{p.estimatedDurationMinutes} dk
-                                                    &nbsp;·&nbsp;Boşalır: {new Date(p.freeAt).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
-                                                </div>
-                                            </div>
-                                            <div style={{ textAlign: 'right', minWidth: 130 }}>
-                                                <div style={{ fontWeight: 600, color: '#2563eb' }}>👨‍✈️ {p.driverName}</div>
-                                                {p.vehiclePlate && <div style={{ color: '#6b7280', fontSize: 11 }}>🚗 {p.vehiclePlate} {p.vehicleModel}</div>}
-                                                <div style={{
-                                                    fontSize: 10, marginTop: 3,
-                                                    color: p.driverWorkedMinutes > 600 ? '#d97706' : '#16a34a',
-                                                    fontWeight: 600
-                                                }}>
-                                                    ⏱ Bugün: {Math.floor(p.driverWorkedMinutes / 60)}s {p.driverWorkedMinutes % 60}dk çalışmış
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-
-                            {autoAssignModal.skipped.length > 0 && (
-                                <div style={{ maxHeight: 150, overflowY: 'auto' }}>
-                                    <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8, color: '#d97706' }}>⚠️ Atlanamayan Transferler (Şöför yok)</div>
-                                    {autoAssignModal.skipped.map((s: any) => (
-                                        <div key={s.bookingId} style={{
-                                            padding: '8px 12px', marginBottom: 4,
-                                            background: '#fff7e6', border: '1px solid #ffd591', borderRadius: 6, fontSize: 12
-                                        }}>
-                                            <strong>{s.bookingNumber}</strong> — {s.pickup} → {s.dropoff}
-                                            &nbsp;({new Date(s.pickupDateTime).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })})
-                                            <div style={{ color: '#d97706', fontSize: 11 }}>{s.reason}</div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-
-                            {autoAssignModal.proposals.length === 0 && !autoAssignModal.errorMsg && (
-                                <div style={{ textAlign: 'center', padding: '30px 0', color: '#16a34a', fontWeight: 600 }}>
-                                    ✅ Tüm transferler zaten atanmış!
-                                </div>
-                            )}
-                        </div>
-                    )}
-                </Modal>
-
-                {/* Manual Shuttle Modal */}
-                <Modal
-                    title="Manuel Sefer Ekle"
-                    open={isManualModalVisible}
-                    onOk={handleAddManualRun}
-                    onCancel={() => setIsManualModalVisible(false)}
-                    okText="Oluştur"
-                    cancelText="İptal"
-                >
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                        <div>
-                            <div style={{ marginBottom: 4, fontWeight: 600 }}>Sefer Saati</div>
-                            <Input
-                                type="time"
-                                value={manualRunTime}
-                                onChange={(e) => setManualRunTime(e.target.value)}
-                            />
-                        </div>
-                        <div>
-                            <div style={{ marginBottom: 4, fontWeight: 600 }}>Rota Adı (Nereden nereye)</div>
-                            <Input
-                                placeholder="Örn: Antalya → Alanya"
-                                value={manualRunName}
-                                onChange={(e) => setManualRunName(e.target.value)}
-                            />
-                        </div>
-                    </div>
-                </Modal>
-
-                {/* ── COMPLETE TRANSFER MODAL (for PAY_IN_VEHICLE reconciliation) ── */}
-                <Modal
-                    title={
-                        <Space>
-                            <span style={{ fontSize: 18 }}>💵</span>
-                            <span>Transfer Tamamla — Nakit Tahsilat</span>
-                        </Space>
-                    }
-                    open={completeModalVisible}
-                    onCancel={() => setCompleteModalVisible(false)}
-                    onOk={handleCompleteTransfer}
-                    okText="Tamamla ve Cari'ye Yansıt"
-                    cancelText="İptal"
-                    confirmLoading={completeLoading}
-                    okButtonProps={{
-                        style: { background: 'linear-gradient(135deg, #16a34a, #22c55e)', border: 'none', fontWeight: 600 }
-                    }}
-                    width={480}
-                >
-                    {selectedCompleteBooking && (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                            <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10, padding: '12px 16px' }}>
-                                <div style={{ fontWeight: 700, fontSize: 14, color: '#15803d', marginBottom: 6 }}>
-                                    📋 {selectedCompleteBooking.bookingNumber}
-                                </div>
-                                <div style={{ fontSize: 13, color: '#374151' }}>
-                                    <span>👤 {selectedCompleteBooking.contactName}</span><br />
-                                    <span>📍 {selectedCompleteBooking.pickup?.rawLocation || selectedCompleteBooking.pickup?.location || '-'}</span>
-                                    <span style={{ margin: '0 6px' }}>→</span>
-                                    <span>{selectedCompleteBooking.dropoff?.rawLocation || selectedCompleteBooking.dropoff?.location || '-'}</span>
-                                </div>
-                                {selectedCompleteBooking.metadata?.paymentMethod === 'PAY_IN_VEHICLE' && (
-                                    <div style={{ marginTop: 8, fontSize: 12, display: 'flex', gap: 16 }}>
-                                        <span>💰 B2B Maliyet: <strong style={{ color: '#dc2626' }}>₺{selectedCompleteBooking.subtotal || 0}</strong></span>
-                                        <span>🏷️ Satış Fiyatı: <strong style={{ color: '#2563eb' }}>₺{selectedCompleteBooking.total || 0}</strong></span>
-                                    </div>
-                                )}
-                            </div>
-
-                            {selectedCompleteBooking.metadata?.paymentMethod === 'PAY_IN_VEHICLE' ? (
-                                <div>
-                                    <div style={{ fontWeight: 600, marginBottom: 8, color: '#374151' }}>
-                                        Şoförün Tahsil Ettiği Nakit Tutar (₺)
-                                    </div>
+                    {/* Color Settings Modal */}
+                    <Modal
+                        title="Renk Ayarları"
+                        open={shuttleColorVisible}
+                        onOk={() => {
+                            setShuttleColors(tempShuttleColors);
+                            localStorage.setItem('shuttleColors_v2', JSON.stringify(tempShuttleColors));
+                            setShuttleColorVisible(false);
+                            message.success('Renk ayarları kaydedildi');
+                        }}
+                        onCancel={() => setShuttleColorVisible(false)}
+                        width={600}
+                    >
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                            {Object.entries(tempShuttleColors).map(([status, color]: [string, any]) => (
+                                <div key={status} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                    <span style={{ width: 120, fontSize: 12, fontWeight: 600 }}>{status}</span>
                                     <input
-                                        type="number"
-                                        min={0}
-                                        step={0.01}
-                                        value={collectedAmount}
-                                        onChange={(e) => setCollectedAmount(parseFloat(e.target.value) || 0)}
-                                        style={{
-                                            width: '100%', padding: '10px 14px', fontSize: 22,
-                                            fontWeight: 700, border: '2px solid #d1fae5',
-                                            borderRadius: 10, outline: 'none', boxSizing: 'border-box',
-                                            color: '#15803d', background: '#f0fdf4',
-                                            textAlign: 'center'
-                                        }}
+                                        type="color"
+                                        value={color || '#ffffff'}
+                                        onChange={(e) => setTempShuttleColors(prev => ({ ...prev, [status]: e.target.value }))}
+                                        style={{ width: 50, height: 32, border: '1px solid #ddd', borderRadius: 4, cursor: 'pointer' }}
                                     />
-                                    <div style={{ marginTop: 10, background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 8, padding: '10px 14px', fontSize: 13 }}>
-                                        <div style={{ fontWeight: 600, color: '#92400e', marginBottom: 4 }}>Hesaplama Özeti</div>
-                                        <div>B2B Maliyet: <strong>₺{selectedCompleteBooking.subtotal || 0}</strong></div>
-                                        <div>Tahsil Edilen: <strong>₺{collectedAmount}</strong></div>
-                                        <div style={{ marginTop: 6, padding: '6px 10px', background: (collectedAmount - (selectedCompleteBooking.subtotal || 0)) >= 0 ? '#dcfce7' : '#fee2e2', borderRadius: 6 }}>
-                                            Acente Cari Farkı:&nbsp;
-                                            <strong style={{ color: (collectedAmount - (selectedCompleteBooking.subtotal || 0)) >= 0 ? '#16a34a' : '#dc2626', fontSize: 15 }}>
-                                                {(collectedAmount - (selectedCompleteBooking.subtotal || 0)) >= 0 ? '+' : ''}₺{(collectedAmount - (selectedCompleteBooking.subtotal || 0)).toFixed(2)}
-                                            </strong>
-                                            &nbsp;
-                                            <span style={{ fontSize: 11, color: (collectedAmount - (selectedCompleteBooking.subtotal || 0)) >= 0 ? '#15803d' : '#dc2626' }}>
-                                                {(collectedAmount - (selectedCompleteBooking.subtotal || 0)) >= 0 ? '(Bakiyeye Eklenecek)' : '(Bakiyeden Düşülecek)'}
-                                            </span>
+                                    <div style={{ flex: 1, height: 24, background: color, borderRadius: 4, border: '1px solid #eee' }} />
+                                </div>
+                            ))}
+                        </div>
+                    </Modal>
+
+                    {/* Edit Run Modal */}
+                    <Modal
+                        title="✏️ Seferi Düzenle"
+                        open={!!editRunModal}
+                        onOk={handleEditRunSave}
+                        onCancel={() => setEditRunModal(null)}
+                        okText="Güncelle"
+                        cancelText="İptal"
+                        width={420}
+                    >
+                        {editRunModal && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                                <div>
+                                    <div style={{ marginBottom: 6, fontWeight: 600, color: '#374151' }}>Kalkış Saati</div>
+                                    <Input
+                                        type="time"
+                                        value={editRunModal.time}
+                                        onChange={(e) => setEditRunModal(prev => prev ? { ...prev, time: e.target.value } : null)}
+                                        style={{ fontSize: 18, fontWeight: 700, textAlign: 'center' }}
+                                    />
+                                </div>
+                                <div>
+                                    <div style={{ marginBottom: 6, fontWeight: 600, color: '#374151' }}>Rota / Güzergah Adı</div>
+                                    <Input
+                                        value={editRunModal.name}
+                                        onChange={(e) => setEditRunModal(prev => prev ? { ...prev, name: e.target.value } : null)}
+                                        placeholder="Örn: Alanya → Gazipaşa Havalimanı"
+                                    />
+                                </div>
+                            </div>
+                        )}
+                    </Modal>
+
+                    {/* Map Modal */}
+                    <Modal
+                        title={mapModal ? `📍 ${mapModal.name} — Alış Noktası` : ''}
+                        open={!!mapModal}
+                        onCancel={() => setMapModal(null)}
+                        footer={<Button onClick={() => setMapModal(null)}>Kapat</Button>}
+                        width={800}
+                    >
+                        {mapModal && (
+                            <iframe
+                                src={`https://maps.google.com/maps?q=${encodeURIComponent(mapModal.pickup)}&output=embed&hl=tr`}
+                                width="100%"
+                                height="450"
+                                style={{ border: 0, borderRadius: 10 }}
+                                loading="lazy"
+                            />
+                        )}
+                    </Modal>
+                {/* ===== PRIVATE MODE: RENKLER MODAL ===== */}
+                    <Modal
+                        title={
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                <span style={{ fontSize: 18 }}>🎨</span>
+                                <span>Transfer Durumu Renk Ayarları</span>
+                            </div>
+                        }
+                        open={colorModalVisible}
+                        onOk={saveColors}
+                        onCancel={() => setColorModalVisible(false)}
+                        okText="Kaydet"
+                        cancelText="İptal"
+                        width={700}
+                        footer={(
+                            <Space>
+                                <Button onClick={resetColors}>Varsayılana Dön</Button>
+                                <Button onClick={() => setColorModalVisible(false)}>İptal</Button>
+                                <Button type="primary" onClick={saveColors}>Kaydet</Button>
+                            </Space>
+                        )}
+                    >
+                        <div style={{ background: '#f8fafc', borderRadius: 8, padding: 16 }}>
+                            <div style={{ marginBottom: 16 }}>
+                                <div style={{ marginBottom: 12, fontSize: 14, fontWeight: 600, color: '#374151' }}>
+                                    📊 Durum Renkleri
+                                </div>
+                                <div style={{ marginBottom: 12, fontSize: 12, color: '#6366f1', background: '#f0f4ff', padding: '8px 12px', borderRadius: 6 }}>
+                                    💡 Her durum için satır arka plan rengini seçin.
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                    {Object.entries(tempColors).filter(([status]) => status !== 'OPERASYONDA').map(([status, color]: [string, any]) => (
+                                        <div key={status} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 12px', background: color, borderRadius: 8, border: '1px solid #e5e7eb' }}>
+                                            <span style={{ width: 140, fontSize: 12, fontWeight: 600 }}>{STATUS_LABELS[status] || status}</span>
+                                            <input
+                                                type="color"
+                                                value={color || '#ffffff'}
+                                                onChange={(e) => setTempColors(prev => ({ ...prev, [status]: e.target.value }))}
+                                                style={{ width: 44, height: 36, border: '2px solid #ddd', borderRadius: 6, cursor: 'pointer', padding: 2 }}
+                                            />
+                                            <div style={{ flex: 1, height: 28, background: color, borderRadius: 6, border: '1px solid rgba(0,0,0,0.1)', display: 'flex', alignItems: 'center', paddingLeft: 10, fontSize: 11, color: '#374151' }}>
+                                                {color}
+                                            </div>
+                                            <button
+                                                style={{ padding: '4px 8px', borderRadius: 4, border: '1px solid #e2e8f0', cursor: 'pointer', fontSize: 11, background: '#fff' }}
+                                                onClick={() => setTempColors(prev => ({ ...prev, [status]: DEFAULT_COLORS[status] }))}
+                                            >
+                                                Sıfırla
+                                            </button>
                                         </div>
+                                    ))}
+                                </div>
+                            </div>
+                            
+                            <div style={{ borderTop: '2px solid #e5e7eb', paddingTop: 16, marginTop: 16 }}>
+                                <div style={{ marginBottom: 12, fontSize: 14, fontWeight: 600, color: '#374151' }}>
+                                    ✈️ IATA Kod Renkleri
+                                </div>
+                                <div style={{ marginBottom: 12, fontSize: 12, color: '#10b981', background: '#f0fdf4', padding: '8px 12px', borderRadius: 6 }}>
+                                    💡 IATA koduna göre satır renklendirme. Örnek: AYT → Yeşil, GZP → Sarı
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                    {['AYT', 'GZP', 'IST', 'SAW', 'DLM', 'BJV', 'ADB'].map(code => {
+                                        const color = airportColors[code] || '#f0f0f0';
+                                        return (
+                                            <div key={code} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 12px', background: color, borderRadius: 8, border: '1px solid #e5e7eb' }}>
+                                                <span style={{ width: 60, fontSize: 12, fontWeight: 600 }}>{code}</span>
+                                                <input
+                                                    type="color"
+                                                    value={color}
+                                                    onChange={(e) => handleAirportColorChange(code, e.target.value)}
+                                                    style={{ width: 44, height: 36, border: '2px solid #ddd', borderRadius: 6, cursor: 'pointer', padding: 2 }}
+                                                />
+                                                <div style={{ flex: 1, height: 28, background: color, borderRadius: 6, border: '1px solid rgba(0,0,0,0.1)', display: 'flex', alignItems: 'center', paddingLeft: 10, fontSize: 11, color: '#374151' }}>
+                                                    {color}
+                                                </div>
+                                                <button
+                                                    style={{ padding: '4px 8px', borderRadius: 4, border: '1px solid #e2e8f0', cursor: 'pointer', fontSize: 11, background: '#fff' }}
+                                                    onClick={() => handleAirportColorChange(code, '#f0f0f0')}
+                                                >
+                                                    Sıfırla
+                                                </button>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        </div>
+                    </Modal>
+
+                    {/* ===== KOLON BAŞLIKLARI MODAL ===== */}
+                    <Modal
+                        title={
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                <span style={{ fontSize: 18 }}>📝</span>
+                                <span>Kolon Başlıklarını Düzenle</span>
+                            </div>
+                        }
+                        open={columnTitlesModalVisible}
+                        onCancel={() => setColumnTitlesModalVisible(false)}
+                        width={700}
+                        footer={(
+                            <Space>
+                                <Button onClick={() => setColumnTitlesModalVisible(false)}>İptal</Button>
+                                <Button type="primary" onClick={async () => {
+                                    try {
+                                        const res = await apiClient.get('/api/auth/metadata');
+                                        const currentMeta = res.data?.data || {};
+                                        const currentPrefs = currentMeta.operations_preferences || {};
+                                        const newPrefs = { ...currentPrefs, columnTitles: tempColumnTitles };
+                                        await apiClient.put('/api/auth/metadata', { 
+                                            preferences: { operations_preferences: newPrefs } 
+                                        });
+                                        setColumnTitles(tempColumnTitles);
+                                        setColumnTitlesModalVisible(false);
+                                        message.success('Başlıklar kaydedildi, yenileniyor...');
+                                        setTimeout(() => window.location.reload(), 500);
+                                    } catch (e) {
+                                        console.error('Save error:', e);
+                                        message.error('Kaydetme başarısız');
+                                    }
+                                }}>Kaydet ve Uygula</Button>
+                            </Space>
+                        )}
+                    >
+                        <div style={{ background: '#f8fafc', borderRadius: 8, padding: 16 }}>
+                            <div style={{ marginBottom: 12, fontSize: 12, color: '#6366f1', background: '#f0f4ff', padding: '8px 12px', borderRadius: 6 }}>
+                                💡 Her kolon için özel başlık belirleyebilirsiniz. Boş bırakırsanız varsayılan başlık kullanılır.
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, maxHeight: 500, overflowY: 'auto', padding: 4 }}>
+                                {[
+                                    { key: 'index', default: '#' },
+                                    { key: 'bookingNumber', default: 'T.KOD' },
+                                    { key: 'direction', default: 'YÖN' },
+                                    { key: 'partnerName', default: 'ACENTE' },
+                                    { key: 'customerNote', default: 'MÜŞTERİ NOTU' },
+                                    { key: 'internalNotes', default: 'OP. NOTU' },
+                                    { key: 'customerName', default: 'MÜŞTERİ ADI' },
+                                    { key: 'contactPhone', default: 'TELEFON' },
+                                    { key: 'date', default: 'TARİH' },
+                                    { key: 'airportCode', default: 'IATA' },
+                                    { key: 'pickupRegionCode', default: 'ALIŞ BÖLGE' },
+                                    { key: 'dropoffRegionCode', default: 'VARIŞ BÖLGE' },
+                                    { key: 'status', default: 'DURUM' },
+                                    { key: 'driver', default: 'ŞOFÖR' },
+                                    { key: 'vehicle', default: 'ARAÇ' },
+                                    { key: 'time', default: 'TRANSFER SAATİ' },
+                                    { key: 'flightTime', default: 'UÇUŞ SAATİ' },
+                                    { key: 'flightCode', default: 'UÇUŞ KODU' },
+                                    { key: 'pax', default: 'PAX' },
+                                    { key: 'pickup', default: 'ALIŞ YERİ' },
+                                    { key: 'dropoff', default: 'BIRAKIŞ YERİ' },
+                                    { key: 'extraServices', default: 'EKSTRA' },
+                                    { key: 'actions', default: 'İŞLEM' },
+                                ].map(({ key, default: defaultTitle }) => {
+                                    const currentValue = tempColumnTitles[key] || '';
+                                    return (
+                                        <div key={key} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                            <Text style={{ fontSize: 11, fontWeight: 600, color: '#374151' }}>
+                                                {defaultTitle}
+                                            </Text>
+                                            <Input
+                                                size="small"
+                                                placeholder={`Varsayılan: ${defaultTitle}`}
+                                                value={currentValue}
+                                                onChange={(e) => {
+                                                    const newValue = e.target.value;
+                                                    setTempColumnTitles(prev => ({
+                                                        ...prev,
+                                                        [key]: newValue
+                                                    }));
+                                                }}
+                                                allowClear
+                                                onClear={() => {
+                                                    setTempColumnTitles(prev => {
+                                                        const newTitles = { ...prev };
+                                                        delete newTitles[key];
+                                                        return newTitles;
+                                                    });
+                                                }}
+                                            />
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    </Modal>
+
+                    {/* ===== REZERVASYON GERİ AT MODAL ===== */}
+                    <Modal
+                        title={
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                <span style={{ fontSize: 18 }}>↩️</span>
+                                <span>Rezervasyonu Geri Al</span>
+                                <div style={{ fontSize: 11, color: '#6b7280', fontWeight: 400 }}>
+                                    Bu işlem rezervasyonu "Beklemede" durumuna alır
+                                </div>
+                            </div>
+                        }
+                        open={!!returnModal}
+                        onCancel={() => setReturnModal(null)}
+                        width={520}
+                        footer={(
+                            <Space>
+                                <Button onClick={() => setReturnModal(null)} disabled={returnSaving}>İptal</Button>
+                                <Button
+                                    type="primary"
+                                    danger
+                                    loading={returnSaving}
+                                    disabled={!returnModal?.reason?.trim()}
+                                    onClick={handleReturnToReservation}
+                                >
+                                    ↩ Geri Al
+                                </Button>
+                            </Space>
+                        )}
+                    >
+                        {returnModal && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                                <div style={{ background: '#fef3c7', border: '1px solid #fde68a', borderRadius: 8, padding: '12px 16px' }}>
+                                    <div style={{ fontWeight: 600, fontSize: 13, color: '#92400e', marginBottom: 4 }}>
+                                        ⚠️ Dikkat!
+                                    </div>
+                                    <div style={{ fontSize: 12, color: '#78350f' }}>
+                                        <strong>{returnModal.booking?.contactName || returnModal.booking?.bookingNumber}</strong> no'lu rezervasyon
+                                        operasyondan çıkarılarak <strong>Beklemede</strong> durumuna alınacak.
+                                        Sürücü/araç ataması temizlenecektir.
                                     </div>
                                 </div>
-                            ) : (
-                                <div style={{ fontSize: 13, color: '#6b7280' }}>
-                                    Bu transfer, araçta nakit ödeme ile oluşturulmamış. Sadece durumu <strong>"Tamamlandı"</strong> olarak güncellenecek. Cari bakiye değişmeyecek.
+                                <div>
+                                    <div style={{ fontWeight: 600, marginBottom: 8, fontSize: 13 }}>
+                                        📝 Geri Alma Nedeni <span style={{ color: '#ef4444' }}>*</span>
+                                    </div>
+                                    <div style={{ marginBottom: 6, fontSize: 11, color: '#6b7280' }}>
+                                        Rezervasyon departmanı bu neden ile bilgilendirilecek
+                                    </div>
+                                    <Input.TextArea
+                                        rows={4}
+                                        placeholder="Örn: Şoför hasta, sefer iptal edildi, araç arızalı, vb..."
+                                        value={returnModal.reason}
+                                        onChange={(e) => setReturnModal(prev => prev ? { ...prev, reason: e.target.value } : null)}
+                                        style={{ resize: 'none', borderColor: returnModal.reason?.trim() ? '#6366f1' : '#fca5a5' }}
+                                        maxLength={500}
+                                        showCount
+                                    />
+                                    {!returnModal.reason?.trim() && (
+                                        <div style={{ color: '#ef4444', fontSize: 11, marginTop: 4 }}>
+                                            ⚠️ Neden girmeden geri alma işlemi yapılamaz
+                                        </div>
+                                    )}
                                 </div>
-                            )}
-                        </div>
-                    )}
-                </Modal>
+                            </div>
+                        )}
+                    </Modal>
+
             </AdminLayout>
 
 

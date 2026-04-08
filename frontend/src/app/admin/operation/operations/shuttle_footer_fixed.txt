@@ -1,0 +1,128 @@
+                            </div>
+                            </DndContext>
+                        )}
+                    </div>
+                    )}
+
+                    {/* Edit Columns Modal */}
+                    <Modal
+                        title="Sütun Başlıklarını Düzenle"
+                        open={shuttleColEditVisible}
+                        onOk={() => {
+                            setShuttleCols(tempShuttleCols);
+                            localStorage.setItem('shuttleCols_v2', JSON.stringify(tempShuttleCols));
+                            setShuttleColEditVisible(false);
+                            message.success('Sütun ayarları kaydedildi');
+                        }}
+                        onCancel={() => setShuttleColEditVisible(false)}
+                        width={600}
+                    >
+                        <div style={{ maxHeight: '60vh', overflowY: 'auto', padding: '10px 0' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16 }}>
+                                {tempShuttleCols.map((col: any) => (
+                                    <div key={col.key}>
+                                        <div style={{ marginBottom: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                            <span style={{ fontSize: 12, color: '#64748b' }}>{col.key}</span>
+                                            <Checkbox
+                                                checked={!col.hidden}
+                                                onChange={(e) => {
+                                                    const newCols = tempShuttleCols.map(c => c.key === col.key ? { ...c, hidden: !e.target.checked } : c);
+                                                    setTempShuttleCols(newCols);
+                                                }}
+                                            >
+                                                Göster
+                                            </Checkbox>
+                                        </div>
+                                        <Input
+                                            value={col.label}
+                                            onChange={(e) => {
+                                                const newCols = tempShuttleCols.map(c => c.key === col.key ? { ...c, label: e.target.value } : c);
+                                                setTempShuttleCols(newCols);
+                                            }}
+                                        />
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </Modal>
+
+                    {/* Color Settings Modal */}
+                    <Modal
+                        title="Renk Ayarları"
+                        open={shuttleColorVisible}
+                        onOk={() => {
+                            setShuttleColors(tempShuttleColors);
+                            localStorage.setItem('shuttleColors_v2', JSON.stringify(tempShuttleColors));
+                            setShuttleColorVisible(false);
+                            message.success('Renk ayarları kaydedildi');
+                        }}
+                        onCancel={() => setShuttleColorVisible(false)}
+                        width={600}
+                    >
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                            {Object.entries(tempShuttleColors).map(([status, color]: [string, any]) => (
+                                <div key={status} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                    <span style={{ width: 120, fontSize: 12, fontWeight: 600 }}>{status}</span>
+                                    <input
+                                        type="color"
+                                        value={color || '#ffffff'}
+                                        onChange={(e) => setTempShuttleColors(prev => ({ ...prev, [status]: e.target.value }))}
+                                        style={{ width: 50, height: 32, border: '1px solid #ddd', borderRadius: 4, cursor: 'pointer' }}
+                                    />
+                                    <div style={{ flex: 1, height: 24, background: color, borderRadius: 4, border: '1px solid #eee' }} />
+                                </div>
+                            ))}
+                        </div>
+                    </Modal>
+
+                    {/* Edit Run Modal */}
+                    <Modal
+                        title="✏️ Seferi Düzenle"
+                        open={!!editRunModal}
+                        onOk={handleEditRunSave}
+                        onCancel={() => setEditRunModal(null)}
+                        okText="Güncelle"
+                        cancelText="İptal"
+                        width={420}
+                    >
+                        {editRunModal && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                                <div>
+                                    <div style={{ marginBottom: 6, fontWeight: 600, color: '#374151' }}>Kalkış Saati</div>
+                                    <Input
+                                        type="time"
+                                        value={editRunModal.time}
+                                        onChange={(e) => setEditRunModal(prev => prev ? { ...prev, time: e.target.value } : null)}
+                                        style={{ fontSize: 18, fontWeight: 700, textAlign: 'center' }}
+                                    />
+                                </div>
+                                <div>
+                                    <div style={{ marginBottom: 6, fontWeight: 600, color: '#374151' }}>Rota / Güzergah Adı</div>
+                                    <Input
+                                        value={editRunModal.name}
+                                        onChange={(e) => setEditRunModal(prev => prev ? { ...prev, name: e.target.value } : null)}
+                                        placeholder="Örn: Alanya → Gazipaşa Havalimanı"
+                                    />
+                                </div>
+                            </div>
+                        )}
+                    </Modal>
+
+                    {/* Map Modal */}
+                    <Modal
+                        title={mapModal ? `📍 ${mapModal.name} — Alış Noktası` : ''}
+                        open={!!mapModal}
+                        onCancel={() => setMapModal(null)}
+                        footer={<Button onClick={() => setMapModal(null)}>Kapat</Button>}
+                        width={800}
+                    >
+                        {mapModal && (
+                            <iframe
+                                src={`https://maps.google.com/maps?q=${encodeURIComponent(mapModal.pickup)}&output=embed&hl=tr`}
+                                width="100%"
+                                height="450"
+                                style={{ border: 0, borderRadius: 10 }}
+                                loading="lazy"
+                            />
+                        )}
+                    </Modal>

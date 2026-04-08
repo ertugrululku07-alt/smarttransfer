@@ -118,7 +118,7 @@ const AdminDashboardPage: React.FC = () => {
         <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
           <Col xs={24} sm={12} lg={6}>
             <Card
-              bordered={false}
+              variant="borderless"
               style={{
                 background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                 borderRadius: 12,
@@ -129,7 +129,7 @@ const AdminDashboardPage: React.FC = () => {
                 title={<span style={{ color: 'rgba(255,255,255,0.9)' }}>Toplam Gelir</span>}
                 value={stats.totalRevenue}
                 precision={2}
-                valueStyle={{ color: '#fff', fontSize: 28, fontWeight: 600 }}
+                styles={{content: { color: '#fff', fontSize: 28, fontWeight: 600 }}}
                 prefix="₺"
                 suffix={
                   <Tag
@@ -153,7 +153,7 @@ const AdminDashboardPage: React.FC = () => {
 
           <Col xs={24} sm={12} lg={6}>
             <Card
-              bordered={false}
+              variant="borderless"
               style={{
                 background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
                 borderRadius: 12,
@@ -163,7 +163,7 @@ const AdminDashboardPage: React.FC = () => {
               <Statistic
                 title={<span style={{ color: 'rgba(255,255,255,0.9)' }}>Toplam Rezervasyon</span>}
                 value={stats.totalBookings}
-                valueStyle={{ color: '#fff', fontSize: 28, fontWeight: 600 }}
+                styles={{content: { color: '#fff', fontSize: 28, fontWeight: 600 }}}
                 suffix={
                   <Tag
                     color="success"
@@ -188,7 +188,7 @@ const AdminDashboardPage: React.FC = () => {
 
           <Col xs={24} sm={12} lg={6}>
             <Card
-              bordered={false}
+              variant="borderless"
               style={{
                 background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
                 borderRadius: 12,
@@ -198,7 +198,7 @@ const AdminDashboardPage: React.FC = () => {
               <Statistic
                 title={<span style={{ color: 'rgba(255,255,255,0.9)' }}>Aktif Müşteri</span>}
                 value={stats.activeCustomers}
-                valueStyle={{ color: '#fff', fontSize: 28, fontWeight: 600 }}
+                styles={{content: { color: '#fff', fontSize: 28, fontWeight: 600 }}}
                 suffix={
                   <Tag
                     color="success"
@@ -221,7 +221,7 @@ const AdminDashboardPage: React.FC = () => {
 
           <Col xs={24} sm={12} lg={6}>
             <Card
-              bordered={false}
+              variant="borderless"
               style={{
                 background: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
                 borderRadius: 12,
@@ -231,7 +231,7 @@ const AdminDashboardPage: React.FC = () => {
               <Statistic
                 title={<span style={{ color: 'rgba(255,255,255,0.9)' }}>Aktif Araç</span>}
                 value={stats.activeVehicles}
-                valueStyle={{ color: '#fff', fontSize: 28, fontWeight: 600 }}
+                styles={{content: { color: '#fff', fontSize: 28, fontWeight: 600 }}}
                 suffix={
                   <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.8)' }}>
                     {' '}
@@ -256,7 +256,7 @@ const AdminDashboardPage: React.FC = () => {
                   📈 Gelir Trendi (Son 7 Gün)
                 </span>
               }
-              bordered={false}
+              variant="borderless"
               style={{ borderRadius: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}
             >
               <ResponsiveContainer width="100%" height={300}>
@@ -296,7 +296,7 @@ const AdminDashboardPage: React.FC = () => {
               title={
                 <span style={{ fontSize: 18, fontWeight: 600 }}>🥧 Rezervasyon Dağılımı</span>
               }
-              bordered={false}
+              variant="borderless"
               style={{ borderRadius: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}
             >
               <ResponsiveContainer width="100%" height={300}>
@@ -336,7 +336,7 @@ const AdminDashboardPage: React.FC = () => {
           <Col xs={24} lg={12}>
             <Card
               title={<span style={{ fontSize: 18, fontWeight: 600 }}>🚗 Araç Durumu</span>}
-              bordered={false}
+              variant="borderless"
               style={{ borderRadius: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}
             >
               <ResponsiveContainer width="100%" height={280}>
@@ -365,7 +365,7 @@ const AdminDashboardPage: React.FC = () => {
               title={
                 <span style={{ fontSize: 18, fontWeight: 600 }}>⚡ Performans Metrikleri</span>
               }
-              bordered={false}
+              variant="borderless"
               style={{ borderRadius: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}
             >
               <div style={{ padding: '16px 0' }}>

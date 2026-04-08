@@ -46,7 +46,13 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, selectedKey = 'dash
     router.push('/');
   };
 
+  const [mounted, setMounted] = useState(false);
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const userInitials = (user?.fullName || user?.email || 'A').split(' ').map((n: string) => n.charAt(0).toUpperCase()).slice(0, 2).join('');
+
 
   const userMenuItems = [
     {
@@ -70,6 +76,57 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, selectedKey = 'dash
       onClick: handleLogout,
     },
   ];
+
+        const getParentKey = (key: string) => {
+          switch (key) {
+              case 'transfers': return 'reservations';
+              case 'op-dashboard':
+              case 'driver-tracking':
+              case 'operations-list':
+              case 'pool-transfers':
+              case 'partner-transfers': return 'operations';
+              case 'accounting-dashboard':
+              case 'accounting-accounts':
+              case 'accounting-invoices':
+              case 'kasa':
+              case 'agency-deposits':
+              case 'payroll': return 'accounting';
+              case 'partner-applications':
+              case 'agencies':
+              case 'agency-contracts': return 'partner-operations';
+              case 'bank-list':
+              case 'virtual-pos': return 'bank-management';
+              case 'vehicles':
+              case 'vehicle-types':
+              case 'pricing':
+              case 'zones':
+              case 'shuttle-routes':
+              case 'extra-services': return 'vehicles-definitions';
+              case 'vehicle-tracking-dashboard':
+              case 'vehicle-tracking-insurance':
+              case 'vehicle-tracking-fuel':
+              case 'vehicle-tracking-inspection':
+              case 'vehicle-tracking-maintenance': return 'vehicle-tracking-group';
+              case 'personnel-list': return 'personnel-definitions';
+              case 'general-reports':
+              case 'logs': return 'reports';
+              case 'site-settings':
+              case 'pages':
+              case 'users':
+              case 'definitions': return 'settings-group';
+              default: return '';
+          }
+        };
+
+        const [openKeys, setOpenKeys] = useState<string[]>(() => [getParentKey(selectedKey)]);
+
+        React.useEffect(() => {
+          setOpenKeys([getParentKey(selectedKey)]);
+        }, [selectedKey]);
+
+  if (!mounted) {
+    return <div style={{ minHeight: '100vh', background: '#f8fafc' }} />;
+  }
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
@@ -140,7 +197,8 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, selectedKey = 'dash
         <Menu
           theme="dark"
           mode="inline"
-          defaultOpenKeys={['vehicles']}
+          openKeys={openKeys}
+          onOpenChange={setOpenKeys}
           selectedKeys={[selectedKey]}
           style={{
             background: 'transparent',

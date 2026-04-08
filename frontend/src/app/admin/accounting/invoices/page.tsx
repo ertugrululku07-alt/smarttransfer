@@ -690,7 +690,7 @@ function InvoicesPageContent() {
                         ))}
                     </Row>
 
-                    <Card bordered={false} style={{ borderRadius: 16, boxShadow: '0 2px 16px rgba(0,0,0,0.06)', border: '1px solid #f0f0f0' }} bodyStyle={{ padding: 0 }}>
+                    <Card variant="borderless" style={{ borderRadius: 16, boxShadow: '0 2px 16px rgba(0,0,0,0.06)', border: '1px solid #f0f0f0' }} bodyStyle={{ padding: 0 }}>
                         <div style={{ padding: '16px 24px 0' }}>
                             <Tabs
                                 activeKey={activeTab}
