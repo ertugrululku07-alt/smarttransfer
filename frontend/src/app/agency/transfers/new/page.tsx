@@ -47,6 +47,7 @@ const AgencyNewTransferPage = () => {
     const [date, setDate] = useState<Dayjs | null>(null);
     const [pickupHour, setPickupHour] = useState<string>('12');
     const [pickupMinute, setPickupMinute] = useState<string>('00');
+    const [flightTimeValue, setFlightTimeValue] = useState<Dayjs | null>(null);
     const [passengerCounts, setPassengerCounts] = useState({ adults: 1, children: 0, babies: 0 });
     const [tripType, setTripType] = useState<'ONE_WAY' | 'ROUND_TRIP'>('ONE_WAY');
 
@@ -59,6 +60,27 @@ const AgencyNewTransferPage = () => {
     const isAirportTransfer = AIRPORT_KEYWORDS.some(kw =>
         pickup?.toLowerCase().includes(kw) || dropoff?.toLowerCase().includes(kw)
     );
+    const isAirportPickup = AIRPORT_KEYWORDS.some(kw => pickup?.toLowerCase().includes(kw));
+    const isAirportDropoff = AIRPORT_KEYWORDS.some(kw => dropoff?.toLowerCase().includes(kw));
+
+    const getDurationMinutes = (duration: unknown): number | null => {
+        if (typeof duration === 'number' && Number.isFinite(duration)) return Math.max(0, Math.round(duration));
+        if (typeof duration === 'string') {
+            let mins = 0;
+            const hourMatch = duration.match(/(\d+)\s*(hour|saat)/i);
+            const minMatch = duration.match(/(\d+)\s*(min|dk)/i);
+            if (hourMatch) mins += parseInt(hourMatch[1], 10) * 60;
+            if (minMatch) mins += parseInt(minMatch[1], 10);
+            return mins > 0 ? mins : null;
+        }
+        return null;
+    };
+
+    const floorToNearest5 = (d: dayjs.Dayjs) => {
+        const m = d.minute();
+        const r = m % 5;
+        return r ? d.subtract(r, 'minute') : d;
+    };
 
     // Map Modal State
     const [mapModalVisible, setMapModalVisible] = useState(false);
@@ -165,13 +187,22 @@ const AgencyNewTransferPage = () => {
             message.warning('Lütfen alış noktası, bırakış noktası ve tarihi doldurun.');
             return;
         }
+        if (isAirportTransfer && !flightTimeValue) {
+            message.warning('Havalimanı transferi için uçuş saati gereklidir.');
+            return;
+        }
 
         try {
             setLoading(true);
             setSearchError(null);
 
             const totalPassengers = passengerCounts.adults + passengerCounts.children + passengerCounts.babies;
-            const pickupDateTime = `${date.format('YYYY-MM-DD')}T${pickupHour}:${pickupMinute}:00.000`;
+            let pickupDateTime = `${date.format('YYYY-MM-DD')}T${pickupHour}:${pickupMinute}:00.000`;
+            if (isAirportTransfer && flightTimeValue) {
+                // For airport pickup (airport -> city), default pickup time = flight time.
+                // For airport dropoff (city -> airport), we will compute a better pickup time after we have route duration.
+                pickupDateTime = `${date.format('YYYY-MM-DD')}T${flightTimeValue.format('HH:mm')}:00.000`;
+            }
 
             let distance: number | undefined;
             let encodedPolyline: string | undefined;
@@ -182,6 +213,23 @@ const AgencyNewTransferPage = () => {
                         distance = route.distanceKm;
                         encodedPolyline = route.encodedPolyline;
                         setRouteStats({ distance: route.distanceKm, duration: route.durationMin });
+
+                        // If going TO airport, convert flight time into recommended pickup time (default buffer=2h + 30m).
+                        if (isAirportDropoff && flightTimeValue) {
+                            const durationMinutes = getDurationMinutes(route.durationMin);
+                            if (durationMinutes) {
+                                const totalBuffer = durationMinutes + (2 * 60) + 30;
+                                const flightDate = dayjs(`${date.format('YYYY-MM-DD')}T${flightTimeValue.format('HH:mm')}`);
+                                const recommendedPickup = floorToNearest5(flightDate.subtract(totalBuffer, 'minute'));
+                                pickupDateTime = recommendedPickup.format('YYYY-MM-DDTHH:mm:00.000');
+                                setPickupHour(recommendedPickup.format('HH'));
+                                setPickupMinute(recommendedPickup.format('mm'));
+                            }
+                        } else if (isAirportPickup && flightTimeValue) {
+                            // Airport pickup: keep pickupHour/minute aligned to flight time for consistency
+                            setPickupHour(flightTimeValue.format('HH'));
+                            setPickupMinute(flightTimeValue.format('mm'));
+                        }
                     }
                 } catch (e) {
                     console.error('Distance calculation failed:', e);
@@ -259,7 +307,8 @@ const AgencyNewTransferPage = () => {
             passengersList: initialPassengers,
             wantsInvoice: false,
             paymentMethod: 'BALANCE',
-            contactNationality: 'TR'
+            contactNationality: 'TR',
+            ...(isAirportTransfer && flightTimeValue ? { flightTime: flightTimeValue } : {})
         });
     };
 
@@ -280,10 +329,29 @@ const AgencyNewTransferPage = () => {
             }
 
             // B2B payload
-            // Construct the correct startDate using the date + pickupHour + pickupMinute from state
-            const startDateWithTime = date
+            // Construct the correct startDate (pickup time)
+            let startDateWithTime = date
                 ? date.hour(parseInt(pickupHour, 10)).minute(parseInt(pickupMinute, 10)).second(0).millisecond(0)
                 : (values.startDate || null);
+
+            // If airport transfer + flight time present, compute pickup time properly.
+            const flightTimeToSend = values.flightTime ? values.flightTime.format('HH:mm') : (flightTimeValue ? flightTimeValue.format('HH:mm') : undefined);
+            if (date && flightTimeToSend) {
+                if (isAirportDropoff) {
+                    const durationMinutes = getDurationMinutes(routeStats?.duration ?? selectedVehicle?.estimatedDuration);
+                    if (durationMinutes) {
+                        const isShuttle = !!selectedVehicle?.isShuttle;
+                        const bufferHours = isShuttle ? 3 : 2;
+                        const totalBuffer = durationMinutes + (bufferHours * 60) + 30;
+                        const flightDate = dayjs(`${date.format('YYYY-MM-DD')}T${flightTimeToSend}`);
+                        const recommendedPickup = floorToNearest5(flightDate.subtract(totalBuffer, 'minute'));
+                        startDateWithTime = recommendedPickup.second(0).millisecond(0);
+                    }
+                } else if (isAirportPickup) {
+                    // Airport pickup: pickup time = flight time (landing time)
+                    startDateWithTime = dayjs(`${date.format('YYYY-MM-DD')}T${flightTimeToSend}`).second(0).millisecond(0);
+                }
+            }
 
             const payload = {
                 ...values,
@@ -304,8 +372,8 @@ const AgencyNewTransferPage = () => {
                     vehicleType: selectedVehicle.vehicleType,
                     contactNationality: values.contactNationality,
                     flightNumber: values.flightNumber,
-                    flightTime: values.flightTime ? values.flightTime.format('HH:mm') : undefined,
-                    customerNotes: values.customerNotes || (values.flightTime ? `Uçuş Saati: ${values.flightTime.format('HH:mm')}` : undefined),
+                    flightTime: flightTimeToSend,
+                    customerNotes: values.customerNotes || (flightTimeToSend ? `Uçuş Saati: ${flightTimeToSend}` : undefined),
                     wantsInvoice: values.wantsInvoice,
                     agencyNotes: values.agencyNotes,
                     paymentMethod: values.paymentMethod,
@@ -470,15 +538,31 @@ const AgencyNewTransferPage = () => {
                         />
                     </Col>
                     <Col xs={24} md={6}>
-                        <label style={{ display: 'block', marginBottom: 8, fontWeight: 700, fontSize: 13, color: '#374151', textTransform: 'uppercase', letterSpacing: 0.5 }}>🕐 Saat</label>
-                        <Space.Compact style={{ width: '100%' }}>
-                            <Select size="large" value={pickupHour} onChange={setPickupHour} style={{ width: '50%' }}
-                                options={Array.from({ length: 24 }, (_, i) => ({ value: i.toString().padStart(2, '0'), label: i.toString().padStart(2, '0') }))}
-                            />
-                            <Select size="large" value={pickupMinute} onChange={setPickupMinute} style={{ width: '50%' }}
-                                options={['00', '15', '30', '45'].map(m => ({ value: m, label: m }))}
-                            />
-                        </Space.Compact>
+                        {!isAirportTransfer ? (
+                            <>
+                                <label style={{ display: 'block', marginBottom: 8, fontWeight: 700, fontSize: 13, color: '#374151', textTransform: 'uppercase', letterSpacing: 0.5 }}>🕐 Saat</label>
+                                <Space.Compact style={{ width: '100%' }}>
+                                    <Select size="large" value={pickupHour} onChange={setPickupHour} style={{ width: '50%' }}
+                                        options={Array.from({ length: 24 }, (_, i) => ({ value: i.toString().padStart(2, '0'), label: i.toString().padStart(2, '0') }))}
+                                    />
+                                    <Select size="large" value={pickupMinute} onChange={setPickupMinute} style={{ width: '50%' }}
+                                        options={['00', '15', '30', '45'].map(m => ({ value: m, label: m }))}
+                                    />
+                                </Space.Compact>
+                            </>
+                        ) : (
+                            <>
+                                <label style={{ display: 'block', marginBottom: 8, fontWeight: 700, fontSize: 13, color: '#374151', textTransform: 'uppercase', letterSpacing: 0.5 }}>✈️ Uçuş Saati</label>
+                                <TimePicker
+                                    size="large"
+                                    style={{ width: '100%' }}
+                                    format="HH:mm"
+                                    value={flightTimeValue}
+                                    onChange={(v) => setFlightTimeValue(v)}
+                                    placeholder="Örn: 14:30"
+                                />
+                            </>
+                        )}
                     </Col>
                     <Col xs={24} md={6}>
                         <label style={{ display: 'block', marginBottom: 8, fontWeight: 700, fontSize: 13, color: '#374151', textTransform: 'uppercase', letterSpacing: 0.5 }}>👥 Yolcular</label>
@@ -862,11 +946,15 @@ const AgencyNewTransferPage = () => {
                                     minuteStep={5}
                                 />
                             </Form.Item>
-                        ) : (
-                            <Form.Item name="customerNotes" label="Sürücüye Not (Opsiyonel)">
-                                <Input placeholder="Örn: Bebek koltuğu istiyorum" size="large" />
-                            </Form.Item>
-                        )}
+                        ) : null}
+                    </Col>
+                </Row>
+
+                <Row gutter={16}>
+                    <Col xs={24}>
+                        <Form.Item name="customerNotes" label="Sürücüye Not (Opsiyonel)">
+                            <Input placeholder="Örn: Bebek koltuğu istiyorum" size="large" />
+                        </Form.Item>
                     </Col>
                 </Row>
 
@@ -1086,15 +1174,19 @@ const AgencyNewTransferPage = () => {
     const renderSuccessStep = () => {
         // Use the pickupHour/pickupMinute state (not date.format which is always 00:00)
         const pickupTimeStr = `${pickupHour}:${pickupMinute}`;
+        const durationText = routeStats?.duration || selectedVehicle?.estimatedDuration || 'Yolculuk süresi';
+        const flightTimeStr = bookingResult?.metadata?.flightTime || bookingResult?.flightTime || (form.getFieldValue('flightTime')?.format?.('HH:mm') ?? null);
+        let suggestedPickup: string | null = null;
 
-        let calculatedPickup = pickupTimeStr;
-        let durationText = routeStats?.duration || selectedVehicle?.estimatedDuration || 'Yolculuk süresi';
-
-        // Very basic estimated pickup calculation for display
-        if (dropoff.toLowerCase().includes('havalimanı') || dropoff.toLowerCase().includes('airport')) {
-            if (date) {
-                // assume 2 hours before flight + 1 hour travel time conservatively if duration not numeric
-                calculatedPickup = date.hour(parseInt(pickupHour, 10)).minute(parseInt(pickupMinute, 10)).subtract(3, 'hour').format('HH:mm');
+        // Compute suggested pickup only when going TO airport (dropoff airport) and we have flightTime + duration.
+        if (isAirportDropoff && date && flightTimeStr) {
+            const durationMinutes = getDurationMinutes(routeStats?.duration ?? selectedVehicle?.estimatedDuration);
+            if (durationMinutes) {
+                const isShuttle = !!selectedVehicle?.isShuttle;
+                const bufferHours = isShuttle ? 3 : 2;
+                const totalBuffer = durationMinutes + (bufferHours * 60) + 30;
+                const flightDate = dayjs(`${date.format('YYYY-MM-DD')}T${flightTimeStr}`);
+                suggestedPickup = floorToNearest5(flightDate.subtract(totalBuffer, 'minute')).format('HH:mm');
             }
         }
 
@@ -1149,7 +1241,19 @@ const AgencyNewTransferPage = () => {
                         <div style={{ fontSize: 13, color: '#6b7280', lineHeight: 1.8 }}>
                             <div>📅 <strong>{date?.format('DD MMMM YYYY')}</strong></div>
                             <div>⏰ Alınış: <strong style={{ color: '#623ce4', fontSize: 15 }}>{pickupTimeStr}</strong></div>
-                            {(dropoff.toLowerCase().includes('havalimanı') || dropoff.toLowerCase().includes('airport')) && (
+                            {isAirportTransfer && flightTimeStr && (
+                                <div>✈️ Uçuş: <strong>{flightTimeStr}</strong></div>
+                            )}
+                            {suggestedPickup && (
+                                <div style={{ marginTop: 10, padding: '10px 12px', background: '#e6f7ff', borderRadius: 12, border: '1px solid #91d5ff', color: '#003a8c', fontSize: 12, lineHeight: 1.5 }}>
+                                    <div style={{ fontWeight: 800, marginBottom: 4 }}>🚀 Önerilen Alınış Saati</div>
+                                    <div>
+                                        Uçuşunuz <strong>{flightTimeStr}</strong>, yolculuk <strong>{String(durationText)}</strong> ve <strong>30 dk güvenlik payı</strong> dikkate alınarak
+                                        önerilen alınış saati: <strong>{suggestedPickup}</strong>
+                                    </div>
+                                </div>
+                            )}
+                            {(isAirportDropoff) && (
                                 <div style={{ marginTop: 6, padding: '6px 10px', background: '#fefce8', borderRadius: 8, color: '#92400e', fontSize: 12 }}>
                                     ⚠️ Havalimanı: {durationText} süre hesaplanmaktadır
                                 </div>

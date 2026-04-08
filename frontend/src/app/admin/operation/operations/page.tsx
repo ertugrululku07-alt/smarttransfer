@@ -1504,6 +1504,7 @@ export default function OperationsPage() {
         { key: 'pickupTime', width: 80,  label: 'ALIŞ SAATİ',      hidden: false },
         { key: 'pickup',     width: 220, label: 'ALIŞ NOKTASI',    hidden: false },
         { key: 'flight',     width: 130, label: 'UÇUŞ',            hidden: false },
+        { key: 'payment',    width: 90,  label: 'ÖDEME',           hidden: false },
         { key: 'pax',        width: 50,  label: 'PAX',            hidden: false },
         { key: 'phone',      width: 140, label: 'TELEFON',        hidden: false },
         { key: 'extras',     width: 160, label: 'EKSTRA HİZMET',   hidden: false },
@@ -2031,6 +2032,7 @@ export default function OperationsPage() {
                                                     { key: 'bookingNumber', label: 'T.KOD' },
                                                     { key: 'direction', label: 'YÖN' },
                                                     { key: 'partnerName', label: 'ACENTE' },
+                                                    { key: 'paymentType', label: 'ÖDEME' },
                                                     { key: 'customerNote', label: 'MÜŞTERİ NOTU' },
                                                     { key: 'internalNotes', label: 'OP. NOTU' },
                                                     { key: 'customerName', label: 'AD SOYAD' },
@@ -2755,6 +2757,31 @@ export default function OperationsPage() {
                                                                                 )}
                                                                             </div>
                                                                         );
+                                                                        case 'payment': {
+                                                                            const method = b?.metadata?.paymentMethod;
+                                                                            const ps = b?.paymentStatus;
+                                                                            if (!method) return <span style={{ fontSize: 11, color: '#999' }}>-</span>;
+                                                                            if (method === 'PAY_IN_VEHICLE') {
+                                                                                const paid = ps === 'PAID';
+                                                                                return (
+                                                                                    <span style={{
+                                                                                        fontSize: 11,
+                                                                                        fontWeight: 800,
+                                                                                        color: paid ? '#166534' : '#9a3412',
+                                                                                        background: paid ? '#dcfce7' : '#ffedd5',
+                                                                                        border: `1px solid ${paid ? '#86efac' : '#fdba74'}`,
+                                                                                        padding: '2px 8px',
+                                                                                        borderRadius: 10,
+                                                                                        whiteSpace: 'nowrap'
+                                                                                    }}>
+                                                                                        {paid ? 'Ödendi' : 'Araçta'}
+                                                                                    </span>
+                                                                                );
+                                                                            }
+                                                                            if (method === 'CREDIT_CARD') return <span style={{ fontSize: 11, fontWeight: 800, color: '#1d4ed8', background: '#eff6ff', border: '1px solid #bfdbfe', padding: '2px 8px', borderRadius: 10, whiteSpace: 'nowrap' }}>Kart</span>;
+                                                                            if (method === 'BALANCE') return <span style={{ fontSize: 11, fontWeight: 800, color: '#166534', background: '#f0fdf4', border: '1px solid #bbf7d0', padding: '2px 8px', borderRadius: 10, whiteSpace: 'nowrap' }}>Bakiye</span>;
+                                                                            return <span style={{ fontSize: 11, fontWeight: 700, color: '#475569', background: '#f8fafc', border: '1px solid #e2e8f0', padding: '2px 8px', borderRadius: 10, whiteSpace: 'nowrap' }}>{String(method)}</span>;
+                                                                        }
                                                                         case 'pax': return <span style={{ fontWeight: 700, color: '#374151' }}>{b.adults || 1} p</span>;
                                                                         case 'phone': return <span style={{ fontSize: 12, color: '#374151' }}>{b.contactPhone}</span>;
                                                                         case 'extras': {
@@ -3097,6 +3124,7 @@ export default function OperationsPage() {
                                     { key: 'bookingNumber', default: 'T.KOD' },
                                     { key: 'direction', default: 'YÖN' },
                                     { key: 'partnerName', default: 'ACENTE' },
+                                    { key: 'paymentType', default: 'ÖDEME' },
                                     { key: 'customerNote', default: 'MÜŞTERİ NOTU' },
                                     { key: 'internalNotes', default: 'OP. NOTU' },
                                     { key: 'customerName', default: 'MÜŞTERİ ADI' },

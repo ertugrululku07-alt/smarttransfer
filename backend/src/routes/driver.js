@@ -159,6 +159,49 @@ router.put('/bookings/:id/status', authMiddleware, ensureDriver, async (req, res
     }
 });
 
+// PUT /api/driver/bookings/:id/payment-received
+// Driver marks payment as received (used for PAY_IN_VEHICLE)
+router.put('/bookings/:id/payment-received', authMiddleware, ensureDriver, async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const booking = await prisma.booking.findFirst({
+            where: { id, driverId: req.user.id }
+        });
+        if (!booking) {
+            return res.status(404).json({ success: false, error: 'Rezervasyon bulunamadı' });
+        }
+
+        const meta = booking.metadata || {};
+        const method = meta.paymentMethod;
+        if (method !== 'PAY_IN_VEHICLE') {
+            return res.status(400).json({ success: false, error: 'Bu rezervasyon araçta ödeme değil' });
+        }
+
+        const updated = await prisma.booking.update({
+            where: { id },
+            data: {
+                paymentStatus: 'PAID',
+                metadata: {
+                    ...meta,
+                    paymentReceivedAt: new Date().toISOString(),
+                    paymentReceivedBy: req.user.id
+                }
+            }
+        });
+
+        const io = req.app.get('io');
+        if (io) {
+            io.to('admin_monitoring').emit('booking_payment_update', { bookingId: id, paymentStatus: 'PAID', driverId: req.user.id });
+        }
+
+        res.json({ success: true, data: updated });
+    } catch (error) {
+        console.error('Driver payment received error:', error);
+        res.status(500).json({ success: false, error: 'Server error' });
+    }
+});
+
 
 
 // GET /api/driver/profile

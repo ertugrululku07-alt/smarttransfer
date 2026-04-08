@@ -190,7 +190,7 @@ export default function OperationsTable({
     const saveTimerRef = React.useRef<NodeJS.Timeout | null>(null);
 
     // Static column key list for drag-drop fallback
-    const ALL_COLUMN_KEYS = ['index','bookingNumber','direction','partnerName','customerNote','internalNotes','customerName','contactPhone','date','airportCode','pickupRegionCode','dropoffRegionCode','status','driver','vehicle','time','flightTime','flightCode','pax','pickup','dropoff','extraServices','actions'];
+    const ALL_COLUMN_KEYS = ['index','bookingNumber','direction','partnerName','paymentType','customerNote','internalNotes','customerName','contactPhone','date','airportCode','pickupRegionCode','dropoffRegionCode','status','driver','vehicle','time','flightTime','flightCode','pax','pickup','dropoff','extraServices','actions'];
     
     const sensors = useSensors(
         useSensor(PointerSensor, {
@@ -205,6 +205,7 @@ export default function OperationsTable({
         bookingNumber: 120,
         direction: 70,
         partnerName: 120,
+        paymentType: 95,
         customerNote: 150,
         internalNotes: 150,
         customerName: 130,
@@ -546,7 +547,47 @@ export default function OperationsTable({
             dataIndex: 'partnerName',
             key: 'partnerName',
             width: columnWidths.partnerName,
-            render: (text: string) => <Text style={{ fontSize: 11, fontWeight: 500 }}>{text || <span style={{ color: '#d1d5db' }}>—</span>}</Text>,
+            render: (_: string, record: any) => {
+                const agencyName = record.agencyName || record.partnerName;
+                return <Text style={{ fontSize: 11, fontWeight: 500 }}>{agencyName || <span style={{ color: '#d1d5db' }}>—</span>}</Text>;
+            },
+        },
+        {
+            title: renderColumnHeader('paymentType', 'ÖDEME', true),
+            key: 'paymentType',
+            width: columnWidths.paymentType || 95,
+            render: (_: any, record: any) => {
+                const method = record?.metadata?.paymentMethod;
+                const status = record?.paymentStatus || record?.metadata?.paymentStatus;
+                if (!method) return <Text style={{ fontSize: 11, color: '#999' }}>-</Text>;
+
+                if (method === 'PAY_IN_VEHICLE') {
+                    const isPaid = status === 'PAID';
+                    return (
+                        <Tag style={{
+                            margin: 0,
+                            fontSize: 10,
+                            fontWeight: 800,
+                            background: isPaid ? '#dcfce7' : '#fff7ed',
+                            border: `1px solid ${isPaid ? '#86efac' : '#fdba74'}`,
+                            color: isPaid ? '#166534' : '#9a3412',
+                            borderRadius: 6,
+                            padding: '1px 6px'
+                        }}>
+                            {isPaid ? 'Ödendi' : 'Araçta'}
+                        </Tag>
+                    );
+                }
+
+                if (method === 'CREDIT_CARD') {
+                    return <Tag style={{ margin: 0, fontSize: 10, fontWeight: 800, background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1d4ed8', borderRadius: 6, padding: '1px 6px' }}>Kart</Tag>;
+                }
+                if (method === 'BALANCE') {
+                    return <Tag style={{ margin: 0, fontSize: 10, fontWeight: 800, background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#166534', borderRadius: 6, padding: '1px 6px' }}>Bakiye</Tag>;
+                }
+
+                return <Tag style={{ margin: 0, fontSize: 10, fontWeight: 800, background: '#f8fafc', border: '1px solid #e2e8f0', color: '#475569', borderRadius: 6, padding: '1px 6px' }}>{String(method)}</Tag>;
+            },
         },
         {
             title: renderColumnHeader('customerNote', 'MÜŞTERİ NOTU'),
@@ -554,6 +595,13 @@ export default function OperationsTable({
             key: 'customerNote',
             width: columnWidths.customerNote,
             render: (text: string, record: any) => {
+                const note =
+                    text ||
+                    record?.specialRequests ||
+                    record?.notes ||
+                    record?.metadata?.customerNotes ||
+                    record?.metadata?.notes ||
+                    '';
                 const isEditing = editingCell?.id === record.id && editingCell?.field === 'customerNote';
                 if (isEditing) {
                     return (
@@ -576,11 +624,11 @@ export default function OperationsTable({
                 }
                 return (
                     <div
-                        onDoubleClick={() => setEditingCell({ id: record.id, field: 'customerNote', value: text })}
+                        onDoubleClick={() => setEditingCell({ id: record.id, field: 'customerNote', value: note })}
                         style={{ fontSize: 11, cursor: 'pointer', minHeight: 20 }}
                         title="Çift tıklayarak düzenleyin"
                     >
-                        {text || '-'}
+                        {note || '-'}
                     </div>
                 );
             },
@@ -720,6 +768,8 @@ export default function OperationsTable({
             key: 'status',
             width: columnWidths.status,
             render: (status: string, record: any) => {
+                // Fallback to main status if operationalStatus is not set
+                const effectiveStatus = status || record.status || record.metadata?.operationalStatus || 'PENDING';
                 const statusCfg: Record<string, { color: string; bg: string; label: string }> = {
                     PENDING:             { color: '#b45309', bg: '#fef3c7', label: 'Beklemede' },
                     CONFIRMED:           { color: '#1d4ed8', bg: '#dbeafe', label: 'Onaylandı' },
@@ -731,7 +781,7 @@ export default function OperationsTable({
                     CANCELLED:           { color: '#dc2626', bg: '#fee2e2', label: 'İptal' },
                     HAVUZDA:             { color: '#be185d', bg: '#fce7f3', label: 'Havuzda' },
                 };
-                const cfg = statusCfg[status] || { color: '#6b7280', bg: '#f3f4f6', label: status };
+                const cfg = statusCfg[effectiveStatus] || { color: '#6b7280', bg: '#f3f4f6', label: effectiveStatus };
                 
                 // Editable status
                 if (editingCell?.id === record.id && editingCell?.field === 'status') {

@@ -6,6 +6,57 @@ const bcrypt = require('bcryptjs');
 const router = express.Router();
 const prisma = require('../lib/prisma');
 
+// Helper: Load tenant hubs for region code detection
+async function loadTenantHubs(tenantId) {
+    const defaultHubs = [
+        { code: 'AYT', keywords: 'ayt, antalya havalimanı, antalya airport', name: 'Antalya Havalimanı' },
+        { code: 'GZP', keywords: 'gzp, gazipasa, gazipaşa', name: 'Gazipaşa Havalimanı' },
+    ];
+    if (!tenantId) return defaultHubs;
+    try {
+        const tenantInfo = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { settings: true } });
+        if (tenantInfo?.settings?.hubs && Array.isArray(tenantInfo.settings.hubs)) {
+            return tenantInfo.settings.hubs;
+        }
+    } catch (e) {
+        console.error("Failed to fetch tenant hubs for region detection", e);
+    }
+    return defaultHubs;
+}
+
+// Helper: Detect region code from location text using tenant hubs
+function detectRegionCode(locationText, hubs) {
+    if (!locationText || !hubs || !Array.isArray(hubs)) return null;
+    const trLower = (s) => (s || '').toLocaleLowerCase('tr');
+    const text = trLower(locationText);
+    const SKIP_WORDS = new Set(['havalimanı', 'havalimani', 'airport', 'havaalanı', 'merkez', 'center', 'terminal']);
+
+    let bestCode = null;
+    let bestPosition = Infinity;
+    let bestLength = 0;
+
+    for (const hub of hubs) {
+        const keys = hub.keywords ? hub.keywords.split(',').map(k => trLower(k).trim()).filter(k => k) : [];
+        keys.push(trLower(hub.code));
+        if (hub.name) {
+            const nameParts = trLower(hub.name).split(/[\s\/,]+/).filter(p => p.length >= 3 && !SKIP_WORDS.has(p));
+            keys.push(...nameParts);
+        }
+
+        for (const k of keys) {
+            const pos = text.indexOf(k);
+            if (pos !== -1) {
+                if (pos < bestPosition || (pos === bestPosition && k.length > bestLength)) {
+                    bestCode = hub.code;
+                    bestPosition = pos;
+                    bestLength = k.length;
+                }
+            }
+        }
+    }
+    return bestCode;
+}
+
 // Middleware to ensure user is AGENCY_ADMIN or AGENCY_STAFF
 const agencyMiddleware = async (req, res, next) => {
     if (!req.user) return res.status(401).json({ success: false, error: 'Not authenticated' });
@@ -253,11 +304,29 @@ router.post('/bookings', authMiddleware, agencyMiddleware, async (req, res) => {
             metadata.passengersList = passengersList;
         }
 
+        // Persist customer note in the canonical column used by operations UI (`specialRequests`)
+        // Accept different client keys for backwards compatibility.
+        const customerNote =
+            req.body.customerNotes ??
+            req.body.notes ??
+            metadata.customerNotes ??
+            metadata.customerNote ??
+            metadata.note ??
+            null;
+
         // Add routing and vehicle explicit metadata for the list views
-        if (req.body.pickup) metadata.pickup = req.body.pickup;
-        if (req.body.dropoff) metadata.dropoff = req.body.dropoff;
+        // (Some clients may send pickup/dropoff only inside metadata.)
+        const pickupText = req.body.pickup || metadata.pickup || '';
+        const dropoffText = req.body.dropoff || metadata.dropoff || '';
+        if (pickupText) metadata.pickup = pickupText;
+        if (dropoffText) metadata.dropoff = dropoffText;
         if (req.body.vehicleId) metadata.vehicleId = req.body.vehicleId;
         if (req.body.vehicleType) metadata.vehicleType = req.body.vehicleType;
+
+        // Detect region codes from hub keywords
+        const hubs = await loadTenantHubs(req.tenant.id);
+        metadata.pickupRegionCode = detectRegionCode(pickupText, hubs);
+        metadata.dropoffRegionCode = detectRegionCode(dropoffText, hubs);
 
         // Use transaction to create booking and deduct balance safely
         const booking = await prisma.$transaction(async (tx) => {
@@ -282,6 +351,7 @@ router.post('/bookings', authMiddleware, agencyMiddleware, async (req, res) => {
                     status: paymentMethod === 'CREDIT_CARD' ? 'PENDING' : 'CONFIRMED',
                     paymentStatus: paymentMethod === 'BALANCE' ? 'PAID' : 'PENDING',
                     confirmationType: 'INSTANT',
+                    specialRequests: customerNote || undefined,
                     metadata
                 }
             });
@@ -490,6 +560,15 @@ router.post('/bookings/bulk', authMiddleware, agencyMiddleware, async (req, res)
             if (t.passengersList && Array.isArray(t.passengersList)) {
                 metadata.passengersList = t.passengersList;
             }
+            if (t.pickup) metadata.pickup = t.pickup;
+            if (t.dropoff) metadata.dropoff = t.dropoff;
+            if (t.vehicleId) metadata.vehicleId = t.vehicleId;
+            if (t.vehicleType) metadata.vehicleType = t.vehicleType;
+
+            // Detect region codes (best-effort) so operations table can show pickup/dropoff region
+            const hubs = await loadTenantHubs(req.tenant.id);
+            metadata.pickupRegionCode = detectRegionCode(metadata.pickup || '', hubs);
+            metadata.dropoffRegionCode = detectRegionCode(metadata.dropoff || '', hubs);
 
             await prisma.booking.create({
                 data: {

@@ -56,7 +56,7 @@ const DEFAULT_COL_WIDTHS: Record<string, number> = {
     agency: 100, passengerName: 130, pickupLoc: 200, dropoffLoc: 200,
     airportCode: 100, pickupRegionCode: 80, dropoffRegionCode: 80,
     vehicleType: 130, price: 90, status: 120,
-    paymentStatus: 100, flightNumber: 90, adults: 90, extraServices: 150, action: 120,
+    paymentType: 110, paymentStatus: 100, flightNumber: 90, adults: 90, extraServices: 150, action: 120,
 };
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -168,7 +168,7 @@ const ALL_COL_KEYS = [
     'bookingNumber', 'pickupDateTime', 'createdAt', 'agency',
     'passengerName', 'pickupLoc', 'dropoffLoc', 'airportCode',
     'pickupRegionCode', 'dropoffRegionCode',
-    'vehicleType', 'price', 'status', 'paymentStatus',
+    'vehicleType', 'price', 'status', 'paymentType', 'paymentStatus',
     'flightNumber', 'adults', 'extraServices', 'customerNote', 'internalNotes', 'action'
 ];
 const DEFAULT_VISIBLE_COLS = [
@@ -191,6 +191,7 @@ const DEFAULT_COL_TITLES: Record<string, string> = {
     vehicleType:    'Araç',
     price:          'Tutar',
     status:         'Durum',
+    paymentType:    'Ödeme Tipi',
     paymentStatus:  'Ödeme',
     flightNumber:   'Uçuş No',
     adults:         'Yolcu Sayısı',
@@ -207,7 +208,7 @@ interface EditableHeaderProps {
     onFilter: (k: string, f: ColFilter) => void;
     onClearFilter: (k: string) => void;
 }
-const FILTERABLE = ['bookingNumber','passengerName','agency','status','pickupDateTime','createdAt','price','pickupLoc','dropoffLoc','airportCode', 'vehicleType', 'paymentStatus', 'flightNumber', 'adults'];
+const FILTERABLE = ['bookingNumber','passengerName','agency','status','pickupDateTime','createdAt','price','pickupLoc','dropoffLoc','airportCode', 'vehicleType', 'paymentType', 'paymentStatus', 'flightNumber', 'adults'];
 
 const FilterPopover: React.FC<{ colKey: string; filter: ColFilter; onFilter: (k:string,f:ColFilter)=>void; onClear:(k:string)=>void }> = ({ colKey, filter, onFilter, onClear }) => {
     const [local, setLocal] = useState<ColFilter>({ ...filter });
@@ -716,6 +717,19 @@ const TransfersPage: React.FC = () => {
         { ...makeHeader('status'), dataIndex:'status', key:'status', width:colWidths.status,
           sorter:(a:Booking,b:Booking)=>getEffectiveStatus(a).localeCompare(getEffectiveStatus(b)),
           render:(_:any,r:Booking)=>{const conf=getStatusConf(r);return renderEditableCell(r, 'status', <Tag style={{background:conf.bg,borderColor:conf.color,color:conf.color,fontWeight:600,fontSize:11,padding:'2px 8px',borderRadius:20,cursor:'pointer'}}>{conf.label}</Tag>, <Select size="small" autoFocus defaultOpen defaultValue={r.status} style={{ width: 100 }} onChange={(val) => saveCellEdit(r.id, 'status', val)} onBlur={() => setEditingCell(null)} options={Object.keys(DEFAULT_STATUS_COLORS).map(k => ({ value: k, label: DEFAULT_STATUS_COLORS[k].label }))} />);}},
+        { ...makeHeader('paymentType'), key:'paymentType', width:colWidths.paymentType || 110,
+          render:(_:any,r:Booking)=>{
+              const method = r.metadata?.paymentMethod;
+              const ps = r.paymentStatus;
+              if (!method) return <Text type="secondary" style={{fontSize:11}}>-</Text>;
+              if (method === 'PAY_IN_VEHICLE') {
+                  const paid = ps === 'PAID';
+                  return <Tag color={paid ? 'green' : 'orange'} style={{fontSize:11}}>{paid ? 'Ödendi' : 'Araçta'}</Tag>;
+              }
+              if (method === 'CREDIT_CARD') return <Tag color="blue" style={{fontSize:11}}>Kart</Tag>;
+              if (method === 'BALANCE') return <Tag color="green" style={{fontSize:11}}>Bakiye</Tag>;
+              return <Tag style={{fontSize:11}}>{String(method)}</Tag>;
+          }},
         { ...makeHeader('paymentStatus'), dataIndex:'paymentStatus', key:'paymentStatus', width:colWidths.paymentStatus,
           render:(ps:string)=><Tag color={ps==='PAID'?'green':ps==='REFUNDED'?'red':'orange'} style={{fontSize:11}}>{ps==='PAID'?'Ödendi':ps==='REFUNDED'?'İade':'Bekliyor'}</Tag>},
         { ...makeHeader('flightNumber'), key:'flightNumber', width:colWidths.flightNumber,
@@ -786,9 +800,19 @@ const TransfersPage: React.FC = () => {
                       </Dropdown>
                       <Tooltip title="İptal Et"><Button type="text" size="small" icon={<CloseCircleOutlined/>} style={{color:'#ef4444'}} onClick={()=>handleUpdateStatus(record.id,'CANCELLED')}/></Tooltip>
                   </>)}
-                  {record.status==='CONFIRMED' && !['IN_OPERATION', 'IN_POOL'].includes(record.operationalStatus || '') &&(
+                  {record.status==='CONFIRMED' && !['IN_OPERATION', 'IN_POOL'].includes(record.operationalStatus || '') &&(<>
+                      <Dropdown menu={{items:[
+                          {key:'op',label:'Operasyona Aktar',icon:<SafetyCertificateOutlined/>,onClick:()=>handleUpdateStatus(record.id,'CONFIRMED','IN_OPERATION')},
+                          {key:'pool',label:'Havuza Aktar',icon:<TeamOutlined/>,onClick:()=>{
+                              setActivePoolBooking(record);
+                              setPoolPriceInput(record.price || 0);
+                              setPoolModalOpen(true);
+                          }}
+                      ]}}>
+                          <Button type="text" size="small" icon={<CheckCircleOutlined/>} style={{color:'#10b981'}}/>
+                      </Dropdown>
                       <Tooltip title="Tamamlandı"><Button type="text" size="small" icon={<CheckCircleOutlined/>} style={{color:'#6366f1'}} onClick={()=>handleUpdateStatus(record.id,'COMPLETED')}/></Tooltip>
-                  )}
+                  </>)}
               </Space>
           )},
     ];
