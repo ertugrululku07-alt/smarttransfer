@@ -6,7 +6,7 @@ import Toast from 'react-native-toast-message';
 import { Audio } from 'expo-av';
 import * as Notifications from 'expo-notifications';
 
-const SOCKET_URL = 'https://smarttransfer-backend-production.up.railway.app';
+const SOCKET_URL = 'https://backend-production-69e7.up.railway.app';
 
 interface SocketContextType {
     socket: Socket | null;

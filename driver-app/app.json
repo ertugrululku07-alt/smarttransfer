@@ -43,7 +43,6 @@
       ],
       "edgeToEdgeEnabled": false,
       "predictiveBackGestureEnabled": false,
-      "usesCleartextTraffic": true,
       "googleServicesFile": "./google-services.json"
     },
     "web": {

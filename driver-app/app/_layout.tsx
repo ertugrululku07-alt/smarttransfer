@@ -26,7 +26,7 @@ import { Platform, Alert, Linking, AppState } from 'react-native';
 const LOCATION_TASK_NAME = 'background-location-task';
 const BG_FETCH_TASK_NAME = 'background-sync-task';
 const BACKGROUND_NOTIFICATION_TASK = 'background-notification-task';
-const API_URL = 'https://smarttransfer-backend-production.up.railway.app/api';
+const API_URL = 'https://backend-production-69e7.up.railway.app/api';
 
 // Configure how notifications appear when app is in foreground
 Notifications.setNotificationHandler({

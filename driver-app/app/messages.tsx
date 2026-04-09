@@ -11,7 +11,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 
-const API_URL = 'https://smarttransfer-backend-production.up.railway.app/api';
+const API_URL = 'https://backend-production-69e7.up.railway.app/api';
 
 export default function MessagesScreen() {
     const { user, token } = useAuth();

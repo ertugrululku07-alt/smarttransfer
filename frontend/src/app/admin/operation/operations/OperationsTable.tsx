@@ -920,8 +920,8 @@ export default function OperationsTable({
             ellipsis: true,
             render: (_: any, record: any) => {
                 const options = drivers.map(d => ({
-                    label: `${d.firstName} ${d.lastName}`,
-                    value: d.id,
+                    label: `${d.firstName || ''} ${d.lastName || ''}`.trim() || d.name || `Şöför (${(d.user?.id || d.id).substring(0, 8)})`,
+                    value: d.user?.id || d.id,
                 }));
                 return (
                     <Space size={2}>
@@ -956,7 +956,7 @@ export default function OperationsTable({
             ellipsis: true,
             render: (_: any, record: any) => {
                 const options = vehicles.map(v => ({
-                    label: `${v.plate} - ${v.model}`,
+                    label: `${v.plateNumber || v.plate || ''} - ${v.model || ''}`.trim(),
                     value: v.id,
                 }));
                 return (

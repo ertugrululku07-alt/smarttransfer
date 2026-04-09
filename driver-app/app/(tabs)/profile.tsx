@@ -9,7 +9,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useRouter } from 'expo-router';
 import { Brand } from '../../constants/theme';
 
-const API_URL = 'https://smarttransfer-backend-production.up.railway.app/api';
+const API_URL = 'https://backend-production-69e7.up.railway.app/api';
 
 export default function ProfileScreen() {
     const { user, token, signOut } = useAuth();

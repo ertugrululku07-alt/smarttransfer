@@ -11,7 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as SecureStore from 'expo-secure-store';
 import { Brand } from '../constants/theme';
 
-const API_URL = 'https://smarttransfer-backend-production.up.railway.app/api';
+const API_URL = 'https://backend-production-69e7.up.railway.app/api';
 const { width, height } = Dimensions.get('window');
 const LOGIN_TIMEOUT_MS = 12000; // 12 second timeout
 

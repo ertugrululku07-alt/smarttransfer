@@ -1,7 +1,80 @@
 ✅ Update Successful! {
-  "googleMaps": {},
+  "hubs": [
+    {
+      "code": "AYT",
+      "name": "ANTALYA HAVALİMANI",
+      "keywords": "AYT"
+    },
+    {
+      "code": "GZP",
+      "name": "GAZİPAŞA GZP",
+      "keywords": "GZP"
+    },
+    {
+      "code": "ANTALYA",
+      "name": "ANTALYA",
+      "keywords": "ANTALYA"
+    },
+    {
+      "code": "ALY",
+      "name": "ALANYA",
+      "keywords": "ALY"
+    },
+    {
+      "code": "MNG",
+      "name": "MANAVGAT",
+      "keywords": "manavgat"
+    }
+  ],
+  "siteTheme": "winter",
+  "googleMaps": {
+    "apiKey": "AIzaSyDTLVFZBVSnrIuTjjTzIKHEi6VbcOXXCYw",
+    "country": "tr"
+  },
+  "definitions": {
+    "vatRates": [
+      {
+        "id": "s38uxibpi",
+        "name": "KDV 20",
+        "rate": 20,
+        "isDefault": true
+      }
+    ],
+    "currencies": [
+      {
+        "id": "7lay2lkbe",
+        "code": "TRY",
+        "rate": 1,
+        "symbol": "₺",
+        "isDefault": true
+      },
+      {
+        "id": "0o4zrxdd1",
+        "code": "USD",
+        "rate": 44.5,
+        "symbol": "$"
+      },
+      {
+        "id": "hwy5g2fm4",
+        "code": "EUR",
+        "rate": 51.5,
+        "symbol": "€"
+      }
+    ]
+  },
   "heroBackground": {
     "type": "video",
     "videoUrl": "X-Z12VYZNec"
-  }
+  },
+  "homepageSections": [
+    "popularRoutes",
+    "howItWorks",
+    "whyUs",
+    "stats",
+    "testimonials",
+    "faq",
+    "cta"
+  ],
+  "salaryPaymentDay": 6,
+  "partnerCommissionRate": 10
 }

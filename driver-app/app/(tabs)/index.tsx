@@ -13,7 +13,7 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Brand } from '../../constants/theme';
 
-const API_URL = 'https://smarttransfer-backend-production.up.railway.app/api';
+const API_URL = 'https://backend-production-69e7.up.railway.app/api';
 const LOCATION_TASK_NAME = 'background-location-task';
 
 const { width } = Dimensions.get('window');
