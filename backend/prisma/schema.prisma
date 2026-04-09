@@ -96,6 +96,7 @@ model Tenant {
   transactions    Transaction[]
   zones           Zone[]
   activityLogs    ActivityLog[]
+  speedViolations SpeedViolation[]
 }
 
 enum TenantStatus {
@@ -1652,6 +1653,31 @@ model AgencyContractMeta {
 
   @@unique([agencyId, vehicleTypeId])
   @@index([tenantId, agencyId])
+}
+
+// ============================================================================
+// SPEED VIOLATION TRACKING
+// ============================================================================
+
+model SpeedViolation {
+  id          String   @id @default(uuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  driverId    String   // Personnel/User ID of the driver
+  driverName  String
+  speed       Float    // Recorded speed in km/h
+  speedLimit  Float    @default(120) // Limit that was exceeded
+  lat         Float
+  lng         Float
+  bookingId   String?  // If driver was on a job at the time
+  vehiclePlate String? // Vehicle plate if known
+
+  createdAt   DateTime @default(now())
+
+  @@index([tenantId, driverId])
+  @@index([tenantId, createdAt])
+  @@index([driverId, createdAt])
 }
 
 // ============================================================================

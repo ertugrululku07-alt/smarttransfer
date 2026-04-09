@@ -381,12 +381,12 @@ router.post('/sync', authMiddleware, async (req, res) => {
             });
         }
 
-        // 1b. Speed violation detection (>120 km/h)
+        // 1b. Speed violation detection (>120 km/h) — persist to DB
         const SPEED_LIMIT = 120;
         if (speed && parseFloat(speed) > SPEED_LIMIT) {
+            // In-memory (for real-time dashboard)
             const speedViolations = req.app.get('speedViolations') || {};
             if (!speedViolations[driverId]) speedViolations[driverId] = [];
-            // Keep only last 50 violations per driver per day
             if (speedViolations[driverId].length >= 50) speedViolations[driverId].shift();
             const violation = {
                 speed: parseFloat(speed),
@@ -397,6 +397,20 @@ router.post('/sync', authMiddleware, async (req, res) => {
             };
             speedViolations[driverId].push(violation);
             req.app.set('speedViolations', speedViolations);
+
+            // Persist to DB (fire-and-forget, don't slow down sync)
+            prisma.speedViolation.create({
+                data: {
+                    tenantId: req.user.tenantId || req.tenant?.id || 'default',
+                    driverId,
+                    driverName: req.user.fullName,
+                    speed: parseFloat(speed),
+                    speedLimit: SPEED_LIMIT,
+                    lat: parseFloat(lat),
+                    lng: parseFloat(lng)
+                }
+            }).catch(err => console.error('[SPEED] DB write error:', err.message));
+
             console.log(`[SPEED] ⚠️ ${req.user.fullName} hız ihlali: ${parseFloat(speed).toFixed(0)} km/h @ ${lat},${lng}`);
         }
 
@@ -629,6 +643,80 @@ router.get('/online', async (req, res) => {
 });
 
 
+
+// GET /api/driver/:id/violations
+// Returns speed violation history for a specific driver, grouped by date
+router.get('/:id/violations', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { days = 30, limit = 200 } = req.query;
+
+        const since = new Date();
+        since.setDate(since.getDate() - parseInt(days));
+
+        const violations = await prisma.speedViolation.findMany({
+            where: {
+                driverId: id,
+                createdAt: { gte: since }
+            },
+            orderBy: { createdAt: 'desc' },
+            take: parseInt(limit)
+        });
+
+        // Group by date
+        const grouped = {};
+        violations.forEach(v => {
+            const dateKey = new Date(v.createdAt).toISOString().split('T')[0]; // YYYY-MM-DD
+            if (!grouped[dateKey]) grouped[dateKey] = [];
+            grouped[dateKey].push({
+                id: v.id,
+                speed: v.speed,
+                speedLimit: v.speedLimit,
+                lat: v.lat,
+                lng: v.lng,
+                bookingId: v.bookingId,
+                vehiclePlate: v.vehiclePlate,
+                time: v.createdAt
+            });
+        });
+
+        // Also include today's in-memory violations (most recent, might not be in DB yet)
+        const memViolations = (req.app.get('speedViolations') || {})[id] || [];
+        const todayKey = new Date().toISOString().split('T')[0];
+        if (memViolations.length > 0 && !grouped[todayKey]) {
+            grouped[todayKey] = [];
+        }
+        memViolations.forEach(mv => {
+            const exists = (grouped[todayKey] || []).some(v =>
+                Math.abs(new Date(v.time).getTime() - new Date(mv.timestamp).getTime()) < 5000
+            );
+            if (!exists) {
+                if (!grouped[todayKey]) grouped[todayKey] = [];
+                grouped[todayKey].push({
+                    id: `mem_${mv.timestamp}`,
+                    speed: mv.speed,
+                    speedLimit: 120,
+                    lat: mv.lat,
+                    lng: mv.lng,
+                    time: mv.timestamp
+                });
+            }
+        });
+
+        res.json({
+            success: true,
+            data: {
+                driverId: id,
+                totalCount: violations.length,
+                days: parseInt(days),
+                grouped
+            }
+        });
+    } catch (error) {
+        console.error('Driver violations error:', error);
+        res.status(500).json({ success: false, error: 'Server error' });
+    }
+});
 
 module.exports = router;
 

@@ -4,11 +4,12 @@ import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useSocket } from '@/app/context/SocketContext';
 import apiClient from '@/lib/api-client';
 import AdminLayout from '../AdminLayout';
-import { Badge, Spin, Input, Tooltip, Typography, Empty } from 'antd';
+import { Badge, Spin, Input, Tooltip, Typography, Empty, Drawer, Timeline, Tag } from 'antd';
 import {
     CarOutlined, DashboardOutlined, EnvironmentOutlined, PhoneOutlined,
     ClockCircleOutlined, WarningOutlined, UserOutlined, SearchOutlined,
-    ReloadOutlined, ExpandOutlined, CompressOutlined, AimOutlined
+    ReloadOutlined, ExpandOutlined, CompressOutlined, AimOutlined,
+    HistoryOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
@@ -71,6 +72,12 @@ const LiveMapPage = () => {
     const [sidebarExpanded, setSidebarExpanded] = useState(true);
     const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
     const [loading, setLoading] = useState(true);
+    const [violationDrawer, setViolationDrawer] = useState(false);
+    const [violationDriverId, setViolationDriverId] = useState<string | null>(null);
+    const [violationDriverName, setViolationDriverName] = useState('');
+    const [violationData, setViolationData] = useState<Record<string, any[]>>({});
+    const [violationLoading, setViolationLoading] = useState(false);
+    const [violationTotalCount, setViolationTotalCount] = useState(0);
 
     const fetchDrivers = useCallback(async () => {
         try {
@@ -165,6 +172,24 @@ const LiveMapPage = () => {
     }, [rawDrivers, search]);
 
     const selectedRaw = rawDrivers.find(d => d.id === selectedDriverId);
+
+    const openViolationHistory = useCallback(async (driverId: string, driverName: string) => {
+        setViolationDriverId(driverId);
+        setViolationDriverName(driverName);
+        setViolationDrawer(true);
+        setViolationLoading(true);
+        try {
+            const res = await apiClient.get(`/api/driver/${driverId}/violations?days=30`);
+            if (res.data?.success) {
+                setViolationData(res.data.data.grouped || {});
+                setViolationTotalCount(res.data.data.totalCount || 0);
+            }
+        } catch (err) {
+            console.error('Failed to fetch violations:', err);
+        } finally {
+            setViolationLoading(false);
+        }
+    }, []);
 
     return (
         <AdminLayout selectedKey="driver-tracking">
@@ -311,8 +336,11 @@ const LiveMapPage = () => {
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                                             <span style={{ fontWeight: 700, fontSize: 13, color: '#1e293b' }}>{d.fullName}</span>
                                                             {(d.speedViolations || 0) > 0 && (
-                                                                <Tooltip title={`${d.speedViolations} hız ihlali`}>
-                                                                    <WarningOutlined style={{ color: '#ef4444', fontSize: 11 }} />
+                                                                <Tooltip title={`${d.speedViolations} hız ihlali - geçmişi gör`}>
+                                                                    <WarningOutlined
+                                                                        style={{ color: '#ef4444', fontSize: 11, cursor: 'pointer' }}
+                                                                        onClick={(e) => { e.stopPropagation(); openViolationHistory(d.id, d.fullName); }}
+                                                                    />
                                                                 </Tooltip>
                                                             )}
                                                         </div>
@@ -422,9 +450,19 @@ const LiveMapPage = () => {
                                         <WarningOutlined /> Hız İhlalleri ({stats.violations})
                                     </div>
                                     {rawDrivers.filter(d => (d.speedViolations || 0) > 0).map(d => (
-                                        <div key={d.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0', color: '#991b1b' }}>
+                                        <div
+                                            key={d.id}
+                                            onClick={() => openViolationHistory(d.id, d.fullName)}
+                                            style={{
+                                                display: 'flex', justifyContent: 'space-between',
+                                                padding: '3px 0', color: '#991b1b', cursor: 'pointer',
+                                                borderRadius: 4
+                                            }}
+                                        >
                                             <span>{d.fullName}</span>
-                                            <span style={{ fontWeight: 700 }}>{d.speedViolations} ihlal</span>
+                                            <span style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                                {d.speedViolations} ihlal <HistoryOutlined style={{ fontSize: 10 }} />
+                                            </span>
                                         </div>
                                     ))}
                                 </div>
@@ -433,6 +471,104 @@ const LiveMapPage = () => {
                     )}
                 </div>
             </div>
+
+            {/* ── VIOLATION HISTORY DRAWER ── */}
+            <Drawer
+                title={
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <div style={{
+                            width: 32, height: 32, borderRadius: '50%',
+                            background: '#ef4444', color: '#fff',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontWeight: 800, fontSize: 13
+                        }}>
+                            {violationDriverName.charAt(0)}
+                        </div>
+                        <div>
+                            <div style={{ fontWeight: 700, fontSize: 14 }}>{violationDriverName}</div>
+                            <div style={{ fontSize: 11, color: '#94a3b8' }}>Hız İhlali Geçmişi (Son 30 Gün)</div>
+                        </div>
+                    </div>
+                }
+                open={violationDrawer}
+                onClose={() => setViolationDrawer(false)}
+                width={420}
+                styles={{ body: { padding: '12px 16px' } }}
+            >
+                {violationLoading ? (
+                    <div style={{ padding: 60, textAlign: 'center' }}><Spin size="large" /></div>
+                ) : Object.keys(violationData).length === 0 ? (
+                    <Empty description="Son 30 günde hız ihlali kaydı yok" />
+                ) : (
+                    <div>
+                        <div style={{
+                            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                            padding: '8px 12px', background: '#fef2f2', borderRadius: 10, marginBottom: 16
+                        }}>
+                            <span style={{ fontSize: 12, fontWeight: 600, color: '#dc2626' }}>
+                                <WarningOutlined /> Toplam İhlal
+                            </span>
+                            <span style={{ fontSize: 18, fontWeight: 800, color: '#dc2626' }}>
+                                {violationTotalCount}
+                            </span>
+                        </div>
+                        {Object.entries(violationData)
+                            .sort(([a], [b]) => b.localeCompare(a))
+                            .map(([dateKey, items]) => (
+                                <div key={dateKey} style={{ marginBottom: 16 }}>
+                                    <div style={{
+                                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                                        marginBottom: 8, paddingBottom: 4, borderBottom: '1px solid #f1f5f9'
+                                    }}>
+                                        <span style={{ fontWeight: 700, fontSize: 13, color: '#1e293b' }}>
+                                            {dayjs(dateKey).format('DD MMMM YYYY, dddd')}
+                                        </span>
+                                        <Tag color="red" style={{ fontSize: 11, fontWeight: 700 }}>
+                                            {items.length} ihlal
+                                        </Tag>
+                                    </div>
+                                    {items.sort((a: any, b: any) => new Date(b.time).getTime() - new Date(a.time).getTime()).map((v: any, idx: number) => (
+                                        <div key={v.id || idx} style={{
+                                            display: 'flex', alignItems: 'center', gap: 10,
+                                            padding: '8px 10px', marginBottom: 4,
+                                            background: v.speed > 150 ? '#fef2f2' : '#fff7ed',
+                                            borderRadius: 8, border: `1px solid ${v.speed > 150 ? '#fecaca' : '#fed7aa'}`
+                                        }}>
+                                            <div style={{
+                                                width: 36, height: 36, borderRadius: 8,
+                                                background: v.speed > 150 ? '#dc2626' : '#f59e0b',
+                                                color: '#fff', display: 'flex', alignItems: 'center',
+                                                justifyContent: 'center', fontWeight: 800, fontSize: 12,
+                                                fontFamily: 'monospace', flexShrink: 0
+                                            }}>
+                                                {Math.round(v.speed)}
+                                            </div>
+                                            <div style={{ flex: 1 }}>
+                                                <div style={{ fontWeight: 700, fontSize: 12, color: v.speed > 150 ? '#dc2626' : '#d97706' }}>
+                                                    {Math.round(v.speed)} km/s
+                                                    <span style={{ fontWeight: 400, color: '#94a3b8', marginLeft: 4, fontSize: 10 }}>
+                                                        (limit: {v.speedLimit} km/s)
+                                                    </span>
+                                                </div>
+                                                <div style={{ fontSize: 10, color: '#64748b', marginTop: 2 }}>
+                                                    <ClockCircleOutlined /> {dayjs(v.time).format('HH:mm:ss')}
+                                                    {v.lat && v.lng && (
+                                                        <span style={{ marginLeft: 8 }}>
+                                                            <EnvironmentOutlined /> {parseFloat(v.lat).toFixed(4)}, {parseFloat(v.lng).toFixed(4)}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            {v.speed > 150 && (
+                                                <Tag color="red" style={{ fontSize: 9, margin: 0 }}>Kritik</Tag>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            ))}
+                    </div>
+                )}
+            </Drawer>
 
             <style jsx global>{`
                 @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.7; } }

@@ -208,15 +208,28 @@ export default function OperationDashboard() {
         };
     }, [socket, fetchAll]);
 
-    const driversForMap = drivers.filter(d => onlineDriverIds.has(d.id) && driverLocations[d.id]).map(d => ({
-        driverId: d.id,
-        driverName: d.fullName,
-        lat: driverLocations[d.id].lat,
-        lng: driverLocations[d.id].lng,
-        speed: driverLocations[d.id].speed || 0,
-        timestamp: d.lastSeenAt || new Date().toISOString(),
-        heading: 0
-    }));
+    const driversForMap = drivers.filter(d => onlineDriverIds.has(d.id) && driverLocations[d.id]).map(d => {
+        const speed = driverLocations[d.id].speed || 0;
+        const hasJob = !!(d as any).currentBooking;
+        const status: 'idle' | 'on_job' | 'speeding' | 'offline' = speed > 120 ? 'speeding' : hasJob ? 'on_job' : 'idle';
+        return {
+            driverId: d.id,
+            driverName: d.fullName,
+            lat: driverLocations[d.id].lat,
+            lng: driverLocations[d.id].lng,
+            speed,
+            timestamp: d.lastSeenAt || new Date().toISOString(),
+            heading: 0,
+            status,
+            vehicle: (d as any).vehicle || null,
+            currentJob: (d as any).currentBooking ? {
+                pickup: (d as any).currentBooking.pickup,
+                dropoff: (d as any).currentBooking.dropoff,
+                contactName: (d as any).currentBooking.contactName,
+            } : null,
+            speedViolations: (d as any).speedViolations || 0
+        };
+    });
 
 
     const openDetail = (booking: Booking) => {
