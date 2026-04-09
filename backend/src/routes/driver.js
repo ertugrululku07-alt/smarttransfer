@@ -381,7 +381,26 @@ router.post('/sync', authMiddleware, async (req, res) => {
             });
         }
 
-        // 1b. Update Location via Socket to Admin (real-time)
+        // 1b. Speed violation detection (>120 km/h)
+        const SPEED_LIMIT = 120;
+        if (speed && parseFloat(speed) > SPEED_LIMIT) {
+            const speedViolations = req.app.get('speedViolations') || {};
+            if (!speedViolations[driverId]) speedViolations[driverId] = [];
+            // Keep only last 50 violations per driver per day
+            if (speedViolations[driverId].length >= 50) speedViolations[driverId].shift();
+            const violation = {
+                speed: parseFloat(speed),
+                lat: parseFloat(lat),
+                lng: parseFloat(lng),
+                timestamp: new Date().toISOString(),
+                driverName: req.user.fullName
+            };
+            speedViolations[driverId].push(violation);
+            req.app.set('speedViolations', speedViolations);
+            console.log(`[SPEED] ⚠️ ${req.user.fullName} hız ihlali: ${parseFloat(speed).toFixed(0)} km/h @ ${lat},${lng}`);
+        }
+
+        // 1c. Update Location via Socket to Admin (real-time)
         const io = req.app.get('io');
         if (io && lat && lng) {
             io.to('admin_monitoring').emit('driver_location', {
@@ -472,9 +491,11 @@ router.post('/sync', authMiddleware, async (req, res) => {
 
 // GET /api/driver/online
 // Returns list of Personnel (actual drivers) as online/reachable
+// Includes: current active booking, assigned vehicle, speed violation count
 router.get('/online', async (req, res) => {
     try {
         const onlineDrivers = req.app.get('onlineDrivers') || {};
+        const speedViolations = req.app.get('speedViolations') || {};
 
         // Query Personnel table - these are the ACTUAL drivers/staff
         const personnel = await prisma.personnel.findMany({
@@ -505,6 +526,61 @@ router.get('/online', async (req, res) => {
             }
         });
 
+        // Fetch active bookings for all drivers in a single query
+        const userIds = personnel.map(p => p.userId).filter(Boolean);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+
+        const activeBookings = await prisma.booking.findMany({
+            where: {
+                driverId: { in: userIds },
+                status: { notIn: ['CANCELLED', 'COMPLETED', 'NO_SHOW'] },
+                startDate: { gte: today, lt: tomorrow }
+            },
+            select: {
+                id: true, bookingNumber: true, driverId: true,
+                contactName: true, contactPhone: true,
+                startDate: true, status: true,
+                metadata: true
+            },
+            orderBy: { startDate: 'asc' }
+        });
+
+        // Group bookings by driverId
+        const bookingsByDriver = {};
+        activeBookings.forEach(b => {
+            if (!bookingsByDriver[b.driverId]) bookingsByDriver[b.driverId] = [];
+            bookingsByDriver[b.driverId].push({
+                id: b.id,
+                bookingNumber: b.bookingNumber,
+                contactName: b.contactName,
+                contactPhone: b.contactPhone,
+                startDate: b.startDate,
+                status: b.status,
+                pickup: b.metadata?.pickup || '',
+                dropoff: b.metadata?.dropoff || '',
+                vehicleType: b.metadata?.vehicleType || '',
+                assignedVehicleId: b.metadata?.assignedVehicleId || null,
+                pickupTime: b.metadata?.pickupTime || null,
+                dropoffTime: b.metadata?.dropoffTime || null,
+                flightNumber: b.metadata?.flightNumber || null,
+                flightTime: b.metadata?.flightTime || null
+            });
+        });
+
+        // Fetch assigned vehicles
+        const vehicleIds = [...new Set(activeBookings.map(b => b.metadata?.assignedVehicleId).filter(Boolean))];
+        let vehicleMap = {};
+        if (vehicleIds.length > 0) {
+            const vehicles = await prisma.vehicle.findMany({
+                where: { id: { in: vehicleIds } },
+                select: { id: true, plateNumber: true, brand: true, model: true, color: true }
+            });
+            vehicles.forEach(v => { vehicleMap[v.id] = v; });
+        }
+
         // Map personnel to the driver format the frontend expects
         const result = personnel.map(p => {
             const userId = p.userId || p.id;
@@ -513,6 +589,12 @@ router.get('/online', async (req, res) => {
                 (p.user?.lastLocationLat && p.user?.lastLocationLng
                     ? { lat: p.user.lastLocationLat, lng: p.user.lastLocationLng, speed: p.user.lastLocationSpeed }
                     : null);
+
+            const driverBookings = bookingsByDriver[userId] || [];
+            const currentBooking = driverBookings[0] || null; // Next/current booking
+            const vehicleInfo = currentBooking?.assignedVehicleId ? vehicleMap[currentBooking.assignedVehicleId] || null : null;
+            const driverViolations = speedViolations[userId] || [];
+
             return {
                 id: userId,
                 personnelId: p.id,
@@ -520,6 +602,7 @@ router.get('/online', async (req, res) => {
                 lastName: p.lastName,
                 fullName: `${p.firstName} ${p.lastName}`,
                 avatar: p.photo || p.user?.avatar || null,
+                phone: p.phone,
                 jobTitle: p.jobTitle,
                 department: p.department,
                 lastSeenAt: p.user?.lastSeenAt || null,
@@ -527,7 +610,14 @@ router.get('/online', async (req, res) => {
                 location,
                 socketId: inMemory?.socketId || null,
                 connectedAt: inMemory?.connectedAt || p.user?.lastSeenAt || null,
-                role: { type: 'DRIVER', code: 'DRIVER' }
+                role: { type: 'DRIVER', code: 'DRIVER' },
+                // Enhanced data
+                activeBookings: driverBookings,
+                currentBooking,
+                vehicle: vehicleInfo,
+                todayJobCount: driverBookings.length,
+                speedViolations: driverViolations.length,
+                lastViolation: driverViolations.length > 0 ? driverViolations[driverViolations.length - 1] : null
             };
         });
 
