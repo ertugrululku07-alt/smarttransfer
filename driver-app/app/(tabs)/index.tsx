@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   StyleSheet, View, Text, Alert, ScrollView, RefreshControl,
-  TouchableOpacity, ActivityIndicator, Dimensions, Image
+  TouchableOpacity, ActivityIndicator, Dimensions, Image, Platform, Linking
 } from 'react-native';
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
@@ -11,6 +11,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useSocket } from '../../context/SocketContext';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { Brand } from '../../constants/theme';
 
 const API_URL = 'https://smarttransfer-backend-production.up.railway.app/api';
 const LOCATION_TASK_NAME = 'background-location-task';
@@ -83,33 +84,39 @@ export default function DashboardScreen() {
         Alert.alert(
           'Konum İzni Zorunlu',
           'SmartTransfer Sürücü uygulaması konum izni olmadan çalışamaz. Lütfen ayarlardan izin verin.',
-          [{ text: 'Tamam' }]
+          [
+            { text: 'Ayarlara Git', onPress: () => Linking.openSettings() },
+            { text: 'Tamam' }
+          ]
         );
         return;
       }
 
-      // Then try background (optional but helpful, we don't block if denied because Foreground Service still works with just foreground auth)
+      // Then try background
       const { status: bgStatus } = await Location.requestBackgroundPermissionsAsync();
       if (bgStatus !== 'granted') {
         Alert.alert(
           'Arka Plan İzni Önerisi',
-          'Arka planda kesintisiz takip için ayarlardan "Her Zaman İzin Ver" seçmeniz önerilir. Şimdilik temel arka plan servisi başlatılıyor.',
-          [{ text: 'Tamam' }]
+          'Arka planda kesintisiz takip için ayarlardan "Her Zaman İzin Ver" seçmeniz önerilir.',
+          [
+            { text: 'Ayarlara Git', onPress: () => Linking.openSettings() },
+            { text: 'Tamam' }
+          ]
         );
       }
 
       const isRegistered = await TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME);
       if (!isRegistered) {
         await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
-          accuracy: Location.Accuracy.Highest,
-          timeInterval: 5000,
-          distanceInterval: 0,
-          deferredUpdatesInterval: 5000,
-          deferredUpdatesDistance: 0,
+          accuracy: Location.Accuracy.Balanced,  // Balanced for battery efficiency
+          timeInterval: 10000,    // 10 seconds — less aggressive than 5s
+          distanceInterval: 5,    // Only update if moved 5m — saves battery
+          deferredUpdatesInterval: 10000,
+          deferredUpdatesDistance: 5,
           showsBackgroundLocationIndicator: true,
           foregroundService: {
             notificationTitle: 'SmartTransfer Sürücü',
-            notificationBody: 'Konum servisi aktif - Operasyon takip ediliyor',
+            notificationBody: 'Konum servisi aktif — Operasyon takip ediliyor',
             notificationColor: '#4361ee'
           }
         });
@@ -221,24 +228,26 @@ export default function DashboardScreen() {
         {/* ─── LOCATION STATUS ─── */}
         <View style={styles.locationBanner}>
           <View style={styles.locationPulse}>
-            <View style={[styles.pulseOuter]} />
-            <View style={styles.pulseCore} />
+            <View style={[styles.pulseOuter, { backgroundColor: locationActive ? 'rgba(16,185,129,0.3)' : 'rgba(107,114,128,0.3)' }]} />
+            <View style={[styles.pulseCore, { backgroundColor: locationActive ? '#10b981' : '#6b7280' }]} />
           </View>
-          <View style={{ marginLeft: 12 }}>
+          <View style={{ marginLeft: 12, flex: 1 }}>
             <Text style={styles.locationTitle}>Konum Servisi</Text>
             <Text style={styles.locationSubtitle}>{locationActive ? 'Aktif — Sürekli İzleniyor' : 'Başlatılıyor...'}</Text>
           </View>
-          <View style={styles.locationStatus}>
-            <Text style={{ color: '#10b981', fontWeight: 'bold', fontSize: 11 }}>AKTİF</Text>
+          <View style={[styles.locationStatus, { borderColor: locationActive ? '#10b981' : '#6b7280' }]}>
+            <Text style={{ color: locationActive ? '#10b981' : '#6b7280', fontWeight: 'bold', fontSize: 11 }}>
+              {locationActive ? 'AKTİF' : 'BEKLENİYOR'}
+            </Text>
           </View>
         </View>
       </View>
 
       {/* ─── STATS ─── */}
       <View style={styles.statsRow}>
-        <StatCard icon="briefcase-outline" label="Bugünkü İşler" value={stats.todayJobs} color="#4361ee" />
-        <StatCard icon="checkmark-circle-outline" label="Tamamlanan" value={stats.completedJobs} color="#10b981" />
-        <StatCard icon="star-outline" label="Puan" value={stats.rating} color="#f59e0b" />
+        <StatCard icon="briefcase-outline" label="Bugünkü İşler" value={stats.todayJobs} color={Brand.primary} />
+        <StatCard icon="checkmark-circle-outline" label="Tamamlanan" value={stats.completedJobs} color={Brand.success} />
+        <StatCard icon="star-outline" label="Puan" value={stats.rating} color={Brand.warning} />
       </View>
 
       {/* ─── QUICK ACTIONS ─── */}
@@ -247,13 +256,13 @@ export default function DashboardScreen() {
         <ActionButton
           icon="list"
           label="İş Listesi"
-          color="#4361ee"
+          color={Brand.primary}
           onPress={() => router.push('/(tabs)/explore')}
         />
         <ActionButton
           icon="time"
           label="Geçmiş"
-          color="#7c3aed"
+          color={Brand.secondary}
           onPress={() => router.push('/history')}
         />
         <ActionButton
@@ -266,7 +275,7 @@ export default function DashboardScreen() {
         <ActionButton
           icon="person"
           label="Profil"
-          color="#dc2626"
+          color={Brand.danger}
           onPress={() => router.push('/(tabs)/profile')}
         />
       </View>
@@ -301,18 +310,18 @@ function ActionButton({ icon, label, color, onPress, badgeCount }: { icon: strin
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#f0f2f8' },
+  root: { flex: 1, backgroundColor: Brand.background },
   container: { paddingBottom: 40 },
 
   // Header
   headerGradient: {
-    backgroundColor: '#1e3a8a',
+    backgroundColor: Brand.headerBg,
     paddingTop: 56,
     paddingHorizontal: 20,
     paddingBottom: 24,
     borderBottomLeftRadius: 28,
     borderBottomRightRadius: 28,
-    shadowColor: '#1e3a8a',
+    shadowColor: Brand.headerBg,
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.4,
     shadowRadius: 16,
@@ -354,16 +363,15 @@ const styles = StyleSheet.create({
   pulseOuter: {
     position: 'absolute',
     width: 28, height: 28, borderRadius: 14,
-    backgroundColor: 'rgba(16,185,129,0.3)'
   },
-  pulseCore: { width: 14, height: 14, borderRadius: 7, backgroundColor: '#10b981' },
+  pulseCore: { width: 14, height: 14, borderRadius: 7 },
   locationTitle: { color: '#fff', fontWeight: '700', fontSize: 14 },
   locationSubtitle: { color: 'rgba(255,255,255,0.65)', fontSize: 12, marginTop: 2 },
   locationStatus: {
     marginLeft: 'auto',
     backgroundColor: 'rgba(16,185,129,0.2)',
     borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4,
-    borderWidth: 1, borderColor: '#10b981'
+    borderWidth: 1,
   },
 
   // Stats
@@ -375,11 +383,11 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.06, shadowRadius: 8, elevation: 3,
   },
   statValue: { fontSize: 22, fontWeight: 'bold', marginTop: 8 },
-  statLabel: { fontSize: 11, color: '#6b7280', marginTop: 4, textAlign: 'center' },
+  statLabel: { fontSize: 11, color: Brand.textSecondary, marginTop: 4, textAlign: 'center' },
 
   // Actions
   sectionTitle: {
-    fontSize: 16, fontWeight: '700', color: '#111827',
+    fontSize: 16, fontWeight: '700', color: Brand.text,
     paddingHorizontal: 20, marginTop: 24, marginBottom: 12
   },
   actionsGrid: {

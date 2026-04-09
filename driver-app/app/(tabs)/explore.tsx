@@ -4,8 +4,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { Brand, StatusColors } from '../../constants/theme';
 
-// Replace with your actual IP
 const API_URL = 'https://smarttransfer-backend-production.up.railway.app/api';
 
 export default function JobListScreen() {
@@ -13,7 +13,7 @@ export default function JobListScreen() {
   const router = useRouter();
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [filter, setFilter] = useState('all'); // 'all' | 'today' | 'upcoming'
+  const [filter, setFilter] = useState('all');
 
   useEffect(() => {
     fetchJobs();
@@ -48,7 +48,7 @@ export default function JobListScreen() {
       });
       const json = await res.json();
       if (json.success) {
-        fetchJobs(); // refresh the list
+        fetchJobs();
       }
     } catch (e) {
       console.error(e);
@@ -78,7 +78,8 @@ export default function JobListScreen() {
 
   const renderJobItem = ({ item }: { item: any }) => {
     const date = new Date(item.startDate);
-    const time = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const time = date.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+    const dayStr = date.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' });
 
     const from = item.metadata?.pickup
       || item.product?.transferData?.pickupZones?.[0]?.name
@@ -103,15 +104,24 @@ export default function JobListScreen() {
       || item.product?.name?.en
       || 'Araç Bilgisi Yok';
 
+    const pax = (item.adults || 0) + (item.children || 0);
+    const flightNo = item.flightNumber || item.metadata?.flightNumber || null;
+
+    // Dynamic status colors
+    const statusCfg = StatusColors[item.status] || { bg: '#f3f4f6', text: '#6b7280', label: item.status };
+
     return (
       <View style={styles.card}>
         <View style={styles.cardHeader}>
-          <View style={styles.timeBadge}>
-            <Ionicons name="time-outline" size={14} color="#fff" />
-            <Text style={styles.timeText}>{time}</Text>
+          <View style={styles.dateTimeBadge}>
+            <Text style={styles.dayText}>{dayStr}</Text>
+            <View style={styles.timeBadge}>
+              <Ionicons name="time-outline" size={12} color="#fff" />
+              <Text style={styles.timeText}>{time}</Text>
+            </View>
           </View>
-          <View style={styles.statusBadge}>
-            <Text style={styles.statusText}>{item.status}</Text>
+          <View style={[styles.statusBadge, { backgroundColor: statusCfg.bg }]}>
+            <Text style={[styles.statusText, { color: statusCfg.text }]}>{statusCfg.label}</Text>
           </View>
         </View>
 
@@ -122,50 +132,60 @@ export default function JobListScreen() {
           </View>
           <View style={styles.line} />
           <View style={styles.routeRow}>
-            <View style={[styles.circle, { backgroundColor: '#ef4444' }]} />
+            <View style={[styles.circle, { backgroundColor: Brand.danger }]} />
             <Text style={styles.locationText} numberOfLines={1}>{to}</Text>
           </View>
         </View>
 
         <View style={styles.detailsContainer}>
           <View style={styles.detailItem}>
-            <Ionicons name="people-outline" size={16} color="#6b7280" />
-            <Text style={styles.detailText}>{customerName} ({item.adults + item.children} Pax)</Text>
+            <Ionicons name="people-outline" size={15} color={Brand.textSecondary} />
+            <Text style={styles.detailText}>{customerName} ({pax} Pax)</Text>
           </View>
-          <View style={styles.detailItem}>
-            <Ionicons name="car-outline" size={16} color="#6b7280" />
-            <Text style={styles.detailText}>{vehicle}</Text>
-          </View>
+          {flightNo && (
+            <View style={styles.detailItem}>
+              <Ionicons name="airplane-outline" size={15} color={Brand.textSecondary} />
+              <Text style={styles.detailText}>{flightNo}</Text>
+            </View>
+          )}
         </View>
 
         <View style={styles.actionRow}>
           <TouchableOpacity style={styles.actionButton} onPress={() => router.push({ pathname: '/job/[id]', params: { id: item.id } })}>
+            <Ionicons name="eye-outline" size={14} color={Brand.textSecondary} />
             <Text style={styles.actionText}>Detaylar</Text>
           </TouchableOpacity>
 
+          {item.customer?.phone && (
+            <TouchableOpacity style={styles.callButton} onPress={() => Linking.openURL(`tel:${item.customer.phone}`)}>
+              <Ionicons name="call-outline" size={14} color={Brand.primary} />
+              <Text style={[styles.actionText, { color: Brand.primary }]}>Ara</Text>
+            </TouchableOpacity>
+          )}
+
           <TouchableOpacity style={[styles.actionButton, styles.navButton]} onPress={() => openNavigation(lat, lng, from)}>
-            <Ionicons name="navigate-outline" size={16} color="#fff" />
-            <Text style={[styles.actionText, { color: '#fff', marginLeft: 5 }]}>Yol Tarifi</Text>
+            <Ionicons name="navigate-outline" size={14} color="#fff" />
+            <Text style={[styles.actionText, { color: '#fff' }]}>Yol Tarifi</Text>
           </TouchableOpacity>
         </View>
 
         {item.status !== 'IN_PROGRESS' && item.status !== 'COMPLETED' && item.status !== 'CANCELLED' && (
           <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: '#10b981', marginTop: 10, width: '100%', flexDirection: 'row', justifyContent: 'center' }]}
+            style={styles.primaryActionBtn}
             onPress={() => updateBookingStatus(item.id, 'IN_PROGRESS')}
           >
             <Ionicons name="checkmark-circle-outline" size={18} color="#fff" />
-            <Text style={[styles.actionText, { color: '#fff', marginLeft: 8, fontSize: 16 }]}>Müşteri Alındı</Text>
+            <Text style={styles.primaryActionText}>Müşteri Alındı</Text>
           </TouchableOpacity>
         )}
 
         {item.status === 'IN_PROGRESS' && (
           <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: '#ef4444', marginTop: 10, width: '100%', flexDirection: 'row', justifyContent: 'center' }]}
+            style={[styles.primaryActionBtn, { backgroundColor: Brand.danger }]}
             onPress={() => updateBookingStatus(item.id, 'COMPLETED')}
           >
             <Ionicons name="stop-circle-outline" size={18} color="#fff" />
-            <Text style={[styles.actionText, { color: '#fff', marginLeft: 8, fontSize: 16 }]}>Transferi Bitir</Text>
+            <Text style={styles.primaryActionText}>Transferi Bitir</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -176,32 +196,27 @@ export default function JobListScreen() {
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Ionicons name="chevron-back" size={26} color="#1f2937" />
-        </TouchableOpacity>
+        <Ionicons name="briefcase" size={24} color={Brand.primary} />
         <Text style={styles.title}>Operasyon Listesi</Text>
-        <View style={{ width: 40 }} />
+        <TouchableOpacity onPress={fetchJobs} style={styles.refreshBtn}>
+          <Ionicons name="refresh-outline" size={22} color={Brand.textSecondary} />
+        </TouchableOpacity>
       </View>
 
       <View style={styles.tabs}>
-        <TouchableOpacity
-          style={[styles.tab, filter === 'all' && styles.activeTab]}
-          onPress={() => setFilter('all')}
-        >
-          <Text style={[styles.tabText, filter === 'all' && styles.activeTabText]}>Tümü</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, filter === 'today' && styles.activeTab]}
-          onPress={() => setFilter('today')}
-        >
-          <Text style={[styles.tabText, filter === 'today' && styles.activeTabText]}>Bugün</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, filter === 'upcoming' && styles.activeTab]}
-          onPress={() => setFilter('upcoming')}
-        >
-          <Text style={[styles.tabText, filter === 'upcoming' && styles.activeTabText]}>Gelecek</Text>
-        </TouchableOpacity>
+        {[
+          { key: 'all', label: 'Tümü' },
+          { key: 'today', label: 'Bugün' },
+          { key: 'upcoming', label: 'Gelecek' },
+        ].map(tab => (
+          <TouchableOpacity
+            key={tab.key}
+            style={[styles.tab, filter === tab.key && styles.activeTab]}
+            onPress={() => setFilter(tab.key)}
+          >
+            <Text style={[styles.tabText, filter === tab.key && styles.activeTabText]}>{tab.label}</Text>
+          </TouchableOpacity>
+        ))}
       </View>
 
       <FlatList
@@ -212,7 +227,9 @@ export default function JobListScreen() {
         refreshControl={<RefreshControl refreshing={loading} onRefresh={fetchJobs} />}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
+            <Ionicons name="briefcase-outline" size={48} color={Brand.textLight} />
             <Text style={styles.emptyText}>Transfer bulunamadı.</Text>
+            <Text style={styles.emptySubText}>Atanan transferler burada görünecek.</Text>
           </View>
         }
       />
@@ -223,94 +240,104 @@ export default function JobListScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: Brand.background,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     paddingVertical: 14,
     backgroundColor: '#fff',
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    borderBottomColor: Brand.border,
+    gap: 10,
   },
-  backBtn: { width: 40 },
+  refreshBtn: { marginLeft: 'auto', padding: 4 },
   title: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1f2937',
-    textAlign: 'center',
+    color: Brand.text,
+    flex: 1,
   },
   tabs: {
     flexDirection: 'row',
     paddingHorizontal: 20,
-    marginBottom: 15,
+    paddingVertical: 12,
+    gap: 8,
   },
   tab: {
-    marginRight: 10,
     paddingVertical: 8,
     paddingHorizontal: 16,
     borderRadius: 20,
     backgroundColor: '#e5e7eb',
   },
   activeTab: {
-    backgroundColor: '#4361ee',
+    backgroundColor: Brand.primary,
   },
   tabText: {
     color: '#4b5563',
     fontWeight: '600',
+    fontSize: 13,
   },
   activeTabText: {
     color: 'white',
   },
   list: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     paddingBottom: 20,
   },
   card: {
     backgroundColor: 'white',
-    borderRadius: 15,
-    padding: 15,
-    marginBottom: 15,
+    borderRadius: 18,
+    padding: 16,
+    marginBottom: 12,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 5,
-    elevation: 2,
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
   },
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 15,
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+  dateTimeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  dayText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Brand.textSecondary,
   },
   timeBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#4361ee',
+    backgroundColor: Brand.primary,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
+    gap: 4,
   },
   timeText: {
     color: 'white',
     fontWeight: 'bold',
     fontSize: 12,
-    marginLeft: 4,
   },
   statusBadge: {
-    backgroundColor: '#ecfdf5',
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 8,
   },
   statusText: {
-    color: '#10b981',
     fontWeight: '600',
-    fontSize: 12,
+    fontSize: 11,
   },
   routeContainer: {
-    marginBottom: 15,
+    marginBottom: 14,
   },
   routeRow: {
     flexDirection: 'row',
@@ -321,66 +348,99 @@ const styles = StyleSheet.create({
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: '#10b981',
+    backgroundColor: Brand.success,
     marginRight: 10,
   },
   line: {
     width: 2,
     height: 15,
-    backgroundColor: '#e5e7eb',
+    backgroundColor: Brand.border,
     marginLeft: 4,
     marginBottom: 5,
   },
   locationText: {
     fontSize: 14,
-    color: '#1f2937',
+    color: Brand.text,
     fontWeight: '500',
     flex: 1,
   },
   detailsContainer: {
     flexDirection: 'row',
-    marginBottom: 15,
+    flexWrap: 'wrap',
+    marginBottom: 14,
     borderTopWidth: 1,
-    borderTopColor: '#f3f4f6',
+    borderTopColor: Brand.borderLight,
     paddingTop: 10,
+    gap: 16,
   },
   detailItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginRight: 20,
+    gap: 5,
   },
   detailText: {
-    marginLeft: 5,
-    color: '#6b7280',
+    color: Brand.textSecondary,
     fontSize: 13,
   },
   actionRow: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
+    gap: 8,
   },
   actionButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    backgroundColor: '#f3f4f6',
-    marginLeft: 10,
-  },
-  navButton: {
-    backgroundColor: '#4361ee',
     flexDirection: 'row',
     alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    backgroundColor: '#f3f4f6',
+    gap: 5,
+  },
+  callButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    backgroundColor: '#eff6ff',
+    gap: 5,
+  },
+  navButton: {
+    backgroundColor: Brand.primary,
+    marginLeft: 'auto',
   },
   actionText: {
     color: '#4b5563',
     fontWeight: '600',
     fontSize: 12,
   },
+  primaryActionBtn: {
+    backgroundColor: Brand.success,
+    marginTop: 10,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderRadius: 12,
+    gap: 8,
+  },
+  primaryActionText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 15,
+  },
   emptyContainer: {
-    padding: 40,
+    padding: 60,
     alignItems: 'center',
   },
   emptyText: {
-    color: '#9ca3af',
+    color: Brand.textSecondary,
     fontSize: 16,
+    fontWeight: '600',
+    marginTop: 12,
+  },
+  emptySubText: {
+    color: Brand.textMuted,
+    fontSize: 13,
+    marginTop: 4,
   },
 });

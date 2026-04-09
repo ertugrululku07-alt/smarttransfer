@@ -1,36 +1,38 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { StyleSheet, View, Text, FlatList, TouchableOpacity, RefreshControl } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
 import { useRouter } from 'expo-router';
-import { IconSymbol } from '@/components/ui/icon-symbol';
+import { Ionicons } from '@expo/vector-icons';
+import { Brand, StatusColors } from '../constants/theme';
 
-// Replace with your actual IP
 const API_URL = 'https://smarttransfer-backend-production.up.railway.app/api';
 
 export default function HistoryScreen() {
     const { token } = useAuth();
     const router = useRouter();
-    const [jobs, setJobs] = useState([]);
+    const [jobs, setJobs] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
     const [page, setPage] = useState(1);
     const [hasMore, setHasMore] = useState(true);
 
     useEffect(() => {
-        fetchHistory();
+        fetchHistory(1, true);
     }, []);
 
-    const fetchHistory = async () => {
+    const fetchHistory = async (requestPage: number = page, reset: boolean = false) => {
         if (loading) return;
         setLoading(true);
         try {
-            const res = await fetch(`${API_URL}/driver/history?page=${page}&limit=20`, {
+            const res = await fetch(`${API_URL}/driver/history?page=${requestPage}&limit=20`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const json = await res.json();
             if (json.success) {
                 if (json.data.length < 20) setHasMore(false);
-                setJobs(prev => page === 1 ? json.data : [...prev, ...json.data]);
-                setPage(prev => prev + 1);
+                else setHasMore(true);
+                setJobs(prev => reset ? json.data : [...prev, ...json.data]);
+                setPage(requestPage + 1);
             }
         } catch (e) {
             console.error(e);
@@ -39,52 +41,93 @@ export default function HistoryScreen() {
         }
     };
 
+    const handleRefresh = useCallback(() => {
+        setPage(1);
+        fetchHistory(1, true);
+    }, []);
+
     const renderJobItem = ({ item }: { item: any }) => {
         const date = new Date(item.startDate);
         const dateStr = date.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' });
-        const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const timeStr = date.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
 
-        // Fallbacks
-        const vehicle = item.product?.vehicle?.plateNumber || 'Plaka Yok';
-        const from = item.product?.fromName || 'Belirtilmemiş';
-        const to = item.product?.toName || 'Belirtilmemiş';
-        const price = item.driverEarnings || 0; // Assuming we have this field or calculate it
+        // Use metadata first, then product fallbacks
+        const from = item.metadata?.pickup
+            || item.product?.transferData?.pickupZones?.[0]?.name
+            || item.product?.fromName
+            || 'Belirtilmemiş';
+        const to = item.metadata?.dropoff
+            || item.product?.transferData?.dropoffZones?.[0]?.name
+            || item.product?.toName
+            || 'Belirtilmemiş';
+
+        const vehicle = item.product?.vehicle?.plateNumber || item.metadata?.vehicleType || '';
+        const customerName = item.customer?.firstName
+            ? `${item.customer.firstName} ${item.customer.lastName || ''}`.trim()
+            : item.contactName || '';
+        const pax = (item.adults || 0) + (item.children || 0);
+
+        const statusCfg = StatusColors[item.status] || { bg: '#f3f4f6', text: '#6b7280', label: item.status };
 
         return (
             <View style={styles.card}>
                 <View style={styles.cardHeader}>
-                    <Text style={styles.dateText}>{dateStr} {timeStr}</Text>
-                    <View style={[styles.statusBadge, item.status === 'CANCELLED' && styles.statusCancelled]}>
-                        <Text style={[styles.statusText, item.status === 'CANCELLED' && styles.statusTextCancelled]}>
-                            {item.status === 'COMPLETED' ? 'Tamamlandı' : 'İptal'}
+                    <View style={styles.dateCol}>
+                        <Ionicons name="calendar-outline" size={14} color={Brand.textSecondary} />
+                        <Text style={styles.dateText}>{dateStr} {timeStr}</Text>
+                    </View>
+                    <View style={[styles.statusBadge, { backgroundColor: statusCfg.bg }]}>
+                        <Text style={[styles.statusText, { color: statusCfg.text }]}>
+                            {statusCfg.label}
                         </Text>
                     </View>
                 </View>
 
                 <View style={styles.routeContainer}>
-                    <Text style={styles.locationText}>{from} ➔ {to}</Text>
+                    <View style={styles.routeRow}>
+                        <View style={styles.circlePick} />
+                        <Text style={styles.locationText} numberOfLines={1}>{from}</Text>
+                    </View>
+                    <View style={styles.lineV} />
+                    <View style={styles.routeRow}>
+                        <View style={styles.circleDrop} />
+                        <Text style={styles.locationText} numberOfLines={1}>{to}</Text>
+                    </View>
                 </View>
 
                 <View style={styles.detailsContainer}>
-                    <View style={styles.detailItem}>
-                        <IconSymbol name="car.fill" size={14} color="#6b7280" />
-                        <Text style={styles.detailText}>{vehicle}</Text>
-                    </View>
-                    <View style={styles.detailItem}>
-                        <Text style={styles.priceText}>{price} ₺</Text>
-                    </View>
+                    {customerName ? (
+                        <View style={styles.detailItem}>
+                            <Ionicons name="person-outline" size={13} color={Brand.textSecondary} />
+                            <Text style={styles.detailText}>{customerName}</Text>
+                        </View>
+                    ) : null}
+                    {pax > 0 && (
+                        <View style={styles.detailItem}>
+                            <Ionicons name="people-outline" size={13} color={Brand.textSecondary} />
+                            <Text style={styles.detailText}>{pax} Pax</Text>
+                        </View>
+                    )}
+                    {vehicle ? (
+                        <View style={styles.detailItem}>
+                            <Ionicons name="car-outline" size={13} color={Brand.textSecondary} />
+                            <Text style={styles.detailText}>{vehicle}</Text>
+                        </View>
+                    ) : null}
                 </View>
             </View>
         );
     };
 
     return (
-        <View style={styles.container}>
+        <SafeAreaView style={styles.safe} edges={['top']}>
+            {/* Header */}
             <View style={styles.header}>
-                <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-                    <IconSymbol name="chevron.left" size={24} color="#1f2937" />
+                <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+                    <Ionicons name="chevron-back" size={26} color="#fff" />
                 </TouchableOpacity>
-                <Text style={styles.title}>Geçmiş Transferler</Text>
+                <Text style={styles.headerTitle}>Geçmiş Transferler</Text>
+                <View style={{ width: 40 }} />
             </View>
 
             <FlatList
@@ -92,116 +135,139 @@ export default function HistoryScreen() {
                 renderItem={renderJobItem}
                 keyExtractor={(item: any) => item.id}
                 contentContainerStyle={styles.list}
-                refreshControl={<RefreshControl refreshing={loading} onRefresh={() => { setPage(1); fetchHistory(); }} />}
-                onEndReached={() => { if (hasMore) fetchHistory(); }}
+                refreshControl={<RefreshControl refreshing={loading} onRefresh={handleRefresh} />}
+                onEndReached={() => { if (hasMore && !loading) fetchHistory(); }}
                 onEndReachedThreshold={0.5}
                 ListEmptyComponent={
-                    <View style={styles.emptyContainer}>
-                        <Text style={styles.emptyText}>Geçmiş transfer bulunamadı.</Text>
-                    </View>
+                    !loading ? (
+                        <View style={styles.emptyContainer}>
+                            <Ionicons name="time-outline" size={48} color={Brand.textLight} />
+                            <Text style={styles.emptyText}>Geçmiş transfer bulunamadı.</Text>
+                            <Text style={styles.emptySubText}>Tamamlanan transferleriniz burada görünecek.</Text>
+                        </View>
+                    ) : null
                 }
             />
-        </View>
+        </SafeAreaView>
     );
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: '#f8f9fa',
-        paddingTop: 60,
-    },
+    safe: { flex: 1, backgroundColor: Brand.background },
+
     header: {
+        backgroundColor: Brand.headerBg,
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: 20,
-        marginBottom: 20,
+        justifyContent: 'space-between',
+        paddingHorizontal: 16,
+        paddingVertical: 16,
+        shadowColor: Brand.headerBg,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 8,
     },
-    backButton: {
-        marginRight: 15,
-    },
-    title: {
-        fontSize: 24,
-        fontWeight: 'bold',
-        color: '#1f2937',
-    },
+    backBtn: { width: 40 },
+    headerTitle: { color: '#fff', fontSize: 18, fontWeight: '700' },
+
     list: {
-        paddingHorizontal: 20,
-        paddingBottom: 20,
+        paddingHorizontal: 16,
+        paddingVertical: 16,
+        paddingBottom: 40,
     },
     card: {
         backgroundColor: 'white',
-        borderRadius: 15,
-        padding: 15,
-        marginBottom: 15,
+        borderRadius: 16,
+        padding: 16,
+        marginBottom: 12,
         shadowColor: "#000",
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.05,
-        shadowRadius: 3,
-        elevation: 2,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.06,
+        shadowRadius: 8,
+        elevation: 3,
     },
     cardHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 10,
+        marginBottom: 12,
+    },
+    dateCol: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
     },
     dateText: {
         fontWeight: '600',
         color: '#374151',
-        fontSize: 14,
+        fontSize: 13,
     },
     statusBadge: {
-        backgroundColor: '#ecfdf5',
-        paddingHorizontal: 8,
+        paddingHorizontal: 10,
         paddingVertical: 4,
         borderRadius: 8,
     },
-    statusCancelled: {
-        backgroundColor: '#fef2f2',
-    },
     statusText: {
-        color: '#10b981',
         fontWeight: '600',
-        fontSize: 12,
-    },
-    statusTextCancelled: {
-        color: '#ef4444',
+        fontSize: 11,
     },
     routeContainer: {
-        marginBottom: 10,
+        marginBottom: 12,
+    },
+    routeRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 4,
+    },
+    circlePick: {
+        width: 10, height: 10, borderRadius: 5,
+        backgroundColor: Brand.success, marginRight: 10,
+    },
+    circleDrop: {
+        width: 10, height: 10, borderRadius: 5,
+        backgroundColor: Brand.danger, marginRight: 10,
+    },
+    lineV: {
+        width: 2, height: 14,
+        backgroundColor: Brand.border, marginLeft: 4, marginBottom: 4,
     },
     locationText: {
-        fontSize: 15,
-        color: '#1f2937',
+        fontSize: 14,
+        color: Brand.text,
         fontWeight: '500',
+        flex: 1,
     },
     detailsContainer: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
+        flexWrap: 'wrap',
         borderTopWidth: 1,
-        borderTopColor: '#f3f4f6',
+        borderTopColor: Brand.borderLight,
         paddingTop: 10,
+        gap: 14,
     },
     detailItem: {
         flexDirection: 'row',
         alignItems: 'center',
+        gap: 5,
     },
     detailText: {
-        marginLeft: 5,
-        color: '#6b7280',
-        fontSize: 13,
-    },
-    priceText: {
-        fontWeight: 'bold',
-        color: '#111827',
+        color: Brand.textSecondary,
+        fontSize: 12,
     },
     emptyContainer: {
-        padding: 40,
+        padding: 60,
         alignItems: 'center',
     },
     emptyText: {
-        color: '#9ca3af',
+        color: Brand.textSecondary,
         fontSize: 16,
+        fontWeight: '600',
+        marginTop: 12,
+    },
+    emptySubText: {
+        color: Brand.textMuted,
+        fontSize: 13,
+        marginTop: 4,
     },
 });

@@ -38,7 +38,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         userIdRef.current = user?.id;
     }, [user?.id]);
 
-    // Initial sound loader
+    // Initial sound loader — use bundled fallback-safe approach
     useEffect(() => {
         async function loadSound() {
             try {
@@ -56,6 +56,16 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             if (soundRef.current) soundRef.current.unloadAsync();
         };
     }, []);
+
+    const playSound = async () => {
+        try {
+            if (soundRef.current) {
+                await soundRef.current.replayAsync();
+            }
+        } catch (err) {
+            console.warn("Failed to play notification sound", err);
+        }
+    };
 
     const createSocket = (tkn: string) => {
         // Clean up existing socket first
@@ -112,22 +122,18 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
             setUnreadCount(prev => prev + 1);
 
-            // Play global sound
-            try {
-                if (soundRef.current) {
-                    await soundRef.current.replayAsync();
-                }
-            } catch (err) {
-                console.warn("Failed to play notification sound", err);
+            // Play sound
+            await playSound();
+
+            // Only show Alert popup if app is in foreground — prevents crash in background
+            if (appState.current === 'active') {
+                Alert.alert(
+                    '💬 Yeni Mesaj',
+                    message.content || 'Operasyon merkezinden yeni bir mesajınız var.'
+                );
             }
 
-            // Show Alert if foreground
-            Alert.alert(
-                '💬 Yeni Mesaj',
-                'Operasyon merkezinden yeni bir mesajınız var.'
-            );
-
-            // Schedule Local Notification for background/lock screen
+            // Schedule Local Notification (works in both foreground & background)
             await Notifications.scheduleNotificationAsync({
                 content: {
                     title: '💬 Yeni Mesaj',
@@ -143,30 +149,25 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         instance.on('operation_assigned', async (data: any) => {
             console.log('[Socket] Incoming operation_assigned for this driver:', data);
 
-            // Play global sound
-            try {
-                if (soundRef.current) {
-                    await soundRef.current.replayAsync();
-                }
-            } catch (err) {
-                console.warn("Failed to play notification sound", err);
-            }
+            // Play sound
+            await playSound();
 
-            // Show Alert
-            Alert.alert(
-                '🚗 Yeni İş Atandı!',
-                `${data.pickup} • ${new Date(data.start).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}`
-            );
+            const body = `${data.pickup || 'Yeni transfer'} • ${data.start ? new Date(data.start).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }) : ''}`;
+
+            // Only show Alert if foreground
+            if (appState.current === 'active') {
+                Alert.alert('🚗 Yeni İş Atandı!', body);
+            }
 
             // Schedule Local Notification
             await Notifications.scheduleNotificationAsync({
                 content: {
                     title: '🚗 Yeni İş Atandı!',
-                    body: `${data.pickup} • ${new Date(data.start).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}`,
+                    body,
                     sound: true,
                     data: { type: 'operationAssigned', bookingId: data.bookingId },
                 },
-                trigger: null, // trigger immediately
+                trigger: null,
             });
         });
 

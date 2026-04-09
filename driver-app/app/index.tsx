@@ -5,14 +5,15 @@ import {
     Platform, ScrollView
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useAuth } from '../context/AuthContext';
 import { Ionicons } from '@expo/vector-icons';
 import * as SecureStore from 'expo-secure-store';
+import { Brand } from '../constants/theme';
 
 const API_URL = 'https://smarttransfer-backend-production.up.railway.app/api';
 const { width, height } = Dimensions.get('window');
+const LOGIN_TIMEOUT_MS = 12000; // 12 second timeout
 
 export default function LoginScreen() {
     const { signIn, isLoading, token } = useAuth();
@@ -53,8 +54,6 @@ export default function LoginScreen() {
         } catch (e) { /* ignore */ }
     };
 
-
-
     const handleLogin = async () => {
         if (!email.trim() || !password) {
             Alert.alert('Eksik Bilgi', 'Lütfen e-posta ve şifrenizi girin.');
@@ -63,11 +62,47 @@ export default function LoginScreen() {
 
         setLoading(true);
         try {
-            const response = await fetch(`${API_URL}/auth/login`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email: email.trim().toLowerCase(), password })
-            });
+            // Create AbortController for timeout
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), LOGIN_TIMEOUT_MS);
+
+            let response: Response;
+            try {
+                response = await fetch(`${API_URL}/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
+                    signal: controller.signal,
+                });
+            } catch (fetchError: any) {
+                clearTimeout(timeoutId);
+                // Network error or timeout — server unreachable
+                if (fetchError.name === 'AbortError') {
+                    Alert.alert(
+                        '⏱️ Zaman Aşımı',
+                        'Sunucu yanıt vermedi. İnternet bağlantınızı kontrol edip tekrar deneyin.',
+                        [{ text: 'Tamam' }]
+                    );
+                } else {
+                    Alert.alert(
+                        '🌐 Bağlantı Hatası',
+                        'Sunucuya bağlanılamadı. İnternet bağlantınızı kontrol edin veya daha sonra tekrar deneyin.',
+                        [{ text: 'Tamam' }]
+                    );
+                }
+                return;
+            }
+            clearTimeout(timeoutId);
+
+            // Server responded but with HTTP error (500, 502, 503 etc.)
+            if (!response.ok && response.status >= 500) {
+                Alert.alert(
+                    '⚠️ Sunucu Hatası',
+                    `Sunucu şu anda hizmet veremiyor (HTTP ${response.status}). Lütfen birkaç dakika sonra tekrar deneyin.`,
+                    [{ text: 'Tamam' }]
+                );
+                return;
+            }
 
             const data = await response.json();
 
@@ -78,7 +113,11 @@ export default function LoginScreen() {
                     user.role?.type === 'PARTNER';
 
                 if (!isDriver) {
-                    Alert.alert('Yetkisiz Giriş', 'Bu uygulama yalnızca sürücüler içindir.');
+                    Alert.alert(
+                        '🚫 Yetkisiz Giriş',
+                        'Bu uygulama yalnızca sürücüler ve partnerler içindir. Lütfen doğru hesapla giriş yapın.',
+                        [{ text: 'Tamam' }]
+                    );
                     return;
                 }
 
@@ -94,10 +133,20 @@ export default function LoginScreen() {
                 await signIn(newToken, user);
                 router.replace('/(tabs)');
             } else {
-                Alert.alert('Giriş Başarısız', data.error || 'E-posta veya şifre hatalı.');
+                // Authentication failed — wrong credentials
+                Alert.alert(
+                    '🔒 Giriş Başarısız',
+                    data.error || 'Kullanıcı adı veya şifre hatalı. Lütfen bilgilerinizi kontrol edin.',
+                    [{ text: 'Tamam' }]
+                );
             }
-        } catch (error) {
-            Alert.alert('Bağlantı Hatası', 'Sunucuya bağlanılamadı. İnternet bağlantınızı kontrol edin.');
+        } catch (error: any) {
+            // Unexpected error (JSON parse failure, etc.)
+            Alert.alert(
+                '❌ Beklenmeyen Hata',
+                'Giriş sırasında beklenmeyen bir sorun oluştu. Lütfen tekrar deneyin.',
+                [{ text: 'Tamam' }]
+            );
         } finally {
             setLoading(false);
         }
@@ -110,6 +159,7 @@ export default function LoginScreen() {
                     <Ionicons name="car-sport" size={48} color="#fff" />
                 </View>
                 <Text style={styles.splashText}>SmartTransfer</Text>
+                <Text style={styles.splashSub}>Sürücü Uygulaması</Text>
                 <ActivityIndicator color="#fff" style={{ marginTop: 24 }} />
             </View>
         );
@@ -122,6 +172,7 @@ export default function LoginScreen() {
                 {/* Background decorations */}
                 <View style={styles.circle1} />
                 <View style={styles.circle2} />
+                <View style={styles.circle3} />
 
                 <KeyboardAvoidingView
                     style={{ flex: 1 }}
@@ -150,11 +201,11 @@ export default function LoginScreen() {
                             <View style={styles.fieldGroup}>
                                 <Text style={styles.fieldLabel}>E-posta</Text>
                                 <View style={styles.inputWrapper}>
-                                    <Ionicons name="mail-outline" size={18} color="#6b7280" style={styles.inputIcon} />
+                                    <Ionicons name="mail-outline" size={18} color={Brand.textSecondary} style={styles.inputIcon} />
                                     <TextInput
                                         style={styles.input}
                                         placeholder="ornek@mail.com"
-                                        placeholderTextColor="#9ca3af"
+                                        placeholderTextColor={Brand.textMuted}
                                         value={email}
                                         onChangeText={setEmail}
                                         autoCapitalize="none"
@@ -168,11 +219,11 @@ export default function LoginScreen() {
                             <View style={styles.fieldGroup}>
                                 <Text style={styles.fieldLabel}>Şifre</Text>
                                 <View style={styles.inputWrapper}>
-                                    <Ionicons name="lock-closed-outline" size={18} color="#6b7280" style={styles.inputIcon} />
+                                    <Ionicons name="lock-closed-outline" size={18} color={Brand.textSecondary} style={styles.inputIcon} />
                                     <TextInput
                                         style={styles.input}
                                         placeholder="••••••••"
-                                        placeholderTextColor="#9ca3af"
+                                        placeholderTextColor={Brand.textMuted}
                                         value={password}
                                         onChangeText={setPassword}
                                         secureTextEntry={!showPassword}
@@ -183,7 +234,7 @@ export default function LoginScreen() {
                                         <Ionicons
                                             name={showPassword ? 'eye-off-outline' : 'eye-outline'}
                                             size={20}
-                                            color="#9ca3af"
+                                            color={Brand.textMuted}
                                         />
                                     </TouchableOpacity>
                                 </View>
@@ -230,7 +281,7 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
     // Splash
     splash: {
-        flex: 1, backgroundColor: '#1e3a8a',
+        flex: 1, backgroundColor: Brand.primaryDark,
         justifyContent: 'center', alignItems: 'center'
     },
     splashLogo: {
@@ -239,6 +290,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center', alignItems: 'center', marginBottom: 16
     },
     splashText: { color: '#fff', fontSize: 28, fontWeight: 'bold' },
+    splashSub: { color: 'rgba(255,255,255,0.5)', fontSize: 14, marginTop: 4 },
 
     // Background
     bg: { flex: 1, backgroundColor: '#0f172a' },
@@ -250,6 +302,10 @@ const styles = StyleSheet.create({
         position: 'absolute', width: 200, height: 200, borderRadius: 100,
         backgroundColor: '#3730a3', bottom: 80, left: -60, opacity: 0.4
     },
+    circle3: {
+        position: 'absolute', width: 140, height: 140, borderRadius: 70,
+        backgroundColor: '#4f46e5', top: height * 0.4, left: width * 0.6, opacity: 0.2
+    },
 
     scroll: { flexGrow: 1, justifyContent: 'center', padding: 24 },
 
@@ -257,10 +313,10 @@ const styles = StyleSheet.create({
     logoSection: { alignItems: 'center', marginBottom: 32 },
     logoCircle: {
         width: 88, height: 88, borderRadius: 26,
-        backgroundColor: '#4361ee',
+        backgroundColor: Brand.primary,
         justifyContent: 'center', alignItems: 'center',
         marginBottom: 16,
-        shadowColor: '#4361ee',
+        shadowColor: Brand.primary,
         shadowOffset: { width: 0, height: 8 },
         shadowOpacity: 0.5,
         shadowRadius: 16,
@@ -280,8 +336,8 @@ const styles = StyleSheet.create({
         shadowRadius: 32,
         elevation: 16,
     },
-    welcomeText: { fontSize: 24, fontWeight: '800', color: '#111827', marginBottom: 4 },
-    welcomeSub: { fontSize: 14, color: '#6b7280', marginBottom: 28 },
+    welcomeText: { fontSize: 24, fontWeight: '800', color: Brand.text, marginBottom: 4 },
+    welcomeSub: { fontSize: 14, color: Brand.textSecondary, marginBottom: 28 },
 
     // Fields
     fieldGroup: { marginBottom: 18 },
@@ -291,12 +347,12 @@ const styles = StyleSheet.create({
         backgroundColor: '#f9fafb',
         borderRadius: 14,
         borderWidth: 1.5,
-        borderColor: '#e5e7eb',
+        borderColor: Brand.border,
         paddingHorizontal: 14,
         height: 52,
     },
     inputIcon: { marginRight: 10 },
-    input: { flex: 1, fontSize: 15, color: '#111827' },
+    input: { flex: 1, fontSize: 15, color: Brand.text },
     eyeBtn: { padding: 4 },
 
     // Remember Me
@@ -305,25 +361,25 @@ const styles = StyleSheet.create({
     },
     checkbox: {
         width: 20, height: 20, borderRadius: 6,
-        borderWidth: 2, borderColor: '#d1d5db',
+        borderWidth: 2, borderColor: Brand.textLight,
         justifyContent: 'center', alignItems: 'center',
         marginRight: 10,
     },
-    checkboxChecked: { backgroundColor: '#4361ee', borderColor: '#4361ee' },
-    rememberText: { fontSize: 14, color: '#6b7280', fontWeight: '500' },
+    checkboxChecked: { backgroundColor: Brand.primary, borderColor: Brand.primary },
+    rememberText: { fontSize: 14, color: Brand.textSecondary, fontWeight: '500' },
 
     // Button
     loginBtn: {
         height: 56, borderRadius: 16,
-        backgroundColor: '#4361ee',
+        backgroundColor: Brand.primary,
         justifyContent: 'center', alignItems: 'center',
-        shadowColor: '#4361ee',
+        shadowColor: Brand.primary,
         shadowOffset: { width: 0, height: 6 },
         shadowOpacity: 0.4,
         shadowRadius: 12,
         elevation: 8,
     },
-    loginBtnDisabled: { backgroundColor: '#a5b4fc', shadowOpacity: 0 },
+    loginBtnDisabled: { backgroundColor: Brand.primaryLight, shadowOpacity: 0 },
     loginBtnInner: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     loginBtnText: { color: '#fff', fontSize: 17, fontWeight: '700' },
 

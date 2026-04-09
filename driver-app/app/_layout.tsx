@@ -21,7 +21,7 @@ import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
 import { router } from 'expo-router';
 import Toast from 'react-native-toast-message';
-import { Platform } from 'react-native';
+import { Platform, Alert, Linking, AppState } from 'react-native';
 
 const LOCATION_TASK_NAME = 'background-location-task';
 const BG_FETCH_TASK_NAME = 'background-sync-task';
@@ -175,9 +175,6 @@ TaskManager.defineTask(BG_FETCH_TASK_NAME, async () => {
 
 // =============================================================================
 // SILENT PUSH HANDLER (FCM Wake-up)
-// The backend sends a silent push every 60 seconds.
-// When received (even if app is force-closed), Android wakes this code,
-// gets GPS, and sends location to backend - exactly like Life360 / tracking apps.
 // =============================================================================
 // Foreground handler (when app is open)
 Notifications.addNotificationReceivedListener(async (notification) => {
@@ -269,6 +266,44 @@ async function handleLocationSyncRequest() {
   }
 }
 
+// ─── Prompt user to disable battery optimization (Samsung/Huawei/Xiaomi) ───
+async function promptBatteryOptimization() {
+  if (Platform.OS !== 'android') return;
+
+  try {
+    // Check if we've already asked (don't nag on every launch)
+    const asked = await SecureStore.getItemAsync('battery_opt_asked');
+    if (asked === 'true') return;
+
+    // Wait a bit for app to fully load
+    await new Promise(resolve => setTimeout(resolve, 3000));
+
+    Alert.alert(
+      '🔋 Pil Optimizasyonu',
+      'Samsung, Huawei ve Xiaomi gibi telefonlarda uygulamanın arka planda kesintisiz çalışabilmesi için pil optimizasyonunu kapatmanız gerekiyor.\n\nAyarlara yönlendirileceksiniz.',
+      [
+        { text: 'Daha Sonra', style: 'cancel' },
+        {
+          text: 'Ayarlara Git',
+          onPress: async () => {
+            try {
+              // Open battery optimization settings via intent URL
+              await Linking.openURL('package:com.smarttransfer.driverapp');
+            } catch {
+              // Fallback: open general app settings
+              Linking.openSettings();
+            }
+          }
+        }
+      ]
+    );
+
+    await SecureStore.setItemAsync('battery_opt_asked', 'true');
+  } catch (err) {
+    console.warn('Battery optimization prompt error:', err);
+  }
+}
+
 // AuthGuard: watches auth state and redirects accordingly
 function AuthGuard() {
   const { token, isLoading } = useAuth();
@@ -281,6 +316,8 @@ function AuthGuard() {
     }
     // Register push token when authenticated
     registerPushToken(token);
+    // Prompt battery optimization (only on Android, first time)
+    promptBatteryOptimization();
   }, [token, isLoading]);
 
   // Handle notification taps (when app is opened from notification)
@@ -302,14 +339,13 @@ function AuthGuard() {
 async function registerPushToken(token: string) {
   try {
     // Expo Go doesn't support remote push (SDK 53+) — skip gracefully
-    // Push will work when built as a real APK / development build
     const isExpoGo = Constants.appOwnership === 'expo';
     if (isExpoGo) {
       console.log('[Push] Running in Expo Go — skipping remote push token (not supported). Socket notifications still active.');
       return;
     }
 
-    // Set Android notification channel
+    // Set Android notification channel with maximum priority + DND bypass
     if (Platform.OS === 'android') {
       await Notifications.setNotificationChannelAsync('operations', {
         name: 'Operasyon Bildirimleri',
@@ -319,6 +355,21 @@ async function registerPushToken(token: string) {
         sound: 'default',
         enableVibrate: true,
         showBadge: true,
+        bypassDnd: true,
+        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+      });
+
+      // Secondary channel for messages
+      await Notifications.setNotificationChannelAsync('messages', {
+        name: 'Mesaj Bildirimleri',
+        importance: Notifications.AndroidImportance.HIGH,
+        vibrationPattern: [0, 200, 100, 200],
+        lightColor: '#10b981',
+        sound: 'default',
+        enableVibrate: true,
+        showBadge: true,
+        bypassDnd: true,
+        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
       });
     }
 
@@ -422,6 +473,8 @@ export default function RootLayout() {
           <Stack>
             <Stack.Screen name="index" options={{ headerShown: false }} />
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen name="messages" options={{ headerShown: false }} />
+            <Stack.Screen name="history" options={{ headerShown: false }} />
             <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
           </Stack>
           <StatusBar style="auto" />

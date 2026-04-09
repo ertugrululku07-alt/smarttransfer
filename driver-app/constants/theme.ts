@@ -1,12 +1,55 @@
 /**
- * Below are the colors that are used in the app. The colors are defined in the light and dark mode.
- * There are many other ways to style your app. For example, [Nativewind](https://www.nativewind.dev/), [Tamagui](https://tamagui.dev/), [unistyles](https://reactnativeunistyles.vercel.app), etc.
+ * SmartTransfer Driver App — Centralized Theme
  */
 
 import { Platform } from 'react-native';
 
-const tintColorLight = '#0a7ea4';
-const tintColorDark = '#fff';
+// ─── Brand Colors ───
+export const Brand = {
+  primary: '#4361ee',
+  primaryLight: '#a5b4fc',
+  primaryDark: '#1e3a8a',
+  secondary: '#7c3aed',
+
+  success: '#10b981',
+  successBg: '#ecfdf5',
+  warning: '#f59e0b',
+  warningBg: '#fffbeb',
+  danger: '#ef4444',
+  dangerBg: '#fef2f2',
+  info: '#0ea5e9',
+  infoBg: '#f0f9ff',
+
+  text: '#111827',
+  textSecondary: '#6b7280',
+  textMuted: '#9ca3af',
+  textLight: '#d1d5db',
+
+  background: '#f0f2f8',
+  surface: '#ffffff',
+  border: '#e5e7eb',
+  borderLight: '#f3f4f6',
+
+  headerBg: '#1e3a8a',
+  cardShadow: '#000',
+};
+
+// ─── Status Colors ───
+export const StatusColors: Record<string, { bg: string; text: string; label: string }> = {
+  CONFIRMED: { bg: '#eff6ff', text: '#2563eb', label: 'Onaylandı' },
+  ASSIGNED: { bg: '#eff6ff', text: '#2563eb', label: 'Atandı' },
+  ON_WAY: { bg: '#fef3c7', text: '#d97706', label: 'Yolda' },
+  PICKUP: { bg: '#fef3c7', text: '#d97706', label: 'Alınıyor' },
+  IN_PROGRESS: { bg: '#fff7ed', text: '#ea580c', label: 'Devam Ediyor' },
+  COMPLETED: { bg: '#ecfdf5', text: '#059669', label: 'Tamamlandı' },
+  CANCELLED: { bg: '#fef2f2', text: '#dc2626', label: 'İptal' },
+  NO_SHOW: { bg: '#fef2f2', text: '#dc2626', label: 'Gelmedi' },
+  PENDING: { bg: '#f5f3ff', text: '#7c3aed', label: 'Bekliyor' },
+};
+
+// ─── Navigation Theme Override ───
+const tintColorLight = '#4361ee';
+const tintColorDark = '#a5b4fc';
 
 export const Colors = {
   light: {
@@ -14,7 +57,7 @@ export const Colors = {
     background: '#fff',
     tint: tintColorLight,
     icon: '#687076',
-    tabIconDefault: '#687076',
+    tabIconDefault: '#9ca3af',
     tabIconSelected: tintColorLight,
   },
   dark: {
@@ -29,13 +72,9 @@ export const Colors = {
 
 export const Fonts = Platform.select({
   ios: {
-    /** iOS `UIFontDescriptorSystemDesignDefault` */
     sans: 'system-ui',
-    /** iOS `UIFontDescriptorSystemDesignSerif` */
     serif: 'ui-serif',
-    /** iOS `UIFontDescriptorSystemDesignRounded` */
     rounded: 'ui-rounded',
-    /** iOS `UIFontDescriptorSystemDesignMonospaced` */
     mono: 'ui-monospace',
   },
   default: {

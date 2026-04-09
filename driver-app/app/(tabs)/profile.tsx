@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
 import { useRouter } from 'expo-router';
+import { Brand } from '../../constants/theme';
 
 const API_URL = 'https://smarttransfer-backend-production.up.railway.app/api';
 
@@ -173,7 +174,7 @@ export default function ProfileScreen() {
                     <Text style={styles.logoutText}>Çıkış Yap</Text>
                 </TouchableOpacity>
 
-                <Text style={styles.version}>SmartTransfer Sürücü v1.0</Text>
+                <Text style={styles.version}>SmartTransfer Sürücü v1.1</Text>
             </ScrollView>
         </SafeAreaView>
     );

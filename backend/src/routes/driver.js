@@ -103,6 +103,43 @@ router.get('/bookings', authMiddleware, ensureDriver, async (req, res) => {
     }
 });
 
+// GET /api/driver/bookings/:id
+// Get a single booking detail by ID
+router.get('/bookings/:id', authMiddleware, ensureDriver, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const driverId = req.user.id;
+
+        const booking = await prisma.booking.findFirst({
+            where: {
+                id: id,
+                driverId: driverId,
+            },
+            include: {
+                product: {
+                    include: {
+                        transferData: true,
+                        vehicle: { select: { plateNumber: true, brand: true, model: true } }
+                    }
+                },
+                customer: {
+                    select: { firstName: true, lastName: true, phone: true, email: true }
+                },
+                items: true
+            },
+        });
+
+        if (!booking) {
+            return res.status(404).json({ success: false, error: 'Rezervasyon bulunamadı veya size atanmamış.' });
+        }
+
+        res.json({ success: true, data: booking });
+    } catch (error) {
+        console.error('Driver booking detail error:', error);
+        res.status(500).json({ success: false, error: 'Server error' });
+    }
+});
+
 // GET /api/driver/history
 // List completed bookings
 router.get('/history', authMiddleware, ensureDriver, async (req, res) => {

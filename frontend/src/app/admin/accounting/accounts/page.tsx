@@ -227,7 +227,9 @@ const AccountsPage: React.FC = () => {
                 });
             } else {
                 // HAKEDIS, PRIM, KESINTI -> generic transaction
-                const isCredit = personnelTxType === 'KESINTI'; // Kesinti = bizim lehimize (credit)
+                // Hakedis/Prim: Employee EARNS money, their credit/balance INCREASES (isCredit = true) -> MANUAL_IN.
+                // Kesinti: Employee loses money, their balance DECREASES (isCredit = false) -> MANUAL_OUT.
+                const isCredit = personnelTxType === 'HAKEDIS' || personnelTxType === 'PRIM';
                 await apiClient.post('/api/accounting/transactions', {
                     accountId: acct.id,
                     type: isCredit ? 'MANUAL_IN' : 'MANUAL_OUT',
