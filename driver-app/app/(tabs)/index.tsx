@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   StyleSheet, View, Text, Alert, ScrollView, RefreshControl,
-  TouchableOpacity, ActivityIndicator, Dimensions, Image, Platform, Linking
+  TouchableOpacity, Image, Platform, Linking, AppState
 } from 'react-native';
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
@@ -16,7 +16,6 @@ import { Brand } from '../../constants/theme';
 const API_URL = 'https://backend-production-69e7.up.railway.app/api';
 const LOCATION_TASK_NAME = 'background-location-task';
 
-const { width } = Dimensions.get('window');
 
 export default function DashboardScreen() {
   const { user, signOut, token, signIn } = useAuth();
@@ -42,10 +41,36 @@ export default function DashboardScreen() {
     fetchStats();
     fetchProfile();
     ensureLocationAlwaysOn();
+
+    // Re-check location task when app comes back from background
+    // Android OEMs may kill the foreground service silently
+    const handleAppState = async (nextState: string) => {
+      if (nextState === 'active') {
+        const isRegistered = await TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME);
+        if (!isRegistered) {
+          console.log('[Location] Task was killed by OS — restarting...');
+          ensureLocationAlwaysOn();
+        }
+      }
+    };
+    const sub = AppState.addEventListener('change', handleAppState);
+    return () => sub.remove();
   }, []);
 
-  // Local listeners removed to prevent duplicate toasts.
-  // SocketContext already handles `new_message` and `operation_assigned` globally.
+  // Auto-refresh stats when booking status changes
+  useEffect(() => {
+    if (!socket) return;
+    const handleStatusUpdate = () => {
+      // Refresh stats with a small delay to let backend settle
+      setTimeout(() => fetchStats(), 800);
+    };
+    socket.on('booking_status_update', handleStatusUpdate);
+    socket.on('operation_assigned', handleStatusUpdate);
+    return () => {
+      socket.off('booking_status_update', handleStatusUpdate);
+      socket.off('operation_assigned', handleStatusUpdate);
+    };
+  }, [socket]);
 
   // Foreground notification listener (when push arrives while app open)
   useEffect(() => {
@@ -108,16 +133,19 @@ export default function DashboardScreen() {
       const isRegistered = await TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME);
       if (!isRegistered) {
         await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
-          accuracy: Location.Accuracy.Balanced,  // Balanced for battery efficiency
-          timeInterval: 10000,    // 10 seconds — less aggressive than 5s
-          distanceInterval: 5,    // Only update if moved 5m — saves battery
-          deferredUpdatesInterval: 10000,
-          deferredUpdatesDistance: 5,
+          accuracy: Location.Accuracy.Balanced,
+          timeInterval: 15000,       // 15 seconds — balanced for battery
+          distanceInterval: 10,      // Only update if moved 10m
+          deferredUpdatesInterval: 15000,
+          deferredUpdatesDistance: 10,
           showsBackgroundLocationIndicator: true,
+          activityType: Location.ActivityType.AutomotiveNavigation,
+          pausesUpdatesAutomatically: false,  // CRITICAL: prevents iOS/Android from pausing
           foregroundService: {
             notificationTitle: 'SmartTransfer Sürücü',
-            notificationBody: 'Konum servisi aktif — Operasyon takip ediliyor',
-            notificationColor: '#4361ee'
+            notificationBody: 'Konum paylaşımı aktif — Operasyon takip ediliyor',
+            notificationColor: '#4361ee',
+            killServiceOnDestroy: false,  // Keep service alive even if app is swiped away
           }
         });
       }
@@ -192,237 +220,207 @@ export default function DashboardScreen() {
 
   const now = new Date();
   const hour = now.getHours();
-  const greeting = hour < 12 ? 'Günaydın' : hour < 18 ? 'İyi günler' : 'İyi akşamlar';
+  const greeting = hour < 6 ? 'İyi geceler' : hour < 12 ? 'Günaydın' : hour < 18 ? 'İyi günler' : 'İyi akşamlar';
+  const initials = `${(user?.firstName?.charAt(0) ?? '').toUpperCase()}${(user?.lastName?.charAt(0) ?? '').toUpperCase()}`;
 
   return (
     <ScrollView
-      style={styles.root}
-      contentContainerStyle={styles.container}
+      style={st.root}
+      contentContainerStyle={st.container}
       refreshControl={<RefreshControl refreshing={loading} onRefresh={fetchStats} tintColor="#fff" />}
+      showsVerticalScrollIndicator={false}
     >
       {/* ─── HEADER ─── */}
-      <View style={styles.headerGradient}>
-        <View style={styles.headerTop}>
-          {user?.avatar ? (
-            <Image
-              source={{ uri: getImageUrl(user.avatar) }}
-              style={styles.avatarCircleImage}
-            />
-          ) : (
-            <View style={styles.avatarCircle}>
-              <Text style={styles.avatarText}>
-                {(user?.firstName?.charAt(0) ?? '').toUpperCase()}{(user?.lastName?.charAt(0) ?? '').toUpperCase()}
+      <View style={st.header}>
+        {/* Decorative circles */}
+        <View style={st.headerDecor1} />
+        <View style={st.headerDecor2} />
+
+        <View style={st.headerContent}>
+          <View style={st.headerRow}>
+            {user?.avatar ? (
+              <Image source={{ uri: getImageUrl(user.avatar) }} style={st.avatar} />
+            ) : (
+              <View style={st.avatarFallback}>
+                <Text style={st.avatarText}>{initials || '?'}</Text>
+              </View>
+            )}
+            <View style={st.headerInfo}>
+              <Text style={st.greetingText}>{greeting}</Text>
+              <Text style={st.nameText}>{user?.firstName} {user?.lastName}</Text>
+            </View>
+            <View style={[st.statusPill, { backgroundColor: isConnected ? 'rgba(16,185,129,0.2)' : 'rgba(255,255,255,0.1)' }]}>
+              <View style={[st.statusDot, { backgroundColor: isConnected ? '#34d399' : '#9ca3af' }]} />
+              <Text style={[st.statusLabel, { color: isConnected ? '#34d399' : '#9ca3af' }]}>
+                {isConnected ? 'Aktif' : 'Çevrimdışı'}
               </Text>
             </View>
-          )}
-          <View style={{ flex: 1, marginLeft: 14 }}>
-            <Text style={styles.greetingText}>{greeting},</Text>
-            <Text style={styles.nameText}>{user?.firstName} {user?.lastName}</Text>
-          </View>
-          <View style={[styles.onlineBadge, { backgroundColor: isConnected ? '#10b981' : '#6b7280' }]}>
-            <View style={styles.onlineDot} />
-            <Text style={styles.onlineText}>{isConnected ? 'Online' : 'Offline'}</Text>
-          </View>
-        </View>
-
-        {/* ─── LOCATION STATUS ─── */}
-        <View style={styles.locationBanner}>
-          <View style={styles.locationPulse}>
-            <View style={[styles.pulseOuter, { backgroundColor: locationActive ? 'rgba(16,185,129,0.3)' : 'rgba(107,114,128,0.3)' }]} />
-            <View style={[styles.pulseCore, { backgroundColor: locationActive ? '#10b981' : '#6b7280' }]} />
-          </View>
-          <View style={{ marginLeft: 12, flex: 1 }}>
-            <Text style={styles.locationTitle}>Konum Servisi</Text>
-            <Text style={styles.locationSubtitle}>{locationActive ? 'Aktif — Sürekli İzleniyor' : 'Başlatılıyor...'}</Text>
-          </View>
-          <View style={[styles.locationStatus, { borderColor: locationActive ? '#10b981' : '#6b7280' }]}>
-            <Text style={{ color: locationActive ? '#10b981' : '#6b7280', fontWeight: 'bold', fontSize: 11 }}>
-              {locationActive ? 'AKTİF' : 'BEKLENİYOR'}
-            </Text>
           </View>
         </View>
       </View>
 
-      {/* ─── STATS ─── */}
-      <View style={styles.statsRow}>
-        <StatCard icon="briefcase-outline" label="Bugünkü İşler" value={stats.todayJobs} color={Brand.primary} />
-        <StatCard icon="checkmark-circle-outline" label="Tamamlanan" value={stats.completedJobs} color={Brand.success} />
-        <StatCard icon="star-outline" label="Puan" value={stats.rating} color={Brand.warning} />
+      {/* ─── STATS (overlapping header) ─── */}
+      <View style={st.statsRow}>
+        <View style={[st.statCard, st.statCardPrimary]}>
+          <View style={[st.statIconBox, { backgroundColor: 'rgba(67,97,238,0.12)' }]}>
+            <Ionicons name="briefcase" size={20} color={Brand.primary} />
+          </View>
+          <Text style={st.statValue}>{stats.todayJobs}</Text>
+          <Text style={st.statLabel}>Bugün</Text>
+        </View>
+        <View style={[st.statCard, st.statCardSuccess]}>
+          <View style={[st.statIconBox, { backgroundColor: 'rgba(16,185,129,0.12)' }]}>
+            <Ionicons name="checkmark-circle" size={20} color={Brand.success} />
+          </View>
+          <Text style={st.statValue}>{stats.completedJobs}</Text>
+          <Text style={st.statLabel}>Tamamlanan</Text>
+        </View>
+        <View style={[st.statCard, st.statCardWarning]}>
+          <View style={[st.statIconBox, { backgroundColor: 'rgba(245,158,11,0.12)' }]}>
+            <Ionicons name="star" size={20} color={Brand.warning} />
+          </View>
+          <Text style={st.statValue}>{stats.rating}</Text>
+          <Text style={st.statLabel}>Puan</Text>
+        </View>
       </View>
 
       {/* ─── QUICK ACTIONS ─── */}
-      <Text style={styles.sectionTitle}>Hızlı Erişim</Text>
-      <View style={styles.actionsGrid}>
-        <ActionButton
-          icon="list"
-          label="İş Listesi"
-          color={Brand.primary}
-          onPress={() => router.push('/(tabs)/explore')}
-        />
-        <ActionButton
-          icon="time"
-          label="Geçmiş"
-          color={Brand.secondary}
-          onPress={() => router.push('/history')}
-        />
-        <ActionButton
-          icon="chatbubbles"
-          label="Mesajlar"
-          color="#059669"
-          onPress={() => router.push('/messages')}
-          badgeCount={unreadCount}
-        />
-        <ActionButton
-          icon="person"
-          label="Profil"
-          color={Brand.danger}
-          onPress={() => router.push('/(tabs)/profile')}
-        />
+      <View style={st.sectionHeader}>
+        <Text style={st.sectionTitle}>Hızlı Erişim</Text>
+        <View style={st.sectionLine} />
+      </View>
+
+      <View style={st.actionsGrid}>
+        <ActionButton icon="list" label="İş Listesi" color="#4361ee" bg="#eef2ff" onPress={() => router.push('/(tabs)/explore')} />
+        <ActionButton icon="time" label="Geçmiş" color="#7c3aed" bg="#f5f3ff" onPress={() => router.push('/history')} />
+        <ActionButton icon="chatbubbles" label="Mesajlar" color="#059669" bg="#ecfdf5" onPress={() => router.push('/messages')} badgeCount={unreadCount} />
+        <ActionButton icon="person" label="Profil" color="#e11d48" bg="#fff1f2" onPress={() => router.push('/(tabs)/profile')} />
+      </View>
+
+      {/* ─── FOOTER ─── */}
+      <View style={st.footerRow}>
+        <Text style={st.footerText}>SmartTransfer Sürücü v1.1</Text>
       </View>
     </ScrollView>
   );
 }
 
-function StatCard({ icon, label, value, color }: { icon: string; label: string; value: any; color: string }) {
+function ActionButton({ icon, label, color, bg, onPress, badgeCount }: {
+  icon: string; label: string; color: string; bg: string; onPress: () => void; badgeCount?: number;
+}) {
   return (
-    <View style={[styles.statCard, { borderTopColor: color }]}>
-      <Ionicons name={icon as any} size={22} color={color} />
-      <Text style={[styles.statValue, { color }]}>{value}</Text>
-      <Text style={styles.statLabel}>{label}</Text>
-    </View>
-  );
-}
-
-function ActionButton({ icon, label, color, onPress, badgeCount }: { icon: string; label: string; color: string; onPress: () => void; badgeCount?: number }) {
-  return (
-    <TouchableOpacity style={styles.actionBtn} onPress={onPress} activeOpacity={0.8}>
-      <View style={[styles.actionIcon, { backgroundColor: color + '18' }]}>
-        <Ionicons name={icon as any} size={28} color={color} />
+    <TouchableOpacity style={st.actionBtn} onPress={onPress} activeOpacity={0.7}>
+      <View style={[st.actionIconBox, { backgroundColor: bg }]}>
+        <Ionicons name={icon as any} size={24} color={color} />
         {!!badgeCount && badgeCount > 0 && (
-          <View style={styles.actionBadge}>
-            <Text style={styles.actionBadgeText}>{badgeCount > 99 ? '99+' : badgeCount}</Text>
+          <View style={st.actionBadge}>
+            <Text style={st.actionBadgeText}>{badgeCount > 99 ? '99+' : badgeCount}</Text>
           </View>
         )}
       </View>
-      <Text style={styles.actionLabel}>{label}</Text>
+      <Text style={st.actionLabel}>{label}</Text>
+      <Ionicons name="chevron-forward" size={14} color="#cbd5e1" style={{ marginLeft: 'auto' }} />
     </TouchableOpacity>
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: Brand.background },
+const st = StyleSheet.create({
+  root: { flex: 1, backgroundColor: '#f1f5f9' },
   container: { paddingBottom: 40 },
 
   // Header
-  headerGradient: {
-    backgroundColor: Brand.headerBg,
+  header: {
+    backgroundColor: '#0f1d3d',
     paddingTop: 56,
     paddingHorizontal: 20,
-    paddingBottom: 24,
-    borderBottomLeftRadius: 28,
-    borderBottomRightRadius: 28,
-    shadowColor: Brand.headerBg,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.4,
-    shadowRadius: 16,
-    elevation: 12,
+    paddingBottom: 50,
+    overflow: 'hidden',
   },
-  headerTop: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
-  avatarCircle: {
-    width: 58, height: 58, borderRadius: 29,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+  headerDecor1: {
+    position: 'absolute', width: 200, height: 200, borderRadius: 100,
+    backgroundColor: 'rgba(67,97,238,0.12)', top: -60, right: -40,
+  },
+  headerDecor2: {
+    position: 'absolute', width: 140, height: 140, borderRadius: 70,
+    backgroundColor: 'rgba(99,102,241,0.08)', bottom: -20, left: -30,
+  },
+  headerContent: { zIndex: 1 },
+  headerRow: { flexDirection: 'row', alignItems: 'center' },
+  avatar: {
+    width: 52, height: 52, borderRadius: 16,
+    borderWidth: 2, borderColor: 'rgba(255,255,255,0.25)',
+  },
+  avatarFallback: {
+    width: 52, height: 52, borderRadius: 16,
+    backgroundColor: 'rgba(67,97,238,0.4)',
     justifyContent: 'center', alignItems: 'center',
-    borderWidth: 2.5, borderColor: 'rgba(255,255,255,0.5)'
+    borderWidth: 2, borderColor: 'rgba(255,255,255,0.15)',
   },
-  avatarCircleImage: {
-    width: 58, height: 58, borderRadius: 29,
-    borderWidth: 2.5, borderColor: 'rgba(255,255,255,0.5)'
-  },
-  avatarText: { color: '#fff', fontSize: 20, fontWeight: '800', letterSpacing: 1 },
-  greetingText: { color: 'rgba(255,255,255,0.7)', fontSize: 13 },
-  nameText: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
-  onlineBadge: {
+  avatarText: { color: '#fff', fontSize: 18, fontWeight: '800', letterSpacing: 1 },
+  headerInfo: { flex: 1, marginLeft: 14 },
+  greetingText: { color: 'rgba(255,255,255,0.5)', fontSize: 12, fontWeight: '500' },
+  nameText: { color: '#fff', fontSize: 17, fontWeight: '700', marginTop: 2 },
+  statusPill: {
     flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 10, paddingVertical: 5,
-    borderRadius: 20,
+    paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
   },
-  onlineDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#fff', marginRight: 5 },
-  onlineText: { color: '#fff', fontSize: 12, fontWeight: '600' },
+  statusDot: { width: 6, height: 6, borderRadius: 3, marginRight: 5 },
+  statusLabel: { fontSize: 11, fontWeight: '700', letterSpacing: 0.5 },
 
-  // Location banner
-  locationBanner: {
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    borderRadius: 16,
-    padding: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.15)'
+  // Stats (floating overlap)
+  statsRow: {
+    flexDirection: 'row', paddingHorizontal: 16, gap: 10,
+    marginTop: -30,
   },
-  locationPulse: { position: 'relative', width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
-  pulseOuter: {
-    position: 'absolute',
-    width: 28, height: 28, borderRadius: 14,
-  },
-  pulseCore: { width: 14, height: 14, borderRadius: 7 },
-  locationTitle: { color: '#fff', fontWeight: '700', fontSize: 14 },
-  locationSubtitle: { color: 'rgba(255,255,255,0.65)', fontSize: 12, marginTop: 2 },
-  locationStatus: {
-    marginLeft: 'auto',
-    backgroundColor: 'rgba(16,185,129,0.2)',
-    borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4,
-    borderWidth: 1,
-  },
-
-  // Stats
-  statsRow: { flexDirection: 'row', paddingHorizontal: 16, marginTop: 20, gap: 10 },
   statCard: {
     flex: 1, backgroundColor: '#fff', borderRadius: 16, padding: 14,
-    alignItems: 'center', borderTopWidth: 4,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06, shadowRadius: 8, elevation: 3,
+    alignItems: 'center',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08, shadowRadius: 12, elevation: 5,
+    borderBottomWidth: 3,
   },
-  statValue: { fontSize: 22, fontWeight: 'bold', marginTop: 8 },
-  statLabel: { fontSize: 11, color: Brand.textSecondary, marginTop: 4, textAlign: 'center' },
+  statCardPrimary: { borderBottomColor: Brand.primary },
+  statCardSuccess: { borderBottomColor: Brand.success },
+  statCardWarning: { borderBottomColor: Brand.warning },
+  statIconBox: {
+    width: 36, height: 36, borderRadius: 10,
+    justifyContent: 'center', alignItems: 'center', marginBottom: 6,
+  },
+  statValue: { fontSize: 22, fontWeight: '800', color: '#0f172a', marginBottom: 2 },
+  statLabel: { fontSize: 10, color: '#94a3b8', fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
 
-  // Actions
-  sectionTitle: {
-    fontSize: 16, fontWeight: '700', color: Brand.text,
-    paddingHorizontal: 20, marginTop: 24, marginBottom: 12
+  // Section
+  sectionHeader: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 20, marginTop: 28, marginBottom: 14, gap: 10,
   },
-  actionsGrid: {
-    flexDirection: 'row', flexWrap: 'wrap',
-    paddingHorizontal: 12, gap: 10
-  },
+  sectionTitle: { fontSize: 15, fontWeight: '700', color: '#1e293b' },
+  sectionLine: { flex: 1, height: 1, backgroundColor: '#e2e8f0' },
+
+  // Actions — list style
+  actionsGrid: { paddingHorizontal: 16, gap: 8 },
   actionBtn: {
-    width: (width - 52) / 2,
-    backgroundColor: '#fff', borderRadius: 18,
-    padding: 18, alignItems: 'center',
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: '#fff', borderRadius: 16, padding: 14,
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06, shadowRadius: 8, elevation: 3,
+    shadowOpacity: 0.04, shadowRadius: 8, elevation: 2,
   },
-  actionIcon: {
-    width: 54, height: 54, borderRadius: 16,
-    justifyContent: 'center', alignItems: 'center', marginBottom: 10
+  actionIconBox: {
+    width: 44, height: 44, borderRadius: 14,
+    justifyContent: 'center', alignItems: 'center', marginRight: 14,
   },
   actionBadge: {
-    position: 'absolute',
-    top: -4,
-    right: -4,
-    backgroundColor: '#ef4444',
-    borderRadius: 10,
-    minWidth: 20,
-    height: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 4,
-    borderWidth: 1.5,
-    borderColor: '#fff'
+    position: 'absolute', top: -4, right: -4,
+    backgroundColor: '#ef4444', borderRadius: 10,
+    minWidth: 18, height: 18,
+    justifyContent: 'center', alignItems: 'center',
+    paddingHorizontal: 4, borderWidth: 1.5, borderColor: '#fff',
   },
-  actionBadgeText: {
-    color: '#fff',
-    fontSize: 10,
-    fontWeight: 'bold'
-  },
-  actionLabel: { fontSize: 13, fontWeight: '600', color: '#374151' },
+  actionBadgeText: { color: '#fff', fontSize: 9, fontWeight: 'bold' },
+  actionLabel: { fontSize: 14, fontWeight: '600', color: '#334155', flex: 1 },
+
+  // Footer
+  footerRow: { alignItems: 'center', marginTop: 24 },
+  footerText: { color: '#cbd5e1', fontSize: 11, fontWeight: '500', letterSpacing: 0.5 },
 });

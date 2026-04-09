@@ -58,8 +58,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         await SecureStore.deleteItemAsync('user');
         setToken(null);
         setUser(null);
-        // Navigate to login and clear navigation stack
-        router.replace('/');
+        // Clear entire navigation stack then go to login
+        while (router.canGoBack()) {
+            router.back();
+        }
+        setTimeout(() => {
+            router.replace('/');
+        }, 100);
     };
 
     return (

@@ -202,24 +202,47 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         };
     }, [token]);
 
-    // Reconnect when app comes to foreground
+    // Reconnect when app comes to foreground + periodic keep-alive
     useEffect(() => {
         const handleAppStateChange = (nextState: AppStateStatus) => {
             if (
                 appState.current.match(/inactive|background/) &&
                 nextState === 'active' &&
                 token &&
-                socketRef.current &&
-                !socketRef.current.connected
+                socketRef.current
             ) {
-                console.log('[Socket] App foregrounded - reconnecting');
-                socketRef.current.connect();
+                console.log('[Socket] App foregrounded - checking connection');
+                if (!socketRef.current.connected) {
+                    console.log('[Socket] Was disconnected - reconnecting');
+                    socketRef.current.connect();
+                } else {
+                    // Force re-authenticate in case server dropped our session
+                    socketRef.current.emit('authenticate', token);
+                }
             }
             appState.current = nextState;
         };
 
         const subscription = AppState.addEventListener('change', handleAppStateChange);
-        return () => subscription.remove();
+
+        // Keep-alive: check socket health every 60s
+        // This catches cases where the OS silently killed the connection
+        const keepAliveInterval = setInterval(() => {
+            if (token && socketRef.current) {
+                if (!socketRef.current.connected) {
+                    console.log('[Socket] Keep-alive: disconnected, reconnecting...');
+                    socketRef.current.connect();
+                } else {
+                    // Send a lightweight ping to keep the connection alive
+                    socketRef.current.emit('ping_keepalive', { ts: Date.now() });
+                }
+            }
+        }, 60000);
+
+        return () => {
+            subscription.remove();
+            clearInterval(keepAliveInterval);
+        };
     }, [token]);
 
     return (

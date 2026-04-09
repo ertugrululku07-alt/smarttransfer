@@ -266,39 +266,162 @@ async function handleLocationSyncRequest() {
   }
 }
 
-// ─── Prompt user to disable battery optimization (Samsung/Huawei/Xiaomi) ───
+// ─── COMPREHENSIVE BATTERY OPTIMIZATION BYPASS ───
+// Huawei EMUI, Xiaomi MIUI, Samsung OneUI, Oppo ColorOS, Vivo, Realme
+// all aggressively kill background apps. We need multi-step guidance.
+
+const MANUFACTURER_SETTINGS: Record<string, { name: string; intents: string[]; instructions: string }> = {
+  huawei: {
+    name: 'Huawei',
+    intents: [
+      'huawei.intent.action.HSM_PROTECTED_APPS',       // EMUI protected apps
+      'huawei.intent.action.HSM_BOOTAPP_MANAGER',      // EMUI auto-launch
+    ],
+    instructions:
+      '1. Ayarlar > Pil > Uygulama başlatma yöneticisi\n' +
+      '2. SmartTransfer Sürücü uygulamasını bulun\n' +
+      '3. Otomatik yönetimi KAPATIN\n' +
+      '4. Arka plan, Otomatik başlatma, Pil optimizasyonu hepsini AÇIN'
+  },
+  xiaomi: {
+    name: 'Xiaomi / Redmi / POCO',
+    intents: [
+      'miui.intent.action.POWER_HIDE_MODE_APP_LIST',   // Battery saver whitelist
+      'miui.intent.action.OP_AUTO_START',               // Auto-start
+    ],
+    instructions:
+      '1. Ayarlar > Uygulamalar > Uygulamaları yönet > SmartTransfer\n' +
+      '2. Otomatik başlatma: AÇIK\n' +
+      '3. Pil tasarrufu: Kısıtlama yok\n' +
+      '4. Ayarlar > Pil > Arka plan pil kullanımı: SmartTransfer için izin ver'
+  },
+  samsung: {
+    name: 'Samsung',
+    intents: [],
+    instructions:
+      '1. Ayarlar > Pil > Arka plan kullanım sınırları\n' +
+      '2. SmartTransfer uygulamasını "Hiçbir zaman uyutma" listesine ekleyin\n' +
+      '3. Ayarlar > Uygulamalar > SmartTransfer > Pil > Sınırsız seçin'
+  },
+  oppo: {
+    name: 'Oppo / Realme / OnePlus',
+    intents: [
+      'com.coloros.safecenter',
+    ],
+    instructions:
+      '1. Ayarlar > Pil > Arka plan optimizasyonu\n' +
+      '2. SmartTransfer için "Kısıtlama yok" seçin\n' +
+      '3. Güvenlik > Otomatik başlatma yöneticisi > SmartTransfer: AÇIK'
+  },
+  vivo: {
+    name: 'Vivo',
+    intents: [],
+    instructions:
+      '1. Ayarlar > Pil > Yüksek arka plan güç tüketimi\n' +
+      '2. SmartTransfer uygulamasını listede etkinleştirin\n' +
+      '3. i Manager > Uygulama Yöneticisi > Otomatik başlatma: AÇIK'
+  }
+};
+
+function detectManufacturer(): string | null {
+  // React Native doesn't expose manufacturer directly, but we can use brand constants
+  // We'll try all known intents
+  return null; // Will try all
+}
+
+async function tryOpenIntent(intentUrl: string): Promise<boolean> {
+  try {
+    const canOpen = await Linking.canOpenURL(intentUrl);
+    if (canOpen) {
+      await Linking.openURL(intentUrl);
+      return true;
+    }
+  } catch { }
+  return false;
+}
+
 async function promptBatteryOptimization() {
   if (Platform.OS !== 'android') return;
 
   try {
-    // Check if we've already asked (don't nag on every launch)
-    const asked = await SecureStore.getItemAsync('battery_opt_asked');
-    if (asked === 'true') return;
+    // Step 1: Try to request Android system battery optimization whitelist
+    // This is the standard Android API that shows the system dialog
+    try {
+      const intentUrl = `package:com.smarttransfer.driverapp`;
+      // Try the official REQUEST_IGNORE_BATTERY_OPTIMIZATIONS intent
+      await Linking.openURL(`android-app://com.android.settings/#Intent;action=android.settings.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS;data=package:com.smarttransfer.driverapp;end`).catch(() => {});
+    } catch { }
 
-    // Wait a bit for app to fully load
-    await new Promise(resolve => setTimeout(resolve, 3000));
+    // Check if we've already shown the detailed manufacturer guide
+    const lastAsked = await SecureStore.getItemAsync('battery_opt_asked_v2');
+    const daysSinceAsked = lastAsked 
+      ? (Date.now() - parseInt(lastAsked)) / (1000 * 60 * 60 * 24)
+      : 999;
+    
+    // Show every 7 days until user dismisses permanently, because OEMs reset these settings
+    if (daysSinceAsked < 7) return;
+
+    // Wait for app to fully load
+    await new Promise(resolve => setTimeout(resolve, 4000));
+
+    // Step 2: Try manufacturer-specific intents first (auto-detect)
+    let opened = false;
+    for (const [brand, cfg] of Object.entries(MANUFACTURER_SETTINGS)) {
+      for (const intent of cfg.intents) {
+        if (await tryOpenIntent(intent)) {
+          opened = true;
+          break;
+        }
+      }
+      if (opened) break;
+    }
+
+    // Step 3: Show detailed guidance dialog
+    const allInstructions = Object.values(MANUFACTURER_SETTINGS)
+      .map(cfg => `📱 ${cfg.name}:\n${cfg.instructions}`)
+      .join('\n\n');
 
     Alert.alert(
-      '🔋 Pil Optimizasyonu',
-      'Samsung, Huawei ve Xiaomi gibi telefonlarda uygulamanın arka planda kesintisiz çalışabilmesi için pil optimizasyonunu kapatmanız gerekiyor.\n\nAyarlara yönlendirileceksiniz.',
+      '⚡ Arka Plan Konum İzni',
+      'Uygulamanın arka planda çalışması için pil optimizasyonunu kapatmanız GEREKLİDİR.\n\n' +
+      'Aksi halde 10-15 dakika sonra uygulama uyku moduna geçer ve konumunuz güncellenmez.\n\n' +
+      '── Telefonunuza göre ayarlar ──\n\n' +
+      allInstructions +
+      '\n\n📌 Genel: Ayarlar > Pil > Pil Optimizasyonu > SmartTransfer > Optimize etme',
       [
-        { text: 'Daha Sonra', style: 'cancel' },
         {
-          text: 'Ayarlara Git',
+          text: 'Bir Daha Gösterme',
+          style: 'cancel',
+          onPress: async () => {
+            // Set far future so it never shows again
+            await SecureStore.setItemAsync('battery_opt_asked_v2', String(Date.now() + 365 * 24 * 60 * 60 * 1000));
+          }
+        },
+        {
+          text: 'Pil Ayarlarına Git',
           onPress: async () => {
             try {
-              // Open battery optimization settings via intent URL
-              await Linking.openURL('package:com.smarttransfer.driverapp');
+              // Try battery optimization settings directly
+              const opened = await tryOpenIntent('android.settings.IGNORE_BATTERY_OPTIMIZATION_SETTINGS');
+              if (!opened) {
+                await tryOpenIntent('android.settings.BATTERY_SAVER_SETTINGS');
+              }
+              if (!opened) {
+                Linking.openSettings();
+              }
             } catch {
-              // Fallback: open general app settings
               Linking.openSettings();
             }
           }
+        },
+        {
+          text: 'Uygulama Ayarları',
+          onPress: () => Linking.openSettings()
         }
       ]
     );
 
-    await SecureStore.setItemAsync('battery_opt_asked', 'true');
+    await SecureStore.setItemAsync('battery_opt_asked_v2', String(Date.now()));
   } catch (err) {
     console.warn('Battery optimization prompt error:', err);
   }
@@ -454,9 +577,9 @@ export default function RootLayout() {
     const registerFetchTask = async () => {
       try {
         await BackgroundFetch.registerTaskAsync(BG_FETCH_TASK_NAME, {
-          minimumInterval: 15 * 60, // 15 minutes
-          stopOnTerminate: false, // android only,
-          startOnBoot: true,     // android only
+          minimumInterval: 5 * 60, // 5 minutes (Android may still enforce its own minimum)
+          stopOnTerminate: false,   // CRITICAL: keep running after app swipe
+          startOnBoot: true,        // CRITICAL: start after phone reboot
         });
       } catch (err) {
         console.warn('BG Fetch task registration failed:', err);

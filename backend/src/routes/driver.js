@@ -187,6 +187,8 @@ router.put('/bookings/:id/status', authMiddleware, ensureDriver, async (req, res
         const io = req.app.get('io');
         if (io) {
             io.to('admin_monitoring').emit('booking_status_update', { bookingId: id, status, driverId: req.user.id });
+            // Also emit to the driver's own room so their app updates immediately
+            io.to(`user_${req.user.id}`).emit('booking_status_update', { bookingId: id, status, driverId: req.user.id });
         }
 
         res.json({ success: true, data: booking });

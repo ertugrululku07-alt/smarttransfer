@@ -13,7 +13,7 @@ import { Brand } from '../constants/theme';
 
 const API_URL = 'https://backend-production-69e7.up.railway.app/api';
 const { width, height } = Dimensions.get('window');
-const LOGIN_TIMEOUT_MS = 12000; // 12 second timeout
+const LOGIN_TIMEOUT_MS = 12000;
 
 export default function LoginScreen() {
     const { signIn, isLoading, token } = useAuth();
@@ -22,24 +22,27 @@ export default function LoginScreen() {
     const [loading, setLoading] = useState(false);
     const [rememberMe, setRememberMe] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
+    const [emailFocused, setEmailFocused] = useState(false);
+    const [passFocused, setPassFocused] = useState(false);
 
-    // Animations
     const fadeAnim = useRef(new Animated.Value(0)).current;
-    const slideAnim = useRef(new Animated.Value(40)).current;
+    const slideAnim = useRef(new Animated.Value(50)).current;
+    const logoScale = useRef(new Animated.Value(0.8)).current;
+    const cardSlide = useRef(new Animated.Value(60)).current;
 
     useEffect(() => {
-        if (isLoading) return; // Wait until auth state is loaded
-
-        if (token) {
-            // Already logged in → redirect to dashboard
-            router.replace('/(tabs)');
-            return;
-        }
-        // Not logged in → load remembered email and animate form in
+        if (isLoading) return;
+        if (token) { router.replace('/(tabs)'); return; }
         loadRemembered();
-        Animated.parallel([
-            Animated.timing(fadeAnim, { toValue: 1, duration: 700, useNativeDriver: true }),
-            Animated.timing(slideAnim, { toValue: 0, duration: 600, useNativeDriver: true }),
+        Animated.stagger(150, [
+            Animated.parallel([
+                Animated.spring(logoScale, { toValue: 1, friction: 8, tension: 40, useNativeDriver: true }),
+                Animated.timing(fadeAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
+                Animated.timing(slideAnim, { toValue: 0, duration: 700, useNativeDriver: true }),
+            ]),
+            Animated.parallel([
+                Animated.timing(cardSlide, { toValue: 0, duration: 600, useNativeDriver: true }),
+            ]),
         ]).start();
     }, [isLoading, token]);
 
@@ -47,11 +50,8 @@ export default function LoginScreen() {
         try {
             const savedEmail = await SecureStore.getItemAsync('remembered_email');
             const savedRemember = await SecureStore.getItemAsync('remember_me');
-            if (savedRemember === 'true' && savedEmail) {
-                setEmail(savedEmail);
-                setRememberMe(true);
-            }
-        } catch (e) { /* ignore */ }
+            if (savedRemember === 'true' && savedEmail) { setEmail(savedEmail); setRememberMe(true); }
+        } catch { }
     };
 
     const handleLogin = async () => {
@@ -59,13 +59,10 @@ export default function LoginScreen() {
             Alert.alert('Eksik Bilgi', 'Lütfen e-posta ve şifrenizi girin.');
             return;
         }
-
         setLoading(true);
         try {
-            // Create AbortController for timeout
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), LOGIN_TIMEOUT_MS);
-
             let response: Response;
             try {
                 response = await fetch(`${API_URL}/auth/login`, {
@@ -76,52 +73,26 @@ export default function LoginScreen() {
                 });
             } catch (fetchError: any) {
                 clearTimeout(timeoutId);
-                // Network error or timeout — server unreachable
                 if (fetchError.name === 'AbortError') {
-                    Alert.alert(
-                        '⏱️ Zaman Aşımı',
-                        'Sunucu yanıt vermedi. İnternet bağlantınızı kontrol edip tekrar deneyin.',
-                        [{ text: 'Tamam' }]
-                    );
+                    Alert.alert('Zaman Aşımı', 'Sunucu yanıt vermedi. İnternet bağlantınızı kontrol edip tekrar deneyin.');
                 } else {
-                    Alert.alert(
-                        '🌐 Bağlantı Hatası',
-                        'Sunucuya bağlanılamadı. İnternet bağlantınızı kontrol edin veya daha sonra tekrar deneyin.',
-                        [{ text: 'Tamam' }]
-                    );
+                    Alert.alert('Bağlantı Hatası', 'Sunucuya bağlanılamadı. İnternet bağlantınızı kontrol edin.');
                 }
                 return;
             }
             clearTimeout(timeoutId);
-
-            // Server responded but with HTTP error (500, 502, 503 etc.)
             if (!response.ok && response.status >= 500) {
-                Alert.alert(
-                    '⚠️ Sunucu Hatası',
-                    `Sunucu şu anda hizmet veremiyor (HTTP ${response.status}). Lütfen birkaç dakika sonra tekrar deneyin.`,
-                    [{ text: 'Tamam' }]
-                );
+                Alert.alert('Sunucu Hatası', `Sunucu hizmet veremiyor (HTTP ${response.status}).`);
                 return;
             }
-
             const data = await response.json();
-
             if (data.success) {
                 const { user, token: newToken } = data.data;
-                const isDriver = user.role?.code === 'DRIVER' ||
-                    user.role?.type === 'DRIVER' ||
-                    user.role?.type === 'PARTNER';
-
+                const isDriver = user.role?.code === 'DRIVER' || user.role?.type === 'DRIVER' || user.role?.type === 'PARTNER';
                 if (!isDriver) {
-                    Alert.alert(
-                        '🚫 Yetkisiz Giriş',
-                        'Bu uygulama yalnızca sürücüler ve partnerler içindir. Lütfen doğru hesapla giriş yapın.',
-                        [{ text: 'Tamam' }]
-                    );
+                    Alert.alert('Yetkisiz Giriş', 'Bu uygulama yalnızca sürücüler içindir.');
                     return;
                 }
-
-                // Handle Remember Me
                 if (rememberMe) {
                     await SecureStore.setItemAsync('remembered_email', email.trim());
                     await SecureStore.setItemAsync('remember_me', 'true');
@@ -129,24 +100,13 @@ export default function LoginScreen() {
                     await SecureStore.deleteItemAsync('remembered_email');
                     await SecureStore.deleteItemAsync('remember_me');
                 }
-
                 await signIn(newToken, user);
                 router.replace('/(tabs)');
             } else {
-                // Authentication failed — wrong credentials
-                Alert.alert(
-                    '🔒 Giriş Başarısız',
-                    data.error || 'Kullanıcı adı veya şifre hatalı. Lütfen bilgilerinizi kontrol edin.',
-                    [{ text: 'Tamam' }]
-                );
+                Alert.alert('Giriş Başarısız', data.error || 'Kullanıcı adı veya şifre hatalı.');
             }
-        } catch (error: any) {
-            // Unexpected error (JSON parse failure, etc.)
-            Alert.alert(
-                '❌ Beklenmeyen Hata',
-                'Giriş sırasında beklenmeyen bir sorun oluştu. Lütfen tekrar deneyin.',
-                [{ text: 'Tamam' }]
-            );
+        } catch {
+            Alert.alert('Beklenmeyen Hata', 'Giriş sırasında bir sorun oluştu.');
         } finally {
             setLoading(false);
         }
@@ -154,13 +114,15 @@ export default function LoginScreen() {
 
     if (isLoading) {
         return (
-            <View style={styles.splash}>
-                <View style={styles.splashLogo}>
-                    <Ionicons name="car-sport" size={48} color="#fff" />
+            <View style={s.splash}>
+                <View style={s.splashIconRing}>
+                    <View style={s.splashIconInner}>
+                        <Ionicons name="navigate" size={40} color="#fff" />
+                    </View>
                 </View>
-                <Text style={styles.splashText}>SmartTransfer</Text>
-                <Text style={styles.splashSub}>Sürücü Uygulaması</Text>
-                <ActivityIndicator color="#fff" style={{ marginTop: 24 }} />
+                <Text style={s.splashTitle}>SmartTransfer</Text>
+                <Text style={s.splashSub}>Sürücü Platformu</Text>
+                <ActivityIndicator color="rgba(255,255,255,0.7)" size="small" style={{ marginTop: 32 }} />
             </View>
         );
     }
@@ -168,93 +130,96 @@ export default function LoginScreen() {
     return (
         <>
             <StatusBar style="light" />
-            <View style={styles.bg}>
-                {/* Background decorations */}
-                <View style={styles.circle1} />
-                <View style={styles.circle2} />
-                <View style={styles.circle3} />
+            <View style={s.bg}>
+                {/* Gradient-like layered background */}
+                <View style={s.bgLayer1} />
+                <View style={s.bgLayer2} />
+                <View style={s.bgLayer3} />
+                <View style={s.bgGlow} />
 
-                <KeyboardAvoidingView
-                    style={{ flex: 1 }}
-                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                >
-                    <ScrollView
-                        contentContainerStyle={styles.scroll}
-                        keyboardShouldPersistTaps="handled"
-                        showsVerticalScrollIndicator={false}
-                    >
-                        {/* Logo section */}
-                        <Animated.View style={[styles.logoSection, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
-                            <View style={styles.logoCircle}>
-                                <Ionicons name="car-sport" size={42} color="#fff" />
+                <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+                    <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+
+                        {/* Logo */}
+                        <Animated.View style={[s.logoSection, { opacity: fadeAnim, transform: [{ translateY: slideAnim }, { scale: logoScale }] }]}>
+                            <View style={s.logoOuter}>
+                                <View style={s.logoInner}>
+                                    <Ionicons name="navigate" size={36} color="#fff" />
+                                </View>
                             </View>
-                            <Text style={styles.appName}>SmartTransfer</Text>
-                            <Text style={styles.tagline}>Sürücü Uygulaması</Text>
+                            <Text style={s.brandName}>SmartTransfer</Text>
+                            <View style={s.taglineRow}>
+                                <View style={s.taglineLine} />
+                                <Text style={s.tagline}>SÜRÜCÜ PLATFORMU</Text>
+                                <View style={s.taglineLine} />
+                            </View>
                         </Animated.View>
 
-                        {/* Form Card */}
-                        <Animated.View style={[styles.card, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
-                            <Text style={styles.welcomeText}>Hoş Geldiniz</Text>
-                            <Text style={styles.welcomeSub}>Hesabınıza giriş yapın</Text>
+                        {/* Card */}
+                        <Animated.View style={[s.card, { opacity: fadeAnim, transform: [{ translateY: cardSlide }] }]}>
+                            <View style={s.cardHeader}>
+                                <Text style={s.welcomeTitle}>Giriş Yap</Text>
+                                <Text style={s.welcomeSub}>Hesabınıza erişmek için bilgilerinizi girin</Text>
+                            </View>
 
                             {/* Email */}
-                            <View style={styles.fieldGroup}>
-                                <Text style={styles.fieldLabel}>E-posta</Text>
-                                <View style={styles.inputWrapper}>
-                                    <Ionicons name="mail-outline" size={18} color={Brand.textSecondary} style={styles.inputIcon} />
+                            <View style={s.fieldGroup}>
+                                <Text style={s.fieldLabel}>E-posta Adresi</Text>
+                                <View style={[s.inputWrapper, emailFocused && s.inputFocused]}>
+                                    <View style={[s.inputIconBox, emailFocused && s.inputIconBoxFocused]}>
+                                        <Ionicons name="mail" size={16} color={emailFocused ? '#fff' : '#94a3b8'} />
+                                    </View>
                                     <TextInput
-                                        style={styles.input}
-                                        placeholder="ornek@mail.com"
-                                        placeholderTextColor={Brand.textMuted}
+                                        style={s.input}
+                                        placeholder="ornek@sirket.com"
+                                        placeholderTextColor="#cbd5e1"
                                         value={email}
                                         onChangeText={setEmail}
                                         autoCapitalize="none"
                                         keyboardType="email-address"
                                         returnKeyType="next"
+                                        onFocus={() => setEmailFocused(true)}
+                                        onBlur={() => setEmailFocused(false)}
                                     />
                                 </View>
                             </View>
 
                             {/* Password */}
-                            <View style={styles.fieldGroup}>
-                                <Text style={styles.fieldLabel}>Şifre</Text>
-                                <View style={styles.inputWrapper}>
-                                    <Ionicons name="lock-closed-outline" size={18} color={Brand.textSecondary} style={styles.inputIcon} />
+                            <View style={s.fieldGroup}>
+                                <Text style={s.fieldLabel}>Şifre</Text>
+                                <View style={[s.inputWrapper, passFocused && s.inputFocused]}>
+                                    <View style={[s.inputIconBox, passFocused && s.inputIconBoxFocused]}>
+                                        <Ionicons name="lock-closed" size={16} color={passFocused ? '#fff' : '#94a3b8'} />
+                                    </View>
                                     <TextInput
-                                        style={styles.input}
+                                        style={s.input}
                                         placeholder="••••••••"
-                                        placeholderTextColor={Brand.textMuted}
+                                        placeholderTextColor="#cbd5e1"
                                         value={password}
                                         onChangeText={setPassword}
                                         secureTextEntry={!showPassword}
                                         returnKeyType="done"
                                         onSubmitEditing={handleLogin}
+                                        onFocus={() => setPassFocused(true)}
+                                        onBlur={() => setPassFocused(false)}
                                     />
-                                    <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeBtn}>
-                                        <Ionicons
-                                            name={showPassword ? 'eye-off-outline' : 'eye-outline'}
-                                            size={20}
-                                            color={Brand.textMuted}
-                                        />
+                                    <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={s.eyeBtn}>
+                                        <Ionicons name={showPassword ? 'eye-off' : 'eye'} size={18} color="#94a3b8" />
                                     </TouchableOpacity>
                                 </View>
                             </View>
 
-                            {/* Remember Me */}
-                            <TouchableOpacity
-                                style={styles.rememberRow}
-                                onPress={() => setRememberMe(!rememberMe)}
-                                activeOpacity={0.7}
-                            >
-                                <View style={[styles.checkbox, rememberMe && styles.checkboxChecked]}>
-                                    {rememberMe && <Ionicons name="checkmark" size={13} color="#fff" />}
+                            {/* Remember */}
+                            <TouchableOpacity style={s.rememberRow} onPress={() => setRememberMe(!rememberMe)} activeOpacity={0.7}>
+                                <View style={[s.toggle, rememberMe && s.toggleActive]}>
+                                    <View style={[s.toggleDot, rememberMe && s.toggleDotActive]} />
                                 </View>
-                                <Text style={styles.rememberText}>Beni Hatırla</Text>
+                                <Text style={s.rememberText}>Beni hatırla</Text>
                             </TouchableOpacity>
 
                             {/* Login Button */}
                             <TouchableOpacity
-                                style={[styles.loginBtn, loading && styles.loginBtnDisabled]}
+                                style={[s.loginBtn, loading && s.loginBtnLoading]}
                                 onPress={handleLogin}
                                 disabled={loading}
                                 activeOpacity={0.85}
@@ -262,15 +227,22 @@ export default function LoginScreen() {
                                 {loading ? (
                                     <ActivityIndicator color="#fff" />
                                 ) : (
-                                    <View style={styles.loginBtnInner}>
-                                        <Text style={styles.loginBtnText}>Giriş Yap</Text>
-                                        <Ionicons name="arrow-forward" size={18} color="#fff" />
+                                    <View style={s.loginBtnInner}>
+                                        <Text style={s.loginBtnText}>Giriş Yap</Text>
+                                        <View style={s.loginBtnArrow}>
+                                            <Ionicons name="arrow-forward" size={16} color={Brand.primary} />
+                                        </View>
                                     </View>
                                 )}
                             </TouchableOpacity>
                         </Animated.View>
 
-                        <Text style={styles.footer}>SmartTransfer v1.0 • Sadece sürücüler için</Text>
+                        {/* Footer */}
+                        <View style={s.footerRow}>
+                            <View style={s.footerDot} />
+                            <Text style={s.footerText}>SmartTransfer v1.1</Text>
+                            <View style={s.footerDot} />
+                        </View>
                     </ScrollView>
                 </KeyboardAvoidingView>
             </View>
@@ -278,113 +250,123 @@ export default function LoginScreen() {
     );
 }
 
-const styles = StyleSheet.create({
+const s = StyleSheet.create({
     // Splash
-    splash: {
-        flex: 1, backgroundColor: Brand.primaryDark,
-        justifyContent: 'center', alignItems: 'center'
+    splash: { flex: 1, backgroundColor: '#0c1829', justifyContent: 'center', alignItems: 'center' },
+    splashIconRing: {
+        width: 100, height: 100, borderRadius: 50,
+        borderWidth: 2, borderColor: 'rgba(99,102,241,0.3)',
+        justifyContent: 'center', alignItems: 'center', marginBottom: 20,
     },
-    splashLogo: {
-        width: 90, height: 90, borderRadius: 28,
-        backgroundColor: 'rgba(255,255,255,0.15)',
-        justifyContent: 'center', alignItems: 'center', marginBottom: 16
+    splashIconInner: {
+        width: 72, height: 72, borderRadius: 36,
+        backgroundColor: Brand.primary, justifyContent: 'center', alignItems: 'center',
     },
-    splashText: { color: '#fff', fontSize: 28, fontWeight: 'bold' },
-    splashSub: { color: 'rgba(255,255,255,0.5)', fontSize: 14, marginTop: 4 },
+    splashTitle: { color: '#fff', fontSize: 28, fontWeight: '800', letterSpacing: 1 },
+    splashSub: { color: 'rgba(255,255,255,0.4)', fontSize: 13, marginTop: 4, letterSpacing: 2, textTransform: 'uppercase' },
 
     // Background
-    bg: { flex: 1, backgroundColor: '#0f172a' },
-    circle1: {
-        position: 'absolute', width: 320, height: 320, borderRadius: 160,
-        backgroundColor: '#1e40af', top: -100, right: -80, opacity: 0.6
+    bg: { flex: 1, backgroundColor: '#0c1829' },
+    bgLayer1: {
+        position: 'absolute', width: width * 1.5, height: width * 1.5, borderRadius: width * 0.75,
+        backgroundColor: '#1e3a8a', top: -width * 0.6, right: -width * 0.4, opacity: 0.4,
     },
-    circle2: {
+    bgLayer2: {
+        position: 'absolute', width: width, height: width, borderRadius: width * 0.5,
+        backgroundColor: '#312e81', bottom: -width * 0.3, left: -width * 0.3, opacity: 0.25,
+    },
+    bgLayer3: {
         position: 'absolute', width: 200, height: 200, borderRadius: 100,
-        backgroundColor: '#3730a3', bottom: 80, left: -60, opacity: 0.4
+        backgroundColor: '#6366f1', top: height * 0.35, right: -40, opacity: 0.12,
     },
-    circle3: {
-        position: 'absolute', width: 140, height: 140, borderRadius: 70,
-        backgroundColor: '#4f46e5', top: height * 0.4, left: width * 0.6, opacity: 0.2
+    bgGlow: {
+        position: 'absolute', width: 300, height: 300, borderRadius: 150,
+        backgroundColor: '#4f46e5', top: height * 0.15, left: width * 0.2, opacity: 0.08,
     },
 
-    scroll: { flexGrow: 1, justifyContent: 'center', padding: 24 },
+    scroll: { flexGrow: 1, justifyContent: 'center', padding: 24, paddingBottom: 40 },
 
     // Logo
-    logoSection: { alignItems: 'center', marginBottom: 32 },
-    logoCircle: {
-        width: 88, height: 88, borderRadius: 26,
-        backgroundColor: Brand.primary,
-        justifyContent: 'center', alignItems: 'center',
-        marginBottom: 16,
-        shadowColor: Brand.primary,
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.5,
-        shadowRadius: 16,
-        elevation: 12,
+    logoSection: { alignItems: 'center', marginBottom: 36 },
+    logoOuter: {
+        width: 80, height: 80, borderRadius: 24,
+        backgroundColor: 'rgba(99,102,241,0.15)',
+        justifyContent: 'center', alignItems: 'center', marginBottom: 18,
+        borderWidth: 1.5, borderColor: 'rgba(99,102,241,0.25)',
     },
-    appName: { color: '#fff', fontSize: 30, fontWeight: '800', letterSpacing: 0.5 },
-    tagline: { color: 'rgba(255,255,255,0.5)', fontSize: 14, marginTop: 4 },
+    logoInner: {
+        width: 56, height: 56, borderRadius: 18,
+        backgroundColor: Brand.primary, justifyContent: 'center', alignItems: 'center',
+        shadowColor: Brand.primary, shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.6, shadowRadius: 20, elevation: 15,
+    },
+    brandName: { color: '#fff', fontSize: 28, fontWeight: '900', letterSpacing: 1 },
+    taglineRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8, gap: 10 },
+    taglineLine: { width: 24, height: 1, backgroundColor: 'rgba(255,255,255,0.15)' },
+    tagline: { color: 'rgba(255,255,255,0.35)', fontSize: 11, fontWeight: '700', letterSpacing: 3 },
 
     // Card
     card: {
-        backgroundColor: '#fff',
-        borderRadius: 28,
-        padding: 28,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 16 },
-        shadowOpacity: 0.25,
-        shadowRadius: 32,
-        elevation: 16,
+        backgroundColor: '#fff', borderRadius: 24, padding: 24,
+        shadowColor: '#000', shadowOffset: { width: 0, height: 20 },
+        shadowOpacity: 0.15, shadowRadius: 40, elevation: 20,
     },
-    welcomeText: { fontSize: 24, fontWeight: '800', color: Brand.text, marginBottom: 4 },
-    welcomeSub: { fontSize: 14, color: Brand.textSecondary, marginBottom: 28 },
+    cardHeader: { marginBottom: 24 },
+    welcomeTitle: { fontSize: 22, fontWeight: '800', color: '#0f172a', marginBottom: 4 },
+    welcomeSub: { fontSize: 13, color: '#94a3b8', lineHeight: 18 },
 
     // Fields
-    fieldGroup: { marginBottom: 18 },
-    fieldLabel: { fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 8 },
+    fieldGroup: { marginBottom: 16 },
+    fieldLabel: { fontSize: 12, fontWeight: '700', color: '#475569', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 },
     inputWrapper: {
         flexDirection: 'row', alignItems: 'center',
-        backgroundColor: '#f9fafb',
-        borderRadius: 14,
-        borderWidth: 1.5,
-        borderColor: Brand.border,
-        paddingHorizontal: 14,
-        height: 52,
+        backgroundColor: '#f8fafc', borderRadius: 14,
+        borderWidth: 1.5, borderColor: '#e2e8f0',
+        paddingRight: 12, height: 52, overflow: 'hidden',
     },
-    inputIcon: { marginRight: 10 },
-    input: { flex: 1, fontSize: 15, color: Brand.text },
-    eyeBtn: { padding: 4 },
+    inputFocused: { borderColor: Brand.primary, backgroundColor: '#f0f4ff' },
+    inputIconBox: {
+        width: 44, height: '100%', justifyContent: 'center', alignItems: 'center',
+        backgroundColor: '#f1f5f9', marginRight: 0,
+    },
+    inputIconBoxFocused: { backgroundColor: Brand.primary },
+    input: { flex: 1, fontSize: 15, color: '#0f172a', paddingLeft: 12 },
+    eyeBtn: { padding: 6 },
 
-    // Remember Me
-    rememberRow: {
-        flexDirection: 'row', alignItems: 'center', marginBottom: 24, marginTop: 4
+    // Remember toggle
+    rememberRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 20, marginTop: 4 },
+    toggle: {
+        width: 40, height: 22, borderRadius: 11,
+        backgroundColor: '#e2e8f0', padding: 2, marginRight: 10,
+        justifyContent: 'center',
     },
-    checkbox: {
-        width: 20, height: 20, borderRadius: 6,
-        borderWidth: 2, borderColor: Brand.textLight,
-        justifyContent: 'center', alignItems: 'center',
-        marginRight: 10,
+    toggleActive: { backgroundColor: Brand.primary },
+    toggleDot: {
+        width: 18, height: 18, borderRadius: 9, backgroundColor: '#fff',
+        shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.15, shadowRadius: 2, elevation: 2,
     },
-    checkboxChecked: { backgroundColor: Brand.primary, borderColor: Brand.primary },
-    rememberText: { fontSize: 14, color: Brand.textSecondary, fontWeight: '500' },
+    toggleDotActive: { alignSelf: 'flex-end' },
+    rememberText: { fontSize: 13, color: '#64748b', fontWeight: '500' },
 
     // Button
     loginBtn: {
-        height: 56, borderRadius: 16,
+        height: 54, borderRadius: 16,
         backgroundColor: Brand.primary,
         justifyContent: 'center', alignItems: 'center',
-        shadowColor: Brand.primary,
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.4,
-        shadowRadius: 12,
-        elevation: 8,
+        shadowColor: Brand.primary, shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.45, shadowRadius: 16, elevation: 10,
     },
-    loginBtnDisabled: { backgroundColor: Brand.primaryLight, shadowOpacity: 0 },
-    loginBtnInner: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    loginBtnText: { color: '#fff', fontSize: 17, fontWeight: '700' },
+    loginBtnLoading: { backgroundColor: '#818cf8' },
+    loginBtnInner: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+    loginBtnText: { color: '#fff', fontSize: 16, fontWeight: '800', letterSpacing: 0.5 },
+    loginBtnArrow: {
+        width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.25)',
+        justifyContent: 'center', alignItems: 'center',
+    },
 
-    footer: {
-        textAlign: 'center', color: 'rgba(255,255,255,0.3)',
-        fontSize: 12, marginTop: 24
-    },
+    // Footer
+    footerRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 28, gap: 8 },
+    footerDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.15)' },
+    footerText: { color: 'rgba(255,255,255,0.2)', fontSize: 11, fontWeight: '500', letterSpacing: 1 },
 });

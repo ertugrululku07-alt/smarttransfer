@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react';
-import { StyleSheet, View, Text, FlatList, TouchableOpacity, RefreshControl, Linking, Platform } from 'react-native';
+import React, { useEffect, useState, useCallback } from 'react';
+import { StyleSheet, View, Text, FlatList, TouchableOpacity, RefreshControl, Linking, Platform, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
+import { useSocket } from '../../context/SocketContext';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { Brand, StatusColors } from '../../constants/theme';
@@ -10,14 +11,28 @@ const API_URL = 'https://backend-production-69e7.up.railway.app/api';
 
 export default function JobListScreen() {
   const { token } = useAuth();
+  const { socket } = useSocket();
   const router = useRouter();
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState('all');
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchJobs();
   }, [filter]);
+
+  // Listen for real-time status updates from backend
+  useEffect(() => {
+    if (!socket) return;
+    const handleStatusUpdate = (data: { bookingId: string; status: string }) => {
+      setJobs((prev: any[]) => prev.map(j =>
+        j.id === data.bookingId ? { ...j, status: data.status } : j
+      ));
+    };
+    socket.on('booking_status_update', handleStatusUpdate);
+    return () => { socket.off('booking_status_update', handleStatusUpdate); };
+  }, [socket]);
 
   const fetchJobs = async () => {
     setLoading(true);
@@ -37,6 +52,11 @@ export default function JobListScreen() {
   };
 
   const updateBookingStatus = async (bookingId: string, status: string) => {
+    setUpdatingId(bookingId);
+    // Optimistic update: immediately reflect in UI
+    setJobs((prev: any[]) => prev.map(j =>
+      j.id === bookingId ? { ...j, status } : j
+    ));
     try {
       const res = await fetch(`${API_URL}/driver/bookings/${bookingId}/status`, {
         method: 'PUT',
@@ -48,10 +68,19 @@ export default function JobListScreen() {
       });
       const json = await res.json();
       if (json.success) {
+        // Refresh from server to get accurate state
+        setTimeout(() => fetchJobs(), 500);
+      } else {
+        // Revert on failure
         fetchJobs();
+        Alert.alert('Hata', 'Durum güncellenemedi');
       }
     } catch (e) {
       console.error(e);
+      fetchJobs(); // Revert on error
+      Alert.alert('Hata', 'Bağlantı hatası');
+    } finally {
+      setUpdatingId(null);
     }
   };
 
