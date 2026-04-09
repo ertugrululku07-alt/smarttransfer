@@ -857,12 +857,18 @@ export default function OperationsTable({
             width: columnWidths.status,
             ellipsis: true,
             render: (status: string, record: any) => {
-                // Fallback to main status if operationalStatus is not set
-                const effectiveStatus = status || record.status || record.metadata?.operationalStatus || 'PENDING';
+                // Driver progress statuses are superior to operational statuses
+                const overrideStatuses = ['IN_PROGRESS', 'COMPLETED', 'CANCELLED', 'NO_SHOW'];
+                let effectiveStatus = status || record.status || record.metadata?.operationalStatus || 'PENDING';
+                if (record.status && overrideStatuses.includes(record.status)) {
+                    effectiveStatus = record.status;
+                }
+
                 const statusCfg: Record<string, { color: string; bg: string; label: string }> = {
                     PENDING:             { color: '#b45309', bg: '#fef3c7', label: 'Beklemede' },
                     CONFIRMED:           { color: '#1d4ed8', bg: '#dbeafe', label: 'Onaylandı' },
                     PASSENGER_PICKED_UP: { color: '#0e7490', bg: '#cffafe', label: 'Yolcu Alındı' },
+                    IN_PROGRESS:         { color: '#0e7490', bg: '#cffafe', label: 'Yolcu Alındı' },
                     ON_THE_WAY:          { color: '#7c3aed', bg: '#ede9fe', label: 'Yolda' },
                     IN_OPERATION:        { color: '#1d4ed8', bg: '#bfdbfe', label: 'Operasyonda' },
                     OPERASYONDA:         { color: '#1d4ed8', bg: '#bfdbfe', label: 'Operasyonda' },
