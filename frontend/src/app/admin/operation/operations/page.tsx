@@ -2128,7 +2128,7 @@ export default function OperationsPage() {
                                         <Button
                                             size="small"
                                             icon={<ReloadOutlined />}
-                                            onClick={fetchShuttleRuns}
+                                            onClick={() => fetchShuttleRuns()}
                                             loading={shuttleRunsLoading}
                                             style={{ borderRadius: 6 }}
                                         >
