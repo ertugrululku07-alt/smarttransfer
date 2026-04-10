@@ -185,6 +185,8 @@ export default function OperationsPage() {
     const [loading, setLoading] = useState(true);
     const [vehicles, setVehicles] = useState<any[]>([]);
     const [drivers, setDrivers] = useState<any[]>([]);
+    const [currencies, setCurrencies] = useState<any[]>([]);
+    const [defaultCurrency, setDefaultCurrency] = useState<string>('EUR');
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => {
         try {
@@ -193,6 +195,8 @@ export default function OperationsPage() {
         } catch { return new Set(); }
     });
     const { socket } = useSocket();
+
+    const shuttleActionTimeRef = useRef<number>(0);
 
     // ── Inline cell editing state ──
     const [editingCell, setEditingCell] = useState<{ id: string; field: string; value: any } | null>(null);
@@ -429,6 +433,65 @@ export default function OperationsPage() {
             message.error(e.response?.data?.error || 'Transfer tamamlanırken bir hata oluştu');
         } finally {
             setCompleteLoading(false);
+        }
+    };
+
+    // ── Shuttle Booking Detail Modal ──
+    const [shuttleDetailModal, setShuttleDetailModal] = useState<{ booking: any; loading: boolean } | null>(null);
+    const [shuttleDetailStatusSaving, setShuttleDetailStatusSaving] = useState(false);
+
+    // ── Pool Transfer Modal (with price) ──
+    const [poolTransferModal, setPoolTransferModal] = useState<{ booking: any; price: number; currency: string } | null>(null);
+    const [poolTransferSaving, setPoolTransferSaving] = useState(false);
+
+    const handleShuttleStatusChange = async (bookingId: string, newStatus: string) => {
+        setShuttleDetailStatusSaving(true);
+        shuttleActionTimeRef.current = Date.now();
+        try {
+            await apiClient.patch(`/api/transfer/bookings/${bookingId}`, {
+                status: newStatus,
+                operationalStatus: newStatus
+            });
+            // Optimistic update in shuttle runs
+            setShuttleRuns(prev => prev.map(r => ({
+                ...r,
+                bookings: r.bookings.map((b: any) => b.id === bookingId ? { ...b, status: newStatus } : b)
+            })));
+            // Also update bookings array
+            setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, status: newStatus, operationalStatus: newStatus } : b));
+            // Update the modal state too
+            setShuttleDetailModal(prev => prev ? { ...prev, booking: { ...prev.booking, status: newStatus } } : null);
+            message.success('Durum güncellendi');
+        } catch (e: any) {
+            message.error('Durum güncellenemedi: ' + (e?.response?.data?.error || e.message));
+        } finally {
+            setShuttleDetailStatusSaving(false);
+        }
+    };
+
+    const handlePoolTransfer = async () => {
+        if (!poolTransferModal) return;
+        setPoolTransferSaving(true);
+        shuttleActionTimeRef.current = Date.now();
+        try {
+            await apiClient.patch(`/api/transfer/bookings/${poolTransferModal.booking.id}`, {
+                operationalStatus: 'POOL',
+                price: poolTransferModal.price,
+                currency: poolTransferModal.currency
+            });
+            // Optimistic: remove from shuttle runs
+            setShuttleRuns(prev => prev.map(r => ({
+                ...r,
+                bookings: r.bookings.filter((b: any) => b.id !== poolTransferModal.booking.id)
+            })));
+            setBookings(prev => prev.filter(b => b.id !== poolTransferModal.booking.id));
+            setPoolTransferModal(null);
+            setShuttleDetailModal(null);
+            message.success('Transfer havuza aktarıldı!');
+        } catch (e: any) {
+            message.error('Havuza aktarma başarısız: ' + (e?.response?.data?.error || e.message));
+        } finally {
+            setPoolTransferSaving(false);
         }
     };
 
@@ -1140,12 +1203,15 @@ export default function OperationsPage() {
         const handleNewBooking = () => {
             // Trigger a re-fetch to ensure all nested relations (customer, metadata) are complete
             fetchBookings();
-            fetchShuttleRuns();
+            fetchShuttleRuns(true);
         };
 
         const handleShuttleRunsUpdated = () => {
-            // Trigger a re-fetch when shuttle runs are mutated (passengers moved, drivers assigned)
-            fetchShuttleRuns();
+            if (Date.now() - shuttleActionTimeRef.current < 2500) {
+                return; // Ignore echo from our own optimistic update
+            }
+            // Re-fetch without showing loading spinner
+            fetchShuttleRuns(true);
         };
 
         socket.on('booking_status_update', handleStatusUpdate);
@@ -1230,9 +1296,39 @@ export default function OperationsPage() {
         }
     };
 
+    const fetchSettings = async () => {
+        try {
+            const res = await apiClient.get('/api/tenant/info');
+            if (res.data?.success) {
+                const tenant = res.data.data?.tenant || {};
+                const settings = tenant.settings || {};
+                const defs = settings.definitions || {};
+                
+                let defCur = tenant.currency || 'EUR';
+                
+                if (defs.currencies && Array.isArray(defs.currencies) && defs.currencies.length > 0) {
+                    setCurrencies(defs.currencies);
+                    const d = defs.currencies.find((c: any) => c.isDefault);
+                    if (d) defCur = d.code;
+                } else if (tenant.currency) {
+                    setCurrencies([{ code: tenant.currency, symbol: '' }]);
+                }
+
+                setDefaultCurrency(defCur);
+            }
+        } catch (e) {
+            console.error('Settings fetch error:', e);
+            // Fallback for UI robustness only if fetch fails completely
+            if (currencies.length === 0) {
+                setCurrencies([{ code: 'EUR' }, { code: 'TRY' }, { code: 'USD' }, { code: 'GBP' }]);
+            }
+        }
+    };
+
     useEffect(() => {
         fetchVehicles();
         fetchDrivers();
+        fetchSettings();
     }, []);
 
     const doAssign = async (bookingId: string, payload: any) => {
@@ -1630,7 +1726,7 @@ export default function OperationsPage() {
             setEditRunModal(null);
             message.success('Sefer güncellendi ve kaydedildi');
             // Refresh to get latest data
-            fetchShuttleRuns();
+            fetchShuttleRuns(true);
         } catch (e: any) {
             console.error('Edit run save error:', e);
             message.error('Sefer güncelleme başarısız: ' + (e?.response?.data?.error || e.message));
@@ -1658,8 +1754,8 @@ export default function OperationsPage() {
         localStorage.setItem('shuttlePersistedManualRuns', JSON.stringify(persistedManualRuns));
     }, [persistedManualRuns]);
 
-    const fetchShuttleRuns = async () => {
-        setShuttleRunsLoading(true);
+    const fetchShuttleRuns = async (silent = false) => {
+        if (!silent) setShuttleRunsLoading(true);
         try {
             const date = filters.dateRange[0].format('YYYY-MM-DD');
             const res = await apiClient.get(`/api/operations/shuttle-runs?date=${date}`);
@@ -1685,8 +1781,14 @@ export default function OperationsPage() {
                 finalRuns.sort((a, b) => (a.departureTime || '99:99').localeCompare(b.departureTime || '99:99'));
                 
                 setShuttleRuns(finalRuns);
-                // Auto-expand all runs
-                setExpandedRunKeys(finalRuns.map((r: any) => r.runKey));
+                setExpandedRunKeys(prev => {
+                    if (prev.length > 0) {
+                        const newKeys = finalRuns.map((r: any) => r.runKey).filter((k: string) => !prev.includes(k));
+                        if (newKeys.length > 0) return [...prev, ...newKeys];
+                        return prev;
+                    }
+                    return finalRuns.map((r: any) => r.runKey);
+                });
             }
         } catch (err) {
             console.error('Shuttle runs fetch error:', err);
@@ -1757,6 +1859,7 @@ export default function OperationsPage() {
             if (newIndex >= 0) {
                 const newBookings = arrayMove(sourceRun.bookings, oldIndex, newIndex);
                 
+                shuttleActionTimeRef.current = Date.now();
                 // Optimistic Local Update
                 setShuttleRuns(prev => prev.map(r => r.runKey === sourceRun.runKey ? { ...r, bookings: newBookings } : r));
 
@@ -1766,7 +1869,7 @@ export default function OperationsPage() {
                     if (res.data.success) message.success('Sıralama güncellendi');
                 } catch (err) {
                     message.error('Sıralama kaydedilemedi');
-                    fetchShuttleRuns(); // Revert
+                    fetchShuttleRuns(true); // Revert silently
                 }
             }
             return;
@@ -1792,7 +1895,19 @@ export default function OperationsPage() {
 
                 const res = await apiClient.post('/api/operations/shuttle-runs/move', payload);
                 if (res.data.success) {
-                    fetchShuttleRuns();
+                    shuttleActionTimeRef.current = Date.now();
+                    // Optimistic update: move passenger between runs locally
+                    setShuttleRuns(prev => {
+                        return prev.map(r => {
+                            if (r.runKey === sourceRun.runKey) {
+                                return { ...r, bookings: r.bookings.filter((bb: any) => bb.id !== passengerId) };
+                            }
+                            if (r.runKey === targetRun.runKey) {
+                                return { ...r, bookings: [...r.bookings, passenger] };
+                            }
+                            return r;
+                        });
+                    });
                     message.success('Yolcu taşındı');
                 }
             } catch (err: any) {
@@ -1817,6 +1932,7 @@ export default function OperationsPage() {
         // Crucial: assign sortOrder to ALL items in the run to ensure persistence
         const items = newBookings.map((b, idx) => ({ bookingId: b.id, sortOrder: idx }));
 
+        shuttleActionTimeRef.current = Date.now();
         setShuttleRuns(prev => prev.map(r => {
             if (r.runKey !== runKey) return r;
             return { ...r, bookings: newBookings };
@@ -1826,7 +1942,7 @@ export default function OperationsPage() {
             await apiClient.post('/api/operations/shuttle-runs/sort', { items });
         } catch (err: any) {
             message.error('Sıralama kaydedilemedi: ' + (err?.response?.data?.error || err.message));
-            fetchShuttleRuns();
+            fetchShuttleRuns(true);
         }
     };
 
@@ -2159,6 +2275,7 @@ export default function OperationsPage() {
                                     placeholder={['Başlangıç', 'Bitiş']}
                                 />
                             </Col>
+                            {operationsMode === 'private' && (
                             <Col xs={12} sm={6} md={3} lg={2}>
                                 <Select
                                     size="small"
@@ -2172,6 +2289,7 @@ export default function OperationsPage() {
                                     ]}
                                 />
                             </Col>
+                            )}
                             <Col xs={12} sm={8} md={4} lg={3}>
                                 <Select
                                     size="small"
@@ -2547,7 +2665,7 @@ export default function OperationsPage() {
                                                                 });
                                                                 if (res.data.success) {
                                                                     message.success({ content: `Güzergah optimize edildi! ${res.data.optimizedOrder.length} yolcu sıralandı`, key: 'optimize' });
-                                                                    fetchShuttleRuns(); // Refresh to get new order
+                                                                    fetchShuttleRuns(true); // Refresh to get new order
                                                                 } else {
                                                                     message.error({ content: res.data.error || 'Optimizasyon başarısız', key: 'optimize' });
                                                                 }
@@ -2581,7 +2699,7 @@ export default function OperationsPage() {
                                             </div>
 
                                             {isExpanded && (
-                                                <div style={{ background: '#fcfaff', borderTop: '1px solid #e9d5ff' }}>
+                                                <div style={{ background: '#fcfaff', borderTop: '1px solid #e9d5ff', overflowX: 'auto' }}>
                                                     {/* Passenger Columns Header */}
                                                     <div style={{ 
                                                         display: 'grid', 
@@ -2685,7 +2803,11 @@ export default function OperationsPage() {
                                                                         case 'customer': {
                                                                             const agencyName = b.agencyName || b.agency?.name || b.partnerName;
                                                                             return (
-                                                                                <div>
+                                                                                <div 
+                                                                                    title="Rezervasyon detayını açmak için çift tıklayın"
+                                                                                    style={{ cursor: 'pointer' }}
+                                                                                    onDoubleClick={() => setShuttleDetailModal({ booking: b, loading: false })}
+                                                                                >
                                                                                     <div style={{ fontWeight: 700, fontSize: 12, color: '#1e1b4b' }}>{b.contactName}</div>
                                                                                     <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 1 }}>
                                                                                         <div style={{ fontSize: 9, color: '#7c3aed', opacity: 0.8 }}>{b.bookingNumber}</div>
@@ -3297,6 +3419,248 @@ export default function OperationsPage() {
                                 </div>
                             </div>
                         )}
+                    </Modal>
+
+                    {/* ══════ SHUTTLE BOOKING DETAIL MODAL ══════ */}
+                    <Modal
+                        open={!!shuttleDetailModal}
+                        onCancel={() => setShuttleDetailModal(null)}
+                        footer={null}
+                        width={640}
+                        title={null}
+                        styles={{ body: { padding: 0 } }}
+                    >
+                        {shuttleDetailModal && (() => {
+                            const b = shuttleDetailModal.booking;
+                            const statusMap: Record<string, { color: string; label: string }> = {
+                                CONFIRMED: { color: '#2563eb', label: 'Onaylı' },
+                                PENDING: { color: '#d97706', label: 'Bekliyor' },
+                                COMPLETED: { color: '#16a34a', label: 'Tamamlandı' },
+                                CANCELLED: { color: '#dc2626', label: 'İptal' },
+                                IN_OPERATION: { color: '#7c3aed', label: 'Operasyonda' },
+                                POOL: { color: '#f59e0b', label: 'Havuzda' },
+                            };
+                            const st = statusMap[b.status] || { color: '#6b7280', label: b.status };
+                            const pickupTime = b.pickupDateTime ? new Date(b.pickupDateTime).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }) : '-';
+                            const pickupDate = b.pickupDateTime ? new Date(b.pickupDateTime).toLocaleDateString('tr-TR') : '-';
+                            return (
+                                <div>
+                                    {/* Header */}
+                                    <div style={{
+                                        background: 'linear-gradient(135deg, #4f46e5, #7c3aed)',
+                                        padding: '20px 24px',
+                                        color: '#fff',
+                                        display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start'
+                                    }}>
+                                        <div>
+                                            <div style={{ fontSize: 20, fontWeight: 800 }}>{b.contactName}</div>
+                                            <div style={{ opacity: 0.85, fontSize: 13, marginTop: 4 }}>{b.bookingNumber}</div>
+                                        </div>
+                                        <span style={{
+                                            background: st.color + '30', color: '#fff', border: `1px solid ${st.color}`,
+                                            padding: '4px 14px', borderRadius: 20, fontWeight: 700, fontSize: 12
+                                        }}>
+                                            {st.label}
+                                        </span>
+                                    </div>
+
+                                    {/* Body */}
+                                    <div style={{ padding: '20px 24px' }}>
+                                        {/* Info Grid */}
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
+                                            <div style={{ background: '#f8fafc', borderRadius: 10, padding: '12px 16px', border: '1px solid #e2e8f0' }}>
+                                                <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 4 }}>Tarih / Saat</div>
+                                                <div style={{ fontWeight: 700, color: '#1e293b', fontSize: 14 }}>📅 {pickupDate} — {pickupTime}</div>
+                                            </div>
+                                            <div style={{ background: '#f8fafc', borderRadius: 10, padding: '12px 16px', border: '1px solid #e2e8f0' }}>
+                                                <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 4 }}>Telefon</div>
+                                                <div style={{ fontWeight: 700, color: '#1e293b', fontSize: 14 }}>📞 {b.contactPhone || '-'}</div>
+                                            </div>
+                                            <div style={{ background: '#f0fdf4', borderRadius: 10, padding: '12px 16px', border: '1px solid #bbf7d0' }}>
+                                                <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 4 }}>Alış Noktası</div>
+                                                <div style={{ fontWeight: 600, color: '#15803d', fontSize: 13 }}>📍 {b.pickup || '-'}</div>
+                                            </div>
+                                            <div style={{ background: '#fef2f2', borderRadius: 10, padding: '12px 16px', border: '1px solid #fecaca' }}>
+                                                <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 4 }}>Bırakış Noktası</div>
+                                                <div style={{ fontWeight: 600, color: '#dc2626', fontSize: 13 }}>📍 {b.dropoff || '-'}</div>
+                                            </div>
+                                            <div style={{ background: '#f8fafc', borderRadius: 10, padding: '12px 16px', border: '1px solid #e2e8f0' }}>
+                                                <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 4 }}>Uçuş</div>
+                                                <div style={{ fontWeight: 700, color: '#1e40af', fontSize: 14 }}>✈️ {b.flightNumber || '-'} {b.flightTime ? `(${b.flightTime})` : ''}</div>
+                                            </div>
+                                            <div style={{ background: '#f8fafc', borderRadius: 10, padding: '12px 16px', border: '1px solid #e2e8f0' }}>
+                                                <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 4 }}>Yolcu</div>
+                                                <div style={{ fontWeight: 700, color: '#1e293b', fontSize: 14 }}>👥 {b.adults || 1} kişi</div>
+                                            </div>
+                                        </div>
+
+                                        {b.notes && (
+                                            <div style={{ background: '#fffbeb', borderRadius: 10, padding: '12px 16px', border: '1px solid #fde68a', marginBottom: 20 }}>
+                                                <div style={{ fontSize: 10, fontWeight: 700, color: '#92400e', textTransform: 'uppercase', marginBottom: 4 }}>Not</div>
+                                                <div style={{ fontSize: 13, color: '#78350f' }}>{b.notes}</div>
+                                            </div>
+                                        )}
+
+                                        {/* Status Change */}
+                                        <div style={{
+                                            background: '#f5f3ff', borderRadius: 12, padding: '16px 20px',
+                                            border: '1px solid #e9d5ff', marginBottom: 16
+                                        }}>
+                                            <div style={{ fontSize: 12, fontWeight: 700, color: '#5b21b6', marginBottom: 10 }}>DURUM DEĞİŞTİR</div>
+                                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                                                {[
+                                                    { value: 'CONFIRMED', label: '✅ Onayla', color: '#2563eb' },
+                                                    { value: 'COMPLETED', label: '🏁 Tamamla', color: '#16a34a' },
+                                                    { value: 'CANCELLED', label: '❌ İptal', color: '#dc2626' },
+                                                    { value: 'IN_OPERATION', label: '🚗 Operasyonda', color: '#7c3aed' },
+                                                ].map(opt => (
+                                                    <Button
+                                                        key={opt.value}
+                                                        size="small"
+                                                        loading={shuttleDetailStatusSaving}
+                                                        disabled={b.status === opt.value}
+                                                        onClick={() => handleShuttleStatusChange(b.id, opt.value)}
+                                                        style={{
+                                                            borderRadius: 8,
+                                                            fontWeight: 700,
+                                                            fontSize: 11,
+                                                            background: b.status === opt.value ? opt.color : '#fff',
+                                                            color: b.status === opt.value ? '#fff' : opt.color,
+                                                            border: `1.5px solid ${opt.color}`,
+                                                            opacity: b.status === opt.value ? 0.6 : 1,
+                                                        }}
+                                                    >
+                                                        {opt.label}
+                                                    </Button>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        {/* Pool Transfer Button */}
+                                        <Button
+                                            block
+                                            size="large"
+                                            onClick={() => {
+                                                setPoolTransferModal({
+                                                    booking: b,
+                                                    price: b.metadata?.price || b.price || 0,
+                                                    currency: b.metadata?.currency || defaultCurrency
+                                                });
+                                            }}
+                                            style={{
+                                                borderRadius: 12,
+                                                fontWeight: 800,
+                                                fontSize: 14,
+                                                height: 48,
+                                                background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+                                                color: '#fff',
+                                                border: 'none',
+                                                boxShadow: '0 4px 14px rgba(245,158,11,0.3)',
+                                            }}
+                                        >
+                                            📦 Havuza Aktar
+                                        </Button>
+                                    </div>
+                                </div>
+                            );
+                        })()}
+                    </Modal>
+
+                    {/* ══════ POOL TRANSFER PRICE MODAL ══════ */}
+                    <Modal
+                        open={!!poolTransferModal}
+                        onCancel={() => setPoolTransferModal(null)}
+                        title={
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                <span style={{
+                                    width: 36, height: 36, borderRadius: 10,
+                                    background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    fontSize: 18
+                                }}>📦</span>
+                                <div>
+                                    <div style={{ fontWeight: 800, fontSize: 16 }}>Havuza Aktar</div>
+                                    <div style={{ fontSize: 12, color: '#94a3b8', fontWeight: 400 }}>{poolTransferModal?.booking?.contactName} — {poolTransferModal?.booking?.bookingNumber}</div>
+                                </div>
+                            </div>
+                        }
+                        okText="Havuza Aktar"
+                        cancelText="İptal"
+                        confirmLoading={poolTransferSaving}
+                        onOk={handlePoolTransfer}
+                        okButtonProps={{
+                            style: { background: 'linear-gradient(135deg, #f59e0b, #d97706)', border: 'none', fontWeight: 700, height: 40, borderRadius: 10 }
+                        }}
+                    >
+                        {poolTransferModal && (
+                            <div style={{ marginTop: 16 }}>
+                                <div style={{
+                                    background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 10,
+                                    padding: '12px 16px', marginBottom: 20, fontSize: 13, color: '#92400e'
+                                }}>
+                                    ⚠️ Bu transfer, havuza aktarılacak ve partner'lere açılacaktır. Lütfen havuz fiyatını belirleyin.
+                                </div>
+                                <div style={{ marginBottom: 16 }}>
+                                    <label style={{ fontWeight: 700, fontSize: 13, color: '#374151', display: 'block', marginBottom: 6 }}>Havuz Fiyatı</label>
+                                    <div style={{ display: 'flex', gap: 8 }}>
+                                        <Input
+                                            type="number"
+                                            size="large"
+                                            value={poolTransferModal.price}
+                                            onChange={e => setPoolTransferModal(prev => prev ? { ...prev, price: Number(e.target.value) } : null)}
+                                            style={{
+                                                flex: 1, borderRadius: 10, fontWeight: 700, fontSize: 18,
+                                                border: '2px solid #f59e0b'
+                                            }}
+                                            min={0}
+                                        />
+                                        <Select
+                                            size="large"
+                                            value={poolTransferModal.currency}
+                                            onChange={val => setPoolTransferModal(prev => prev ? { ...prev, currency: val } : null)}
+                                            style={{ width: 100, borderRadius: 10 }}
+                                        >
+                                            {currencies.map(c => (
+                                                <Option key={c.code} value={c.code}>{c.code} {c.symbol ? c.symbol : ''}</Option>
+                                            ))}
+                                            {currencies.length === 0 && (
+                                                <>
+                                                    <Option value="EUR">EUR €</Option>
+                                                    <Option value="TRY">TRY ₺</Option>
+                                                    <Option value="USD">USD $</Option>
+                                                    <Option value="GBP">GBP £</Option>
+                                                </>
+                                            )}
+                                        </Select>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </Modal>
+
+                    {/* ══════ MANUALLY ADD SHUTTLE RUN MODAL ══════ */}
+                    <Modal
+                        open={isManualModalVisible}
+                        title="Manuel Sefer Ekle"
+                        onCancel={() => setIsManualModalVisible(false)}
+                        onOk={handleAddManualRun}
+                        okText="Ekle"
+                        cancelText="İptal"
+                    >
+                        <div style={{ marginTop: 24, marginBottom: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
+                            <div>
+                                <label style={{ display: 'block', marginBottom: 6, fontWeight: 600 }}>Tarih</label>
+                                <Input disabled value={filters.dateRange[0].format('DD.MM.YYYY')} />
+                            </div>
+                            <div>
+                                <label style={{ display: 'block', marginBottom: 6, fontWeight: 600 }}>Sefer Saati <span style={{ color: 'red' }}>*</span></label>
+                                <Input type="time" value={manualRunTime} onChange={e => setManualRunTime(e.target.value)} />
+                            </div>
+                            <div>
+                                <label style={{ display: 'block', marginBottom: 6, fontWeight: 600 }}>Rota Adı <span style={{ color: 'red' }}>*</span></label>
+                                <Input placeholder="Örn: Serik -> Kemer" value={manualRunName} onChange={e => setManualRunName(e.target.value)} />
+                            </div>
+                        </div>
                     </Modal>
 
             </AdminLayout>

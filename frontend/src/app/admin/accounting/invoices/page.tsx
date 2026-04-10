@@ -89,8 +89,15 @@ const KIND_CFG: Record<string, { label: string; color: string }> = {
     EARCHIVE: { label: 'e-Arşiv', color: '#0891b2' },
 };
 
-const fmtTRY = (v: number, cur = 'TRY') =>
-    new Intl.NumberFormat('tr-TR', { style: 'currency', currency: cur }).format(Number(v) || 0);
+const fmtTRY = (v: number, cur = 'TRY') => {
+    let safeCur = cur;
+    if (safeCur === 'EURO') safeCur = 'EUR';
+    try {
+        return new Intl.NumberFormat('tr-TR', { style: 'currency', currency: safeCur }).format(Number(v) || 0);
+    } catch (e) {
+        return `${Number(v) || 0} ${cur}`;
+    }
+};
 
 function newLine(defaultVatRate = 18): InvoiceLine {
     return {

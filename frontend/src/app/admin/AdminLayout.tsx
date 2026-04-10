@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
-import { Layout, Menu, Button, Typography, Space, Dropdown, Avatar, Badge, Tooltip } from 'antd';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Layout, Menu, Button, Typography, Space, Dropdown, Avatar, Badge, Tooltip, Modal, Tag } from 'antd';
 import {
   DashboardOutlined,
   CarOutlined,
@@ -19,10 +19,13 @@ import {
   CreditCardOutlined,
   BarChartOutlined,
   HomeOutlined,
-  BellOutlined
+  BellOutlined,
+  WarningOutlined,
+  CloseCircleOutlined
 } from '@ant-design/icons';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../context/AuthContext';
+import { useSocket } from '../context/SocketContext';
 import { useBranding } from '@/app/context/BrandingContext';
 import FloatingDriverChat from '../components/FloatingDriverChat';
 
@@ -35,11 +38,61 @@ interface AdminLayoutProps {
   fullWidth?: boolean;
 }
 
+interface EmergencyAlert {
+  driverId: string;
+  driverName: string;
+  reason: string;
+  description?: string;
+  startedAt: string;
+}
+
 const AdminLayout: React.FC<AdminLayoutProps> = ({ children, selectedKey = 'dashboard', fullWidth = false }) => {
   const [collapsed, setCollapsed] = useState(false);
   const router = useRouter();
   const { user, logout } = useAuth();
+  const { socket } = useSocket();
   const { branding, fullName } = useBranding();
+  const [emergencies, setEmergencies] = useState<EmergencyAlert[]>([]);
+  const [selectedEmergency, setSelectedEmergency] = useState<EmergencyAlert | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Play emergency alarm sound
+  const playEmergencySound = useCallback(() => {
+    try {
+      if (!audioRef.current) {
+        audioRef.current = new Audio('https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg');
+        audioRef.current.loop = false;
+      }
+      audioRef.current.currentTime = 0;
+      audioRef.current.play().catch(() => {});
+    } catch {}
+  }, []);
+
+  // Listen for emergency socket events
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleEmergency = (data: EmergencyAlert) => {
+      setEmergencies(prev => {
+        const exists = prev.find(e => e.driverId === data.driverId);
+        if (exists) return prev.map(e => e.driverId === data.driverId ? data : e);
+        return [...prev, data];
+      });
+      playEmergencySound();
+    };
+
+    const handleResolved = (data: { driverId: string }) => {
+      setEmergencies(prev => prev.filter(e => e.driverId !== data.driverId));
+    };
+
+    socket.on('driver_emergency', handleEmergency);
+    socket.on('driver_emergency_resolved', handleResolved);
+
+    return () => {
+      socket.off('driver_emergency', handleEmergency);
+      socket.off('driver_emergency_resolved', handleResolved);
+    };
+  }, [socket, playEmergencySound]);
 
   const handleLogout = () => {
     logout();
@@ -462,6 +515,89 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, selectedKey = 'dash
       </Sider>
 
       <Layout style={{ marginLeft: collapsed ? 80 : 260, transition: 'margin-left 0.2s' }}>
+        {/* Emergency Alert Banner */}
+        {emergencies.length > 0 && (
+          <div style={{
+            background: 'linear-gradient(90deg, #dc2626 0%, #b91c1c 100%)',
+            padding: '10px 24px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            cursor: 'pointer',
+            animation: 'emergencyPulse 2s infinite',
+            position: 'sticky',
+            top: 0,
+            zIndex: 100,
+          }}>
+            <WarningOutlined style={{ color: '#fff', fontSize: 20 }} />
+            <div style={{ flex: 1, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              {emergencies.map(e => (
+                <Tag
+                  key={e.driverId}
+                  color="#fff"
+                  style={{
+                    background: 'rgba(255,255,255,0.2)',
+                    border: '1px solid rgba(255,255,255,0.4)',
+                    color: '#fff',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    fontSize: 13,
+                    padding: '4px 12px',
+                    borderRadius: 8,
+                  }}
+                  onClick={() => setSelectedEmergency(e)}
+                >
+                  ⚠️ {e.driverName} — {e.reason}
+                </Tag>
+              ))}
+            </div>
+            <span style={{ color: 'rgba(255,255,255,0.8)', fontSize: 12, fontWeight: 500, whiteSpace: 'nowrap' }}>
+              Tıklayın detay görün
+            </span>
+          </div>
+        )}
+
+        {/* Emergency Detail Modal */}
+        <Modal
+          open={!!selectedEmergency}
+          onCancel={() => setSelectedEmergency(null)}
+          footer={[
+            <Button key="close" onClick={() => setSelectedEmergency(null)}>Kapat</Button>
+          ]}
+          title={
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#dc2626' }}>
+              <WarningOutlined /> Acil Durum Bildirimi
+            </div>
+          }
+        >
+          {selectedEmergency && (
+            <div style={{ padding: '8px 0' }}>
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 4 }}>Şöför</div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: '#1e293b' }}>{selectedEmergency.driverName}</div>
+              </div>
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 4 }}>Acil Durum Sebebi</div>
+                <Tag color="red" style={{ fontSize: 14, padding: '4px 12px' }}>{selectedEmergency.reason}</Tag>
+              </div>
+              {selectedEmergency.description && (
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 4 }}>Açıklama</div>
+                  <div style={{ fontSize: 14, color: '#334155', background: '#f8fafc', padding: 12, borderRadius: 8, border: '1px solid #e2e8f0' }}>
+                    {selectedEmergency.description}
+                  </div>
+                </div>
+              )}
+              <div>
+                <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 4 }}>Bildirim Zamanı</div>
+                <div style={{ fontSize: 13, color: '#475569' }}>
+                  {new Date(selectedEmergency.startedAt).toLocaleString('tr-TR')}
+                </div>
+              </div>
+            </div>
+          )}
+        </Modal>
+
         {/* Header */}
         <Header
           style={{
@@ -572,6 +708,10 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, selectedKey = 'dash
         }
         .ant-layout-sider::-webkit-scrollbar { width: 4px; }
         .ant-layout-sider::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
+        @keyframes emergencyPulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.85; }
+        }
       `}</style>
     </Layout>
   );

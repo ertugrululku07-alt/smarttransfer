@@ -82,7 +82,7 @@ export default function ProfileScreen() {
     };
 
     const handleLogout = () => {
-        Alert.alert('Çıkış Yap', 'Uygulamadan çıkmak istediğinizden emin misiniz?', [
+        Alert.alert('Çıkış Yap', 'Oturumunuz kapatılacak ve uygulama kapanacak. Tekrar açtığınızda giriş ekranı gelecek.', [
             { text: 'İptal', style: 'cancel' },
             { text: 'Çıkış Yap', style: 'destructive', onPress: signOut }
         ]);
