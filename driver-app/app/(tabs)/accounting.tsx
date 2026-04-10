@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
+import { useSocket } from '../../context/SocketContext';
 import { Ionicons } from '@expo/vector-icons';
 import { Brand } from '../../constants/theme';
 
@@ -30,6 +31,7 @@ interface Personnel {
 
 export default function AccountingScreen() {
   const { token, user } = useAuth();
+  const { socket } = useSocket();
   const [collections, setCollections] = useState<Collection[]>([]);
   const [totals, setTotals] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(false);
@@ -65,6 +67,20 @@ export default function AccountingScreen() {
   useEffect(() => {
     fetchCollections();
   }, [fetchCollections]);
+
+  // Listen for confirmation from accounting
+  useEffect(() => {
+    if (!socket) return;
+    const handleConfirmed = (data: { collectionId: string; confirmedAt: string }) => {
+      Alert.alert(
+        'Teslimat Onaylandı',
+        'Muhasebe tahsilatınızı onayladı.'
+      );
+      fetchCollections();
+    };
+    socket.on('collection_confirmed', handleConfirmed);
+    return () => { socket.off('collection_confirmed', handleConfirmed); };
+  }, [socket, fetchCollections]);
 
   const fetchPersonnel = async () => {
     try {

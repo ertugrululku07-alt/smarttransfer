@@ -141,6 +141,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, selectedKey = 'dash
               case 'accounting-dashboard':
               case 'accounting-accounts':
               case 'accounting-invoices':
+              case 'driver-collections':
               case 'kasa':
               case 'agency-deposits':
               case 'payroll': return 'accounting';
@@ -328,6 +329,11 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, selectedKey = 'dash
                   key: 'accounting-invoices',
                   label: 'Kesilecek Faturalar',
                   onClick: () => router.push('/admin/accounting/invoices')
+                },
+                {
+                  key: 'driver-collections',
+                  label: 'Şoför Tahsilatları',
+                  onClick: () => router.push('/admin/collections')
                 },
                 {
                   key: 'kasa',

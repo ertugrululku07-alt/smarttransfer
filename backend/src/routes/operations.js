@@ -1332,4 +1332,160 @@ router.post('/migrate-region-codes', authMiddleware, async (req, res) => {
     }
 });
 
+// ============================================================================
+// ADMIN: DRIVER COLLECTIONS MANAGEMENT
+// ============================================================================
+
+// GET /api/operations/driver-collections
+// Admin views all driver collections with handover status
+router.get('/driver-collections', authMiddleware, async (req, res) => {
+    try {
+        const { status, driverId, startDate, endDate } = req.query;
+        const tenantId = req.user?.tenantId;
+        
+        if (!tenantId) {
+            return res.status(401).json({ success: false, error: 'Tenant context missing' });
+        }
+
+        const where = { tenantId };
+        if (status) where.status = status;
+        if (driverId) where.driverId = driverId;
+        
+        if (startDate || endDate) {
+            where.createdAt = {};
+            if (startDate) where.createdAt.gte = new Date(startDate);
+            if (endDate) where.createdAt.lte = new Date(endDate + 'T23:59:59.999Z');
+        }
+
+        const collections = await prisma.driverCollection.findMany({
+            where,
+            orderBy: { createdAt: 'desc' },
+            include: {
+                driver: { select: { fullName: true, id: true } },
+                handedOverToUser: { select: { fullName: true, id: true } },
+                booking: { select: { bookingNumber: true, contactName: true } }
+            }
+        });
+
+        // Calculate summary stats
+        const summary = collections.reduce((acc, c) => {
+            const key = c.status;
+            acc[key] = acc[key] || { count: 0, amounts: {} };
+            acc[key].count++;
+            acc[key].amounts[c.currency] = (acc[key].amounts[c.currency] || 0) + Number(c.amount);
+            return acc;
+        }, {});
+
+        res.json({ success: true, data: { collections, summary } });
+    } catch (error) {
+        console.error('Driver collections fetch error:', error);
+        res.status(500).json({ success: false, error: 'Server error' });
+    }
+});
+
+// POST /api/operations/driver-collections/:id/confirm
+// Admin confirms receipt of handed-over collection
+router.post('/driver-collections/:id/confirm', authMiddleware, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { notes } = req.body;
+        const tenantId = req.user?.tenantId;
+        const adminId = req.user?.id;
+
+        if (!tenantId) {
+            return res.status(401).json({ success: false, error: 'Tenant context missing' });
+        }
+
+        const collection = await prisma.driverCollection.findFirst({
+            where: { id, tenantId, status: 'HANDED_OVER' }
+        });
+
+        if (!collection) {
+            return res.status(404).json({ success: false, error: 'Teslimat bulunamadı veya zaten onaylandı' });
+        }
+
+        const updated = await prisma.driverCollection.update({
+            where: { id },
+            data: {
+                status: 'CONFIRMED',
+                handoverNotes: notes || collection.handoverNotes
+            }
+        });
+
+        // Notify driver that collection is confirmed
+        const io = req.app.get('io');
+        if (io) {
+            io.to(`user_${collection.driverId}`).emit('collection_confirmed', {
+                collectionId: id,
+                confirmedBy: adminId,
+                confirmedAt: new Date().toISOString(),
+                amount: collection.amount,
+                currency: collection.currency
+            });
+        }
+
+        res.json({ success: true, data: updated });
+    } catch (error) {
+        console.error('Collection confirm error:', error);
+        res.status(500).json({ success: false, error: 'Server error' });
+    }
+});
+
+// GET /api/operations/driver-collections/summary
+// Summary for dashboard: pending confirmations, today's totals
+router.get('/driver-collections/summary', authMiddleware, async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId;
+        if (!tenantId) {
+            return res.status(401).json({ success: false, error: 'Tenant context missing' });
+        }
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const [pendingCount, todayCollections, allPending] = await Promise.all([
+            prisma.driverCollection.count({
+                where: { tenantId, status: 'HANDED_OVER' }
+            }),
+            prisma.driverCollection.findMany({
+                where: {
+                    tenantId,
+                    createdAt: { gte: today }
+                },
+                select: { amount: true, currency: true, status: true }
+            }),
+            prisma.driverCollection.findMany({
+                where: {
+                    tenantId,
+                    status: 'PENDING'
+                },
+                select: { amount: true, currency: true }
+            })
+        ]);
+
+        // Calculate totals
+        const todayTotals = todayCollections.reduce((acc, c) => {
+            acc[c.currency] = (acc[c.currency] || 0) + Number(c.amount);
+            return acc;
+        }, {});
+
+        const driverPendingTotals = allPending.reduce((acc, c) => {
+            acc[c.currency] = (acc[c.currency] || 0) + Number(c.amount);
+            return acc;
+        }, {});
+
+        res.json({
+            success: true,
+            data: {
+                pendingConfirmations: pendingCount,
+                todayTotals,
+                driverPendingTotals
+            }
+        });
+    } catch (error) {
+        console.error('Collections summary error:', error);
+        res.status(500).json({ success: false, error: 'Server error' });
+    }
+});
+
 module.exports = router;
