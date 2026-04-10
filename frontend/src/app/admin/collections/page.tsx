@@ -17,6 +17,8 @@ import { useAuth } from '@/app/context/AuthContext';
 import { useSocket } from '@/app/context/SocketContext';
 import apiClient from '@/lib/api-client';
 import dayjs from 'dayjs';
+import AdminLayout from '../AdminLayout';
+import AdminGuard from '../AdminGuard';
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
@@ -232,6 +234,8 @@ export default function DriverCollectionsPage() {
     }, {} as Record<string, number>);
 
     return (
+    <AdminGuard>
+      <AdminLayout selectedKey="driver-collections">
         <div style={{ padding: 24 }}>
             <Title level={3} style={{ marginBottom: 24 }}>
                 <DollarOutlined /> Şoför Tahsilatları
@@ -367,5 +371,7 @@ export default function DriverCollectionsPage() {
                 />
             </Card>
         </div>
+      </AdminLayout>
+    </AdminGuard>
     );
 }

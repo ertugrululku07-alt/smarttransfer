@@ -14,6 +14,6 @@ export default defineConfig({
 
   // veritabanı URL'i (artık burada)
   datasource: {
-    url: "postgresql://postgres:mysecretpassword@127.0.0.1:5439/smarttransfer?schema=public",
+    url: env('DATABASE_URL'),
   },
 });

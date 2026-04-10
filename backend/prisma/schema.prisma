@@ -76,6 +76,7 @@ model Tenant {
   payments  Payment[]
   themes    Theme[]
   roles     Role[]
+  driverCollections DriverCollection[]
 
   // Metadata
   metadata  Json?
