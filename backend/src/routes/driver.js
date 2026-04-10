@@ -327,6 +327,26 @@ router.put('/bookings/:id/payment-received', authMiddleware, ensureDriver, async
 
 
 
+// GET /api/driver/currencies
+// Returns tenant's supported currencies and default currency
+router.get('/currencies', authMiddleware, ensureDriver, async (req, res) => {
+    try {
+        const tenant = await prisma.tenant.findUnique({
+            where: { id: req.user.tenantId },
+            select: { supportedCurrencies: true, defaultCurrency: true }
+        });
+        res.json({
+            success: true,
+            data: {
+                currencies: tenant?.supportedCurrencies || ['TRY', 'EUR', 'USD'],
+                defaultCurrency: tenant?.defaultCurrency || 'TRY'
+            }
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Server error' });
+    }
+});
+
 // GET /api/driver/profile
 // Returns driver's own profile info
 router.get('/profile', authMiddleware, ensureDriver, async (req, res) => {

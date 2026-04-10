@@ -2,13 +2,14 @@ import React, { useEffect, useState } from 'react';
 import {
   StyleSheet, View, Text, FlatList, TouchableOpacity, RefreshControl,
   Linking, Platform, Alert, Modal, TextInput, ScrollView,
-  ActivityIndicator,
+  ActivityIndicator, Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
 import { useSocket } from '../../context/SocketContext';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
 import { Brand, StatusColors } from '../../constants/theme';
 
 const API_URL = 'https://backend-production-69e7.up.railway.app/api';
@@ -53,6 +54,7 @@ export default function JobListScreen() {
   const [noShowModal, setNoShowModal] = useState<{ visible: boolean; bookingId: string | null }>({ visible: false, bookingId: null });
   const [noShowReason, setNoShowReason] = useState('');
   const [noShowDesc, setNoShowDesc] = useState('');
+  const [noShowPhoto, setNoShowPhoto] = useState<string | null>(null);
   const [paymentModal, setPaymentModal] = useState<{
     visible: boolean; bookingId: string | null;
     expectedAmount: number; expectedCurrency: string;
@@ -60,6 +62,24 @@ export default function JobListScreen() {
   const [collectedAmount, setCollectedAmount] = useState('');
   const [collectedCurrency, setCollectedCurrency] = useState('TRY');
   const [paymentSaving, setPaymentSaving] = useState(false);
+  const [tenantCurrencies, setTenantCurrencies] = useState<string[]>(['TRY', 'EUR', 'USD']);
+  const [defaultCurrency, setDefaultCurrency] = useState('TRY');
+
+  useEffect(() => {
+    // Fetch tenant currencies on mount
+    (async () => {
+      try {
+        const res = await fetch(`${API_URL}/driver/currencies`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const json = await res.json();
+        if (json.success && json.data) {
+          setTenantCurrencies(json.data.currencies || ['TRY', 'EUR', 'USD']);
+          setDefaultCurrency(json.data.defaultCurrency || 'TRY');
+        }
+      } catch (e) { console.warn('Failed to fetch currencies', e); }
+    })();
+  }, []);
 
   useEffect(() => { fetchJobs(); }, [filter]);
 
@@ -99,14 +119,15 @@ export default function JobListScreen() {
   // Handle "Alındı" press — check if payment is PAY_IN_VEHICLE
   const handlePickup = (bookingId: string, paymentMethod?: string, total?: number, currency?: string) => {
     if (paymentMethod === 'PAY_IN_VEHICLE') {
+      const useCurrency = currency || defaultCurrency || 'TRY';
       setPaymentModal({
         visible: true,
         bookingId,
         expectedAmount: total || 0,
-        expectedCurrency: currency || 'TRY'
+        expectedCurrency: useCurrency
       });
       setCollectedAmount(String(total || 0));
-      setCollectedCurrency(currency || 'TRY');
+      setCollectedCurrency(useCurrency);
     } else {
       updateStatus(bookingId, 'IN_PROGRESS');
     }
@@ -156,20 +177,37 @@ export default function JobListScreen() {
     } catch { Alert.alert('Hata', 'Bağlantı hatası'); }
   };
 
+  const takeNoShowPhoto = async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('İzin Gerekli', 'Fotoğraf çekmek için kamera izni gereklidir.');
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({
+      quality: 0.5,
+      base64: true,
+      allowsEditing: false,
+    });
+    if (!result.canceled && result.assets?.[0]) {
+      setNoShowPhoto(result.assets[0].uri);
+    }
+  };
+
   const submitNoShow = async () => {
     if (!noShowReason) { Alert.alert('Uyarı', 'Lütfen bir sebep seçin.'); return; }
+    if (!noShowPhoto) { Alert.alert('Uyarı', 'Lütfen kanıt fotoğrafı çekin.'); return; }
     if (!noShowModal.bookingId) return;
     try {
       const res = await fetch(`${API_URL}/driver/bookings/${noShowModal.bookingId}/no-show`, {
         method: 'PUT',
         headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reason: noShowReason, description: noShowDesc })
+        body: JSON.stringify({ reason: noShowReason, description: noShowDesc, photo: noShowPhoto })
       });
       const json = await res.json();
       if (json.success) {
         Alert.alert('No-Show', 'Müşteri gelmedi olarak bildirildi.');
         setNoShowModal({ visible: false, bookingId: null });
-        setNoShowReason(''); setNoShowDesc('');
+        setNoShowReason(''); setNoShowDesc(''); setNoShowPhoto(null);
         fetchJobs();
       }
     } catch { Alert.alert('Hata', 'Bağlantı hatası'); }
@@ -229,10 +267,11 @@ export default function JobListScreen() {
             <Text style={st.triBtnText}>Bitir</Text>
           </TouchableOpacity>
         )}
-        {/* No-Show */}
+        {/* No-Show — disabled after pickup */}
         <TouchableOpacity
-          style={[st.triBtn, st.triBtnRed]}
-          onPress={() => { setNoShowModal({ visible: true, bookingId }); setNoShowReason(''); setNoShowDesc(''); }}
+          style={[st.triBtn, status === 'IN_PROGRESS' ? st.triBtnDisabled : st.triBtnRed]}
+          onPress={() => { if (status !== 'IN_PROGRESS') { setNoShowModal({ visible: true, bookingId }); setNoShowReason(''); setNoShowDesc(''); } }}
+          disabled={status === 'IN_PROGRESS'}
         >
           <Ionicons name="person-remove" size={14} color="#fff" />
           <Text style={st.triBtnText}>No-Show</Text>
@@ -254,9 +293,11 @@ export default function JobListScreen() {
     const dropoffAddr = c.dropoff || c.metadata?.dropoff || '';
     const pickupLat = c.metadata?.pickupLat || 0;
     const pickupLng = c.metadata?.pickupLng || 0;
+    const extras: any[] = c.extraServices || c.metadata?.extraServices || [];
+    const hasExtras = extras.length > 0;
     return (
       <View>
-        <TouchableOpacity style={st.customerRow} onPress={() => toggleCustomer(c.id)} activeOpacity={0.7}>
+        <TouchableOpacity style={[st.customerRow, hasExtras && st.customerRowExtras]} onPress={() => toggleCustomer(c.id)} activeOpacity={0.7}>
           <View style={{ flex: 1 }}>
             <Text style={st.customerName}>{name.trim()}</Text>
             <View style={st.customerMeta}>
@@ -265,6 +306,16 @@ export default function JobListScreen() {
               <Text style={st.paxBadge}>{pax} Pax</Text>
               {c.flightNumber ? <Text style={st.flightBadge}>{c.flightNumber}</Text> : null}
             </View>
+            {hasExtras && (
+              <View style={st.extrasRow}>
+                {extras.map((ex: any, i: number) => (
+                  <View key={i} style={st.extraBadge}>
+                    <Ionicons name="star" size={10} color="#d97706" />
+                    <Text style={st.extraBadgeText}>{ex.name || ex.label || ex}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
             {c.notes ? <Text style={st.noteText}>{c.notes}</Text> : null}
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -360,6 +411,8 @@ export default function JobListScreen() {
     const email = item.contactEmail || item.customer?.email;
     const pax = (item.adults || 0) + (item.children || 0);
     const flightNo = item.flightNumber || item.metadata?.flightNumber;
+    const privateExtras: any[] = item.metadata?.extraServices || [];
+    const hasPrivateExtras = privateExtras.length > 0;
     const statusCfg = StatusColors[item.status] || { bg: '#f3f4f6', text: '#6b7280', label: item.status };
     const ack = item.metadata?.acknowledgedAt;
 
@@ -394,6 +447,18 @@ export default function JobListScreen() {
           <View style={st.infoRow}><Ionicons name="people" size={14} color="#64748b" /><Text style={st.infoText}>{pax} Pax</Text></View>
           {flightNo ? <View style={st.infoRow}><Ionicons name="airplane" size={14} color="#64748b" /><Text style={st.infoText}>{flightNo}</Text></View> : null}
         </View>
+
+        {/* Extra Services */}
+        {hasPrivateExtras && (
+          <View style={st.privateExtrasBlock}>
+            {privateExtras.map((ex: any, i: number) => (
+              <View key={i} style={st.extraBadge}>
+                <Ionicons name="star" size={10} color="#d97706" />
+                <Text style={st.extraBadgeText}>{ex.name || ex.label || ex}</Text>
+              </View>
+            ))}
+          </View>
+        )}
 
         {/* Quick actions row */}
         <View style={st.quickRow}>
@@ -473,11 +538,30 @@ export default function JobListScreen() {
               multiline
               numberOfLines={3}
             />
+
+            {/* Photo proof */}
+            <Text style={st.modalLabel}>Kanıt Fotoğrafı (zorunlu)</Text>
+            <TouchableOpacity style={st.photoBtn} onPress={takeNoShowPhoto}>
+              {noShowPhoto ? (
+                <Image source={{ uri: noShowPhoto }} style={st.photoPreview} />
+              ) : (
+                <View style={st.photoPlaceholder}>
+                  <Ionicons name="camera" size={28} color="#94a3b8" />
+                  <Text style={st.photoPlaceholderText}>Fotoğraf Çek</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+            {noShowPhoto && (
+              <TouchableOpacity onPress={() => setNoShowPhoto(null)} style={{ alignSelf: 'center', marginTop: 4 }}>
+                <Text style={{ color: Brand.danger, fontSize: 12, fontWeight: '600' }}>Fotoğrafı Kaldır</Text>
+              </TouchableOpacity>
+            )}
+
             <View style={st.modalBtnRow}>
-              <TouchableOpacity style={st.modalCancel} onPress={() => setNoShowModal({ visible: false, bookingId: null })}>
+              <TouchableOpacity style={st.modalCancel} onPress={() => { setNoShowModal({ visible: false, bookingId: null }); setNoShowPhoto(null); }}>
                 <Text style={st.modalCancelText}>İptal</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={st.modalSubmit} onPress={submitNoShow}>
+              <TouchableOpacity style={[st.modalSubmit, !noShowPhoto && { opacity: 0.5 }]} onPress={submitNoShow}>
                 <Ionicons name="warning" size={16} color="#fff" />
                 <Text style={st.modalSubmitText}>Bildir</Text>
               </TouchableOpacity>
@@ -517,7 +601,7 @@ export default function JobListScreen() {
 
             <Text style={st.modalLabel}>Para Birimi</Text>
             <View style={st.currencyRow}>
-              {['TRY', 'EUR', 'USD', 'GBP'].map(c => (
+              {tenantCurrencies.map(c => (
                 <TouchableOpacity
                   key={c}
                   style={[st.currencyChip, collectedCurrency === c && st.currencyChipActive]}
@@ -612,6 +696,7 @@ const st = StyleSheet.create({
   triBtnOrange: { backgroundColor: '#f59e0b' },
   triBtnRed: { backgroundColor: '#ef4444' },
   triBtnDone: { backgroundColor: '#94a3b8' },
+  triBtnDisabled: { backgroundColor: '#cbd5e1', opacity: 0.5 },
   triBtnText: { color: '#fff', fontSize: 11, fontWeight: '700' },
 
   // Expand
@@ -621,6 +706,11 @@ const st = StyleSheet.create({
   // Customer list (shuttle)
   customerList: { marginTop: 8 },
   customerRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8 },
+  customerRowExtras: { backgroundColor: '#fffbeb', borderLeftWidth: 3, borderLeftColor: '#f59e0b', paddingLeft: 8, borderRadius: 8, marginVertical: 2 },
+  extrasRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 4 },
+  extraBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: '#fef3c7', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, borderWidth: 1, borderColor: '#fbbf24' },
+  extraBadgeText: { fontSize: 10, fontWeight: '700', color: '#92400e' },
+  privateExtrasBlock: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, paddingVertical: 6, paddingHorizontal: 4, backgroundColor: '#fffbeb', borderRadius: 8, marginBottom: 8, borderWidth: 1, borderColor: '#fde68a' },
   customerName: { fontSize: 13, fontWeight: '600', color: '#1e293b' },
   customerMeta: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 2 },
   customerPhone: { fontSize: 11, color: Brand.primary },
@@ -662,6 +752,12 @@ const st = StyleSheet.create({
   modalCancelText: { color: '#64748b', fontWeight: '600', fontSize: 14 },
   modalSubmit: { flex: 1, flexDirection: 'row', paddingVertical: 12, borderRadius: 12, backgroundColor: '#ef4444', alignItems: 'center', justifyContent: 'center', gap: 6 },
   modalSubmitText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+
+  // Photo capture
+  photoBtn: { borderRadius: 12, overflow: 'hidden', borderWidth: 1.5, borderColor: '#e2e8f0', borderStyle: 'dashed' },
+  photoPreview: { width: '100%', height: 150, borderRadius: 12 },
+  photoPlaceholder: { alignItems: 'center', justifyContent: 'center', height: 100, backgroundColor: '#f8fafc' },
+  photoPlaceholderText: { fontSize: 12, color: '#94a3b8', fontWeight: '600', marginTop: 4 },
 
   // Payment modal
   payExpectedRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },

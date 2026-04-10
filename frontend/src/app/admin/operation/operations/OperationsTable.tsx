@@ -874,6 +874,7 @@ export default function OperationsTable({
                     OPERASYONDA:         { color: '#1d4ed8', bg: '#bfdbfe', label: 'Operasyonda' },
                     COMPLETED:           { color: '#15803d', bg: '#dcfce7', label: 'Tamamlandı' },
                     CANCELLED:           { color: '#dc2626', bg: '#fee2e2', label: 'İptal' },
+                    NO_SHOW:             { color: '#be123c', bg: '#ffe4e6', label: 'No-Show' },
                     HAVUZDA:             { color: '#be185d', bg: '#fce7f3', label: 'Havuzda' },
                 };
                 const cfg = statusCfg[effectiveStatus] || { color: '#6b7280', bg: '#f3f4f6', label: effectiveStatus };

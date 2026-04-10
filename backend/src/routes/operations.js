@@ -780,12 +780,16 @@ router.get('/shuttle-runs', authMiddleware, async (req, res, next) => {
                 bookingNumber: b.bookingNumber,
                 contactName: b.contactName,
                 contactPhone: b.contactPhone,
+                contactEmail: b.contactEmail || b.customer?.email || null,
                 adults: b.adults || 0,
                 pickup: m.pickup || '',
                 dropoff: m.dropoff || '',
                 pickupDateTime: b.startDate,
                 status: b.status,
+                paymentStatus: b.paymentStatus || null,
+                paymentMethod: m.paymentMethod || null,
                 driverId: b.driverId,
+                agencyId: b.agencyId || null,
                 assignedVehicleId: m.assignedVehicleId || null,
                 agencyName: b.agency?.name || null,
                 flightNumber: m.flightNumber || null,
@@ -794,7 +798,9 @@ router.get('/shuttle-runs', authMiddleware, async (req, res, next) => {
                 dropoffRegionCode: m.dropoffRegionCode || null,
                 shuttleSortOrder: m.shuttleSortOrder || null,
                 extraServices: m.extraServices || null,
+                acknowledgedAt: m.acknowledgedAt || null,
                 notes: b.specialRequests || m.notes || null,
+                metadata: m,
             });
         });
 

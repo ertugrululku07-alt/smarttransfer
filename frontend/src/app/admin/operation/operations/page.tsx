@@ -1214,14 +1214,33 @@ export default function OperationsPage() {
             fetchShuttleRuns(true);
         };
 
+        const handleAcknowledged = () => {
+            fetchShuttleRuns(true);
+        };
+
+        const handlePaymentUpdate = (data: { bookingId: string, paymentStatus: string }) => {
+            // Update private bookings list
+            setBookings(prev => prev.map(b =>
+                b.id === data.bookingId
+                    ? { ...b, paymentStatus: data.paymentStatus }
+                    : b
+            ));
+            // Also refresh shuttle runs to reflect payment changes
+            fetchShuttleRuns(true);
+        };
+
         socket.on('booking_status_update', handleStatusUpdate);
         socket.on('new_booking', handleNewBooking);
         socket.on('shuttle_runs_updated', handleShuttleRunsUpdated);
+        socket.on('booking_acknowledged', handleAcknowledged);
+        socket.on('booking_payment_update', handlePaymentUpdate);
 
         return () => {
             socket.off('booking_status_update', handleStatusUpdate);
             socket.off('new_booking', handleNewBooking);
             socket.off('shuttle_runs_updated', handleShuttleRunsUpdated);
+            socket.off('booking_acknowledged', handleAcknowledged);
+            socket.off('booking_payment_update', handlePaymentUpdate);
         };
     }, [socket, filters.transferType, filters.direction]);
 
@@ -2788,10 +2807,17 @@ export default function OperationsPage() {
                                                                     const statusMap: any = {
                                                                         CONFIRMED: { color: '#2563eb', label: 'Onaylı' },
                                                                         PENDING: { color: '#d97706', label: 'Bekliyor' },
+                                                                        IN_PROGRESS: { color: '#0e7490', label: 'Yolcu Alındı' },
+                                                                        NO_SHOW: { color: '#be123c', label: 'No-Show' },
                                                                         COMPLETED: { color: '#16a34a', label: 'Tamamlandı' },
                                                                         CANCELLED: { color: '#dc2626', label: 'İptal' },
                                                                     };
-                                                                    const st = statusMap[b.status] || { color: '#6b7280', label: b.status };
+                                                                    // Override: if driver acknowledged, show "Okundu"
+                                                                    const isAcknowledged = b.acknowledgedAt || b.metadata?.acknowledgedAt;
+                                                                    let st = statusMap[b.status] || { color: '#6b7280', label: b.status };
+                                                                    if (isAcknowledged && (b.status === 'CONFIRMED' || b.status === 'PENDING')) {
+                                                                        st = { color: '#0369a1', label: 'Okundu ✓' };
+                                                                    }
                                                                     
                                                                     switch(key) {
                                                                         case 'sort': return (

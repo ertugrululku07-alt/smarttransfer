@@ -18,6 +18,24 @@ export default function JobDetailScreen() {
     const [collectedAmount, setCollectedAmount] = useState('');
     const [collectedCurrency, setCollectedCurrency] = useState('TRY');
     const [paymentSaving, setPaymentSaving] = useState(false);
+    const [tenantCurrencies, setTenantCurrencies] = useState<string[]>(['TRY', 'EUR', 'USD']);
+    const [defaultCurrency, setDefaultCurrency] = useState('TRY');
+
+    useEffect(() => {
+        // Fetch tenant currencies on mount
+        (async () => {
+            try {
+                const res = await fetch(`${API_URL}/driver/currencies`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const json = await res.json();
+                if (json.success && json.data) {
+                    setTenantCurrencies(json.data.currencies || ['TRY', 'EUR', 'USD']);
+                    setDefaultCurrency(json.data.defaultCurrency || 'TRY');
+                }
+            } catch (e) { console.warn('Failed to fetch currencies', e); }
+        })();
+    }, []);
 
     useEffect(() => {
         fetchJobDetails();
@@ -73,7 +91,7 @@ export default function JobDetailScreen() {
     const handlePickup = () => {
         const method = job.metadata?.paymentMethod;
         const total = Number(job.total || 0);
-        const currency = job.currency || 'TRY';
+        const currency = job.currency || defaultCurrency || 'TRY';
         if (method === 'PAY_IN_VEHICLE') {
             setPaymentModal(true);
             setCollectedAmount(String(total));
@@ -236,6 +254,24 @@ export default function JobDetailScreen() {
                     {(job.specialRequests || job.notes) && <InfoRow icon="document-text" value={job.specialRequests || job.notes} />}
                 </View>
 
+                {/* Extra Services */}
+                {(job.metadata?.extraServices?.length > 0) && (
+                    <View style={styles.card}>
+                        <View style={styles.cardTitleRow}>
+                            <Ionicons name="star-outline" size={16} color="#d97706" />
+                            <Text style={styles.sectionTitle}>Ekstra Hizmetler</Text>
+                        </View>
+                        <View style={styles.extrasContainer}>
+                            {job.metadata.extraServices.map((ex: any, i: number) => (
+                                <View key={i} style={styles.extraChip}>
+                                    <Ionicons name="star" size={12} color="#d97706" />
+                                    <Text style={styles.extraChipText}>{ex.name || ex.label || ex}</Text>
+                                </View>
+                            ))}
+                        </View>
+                    </View>
+                )}
+
                 {/* Status Actions */}
                 <View style={styles.card}>
                     <View style={styles.cardTitleRow}>
@@ -308,7 +344,7 @@ export default function JobDetailScreen() {
                         />
                         <Text style={styles.modalLabel}>Para Birimi</Text>
                         <View style={styles.currencyRow}>
-                            {['TRY', 'EUR', 'USD', 'GBP'].map(c => (
+                            {tenantCurrencies.map(c => (
                                 <TouchableOpacity
                                     key={c}
                                     style={[styles.currencyChip, collectedCurrency === c && styles.currencyChipActive]}
@@ -516,6 +552,27 @@ const styles = StyleSheet.create({
         color: 'white',
         fontSize: 17,
         fontWeight: '700',
+    },
+    extrasContainer: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 8,
+    },
+    extraChip: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        backgroundColor: '#fffbeb',
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 10,
+        borderWidth: 1,
+        borderColor: '#fbbf24',
+    },
+    extraChipText: {
+        fontSize: 13,
+        fontWeight: '700',
+        color: '#92400e',
     },
 
     // Payment modal
