@@ -410,10 +410,24 @@ router.post('/auto-assign', authMiddleware, async (req, res) => {
             where: { tenantId, isActive: true }
         });
         const DRIVER_KEYWORDS = ['driver', 'şöför', 'sofor', 'sürücü', 'surucü', 'surücu'];
-        const drivers = personnel.filter(p => {
+        let drivers = personnel.filter(p => {
             const title = (p.jobTitle || '').toLowerCase().trim();
             return DRIVER_KEYWORDS.some(kw => title.includes(kw)) && p.userId;
         });
+
+        // Exclude drivers with active emergencies
+        const driverUserIds = drivers.map(d => d.userId).filter(Boolean);
+        const driverUsers = await prisma.user.findMany({
+            where: { id: { in: driverUserIds } },
+            select: { id: true, metadata: true }
+        });
+        const emergencyDriverIds = new Set(
+            driverUsers.filter(u => u.metadata?.emergency?.active).map(u => u.id)
+        );
+        if (emergencyDriverIds.size > 0) {
+            console.log(`[AutoAssign] ${emergencyDriverIds.size} driver(s) excluded due to active emergency`);
+            drivers = drivers.filter(d => !emergencyDriverIds.has(d.userId));
+        }
 
         if (drivers.length === 0) {
             return res.json({

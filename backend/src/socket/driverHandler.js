@@ -135,6 +135,21 @@ module.exports = (io, app) => {
             });
         });
 
+        // Keep-alive ping from driver app — respond with pong + refresh lastSeen
+        socket.on('ping_keepalive', (data) => {
+            if (currentUser && onlineDrivers[currentUser.id]) {
+                onlineDrivers[currentUser.id].lastSeen = Date.now();
+                onlineDrivers[currentUser.id].socketId = socket.id;
+                // Reset the offline timer since driver is clearly alive
+                if (disconnectTimers[currentUser.id]) {
+                    clearTimeout(disconnectTimers[currentUser.id]);
+                    delete disconnectTimers[currentUser.id];
+                }
+            }
+            // Reply so client knows connection is truly alive (not zombie)
+            socket.emit('pong_keepalive', { ts: Date.now() });
+        });
+
         socket.on('join_booking', (bookingId) => {
             socket.join(`booking_${bookingId}`);
         });

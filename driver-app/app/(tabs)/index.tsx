@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   StyleSheet, View, Text, Alert, ScrollView, RefreshControl,
-  TouchableOpacity, Image, Platform, Linking, AppState
+  TouchableOpacity, Image, Platform, Linking, AppState,
+  Modal, TextInput
 } from 'react-native';
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
@@ -36,10 +37,24 @@ export default function DashboardScreen() {
   const [stats, setStats] = useState({ todayJobs: 0, completedJobs: 0, rating: 4.9 });
   const [loading, setLoading] = useState(false);
   const [locationActive, setLocationActive] = useState(false);
+  const [emergencyModal, setEmergencyModal] = useState(false);
+  const [emergencyActive, setEmergencyActive] = useState(false);
+  const [emergencyReason, setEmergencyReason] = useState('');
+  const [emergencyDesc, setEmergencyDesc] = useState('');
+  const [emergencyInfo, setEmergencyInfo] = useState<any>(null);
+
+  const EMERGENCY_REASONS = [
+    'Araç Bozuldu',
+    'Teker Patladı',
+    'Hastalandım',
+    'Kaza Yaptım',
+    'Yol Kapalı / Ulaşamıyorum',
+  ];
 
   useEffect(() => {
     fetchStats();
     fetchProfile();
+    fetchEmergencyStatus();
     ensureLocationAlwaysOn();
 
     // Re-check location task when app comes back from background
@@ -134,10 +149,10 @@ export default function DashboardScreen() {
       if (!isRegistered) {
         await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
           accuracy: Location.Accuracy.Balanced,
-          timeInterval: 15000,       // 15 seconds — balanced for battery
-          distanceInterval: 10,      // Only update if moved 10m
-          deferredUpdatesInterval: 15000,
-          deferredUpdatesDistance: 10,
+          timeInterval: 10000,       // 10 seconds — more aggressive for Huawei
+          distanceInterval: 5,       // 5m — ensures callbacks even when barely moving
+          deferredUpdatesInterval: 10000,
+          deferredUpdatesDistance: 5,
           showsBackgroundLocationIndicator: true,
           activityType: Location.ActivityType.AutomotiveNavigation,
           pausesUpdatesAutomatically: false,  // CRITICAL: prevents iOS/Android from pausing
@@ -218,6 +233,61 @@ export default function DashboardScreen() {
     }
   };
 
+  const fetchEmergencyStatus = async () => {
+    try {
+      const res = await fetch(`${API_URL}/driver/emergency`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const json = await res.json();
+      if (json.success && json.data?.active) {
+        setEmergencyActive(true);
+        setEmergencyInfo(json.data);
+      } else {
+        setEmergencyActive(false);
+        setEmergencyInfo(null);
+      }
+    } catch { }
+  };
+
+  const submitEmergency = async () => {
+    if (!emergencyReason) { Alert.alert('Uyarı', 'Lütfen bir acil durum sebebi seçin.'); return; }
+    try {
+      const res = await fetch(`${API_URL}/driver/emergency`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: emergencyReason, description: emergencyDesc })
+      });
+      const json = await res.json();
+      if (json.success) {
+        Alert.alert('Acil Durum', 'Acil durum bildirildi. Operasyon merkezi bilgilendirildi.');
+        setEmergencyModal(false);
+        setEmergencyActive(true);
+        setEmergencyInfo({ active: true, reason: emergencyReason, description: emergencyDesc });
+        setEmergencyReason(''); setEmergencyDesc('');
+      }
+    } catch { Alert.alert('Hata', 'Bağlantı hatası'); }
+  };
+
+  const resolveEmergency = async () => {
+    Alert.alert('Acil Durumu Kapat', 'Acil durumunuz çözüldü mü?', [
+      { text: 'İptal', style: 'cancel' },
+      { text: 'Evet, Çözüldü', style: 'destructive', onPress: async () => {
+        try {
+          const res = await fetch(`${API_URL}/driver/emergency`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          const json = await res.json();
+          if (json.success) {
+            setEmergencyActive(false);
+            setEmergencyInfo(null);
+            Alert.alert('Bilgi', 'Acil durum kapatıldı.');
+          }
+        } catch { Alert.alert('Hata', 'Bağlantı hatası'); }
+      }}
+    ]);
+  };
+
   const now = new Date();
   const hour = now.getHours();
   const greeting = hour < 6 ? 'İyi geceler' : hour < 12 ? 'Günaydın' : hour < 18 ? 'İyi günler' : 'İyi akşamlar';
@@ -261,20 +331,20 @@ export default function DashboardScreen() {
 
       {/* ─── STATS (overlapping header) ─── */}
       <View style={st.statsRow}>
-        <View style={[st.statCard, st.statCardPrimary]}>
+        <TouchableOpacity style={[st.statCard, st.statCardPrimary]} activeOpacity={0.7} onPress={() => router.push('/(tabs)/explore')}>
           <View style={[st.statIconBox, { backgroundColor: 'rgba(67,97,238,0.12)' }]}>
             <Ionicons name="briefcase" size={20} color={Brand.primary} />
           </View>
           <Text style={st.statValue}>{stats.todayJobs}</Text>
           <Text style={st.statLabel}>Bugün</Text>
-        </View>
-        <View style={[st.statCard, st.statCardSuccess]}>
+        </TouchableOpacity>
+        <TouchableOpacity style={[st.statCard, st.statCardSuccess]} activeOpacity={0.7} onPress={() => router.push('/history')}>
           <View style={[st.statIconBox, { backgroundColor: 'rgba(16,185,129,0.12)' }]}>
             <Ionicons name="checkmark-circle" size={20} color={Brand.success} />
           </View>
           <Text style={st.statValue}>{stats.completedJobs}</Text>
           <Text style={st.statLabel}>Tamamlanan</Text>
-        </View>
+        </TouchableOpacity>
         <View style={[st.statCard, st.statCardWarning]}>
           <View style={[st.statIconBox, { backgroundColor: 'rgba(245,158,11,0.12)' }]}>
             <Ionicons name="star" size={20} color={Brand.warning} />
@@ -297,10 +367,91 @@ export default function DashboardScreen() {
         <ActionButton icon="person" label="Profil" color="#e11d48" bg="#fff1f2" onPress={() => router.push('/(tabs)/profile')} />
       </View>
 
+      {/* ─── EMERGENCY BUTTON ─── */}
+      <View style={st.sectionHeader}>
+        <Text style={st.sectionTitle}>Acil Durum</Text>
+        <View style={st.sectionLine} />
+      </View>
+
+      {emergencyActive ? (
+        <View style={st.emergencyActiveCard}>
+          <View style={st.emergencyActiveHeader}>
+            <Ionicons name="warning" size={20} color="#fff" />
+            <Text style={st.emergencyActiveTitle}>Acil Durum Aktif</Text>
+          </View>
+          <Text style={st.emergencyActiveReason}>{emergencyInfo?.reason}</Text>
+          {emergencyInfo?.description ? <Text style={st.emergencyActiveDesc}>{emergencyInfo.description}</Text> : null}
+          <TouchableOpacity style={st.emergencyResolveBtn} onPress={resolveEmergency}>
+            <Ionicons name="checkmark-circle" size={16} color="#10b981" />
+            <Text style={st.emergencyResolveText}>Acil Durumu Kapat</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <TouchableOpacity
+          style={st.emergencyBtn}
+          activeOpacity={0.8}
+          onPress={() => { setEmergencyModal(true); setEmergencyReason(''); setEmergencyDesc(''); }}
+        >
+          <View style={st.emergencyIconBox}>
+            <Ionicons name="warning" size={22} color="#ef4444" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={st.emergencyBtnTitle}>Acil Durum Bildir</Text>
+            <Text style={st.emergencyBtnSub}>Araç arızası, sağlık sorunu vb.</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={14} color="#fca5a5" />
+        </TouchableOpacity>
+      )}
+
       {/* ─── FOOTER ─── */}
       <View style={st.footerRow}>
         <Text style={st.footerText}>SmartTransfer Sürücü v1.1</Text>
       </View>
+
+      {/* ─── EMERGENCY MODAL ─── */}
+      <Modal visible={emergencyModal} animationType="slide" transparent>
+        <View style={st.modalOverlay}>
+          <View style={st.modalCard}>
+            <View style={st.modalHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Ionicons name="warning" size={22} color="#ef4444" />
+                <Text style={st.modalTitle}>Acil Durum Bildir</Text>
+              </View>
+              <TouchableOpacity onPress={() => setEmergencyModal(false)}>
+                <Ionicons name="close" size={24} color="#64748b" />
+              </TouchableOpacity>
+            </View>
+            <Text style={st.modalSub}>Bu bildirim ile operasyon merkezine acil durum iletilecek ve siz acil durumu bitirene kadar yeni operasyon atanamayacaktır.</Text>
+            <ScrollView style={{ maxHeight: 220 }}>
+              {EMERGENCY_REASONS.map(r => (
+                <TouchableOpacity key={r} style={[st.reasonItem, emergencyReason === r && st.reasonActive]} onPress={() => setEmergencyReason(r)}>
+                  <Ionicons name={emergencyReason === r ? 'radio-button-on' : 'radio-button-off'} size={18} color={emergencyReason === r ? '#ef4444' : '#94a3b8'} />
+                  <Text style={[st.reasonText, emergencyReason === r && { color: '#ef4444', fontWeight: '600' }]}>{r}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            <Text style={st.modalLabel}>Açıklama (opsiyonel)</Text>
+            <TextInput
+              style={st.modalInput}
+              placeholder="Ek detay yazın..."
+              placeholderTextColor="#94a3b8"
+              value={emergencyDesc}
+              onChangeText={setEmergencyDesc}
+              multiline
+              numberOfLines={3}
+            />
+            <View style={st.modalBtnRow}>
+              <TouchableOpacity style={st.modalCancel} onPress={() => setEmergencyModal(false)}>
+                <Text style={st.modalCancelText}>İptal</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={st.modalSubmit} onPress={submitEmergency}>
+                <Ionicons name="warning" size={16} color="#fff" />
+                <Text style={st.modalSubmitText}>Bildir</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -419,6 +570,48 @@ const st = StyleSheet.create({
   },
   actionBadgeText: { color: '#fff', fontSize: 9, fontWeight: 'bold' },
   actionLabel: { fontSize: 14, fontWeight: '600', color: '#334155', flex: 1 },
+
+  // Emergency
+  emergencyBtn: {
+    flexDirection: 'row', alignItems: 'center', marginHorizontal: 16,
+    backgroundColor: '#fef2f2', borderRadius: 16, padding: 14,
+    borderWidth: 1, borderColor: '#fecaca',
+  },
+  emergencyIconBox: {
+    width: 44, height: 44, borderRadius: 14,
+    backgroundColor: '#fee2e2', justifyContent: 'center', alignItems: 'center', marginRight: 14,
+  },
+  emergencyBtnTitle: { fontSize: 14, fontWeight: '700', color: '#dc2626' },
+  emergencyBtnSub: { fontSize: 11, color: '#f87171', marginTop: 1 },
+  emergencyActiveCard: {
+    marginHorizontal: 16, backgroundColor: '#dc2626', borderRadius: 16, padding: 16,
+  },
+  emergencyActiveHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
+  emergencyActiveTitle: { color: '#fff', fontSize: 16, fontWeight: '800' },
+  emergencyActiveReason: { color: 'rgba(255,255,255,0.9)', fontSize: 14, fontWeight: '600', marginBottom: 4 },
+  emergencyActiveDesc: { color: 'rgba(255,255,255,0.7)', fontSize: 12, marginBottom: 10 },
+  emergencyResolveBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    backgroundColor: '#fff', borderRadius: 12, paddingVertical: 10,
+  },
+  emergencyResolveText: { color: '#10b981', fontWeight: '700', fontSize: 14 },
+
+  // Modal
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  modalCard: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 36 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+  modalTitle: { fontSize: 18, fontWeight: '800', color: '#0f172a' },
+  modalSub: { fontSize: 12, color: '#64748b', marginBottom: 14, lineHeight: 18 },
+  reasonItem: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
+  reasonActive: { backgroundColor: '#fef2f2', borderRadius: 10, paddingHorizontal: 8 },
+  reasonText: { fontSize: 14, color: '#334155' },
+  modalLabel: { fontSize: 12, fontWeight: '600', color: '#64748b', marginTop: 14, marginBottom: 6 },
+  modalInput: { backgroundColor: '#f8fafc', borderRadius: 12, borderWidth: 1, borderColor: '#e2e8f0', padding: 12, fontSize: 14, color: '#0f172a', minHeight: 60, textAlignVertical: 'top' },
+  modalBtnRow: { flexDirection: 'row', gap: 10, marginTop: 16 },
+  modalCancel: { flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: '#f1f5f9', alignItems: 'center' },
+  modalCancelText: { color: '#64748b', fontWeight: '600', fontSize: 14 },
+  modalSubmit: { flex: 1, flexDirection: 'row', paddingVertical: 12, borderRadius: 12, backgroundColor: '#ef4444', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  modalSubmitText: { color: '#fff', fontWeight: '700', fontSize: 14 },
 
   // Footer
   footerRow: { alignItems: 'center', marginTop: 24 },

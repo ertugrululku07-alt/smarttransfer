@@ -96,7 +96,73 @@ router.get('/bookings', authMiddleware, ensureDriver, async (req, res) => {
             orderBy: { startDate: 'asc' }
         });
 
-        res.json({ success: true, data: bookings });
+        // Group shuttle bookings together for the driver app
+        const isShuttle = (b) => {
+            const vt = String((b.metadata?.vehicleType) || '').toLowerCase();
+            const tt = String((b.metadata?.transferType) || '').toLowerCase();
+            return vt.includes('shuttle') || vt.includes('paylaşımlı') || tt === 'shuttle' || b.metadata?.shuttleRouteId;
+        };
+
+        const privateBookings = [];
+        const shuttleGroups = {};
+
+        bookings.forEach(b => {
+            if (isShuttle(b)) {
+                const m = b.metadata || {};
+                const routeId = m.shuttleRouteId;
+                const masterTime = m.shuttleMasterTime || '';
+                const dropoff = String(m.dropoff || '').trim().substring(0, 60).toLowerCase().replace(/\s+/g, ' ');
+                const key = routeId
+                    ? `ROUTE::${routeId}${masterTime ? '::' + masterTime : ''}`
+                    : `ADHOC::${dropoff}${masterTime ? '::' + masterTime : ''}`;
+
+                if (!shuttleGroups[key]) {
+                    shuttleGroups[key] = {
+                        _isShuttleGroup: true,
+                        groupKey: key,
+                        routeName: m.dropoff || 'Shuttle',
+                        pickup: m.pickup || 'Çeşitli Noktalar',
+                        dropoff: m.dropoff || 'Bilinmeyen',
+                        startDate: b.startDate,
+                        status: b.status,
+                        vehicleType: m.vehicleType || 'Shuttle',
+                        bookings: []
+                    };
+                }
+                shuttleGroups[key].bookings.push({
+                    id: b.id,
+                    bookingNumber: b.bookingNumber,
+                    contactName: b.contactName,
+                    contactPhone: b.contactPhone,
+                    contactEmail: b.contactEmail,
+                    customerFirstName: b.customer?.firstName || null,
+                    customerLastName: b.customer?.lastName || null,
+                    customerPhone: b.customer?.phone || b.contactPhone,
+                    customerEmail: b.customer?.email || b.contactEmail,
+                    adults: b.adults || 0,
+                    children: b.children || 0,
+                    pickup: m.pickup || '',
+                    dropoff: m.dropoff || '',
+                    flightNumber: m.flightNumber || b.flightNumber || null,
+                    status: b.status,
+                    acknowledgedAt: m.acknowledgedAt || null,
+                    notes: b.specialRequests || m.notes || null,
+                    metadata: m
+                });
+                // Update group status based on individual statuses
+                if (b.status === 'IN_PROGRESS') shuttleGroups[key].status = 'IN_PROGRESS';
+            } else {
+                privateBookings.push(b);
+            }
+        });
+
+        // Merge: shuttle groups + private bookings, sorted by startDate
+        const grouped = [
+            ...Object.values(shuttleGroups),
+            ...privateBookings.map(b => ({ ...b, _isShuttleGroup: false }))
+        ].sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
+
+        res.json({ success: true, data: grouped });
     } catch (error) {
         console.error('Driver bookings error:', error);
         res.status(500).json({ success: false, error: 'Server error', details: error.message });
@@ -716,6 +782,177 @@ router.get('/:id/violations', async (req, res) => {
         });
     } catch (error) {
         console.error('Driver violations error:', error);
+        res.status(500).json({ success: false, error: 'Server error' });
+    }
+});
+
+// PUT /api/driver/bookings/:id/acknowledge
+// Driver marks booking as "read/seen" (Okundu)
+router.put('/bookings/:id/acknowledge', authMiddleware, ensureDriver, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const booking = await prisma.booking.findFirst({
+            where: { id, driverId: req.user.id }
+        });
+        if (!booking) {
+            return res.status(404).json({ success: false, error: 'Rezervasyon bulunamadı' });
+        }
+        const meta = booking.metadata || {};
+        const updated = await prisma.booking.update({
+            where: { id },
+            data: {
+                metadata: {
+                    ...meta,
+                    acknowledgedAt: new Date().toISOString(),
+                    acknowledgedBy: req.user.id
+                }
+            }
+        });
+        const io = req.app.get('io');
+        if (io) {
+            io.to('admin_monitoring').emit('booking_acknowledged', {
+                bookingId: id,
+                driverId: req.user.id,
+                driverName: req.user.fullName,
+                acknowledgedAt: new Date().toISOString()
+            });
+            io.to(`user_${req.user.id}`).emit('booking_acknowledged', { bookingId: id });
+        }
+        res.json({ success: true, data: updated });
+    } catch (error) {
+        console.error('Acknowledge error:', error);
+        res.status(500).json({ success: false, error: 'Server error' });
+    }
+});
+
+// PUT /api/driver/bookings/:id/no-show
+// Driver reports customer no-show with reason and optional photo
+router.put('/bookings/:id/no-show', authMiddleware, ensureDriver, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { reason, description, photo } = req.body;
+        const booking = await prisma.booking.findFirst({
+            where: { id, driverId: req.user.id }
+        });
+        if (!booking) {
+            return res.status(404).json({ success: false, error: 'Rezervasyon bulunamadı' });
+        }
+        const meta = booking.metadata || {};
+        const updated = await prisma.booking.update({
+            where: { id },
+            data: {
+                status: 'NO_SHOW',
+                metadata: {
+                    ...meta,
+                    noShowReason: reason,
+                    noShowDescription: description || null,
+                    noShowPhoto: photo || null,
+                    noShowReportedAt: new Date().toISOString(),
+                    noShowReportedBy: req.user.id
+                }
+            }
+        });
+        const io = req.app.get('io');
+        if (io) {
+            io.to('admin_monitoring').emit('booking_no_show', {
+                bookingId: id,
+                driverId: req.user.id,
+                driverName: req.user.fullName,
+                reason,
+                description,
+                reportedAt: new Date().toISOString()
+            });
+            io.to(`user_${req.user.id}`).emit('booking_status_update', { bookingId: id, status: 'NO_SHOW' });
+        }
+        res.json({ success: true, data: updated });
+    } catch (error) {
+        console.error('No-show error:', error);
+        res.status(500).json({ success: false, error: 'Server error' });
+    }
+});
+
+// POST /api/driver/emergency
+// Driver reports an emergency (blocks new assignments)
+router.post('/emergency', authMiddleware, ensureDriver, async (req, res) => {
+    try {
+        const { reason, description } = req.body;
+        if (!reason) {
+            return res.status(400).json({ success: false, error: 'Acil durum sebebi gerekli' });
+        }
+        const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+        const existingMeta = user.metadata || {};
+        await prisma.user.update({
+            where: { id: req.user.id },
+            data: {
+                metadata: {
+                    ...existingMeta,
+                    emergency: {
+                        active: true,
+                        reason,
+                        description: description || null,
+                        startedAt: new Date().toISOString()
+                    }
+                }
+            }
+        });
+        const io = req.app.get('io');
+        if (io) {
+            io.to('admin_monitoring').emit('driver_emergency', {
+                driverId: req.user.id,
+                driverName: req.user.fullName,
+                reason,
+                description,
+                startedAt: new Date().toISOString()
+            });
+        }
+        res.json({ success: true, message: 'Acil durum bildirildi' });
+    } catch (error) {
+        console.error('Emergency report error:', error);
+        res.status(500).json({ success: false, error: 'Server error' });
+    }
+});
+
+// DELETE /api/driver/emergency
+// Driver resolves emergency
+router.delete('/emergency', authMiddleware, ensureDriver, async (req, res) => {
+    try {
+        const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+        const existingMeta = user.metadata || {};
+        await prisma.user.update({
+            where: { id: req.user.id },
+            data: {
+                metadata: {
+                    ...existingMeta,
+                    emergency: {
+                        active: false,
+                        resolvedAt: new Date().toISOString()
+                    }
+                }
+            }
+        });
+        const io = req.app.get('io');
+        if (io) {
+            io.to('admin_monitoring').emit('driver_emergency_resolved', {
+                driverId: req.user.id,
+                driverName: req.user.fullName,
+                resolvedAt: new Date().toISOString()
+            });
+        }
+        res.json({ success: true, message: 'Acil durum kapatıldı' });
+    } catch (error) {
+        console.error('Emergency resolve error:', error);
+        res.status(500).json({ success: false, error: 'Server error' });
+    }
+});
+
+// GET /api/driver/emergency
+// Check driver's emergency status
+router.get('/emergency', authMiddleware, ensureDriver, async (req, res) => {
+    try {
+        const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+        const emergency = user.metadata?.emergency || { active: false };
+        res.json({ success: true, data: emergency });
+    } catch (error) {
         res.status(500).json({ success: false, error: 'Server error' });
     }
 });

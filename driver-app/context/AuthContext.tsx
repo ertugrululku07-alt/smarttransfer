@@ -54,17 +54,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     };
 
     const signOut = async () => {
+        // 1. Clear persisted data first
         await SecureStore.deleteItemAsync('token');
         await SecureStore.deleteItemAsync('user');
+        // 2. Clear in-memory state (triggers AuthGuard redirect)
         setToken(null);
         setUser(null);
-        // Clear entire navigation stack then go to login
-        while (router.canGoBack()) {
-            router.back();
-        }
-        setTimeout(() => {
+        // 3. Force navigate to login as fallback (AuthGuard also handles this)
+        try {
             router.replace('/');
-        }, 100);
+        } catch (e) {
+            console.warn('signOut navigation fallback:', e);
+        }
     };
 
     return (

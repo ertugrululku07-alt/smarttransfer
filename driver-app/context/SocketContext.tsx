@@ -33,6 +33,8 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const appState = useRef<AppStateStatus>(AppState.currentState);
     const soundRef = useRef<Audio.Sound | null>(null);
     const userIdRef = useRef(user?.id);
+    const lastPongRef = useRef<number>(Date.now());
+    const reconnectAttemptsRef = useRef(0);
 
     useEffect(() => {
         userIdRef.current = user?.id;
@@ -110,7 +112,14 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
         instance.on('reconnect', () => {
             console.log('[Socket] Reconnected - re-authenticating');
+            reconnectAttemptsRef.current = 0;
+            lastPongRef.current = Date.now();
             instance.emit('authenticate', tkn);
+        });
+
+        // Pong response from server keeps connection health tracked
+        instance.on('pong_keepalive', () => {
+            lastPongRef.current = Date.now();
         });
 
         // Global message listener
@@ -202,42 +211,66 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         };
     }, [token]);
 
-    // Reconnect when app comes to foreground + periodic keep-alive
+    // Reconnect when app comes to foreground + aggressive keep-alive
     useEffect(() => {
         const handleAppStateChange = (nextState: AppStateStatus) => {
             if (
                 appState.current.match(/inactive|background/) &&
                 nextState === 'active' &&
-                token &&
-                socketRef.current
+                token
             ) {
                 console.log('[Socket] App foregrounded - checking connection');
-                if (!socketRef.current.connected) {
-                    console.log('[Socket] Was disconnected - reconnecting');
-                    socketRef.current.connect();
+                const timeSincePong = Date.now() - lastPongRef.current;
+
+                // If socket is dead or stale (no pong >90s), recreate entirely
+                if (!socketRef.current || !socketRef.current.connected || timeSincePong > 90000) {
+                    console.log('[Socket] Connection stale/dead — full recreate');
+                    createSocket(token);
                 } else {
                     // Force re-authenticate in case server dropped our session
                     socketRef.current.emit('authenticate', token);
                 }
+                reconnectAttemptsRef.current = 0;
             }
             appState.current = nextState;
         };
 
         const subscription = AppState.addEventListener('change', handleAppStateChange);
 
-        // Keep-alive: check socket health every 60s
-        // This catches cases where the OS silently killed the connection
+        // Aggressive keep-alive: 25s interval
+        // Huawei EMUI throttles timers aggressively after ~2min background
+        // but foreground service (location) keeps process alive
         const keepAliveInterval = setInterval(() => {
-            if (token && socketRef.current) {
-                if (!socketRef.current.connected) {
-                    console.log('[Socket] Keep-alive: disconnected, reconnecting...');
+            if (!token) return;
+
+            if (!socketRef.current || !socketRef.current.connected) {
+                reconnectAttemptsRef.current++;
+                console.log(`[Socket] Keep-alive: disconnected (attempt ${reconnectAttemptsRef.current})`);
+
+                // After 3 failed reconnects, destroy and recreate socket entirely
+                if (reconnectAttemptsRef.current >= 3) {
+                    console.log('[Socket] Too many failed reconnects — full recreate');
+                    createSocket(token);
+                    reconnectAttemptsRef.current = 0;
+                } else if (socketRef.current) {
                     socketRef.current.connect();
                 } else {
-                    // Send a lightweight ping to keep the connection alive
-                    socketRef.current.emit('ping_keepalive', { ts: Date.now() });
+                    createSocket(token);
+                }
+            } else {
+                // Send a lightweight ping to keep the connection alive
+                socketRef.current.emit('ping_keepalive', { ts: Date.now() });
+
+                // Check if server is actually responding
+                const timeSincePong = Date.now() - lastPongRef.current;
+                if (timeSincePong > 120000) {
+                    // Server hasn't responded in 2min — connection is zombie
+                    console.log('[Socket] Zombie connection detected (no pong) — recreating');
+                    createSocket(token);
+                    reconnectAttemptsRef.current = 0;
                 }
             }
-        }, 60000);
+        }, 25000); // 25 seconds — more aggressive than 60s
 
         return () => {
             subscription.remove();

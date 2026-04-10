@@ -280,8 +280,10 @@ const MANUFACTURER_SETTINGS: Record<string, { name: string; intents: string[]; i
     instructions:
       '1. Ayarlar > Pil > Uygulama başlatma yöneticisi\n' +
       '2. SmartTransfer Sürücü uygulamasını bulun\n' +
-      '3. Otomatik yönetimi KAPATIN\n' +
-      '4. Arka plan, Otomatik başlatma, Pil optimizasyonu hepsini AÇIN'
+      '3. Otomatik yönetimi KAPATIN (toggle)\n' +
+      '4. Açılan pencerede: Otomatik başlatma ✓, Arka plan ✓, Pil yoğun ✓ yapın\n' +
+      '5. Ayarlar > Pil > Pil optimizasyonu > SmartTransfer > "Optimize etme" seçin\n' +
+      '6. Son uygulamalar ekranında SmartTransfer\'e basılı tutun > "Kilitle" seçin'
   },
   xiaomi: {
     name: 'Xiaomi / Redmi / POCO',
@@ -358,8 +360,8 @@ async function promptBatteryOptimization() {
       ? (Date.now() - parseInt(lastAsked)) / (1000 * 60 * 60 * 24)
       : 999;
     
-    // Show every 7 days until user dismisses permanently, because OEMs reset these settings
-    if (daysSinceAsked < 7) return;
+    // Show every 3 days — Huawei EMUI resets these settings after updates
+    if (daysSinceAsked < 3) return;
 
     // Wait for app to fully load
     await new Promise(resolve => setTimeout(resolve, 4000));
@@ -560,12 +562,8 @@ async function registerPushToken(token: string) {
     }
 
   } catch (e: any) {
-    console.error('Push token registration error:', e);
-    Toast.show({
-      type: 'error',
-      text1: 'Kritik Hata (Push)',
-      text2: String(e.message || e).substring(0, 50)
-    });
+    console.warn('[Push] Token registration failed (non-fatal):', e?.message || e);
+    // Don't show error toast — push is optional, socket notifications still work
   }
 }
 
