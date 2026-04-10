@@ -19,9 +19,9 @@ import * as Location from 'expo-location';
 import * as SecureStore from 'expo-secure-store';
 import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
-import { router } from 'expo-router';
+import { router, useSegments } from 'expo-router';
 import Toast from 'react-native-toast-message';
-import { Platform, Alert, Linking, AppState } from 'react-native';
+import { Platform, Alert, Linking, AppState, BackHandler } from 'react-native';
 
 const LOCATION_TASK_NAME = 'background-location-task';
 const BG_FETCH_TASK_NAME = 'background-sync-task';
@@ -30,14 +30,33 @@ const API_URL = 'https://backend-production-69e7.up.railway.app/api';
 
 // Configure how notifications appear when app is in foreground
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
+  handleNotification: async (notification) => {
+    // Suppress location-sync wake-up notifications from showing to user
+    const data = notification.request.content.data as any;
+    if (data?.type === 'LOCATION_REQUEST') {
+      return { shouldShowAlert: false, shouldPlaySound: false, shouldSetBadge: false, shouldShowBanner: false, shouldShowList: false };
+    }
+    return {
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: true,
+      shouldShowBanner: true,
+      shouldShowList: true,
+    };
+  },
 });
+
+// Create a silent notification channel for location-sync pushes (Android)
+if (Platform.OS === 'android') {
+  Notifications.setNotificationChannelAsync('location-sync', {
+    name: 'Konum Senkronizasyonu',
+    importance: Notifications.AndroidImportance.MIN,
+    sound: null,
+    vibrationPattern: [],
+    showBadge: false,
+    enableVibrate: false,
+  }).catch(() => {});
+}
 
 // Define the background location task
 TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
@@ -346,14 +365,6 @@ async function promptBatteryOptimization() {
   if (Platform.OS !== 'android') return;
 
   try {
-    // Step 1: Try to request Android system battery optimization whitelist
-    // This is the standard Android API that shows the system dialog
-    try {
-      const intentUrl = `package:com.smarttransfer.driverapp`;
-      // Try the official REQUEST_IGNORE_BATTERY_OPTIMIZATIONS intent
-      await Linking.openURL(`android-app://com.android.settings/#Intent;action=android.settings.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS;data=package:com.smarttransfer.driverapp;end`).catch(() => {});
-    } catch { }
-
     // Check if we've already shown the detailed manufacturer guide
     const lastAsked = await SecureStore.getItemAsync('battery_opt_asked_v2');
     const daysSinceAsked = lastAsked 
@@ -432,18 +443,35 @@ async function promptBatteryOptimization() {
 // AuthGuard: watches auth state and redirects accordingly
 function AuthGuard() {
   const { token, isLoading } = useAuth();
+  const segments = useSegments();
+  const batteryPromptDone = React.useRef(false);
 
   useEffect(() => {
     if (isLoading) return;
+
+    // Determine if user is on a protected route
+    const inProtectedRoute = segments[0] === '(tabs)' || segments[0] === 'job' || segments[0] === 'messages' || segments[0] === 'history';
+
     if (!token) {
-      router.replace('/');
+      // Not authenticated — force to login screen
+      if (inProtectedRoute) {
+        try { router.replace('/'); } catch {}
+        // Retry after short delay (Samsung workaround)
+        setTimeout(() => {
+          try { router.replace('/'); } catch {}
+        }, 300);
+      }
       return;
     }
-    // Register push token when authenticated
+
+    // Register push token when authenticated (only once per session)
     registerPushToken(token);
-    // Prompt battery optimization (only on Android, first time)
-    promptBatteryOptimization();
-  }, [token, isLoading]);
+    // Prompt battery optimization only once per app session
+    if (!batteryPromptDone.current) {
+      batteryPromptDone.current = true;
+      promptBatteryOptimization();
+    }
+  }, [token, isLoading, segments]);
 
   // Handle notification taps (when app is opened from notification)
   useEffect(() => {

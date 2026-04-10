@@ -425,7 +425,7 @@ server.listen(PORT, () => {
 
   const sendSilentPushToDrivers = async () => {
     try {
-      // Find all drivers who have a push token and logged in within last 24h
+      // Find all drivers who have a push token
       const drivers = await prisma.user.findMany({
         where: {
           pushToken: { not: null },
@@ -440,7 +440,15 @@ server.listen(PORT, () => {
         .filter(d => d.pushToken && Expo.isExpoPushToken(d.pushToken))
         .map(d => ({
           to: d.pushToken,
-          data: { type: 'LOCATION_REQUEST', timestamp: Date.now() }
+          // Huawei EMUI suppresses data-only push. Include title/body with
+          // priority:high so FCM wakes the process even if doze-mode is on.
+          title: '📍 Konum Senkronizasyonu',
+          body: 'Konum bilginiz güncelleniyor...',
+          sound: null, // No sound — this is a maintenance notification
+          priority: 'high',
+          channelId: 'location-sync',
+          data: { type: 'LOCATION_REQUEST', timestamp: Date.now() },
+          _contentAvailable: true, // iOS silent push
         }));
 
       if (messages.length === 0) return;
@@ -454,14 +462,17 @@ server.listen(PORT, () => {
               console.warn(`[Push] Failed for ${messages[i].to?.substring(0, 20)}: ${receipt.message}`);
               // If token is invalid, clear it from DB
               if (receipt.details?.error === 'DeviceNotRegistered') {
-                pushPrisma.user.updateMany({
+                prisma.user.updateMany({
                   where: { pushToken: messages[i].to },
                   data: { pushToken: null }
                 }).catch(() => { });
               }
             }
           });
-          console.log(`[Push] Sent silent wake-up to ${messages.length} driver(s)`);
+          // Only log occasionally to avoid spam
+          if (Math.random() < 0.1) {
+            console.log(`[Push] Sent wake-up to ${messages.length} driver(s)`);
+          }
         } catch (err) {
           console.error('[Push] Error sending chunk:', err.message);
         }
@@ -471,9 +482,11 @@ server.listen(PORT, () => {
     }
   };
 
-  // Run every 60 seconds
-  setInterval(sendSilentPushToDrivers, 60 * 1000);
-  console.log('📡 Silent push job started (every 60 seconds)');
+  // Run every 3 minutes — balance between keep-alive and battery/quota
+  setInterval(sendSilentPushToDrivers, 3 * 60 * 1000);
+  // Also run once immediately on startup
+  setTimeout(sendSilentPushToDrivers, 10000);
+  console.log('📡 Silent push job started (every 3 minutes)');
 });
 
 // Trigger restart for env load

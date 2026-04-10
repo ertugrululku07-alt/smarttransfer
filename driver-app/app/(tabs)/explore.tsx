@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import {
   StyleSheet, View, Text, FlatList, TouchableOpacity, RefreshControl,
-  Linking, Platform, Alert, Modal, TextInput, ScrollView
+  Linking, Platform, Alert, Modal, TextInput, ScrollView,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
@@ -11,6 +12,27 @@ import { useRouter } from 'expo-router';
 import { Brand, StatusColors } from '../../constants/theme';
 
 const API_URL = 'https://backend-production-69e7.up.railway.app/api';
+
+// Extract short airport/destination name from full address
+const extractDestinationName = (address: string): string => {
+  if (!address) return 'Shuttle';
+  const lower = address.toLowerCase();
+  if (lower.includes('antalya') && (lower.includes('havaliman') || lower.includes('airport'))) return 'Antalya Havalimanı';
+  if (lower.includes('gazipaşa') || lower.includes('gazipasa') || lower.includes('alanya')) return 'Gazipaşa Havalimanı';
+  if (lower.includes('istanbul') && (lower.includes('havaliman') || lower.includes('airport'))) return 'İstanbul Havalimanı';
+  if (lower.includes('sabiha')) return 'Sabiha Gökçen Havalimanı';
+  if (lower.includes('dalaman')) return 'Dalaman Havalimanı';
+  if (lower.includes('bodrum') || lower.includes('milas')) return 'Milas-Bodrum Havalimanı';
+  if (lower.includes('izmir') || lower.includes('adnan menderes')) return 'İzmir Havalimanı';
+  if (lower.includes('havaliman') || lower.includes('airport')) {
+    // Extract first meaningful part
+    const parts = address.split(',');
+    return parts[0].trim();
+  }
+  // Not an airport — return first part of address
+  const parts = address.split(',');
+  return parts[0].trim();
+};
 
 const NO_SHOW_REASONS = [
   'Müşteri bulunamadı',
@@ -31,6 +53,13 @@ export default function JobListScreen() {
   const [noShowModal, setNoShowModal] = useState<{ visible: boolean; bookingId: string | null }>({ visible: false, bookingId: null });
   const [noShowReason, setNoShowReason] = useState('');
   const [noShowDesc, setNoShowDesc] = useState('');
+  const [paymentModal, setPaymentModal] = useState<{
+    visible: boolean; bookingId: string | null;
+    expectedAmount: number; expectedCurrency: string;
+  }>({ visible: false, bookingId: null, expectedAmount: 0, expectedCurrency: 'TRY' });
+  const [collectedAmount, setCollectedAmount] = useState('');
+  const [collectedCurrency, setCollectedCurrency] = useState('TRY');
+  const [paymentSaving, setPaymentSaving] = useState(false);
 
   useEffect(() => { fetchJobs(); }, [filter]);
 
@@ -65,6 +94,55 @@ export default function JobListScreen() {
       if (json.success) setTimeout(() => fetchJobs(), 300);
       else Alert.alert('Hata', 'Durum güncellenemedi');
     } catch { Alert.alert('Hata', 'Bağlantı hatası'); }
+  };
+
+  // Handle "Alındı" press — check if payment is PAY_IN_VEHICLE
+  const handlePickup = (bookingId: string, paymentMethod?: string, total?: number, currency?: string) => {
+    if (paymentMethod === 'PAY_IN_VEHICLE') {
+      setPaymentModal({
+        visible: true,
+        bookingId,
+        expectedAmount: total || 0,
+        expectedCurrency: currency || 'TRY'
+      });
+      setCollectedAmount(String(total || 0));
+      setCollectedCurrency(currency || 'TRY');
+    } else {
+      updateStatus(bookingId, 'IN_PROGRESS');
+    }
+  };
+
+  const submitPaymentAndPickup = async () => {
+    if (!paymentModal.bookingId) return;
+    const amount = parseFloat(collectedAmount);
+    if (isNaN(amount) || amount <= 0) {
+      Alert.alert('Uyarı', 'Lütfen geçerli bir tutar girin.');
+      return;
+    }
+    setPaymentSaving(true);
+    try {
+      // 1. Record payment
+      const payRes = await fetch(`${API_URL}/driver/bookings/${paymentModal.bookingId}/payment-received`, {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ collectedAmount: amount, collectedCurrency: collectedCurrency })
+      });
+      const payJson = await payRes.json();
+      if (!payJson.success) {
+        Alert.alert('Hata', payJson.error || 'Ödeme kaydedilemedi');
+        setPaymentSaving(false);
+        return;
+      }
+      // 2. Update status to IN_PROGRESS
+      await updateStatus(paymentModal.bookingId, 'IN_PROGRESS');
+      Alert.alert('Başarılı', `${amount} ${collectedCurrency} ödeme alındı, müşteri alındı olarak işaretlendi.`);
+      setPaymentModal({ visible: false, bookingId: null, expectedAmount: 0, expectedCurrency: 'TRY' });
+      fetchJobs();
+    } catch {
+      Alert.alert('Hata', 'Bağlantı hatası');
+    } finally {
+      setPaymentSaving(false);
+    }
   };
 
   const acknowledgeBooking = async (bookingId: string) => {
@@ -117,7 +195,10 @@ export default function JobListScreen() {
   };
 
   // ─── 3 ACTION BUTTONS ───
-  const ThreeButtons = ({ bookingId, status, acknowledgedAt }: { bookingId: string; status: string; acknowledgedAt?: string }) => {
+  const ThreeButtons = ({ bookingId, status, acknowledgedAt, paymentMethod, total, currency }: {
+    bookingId: string; status: string; acknowledgedAt?: string;
+    paymentMethod?: string; total?: number; currency?: string;
+  }) => {
     if (status === 'COMPLETED' || status === 'CANCELLED' || status === 'NO_SHOW') return null;
     return (
       <View style={st.btnRow}>
@@ -134,7 +215,7 @@ export default function JobListScreen() {
         {status !== 'IN_PROGRESS' ? (
           <TouchableOpacity
             style={[st.triBtn, st.triBtnGreen]}
-            onPress={() => updateStatus(bookingId, 'IN_PROGRESS')}
+            onPress={() => handlePickup(bookingId, paymentMethod, total, currency)}
           >
             <Ionicons name="checkmark-circle" size={14} color="#fff" />
             <Text style={st.triBtnText}>Alındı</Text>
@@ -160,28 +241,52 @@ export default function JobListScreen() {
     );
   };
 
-  // ─── CUSTOMER ROW ───
+  const [expandedCustomer, setExpandedCustomer] = useState<Record<string, boolean>>({});
+  const toggleCustomer = (id: string) => setExpandedCustomer(prev => ({ ...prev, [id]: !prev[id] }));
+
+  // ─── CUSTOMER ROW (Shuttle) ───
   const CustomerRow = ({ c, onCall }: { c: any; onCall?: () => void }) => {
-    const name = (c.customerFirstName || c.contactName || 'Misafir') + ' ' + (c.customerLastName || '');
+    const name = (c.contactName || ((c.customerFirstName || '') + ' ' + (c.customerLastName || '')).trim() || 'Misafir');
     const phone = c.customerPhone || c.contactPhone;
     const pax = (c.adults || 0) + (c.children || 0);
+    const isExpanded = expandedCustomer[c.id];
+    const pickupAddr = c.pickup || c.metadata?.pickup || '';
+    const dropoffAddr = c.dropoff || c.metadata?.dropoff || '';
+    const pickupLat = c.metadata?.pickupLat || 0;
+    const pickupLng = c.metadata?.pickupLng || 0;
     return (
-      <View style={st.customerRow}>
-        <View style={{ flex: 1 }}>
-          <Text style={st.customerName}>{name.trim()}</Text>
-          <View style={st.customerMeta}>
-            {phone ? <Text style={st.customerPhone}>{phone}</Text> : null}
-            {c.customerEmail ? <Text style={st.customerEmail}>{c.customerEmail}</Text> : null}
-            <Text style={st.paxBadge}>{pax} Pax</Text>
-            {c.flightNumber ? <Text style={st.flightBadge}>{c.flightNumber}</Text> : null}
+      <View>
+        <TouchableOpacity style={st.customerRow} onPress={() => toggleCustomer(c.id)} activeOpacity={0.7}>
+          <View style={{ flex: 1 }}>
+            <Text style={st.customerName}>{name.trim()}</Text>
+            <View style={st.customerMeta}>
+              {phone ? <Text style={st.customerPhone}>{phone}</Text> : null}
+              {c.customerEmail ? <Text style={st.customerEmail}>{c.customerEmail}</Text> : null}
+              <Text style={st.paxBadge}>{pax} Pax</Text>
+              {c.flightNumber ? <Text style={st.flightBadge}>{c.flightNumber}</Text> : null}
+            </View>
+            {c.notes ? <Text style={st.noteText}>{c.notes}</Text> : null}
           </View>
-          {c.notes ? <Text style={st.noteText}>{c.notes}</Text> : null}
-        </View>
-        {phone ? (
-          <TouchableOpacity style={st.callChip} onPress={onCall}>
-            <Ionicons name="call" size={14} color={Brand.primary} />
-          </TouchableOpacity>
-        ) : null}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            {phone ? (
+              <TouchableOpacity style={st.callChip} onPress={(e) => { e.stopPropagation(); onCall?.(); }}>
+                <Ionicons name="call" size={14} color={Brand.primary} />
+              </TouchableOpacity>
+            ) : null}
+            <TouchableOpacity style={st.navChip} onPress={(e) => { e.stopPropagation(); openNav(pickupLat, pickupLng, pickupAddr); }}>
+              <Ionicons name="navigate" size={14} color="#fff" />
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+        {isExpanded && (
+          <View style={st.customerDetail}>
+            {pickupAddr ? <View style={st.cdRow}><View style={st.dotGreen} /><Text style={st.cdText} numberOfLines={2}>{pickupAddr}</Text></View> : null}
+            {dropoffAddr ? <View style={st.cdRow}><View style={st.dotRed} /><Text style={st.cdText} numberOfLines={2}>{dropoffAddr}</Text></View> : null}
+            {phone ? <View style={st.cdRow}><Ionicons name="call" size={12} color="#64748b" /><Text style={st.cdText}>{phone}</Text></View> : null}
+            {c.customerEmail ? <View style={st.cdRow}><Ionicons name="mail" size={12} color="#64748b" /><Text style={st.cdText}>{c.customerEmail}</Text></View> : null}
+            {c.bookingNumber ? <View style={st.cdRow}><Ionicons name="document-text" size={12} color="#64748b" /><Text style={st.cdText}>#{c.bookingNumber}</Text></View> : null}
+          </View>
+        )}
       </View>
     );
   };
@@ -194,6 +299,7 @@ export default function JobListScreen() {
       const totalPax = item.bookings.reduce((s: number, b: any) => s + (b.adults || 0) + (b.children || 0), 0);
       const date = new Date(item.startDate);
       const time = date.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+      const dayStr = date.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' });
       const statusCfg = StatusColors[item.status] || { bg: '#f3f4f6', text: '#6b7280', label: item.status };
 
       return (
@@ -206,6 +312,7 @@ export default function JobListScreen() {
 
           <View style={st.cardHeader}>
             <View style={st.dateTimeBadge}>
+              <Text style={st.dateLabel}>{dayStr}</Text>
               <View style={st.timeBadge}><Ionicons name="time-outline" size={12} color="#fff" /><Text style={st.timeText}>{time}</Text></View>
               <Text style={st.paxInfo}>{item.bookings.length} Müşteri • {totalPax} Pax</Text>
             </View>
@@ -214,10 +321,10 @@ export default function JobListScreen() {
             </View>
           </View>
 
-          <View style={st.route}>
-            <View style={st.routeRow}><View style={st.dotGreen} /><Text style={st.routeText} numberOfLines={1}>{item.pickup}</Text></View>
-            <View style={st.routeLine} />
-            <View style={st.routeRow}><View style={st.dotRed} /><Text style={st.routeText} numberOfLines={1}>{item.dropoff}</Text></View>
+          {/* Show destination airport name */}
+          <View style={st.shuttleDestRow}>
+            <Ionicons name="airplane" size={16} color={Brand.primary} />
+            <Text style={st.shuttleDestText}>{extractDestinationName(item.dropoff)}</Text>
           </View>
 
           <TouchableOpacity style={st.expandBtn} onPress={() => toggleGroup(item.groupKey)}>
@@ -230,7 +337,7 @@ export default function JobListScreen() {
               {item.bookings.map((b: any, i: number) => (
                 <View key={b.id}>
                   <CustomerRow c={b} onCall={() => Linking.openURL(`tel:${b.customerPhone || b.contactPhone}`)} />
-                  <ThreeButtons bookingId={b.id} status={b.status} acknowledgedAt={b.acknowledgedAt} />
+                  <ThreeButtons bookingId={b.id} status={b.status} acknowledgedAt={b.acknowledgedAt} paymentMethod={b.paymentMethod || b.metadata?.paymentMethod} total={b.total} currency={b.currency} />
                   {i < item.bookings.length - 1 && <View style={st.divider} />}
                 </View>
               ))}
@@ -244,13 +351,13 @@ export default function JobListScreen() {
     const date = new Date(item.startDate);
     const time = date.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
     const dayStr = date.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' });
-    const from = item.metadata?.pickup || item.product?.transferData?.pickupZones?.[0]?.name || item.contactName || 'Belirtilmemiş';
+    const from = item.metadata?.pickup || item.product?.transferData?.pickupZones?.[0]?.name || 'Belirtilmemiş';
     const to = item.metadata?.dropoff || item.product?.transferData?.dropoffZones?.[0]?.name || 'Belirtilmemiş';
     const lat = item.metadata?.pickupLat || 0;
     const lng = item.metadata?.pickupLng || 0;
-    const customerName = item.customer?.firstName ? `${item.customer.firstName} ${item.customer.lastName || ''}`.trim() : item.contactName || 'Misafir';
-    const phone = item.customer?.phone || item.contactPhone;
-    const email = item.customer?.email || item.contactEmail;
+    const customerName = item.contactName || (item.customer?.firstName ? `${item.customer.firstName} ${item.customer.lastName || ''}`.trim() : 'Misafir');
+    const phone = item.contactPhone || item.customer?.phone;
+    const email = item.contactEmail || item.customer?.email;
     const pax = (item.adults || 0) + (item.children || 0);
     const flightNo = item.flightNumber || item.metadata?.flightNumber;
     const statusCfg = StatusColors[item.status] || { bg: '#f3f4f6', text: '#6b7280', label: item.status };
@@ -299,7 +406,7 @@ export default function JobListScreen() {
         </View>
 
         {/* 3 Buttons */}
-        <ThreeButtons bookingId={item.id} status={item.status} acknowledgedAt={ack} />
+        <ThreeButtons bookingId={item.id} status={item.status} acknowledgedAt={ack} paymentMethod={item.metadata?.paymentMethod} total={Number(item.total || 0)} currency={item.currency} />
       </View>
     );
   };
@@ -378,6 +485,70 @@ export default function JobListScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Payment Collection Modal */}
+      <Modal visible={paymentModal.visible} animationType="slide" transparent>
+        <View style={st.modalOverlay}>
+          <View style={st.modalCard}>
+            <View style={st.modalHeader}>
+              <Text style={st.modalTitle}>Ödeme Tahsilatı</Text>
+              <TouchableOpacity onPress={() => setPaymentModal({ visible: false, bookingId: null, expectedAmount: 0, expectedCurrency: 'TRY' })}>
+                <Ionicons name="close" size={24} color="#64748b" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={st.payExpectedRow}>
+              <Ionicons name="cash-outline" size={20} color="#059669" />
+              <Text style={st.payExpectedLabel}>Alınması Gereken Tutar:</Text>
+            </View>
+            <Text style={st.payExpectedAmount}>
+              {paymentModal.expectedAmount.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} {paymentModal.expectedCurrency}
+            </Text>
+
+            <Text style={st.modalLabel}>Alınan Tutar</Text>
+            <TextInput
+              style={st.payAmountInput}
+              keyboardType="decimal-pad"
+              placeholder="0.00"
+              placeholderTextColor="#94a3b8"
+              value={collectedAmount}
+              onChangeText={setCollectedAmount}
+            />
+
+            <Text style={st.modalLabel}>Para Birimi</Text>
+            <View style={st.currencyRow}>
+              {['TRY', 'EUR', 'USD', 'GBP'].map(c => (
+                <TouchableOpacity
+                  key={c}
+                  style={[st.currencyChip, collectedCurrency === c && st.currencyChipActive]}
+                  onPress={() => setCollectedCurrency(c)}
+                >
+                  <Text style={[st.currencyChipText, collectedCurrency === c && st.currencyChipTextActive]}>{c}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <View style={st.modalBtnRow}>
+              <TouchableOpacity style={st.modalCancel} onPress={() => setPaymentModal({ visible: false, bookingId: null, expectedAmount: 0, expectedCurrency: 'TRY' })}>
+                <Text style={st.modalCancelText}>İptal</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[st.modalSubmit, { backgroundColor: '#059669' }, paymentSaving && { opacity: 0.6 }]}
+                onPress={submitPaymentAndPickup}
+                disabled={paymentSaving}
+              >
+                {paymentSaving
+                  ? <ActivityIndicator color="#fff" size="small" />
+                  : <>
+                      <Ionicons name="checkmark-circle" size={16} color="#fff" />
+                      <Text style={st.modalSubmitText}>Ödeme Alındı</Text>
+                    </>
+                }
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -407,6 +578,7 @@ const st = StyleSheet.create({
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   dateTimeBadge: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   dayText: { fontSize: 12, fontWeight: '600', color: '#64748b' },
+  dateLabel: { fontSize: 12, fontWeight: '700', color: '#334155', backgroundColor: '#f1f5f9', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, overflow: 'hidden' },
   timeBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: Brand.primary, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, gap: 4 },
   timeText: { color: '#fff', fontWeight: '700', fontSize: 11 },
   paxInfo: { fontSize: 12, color: '#64748b', fontWeight: '500' },
@@ -456,8 +628,18 @@ const st = StyleSheet.create({
   paxBadge: { fontSize: 11, color: '#64748b', fontWeight: '600' },
   flightBadge: { fontSize: 11, color: '#d97706', fontWeight: '600' },
   noteText: { fontSize: 11, color: '#94a3b8', fontStyle: 'italic', marginTop: 2 },
-  callChip: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#eff6ff', justifyContent: 'center', alignItems: 'center', marginLeft: 8 },
+  callChip: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#eff6ff', justifyContent: 'center', alignItems: 'center' },
+  navChip: { width: 32, height: 32, borderRadius: 16, backgroundColor: Brand.primary, justifyContent: 'center', alignItems: 'center' },
   divider: { height: 1, backgroundColor: '#f1f5f9', marginVertical: 4 },
+
+  // Shuttle destination
+  shuttleDestRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10, paddingHorizontal: 4 },
+  shuttleDestText: { fontSize: 15, fontWeight: '700', color: '#1e293b', flex: 1 },
+
+  // Customer detail expansion
+  customerDetail: { backgroundColor: '#f8fafc', borderRadius: 10, padding: 10, marginTop: 4, marginBottom: 6, gap: 6 },
+  cdRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  cdText: { fontSize: 12, color: '#475569', flex: 1 },
 
   // Empty
   empty: { padding: 60, alignItems: 'center' },
@@ -480,4 +662,22 @@ const st = StyleSheet.create({
   modalCancelText: { color: '#64748b', fontWeight: '600', fontSize: 14 },
   modalSubmit: { flex: 1, flexDirection: 'row', paddingVertical: 12, borderRadius: 12, backgroundColor: '#ef4444', alignItems: 'center', justifyContent: 'center', gap: 6 },
   modalSubmitText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+
+  // Payment modal
+  payExpectedRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
+  payExpectedLabel: { fontSize: 14, color: '#374151', fontWeight: '600' },
+  payExpectedAmount: { fontSize: 28, fontWeight: '800', color: '#059669', marginVertical: 12, textAlign: 'center' },
+  payAmountInput: {
+    backgroundColor: '#f9fafb', borderRadius: 12, borderWidth: 1.5, borderColor: '#e5e7eb',
+    paddingHorizontal: 16, height: 52, fontSize: 20, fontWeight: '700', color: '#111827', textAlign: 'center',
+    marginBottom: 12,
+  },
+  currencyRow: { flexDirection: 'row', gap: 10, marginBottom: 16, justifyContent: 'center' },
+  currencyChip: {
+    paddingVertical: 8, paddingHorizontal: 20, borderRadius: 12,
+    backgroundColor: '#f1f5f9', borderWidth: 1.5, borderColor: '#e2e8f0',
+  },
+  currencyChipActive: { backgroundColor: '#059669', borderColor: '#059669' },
+  currencyChipText: { fontSize: 14, fontWeight: '700', color: '#64748b' },
+  currencyChipTextActive: { color: '#fff' },
 });

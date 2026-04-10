@@ -1,6 +1,7 @@
 import { Tabs } from 'expo-router';
 import React from 'react';
 import { View, Text, StyleSheet, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HapticTab } from '@/components/haptic-tab';
 import { Brand, Colors } from '@/constants/theme';
@@ -11,6 +12,9 @@ import { Ionicons } from '@expo/vector-icons';
 export default function TabLayout() {
   const colorScheme = useColorScheme();
   const { unreadCount } = useSocket();
+  const insets = useSafeAreaInsets();
+  // Samsung 3-button nav: insets.bottom is 0 but we still need padding
+  const bottomPad = Platform.OS === 'android' ? Math.max(insets.bottom, 6) : insets.bottom;
 
   return (
     <Tabs
@@ -20,9 +24,9 @@ export default function TabLayout() {
         headerShown: false,
         tabBarButton: HapticTab,
         tabBarStyle: {
-          height: Platform.OS === 'ios' ? 88 : 68,
+          height: (Platform.OS === 'ios' ? 56 : 58) + bottomPad,
           paddingTop: 8,
-          paddingBottom: Platform.OS === 'ios' ? 28 : 10,
+          paddingBottom: bottomPad + 4,
           backgroundColor: '#fff',
           borderTopWidth: 1,
           borderTopColor: '#f0f0f0',

@@ -16,10 +16,10 @@ const ensureDriver = (req, res, next) => {
 // Summary stats for the driver
 router.get('/dashboard', authMiddleware, ensureDriver, async (req, res) => {
     try {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const tomorrow = new Date(today);
-        tomorrow.setDate(tomorrow.getDate() + 1);
+        // Use Turkey timezone (UTC+3) for "today" boundaries
+        const nowStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Istanbul' });
+        const today = new Date(`${nowStr}T00:00:00+03:00`);
+        const tomorrow = new Date(today.getTime() + 24 * 60 * 60 * 1000);
 
         const driverId = req.user.id;
 
@@ -64,10 +64,10 @@ router.get('/bookings', authMiddleware, ensureDriver, async (req, res) => {
         const driverId = req.user.id;
 
         let dateFilter = {};
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const tomorrow = new Date(today);
-        tomorrow.setDate(tomorrow.getDate() + 1);
+        // Use Turkey timezone (UTC+3) for date boundaries
+        const nowStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Istanbul' });
+        const today = new Date(`${nowStr}T00:00:00+03:00`);
+        const tomorrow = new Date(today.getTime() + 24 * 60 * 60 * 1000);
 
         if (type === 'today') {
             dateFilter = { startDate: { gte: today, lt: tomorrow } };
@@ -147,6 +147,10 @@ router.get('/bookings', authMiddleware, ensureDriver, async (req, res) => {
                     status: b.status,
                     acknowledgedAt: m.acknowledgedAt || null,
                     notes: b.specialRequests || m.notes || null,
+                    total: Number(b.total || 0),
+                    currency: b.currency || 'TRY',
+                    paymentStatus: b.paymentStatus,
+                    paymentMethod: m.paymentMethod || null,
                     metadata: m
                 });
                 // Update group status based on individual statuses
@@ -269,6 +273,7 @@ router.put('/bookings/:id/status', authMiddleware, ensureDriver, async (req, res
 router.put('/bookings/:id/payment-received', authMiddleware, ensureDriver, async (req, res) => {
     try {
         const { id } = req.params;
+        const { collectedAmount, collectedCurrency } = req.body;
 
         const booking = await prisma.booking.findFirst({
             where: { id, driverId: req.user.id }
@@ -283,21 +288,34 @@ router.put('/bookings/:id/payment-received', authMiddleware, ensureDriver, async
             return res.status(400).json({ success: false, error: 'Bu rezervasyon araçta ödeme değil' });
         }
 
+        const amount = collectedAmount !== undefined ? Number(collectedAmount) : Number(booking.total || 0);
+        const currency = collectedCurrency || booking.currency || 'TRY';
+
         const updated = await prisma.booking.update({
             where: { id },
             data: {
                 paymentStatus: 'PAID',
+                paidAmount: amount,
                 metadata: {
                     ...meta,
                     paymentReceivedAt: new Date().toISOString(),
-                    paymentReceivedBy: req.user.id
+                    paymentReceivedBy: req.user.id,
+                    collectedAmount: amount,
+                    collectedCurrency: currency
                 }
             }
         });
 
         const io = req.app.get('io');
         if (io) {
-            io.to('admin_monitoring').emit('booking_payment_update', { bookingId: id, paymentStatus: 'PAID', driverId: req.user.id });
+            io.to('admin_monitoring').emit('booking_payment_update', {
+                bookingId: id,
+                paymentStatus: 'PAID',
+                driverId: req.user.id,
+                driverName: req.user.fullName,
+                collectedAmount: amount,
+                collectedCurrency: currency
+            });
         }
 
         res.json({ success: true, data: updated });

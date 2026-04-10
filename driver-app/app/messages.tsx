@@ -258,7 +258,7 @@ export default function MessagesScreen() {
     };
 
     return (
-        <SafeAreaView style={styles.safe} edges={['bottom']}>
+        <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
             {/* Header */}
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
@@ -280,8 +280,8 @@ export default function MessagesScreen() {
             {/* Messages + Input with Keyboard Avoidance */}
             <KeyboardAvoidingView
                 style={{ flex: 1 }}
-                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-                keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
             >
                 {loading ? (
                     <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>

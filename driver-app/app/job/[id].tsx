@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Platform, Linking, ActivityIndicator, Alert } from 'react-native';
+import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Platform, Linking, ActivityIndicator, Alert, Modal, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAuth } from '../../context/AuthContext';
@@ -14,6 +14,10 @@ export default function JobDetailScreen() {
     const router = useRouter();
     const [job, setJob] = useState<any>(null);
     const [loading, setLoading] = useState(true);
+    const [paymentModal, setPaymentModal] = useState(false);
+    const [collectedAmount, setCollectedAmount] = useState('');
+    const [collectedCurrency, setCollectedCurrency] = useState('TRY');
+    const [paymentSaving, setPaymentSaving] = useState(false);
 
     useEffect(() => {
         fetchJobDetails();
@@ -63,6 +67,48 @@ export default function JobDetailScreen() {
             }
         } catch (e) {
             Alert.alert('Hata', 'Durum güncellenirken bir sorun oluştu.');
+        }
+    };
+
+    const handlePickup = () => {
+        const method = job.metadata?.paymentMethod;
+        const total = Number(job.total || 0);
+        const currency = job.currency || 'TRY';
+        if (method === 'PAY_IN_VEHICLE') {
+            setPaymentModal(true);
+            setCollectedAmount(String(total));
+            setCollectedCurrency(currency);
+        } else {
+            updateStatus('IN_PROGRESS');
+        }
+    };
+
+    const submitPaymentAndPickup = async () => {
+        const amount = parseFloat(collectedAmount);
+        if (isNaN(amount) || amount <= 0) {
+            Alert.alert('Uyarı', 'Lütfen geçerli bir tutar girin.');
+            return;
+        }
+        setPaymentSaving(true);
+        try {
+            const payRes = await fetch(`${API_URL}/driver/bookings/${id}/payment-received`, {
+                method: 'PUT',
+                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ collectedAmount: amount, collectedCurrency })
+            });
+            const payJson = await payRes.json();
+            if (!payJson.success) {
+                Alert.alert('Hata', payJson.error || 'Ödeme kaydedilemedi');
+                setPaymentSaving(false);
+                return;
+            }
+            await updateStatus('IN_PROGRESS');
+            Alert.alert('Başarılı', `${amount} ${collectedCurrency} ödeme alındı.`);
+            setPaymentModal(false);
+        } catch {
+            Alert.alert('Hata', 'Bağlantı hatası');
+        } finally {
+            setPaymentSaving(false);
         }
     };
 
@@ -168,19 +214,26 @@ export default function JobDetailScreen() {
                         <Ionicons name="person-outline" size={16} color={Brand.primary} />
                         <Text style={styles.sectionTitle}>Müşteri Bilgileri</Text>
                     </View>
-                    <InfoRow icon="person" value={`${job.customer?.firstName || ''} ${job.customer?.lastName || ''}`} />
+                    <InfoRow icon="person" value={
+                        job.contactName
+                            ? job.contactName
+                            : `${job.customer?.firstName || ''} ${job.customer?.lastName || ''}`.trim() || 'Belirtilmemiş'
+                    } />
                     <InfoRow
                         icon="call"
-                        value={job.customer?.phone || 'Telefon Yok'}
-                        onPress={job.customer?.phone ? () => Linking.openURL(`tel:${job.customer.phone}`) : undefined}
-                        highlight={!!job.customer?.phone}
+                        value={job.contactPhone || job.customer?.phone || 'Telefon Yok'}
+                        onPress={(job.contactPhone || job.customer?.phone) ? () => Linking.openURL(`tel:${job.contactPhone || job.customer?.phone}`) : undefined}
+                        highlight={!!(job.contactPhone || job.customer?.phone)}
                     />
+                    {(job.contactEmail || job.customer?.email) ? (
+                        <InfoRow icon="mail" value={job.contactEmail || job.customer?.email} />
+                    ) : null}
                     <InfoRow icon="people" value={`${job.adults || 0} Yetişkin, ${job.children || 0} Çocuk`} />
                     {(job.flightNumber || job.metadata?.flightNumber) && (
                         <InfoRow icon="airplane" value={job.flightNumber || job.metadata?.flightNumber} />
                     )}
                     {vehicle && <InfoRow icon="car" value={vehicle} />}
-                    {job.notes && <InfoRow icon="document-text" value={job.notes} />}
+                    {(job.specialRequests || job.notes) && <InfoRow icon="document-text" value={job.specialRequests || job.notes} />}
                 </View>
 
                 {/* Status Actions */}
@@ -191,7 +244,7 @@ export default function JobDetailScreen() {
                     </View>
 
                     {(job.status === 'CONFIRMED' || job.status === 'ASSIGNED') && (
-                        <TouchableOpacity style={[styles.fullBtn, { backgroundColor: Brand.success }]} onPress={() => updateStatus('IN_PROGRESS')}>
+                        <TouchableOpacity style={[styles.fullBtn, { backgroundColor: Brand.success }]} onPress={handlePickup}>
                             <Ionicons name="checkmark-circle" size={20} color="#fff" />
                             <Text style={styles.fullBtnText}>Müşteri Alındı</Text>
                         </TouchableOpacity>
@@ -226,6 +279,66 @@ export default function JobDetailScreen() {
                 </TouchableOpacity>
 
             </ScrollView>
+
+            {/* Payment Collection Modal */}
+            <Modal visible={paymentModal} animationType="slide" transparent>
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalCard}>
+                        <View style={styles.modalHeader}>
+                            <Text style={styles.modalTitle}>Ödeme Tahsilatı</Text>
+                            <TouchableOpacity onPress={() => setPaymentModal(false)}>
+                                <Ionicons name="close" size={24} color="#64748b" />
+                            </TouchableOpacity>
+                        </View>
+                        <View style={styles.payExpectedRow}>
+                            <Ionicons name="cash-outline" size={20} color="#059669" />
+                            <Text style={styles.payExpectedLabel}>Alınması Gereken Tutar:</Text>
+                        </View>
+                        <Text style={styles.payExpectedAmount}>
+                            {Number(job?.total || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} {job?.currency || 'TRY'}
+                        </Text>
+                        <Text style={styles.modalLabel}>Alınan Tutar</Text>
+                        <TextInput
+                            style={styles.payAmountInput}
+                            keyboardType="decimal-pad"
+                            placeholder="0.00"
+                            placeholderTextColor="#94a3b8"
+                            value={collectedAmount}
+                            onChangeText={setCollectedAmount}
+                        />
+                        <Text style={styles.modalLabel}>Para Birimi</Text>
+                        <View style={styles.currencyRow}>
+                            {['TRY', 'EUR', 'USD', 'GBP'].map(c => (
+                                <TouchableOpacity
+                                    key={c}
+                                    style={[styles.currencyChip, collectedCurrency === c && styles.currencyChipActive]}
+                                    onPress={() => setCollectedCurrency(c)}
+                                >
+                                    <Text style={[styles.currencyChipText, collectedCurrency === c && styles.currencyChipTextActive]}>{c}</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+                        <View style={styles.modalBtnRow}>
+                            <TouchableOpacity style={styles.modalCancel} onPress={() => setPaymentModal(false)}>
+                                <Text style={styles.modalCancelText}>İptal</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[styles.modalSubmit, { backgroundColor: '#059669' }, paymentSaving && { opacity: 0.6 }]}
+                                onPress={submitPaymentAndPickup}
+                                disabled={paymentSaving}
+                            >
+                                {paymentSaving
+                                    ? <ActivityIndicator color="#fff" size="small" />
+                                    : <>
+                                        <Ionicons name="checkmark-circle" size={16} color="#fff" />
+                                        <Text style={styles.modalSubmitText}>Ödeme Alındı</Text>
+                                    </>
+                                }
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
         </SafeAreaView>
     );
 }
@@ -404,4 +517,29 @@ const styles = StyleSheet.create({
         fontSize: 17,
         fontWeight: '700',
     },
+
+    // Payment modal
+    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+    modalCard: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 36 },
+    modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+    modalTitle: { fontSize: 18, fontWeight: '800', color: '#0f172a' },
+    payExpectedRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
+    payExpectedLabel: { fontSize: 14, color: '#374151', fontWeight: '600' },
+    payExpectedAmount: { fontSize: 28, fontWeight: '800', color: '#059669', marginVertical: 12, textAlign: 'center' },
+    modalLabel: { fontSize: 12, fontWeight: '600', color: '#64748b', marginTop: 14, marginBottom: 6 },
+    payAmountInput: {
+        backgroundColor: '#f9fafb', borderRadius: 12, borderWidth: 1.5, borderColor: '#e5e7eb',
+        paddingHorizontal: 16, height: 52, fontSize: 20, fontWeight: '700', color: '#111827', textAlign: 'center',
+        marginBottom: 12,
+    },
+    currencyRow: { flexDirection: 'row', gap: 10, marginBottom: 16, justifyContent: 'center' },
+    currencyChip: { paddingVertical: 8, paddingHorizontal: 20, borderRadius: 12, backgroundColor: '#f1f5f9', borderWidth: 1.5, borderColor: '#e2e8f0' },
+    currencyChipActive: { backgroundColor: '#059669', borderColor: '#059669' },
+    currencyChipText: { fontSize: 14, fontWeight: '700', color: '#64748b' },
+    currencyChipTextActive: { color: '#fff' },
+    modalBtnRow: { flexDirection: 'row', gap: 10, marginTop: 16 },
+    modalCancel: { flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: '#f1f5f9', alignItems: 'center' },
+    modalCancelText: { color: '#64748b', fontWeight: '600', fontSize: 14 },
+    modalSubmit: { flex: 1, flexDirection: 'row', paddingVertical: 12, borderRadius: 12, backgroundColor: '#059669', alignItems: 'center', justifyContent: 'center', gap: 6 },
+    modalSubmitText: { color: '#fff', fontWeight: '700', fontSize: 14 },
 });

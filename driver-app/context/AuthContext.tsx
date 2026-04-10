@@ -1,6 +1,11 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import * as SecureStore from 'expo-secure-store';
+import * as Location from 'expo-location';
+import * as TaskManager from 'expo-task-manager';
 import { router } from 'expo-router';
+import { Platform, BackHandler } from 'react-native';
+
+const LOCATION_TASK_NAME = 'background-location-task';
 
 interface AuthContextType {
     user: any | null;
@@ -54,17 +59,38 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     };
 
     const signOut = async () => {
-        // 1. Clear persisted data first
+        // 1. Stop all background tasks so the app truly stops
+        try {
+            const isRegistered = await TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME);
+            if (isRegistered) {
+                await Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME);
+            }
+        } catch (e) {
+            console.warn('Stop location task error:', e);
+        }
+
+        // 2. Clear all persisted data
         await SecureStore.deleteItemAsync('token');
         await SecureStore.deleteItemAsync('user');
-        // 2. Clear in-memory state (triggers AuthGuard redirect)
+
+        // 3. Clear in-memory state — triggers AuthGuard redirect
         setToken(null);
         setUser(null);
-        // 3. Force navigate to login as fallback (AuthGuard also handles this)
+
+        // 4. Navigate to login
+        //    On Android we try router.replace first, then exitApp as fallback.
+        //    Stopping the location task above kills the foreground service,
+        //    so the app won't linger in background anymore.
         try {
             router.replace('/');
         } catch (e) {
-            console.warn('signOut navigation fallback:', e);
+            console.warn('signOut navigation error:', e);
+        }
+        // Fallback: if navigation didn't work (Samsung quirk), force close
+        if (Platform.OS === 'android') {
+            setTimeout(() => {
+                BackHandler.exitApp();
+            }, 500);
         }
     };
 
