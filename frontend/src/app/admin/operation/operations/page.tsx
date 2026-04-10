@@ -2242,7 +2242,7 @@ export default function OperationsPage() {
                                     <Tooltip title="Varsayılana Dön">
                                         <Button size="small" icon={<UndoOutlined />} onClick={() => setShuttleCols(SHUTTLE_DEFAULT_COLS.map(c=>({...c})))} style={{ borderRadius: 6 }} />
                                     </Tooltip>
-                                    <Button size="small" icon={<ReloadOutlined />} onClick={fetchShuttleRuns} loading={shuttleRunsLoading} style={{ borderRadius: 6 }} />
+                                    <Button size="small" icon={<ReloadOutlined />} onClick={() => fetchShuttleRuns()} loading={shuttleRunsLoading} style={{ borderRadius: 6 }} />
                                 </>)}
 
                                 <Button size="small" icon={<FileExcelOutlined />} style={{ borderRadius: 6, background: '#16a34a', color: '#fff', border: 'none' }}>Excel</Button>
