@@ -306,6 +306,21 @@ router.put('/bookings/:id/payment-received', authMiddleware, ensureDriver, async
             }
         });
 
+        // Create DriverCollection record for accounting tracking
+        await prisma.driverCollection.create({
+            data: {
+                tenantId: req.user.tenantId,
+                driverId: req.user.id,
+                bookingId: id,
+                amount: Number(amount),
+                currency: currency,
+                customerName: booking.contactName,
+                bookingNumber: booking.bookingNumber,
+                paymentMethod: 'CASH',
+                status: 'PENDING'
+            }
+        });
+
         const io = req.app.get('io');
         if (io) {
             io.to('admin_monitoring').emit('booking_payment_update', {
@@ -991,6 +1006,152 @@ router.get('/emergency', authMiddleware, ensureDriver, async (req, res) => {
         const emergency = user.metadata?.emergency || { active: false };
         res.json({ success: true, data: emergency });
     } catch (error) {
+        res.status(500).json({ success: false, error: 'Server error' });
+    }
+});
+
+// ============================================================================
+// DRIVER COLLECTIONS MODULE
+// Track payments collected by drivers and handovers to accounting
+// ============================================================================
+
+// GET /api/driver/collections
+// List all collections by driver with optional status filter
+router.get('/collections', authMiddleware, ensureDriver, async (req, res) => {
+    try {
+        const { status } = req.query; // 'PENDING', 'HANDED_OVER', 'CONFIRMED'
+        const where = { driverId: req.user.id };
+        if (status) where.status = status;
+
+        const collections = await prisma.driverCollection.findMany({
+            where,
+            orderBy: { createdAt: 'desc' },
+            include: {
+                booking: {
+                    select: { bookingNumber: true, contactName: true }
+                },
+                handedOverToUser: {
+                    select: { fullName: true }
+                }
+            }
+        });
+
+        // Calculate totals by currency
+        const totals = collections.reduce((acc, c) => {
+            if (c.status === 'PENDING') {
+                acc[c.currency] = (acc[c.currency] || 0) + Number(c.amount);
+            }
+            return acc;
+        }, {});
+
+        res.json({
+            success: true,
+            data: { collections, totals }
+        });
+    } catch (error) {
+        console.error('Driver collections error:', error);
+        res.status(500).json({ success: false, error: 'Server error' });
+    }
+});
+
+// POST /api/driver/collections
+// Record a new payment collection (called when driver marks payment received)
+router.post('/collections', authMiddleware, ensureDriver, async (req, res) => {
+    try {
+        const { bookingId, amount, currency, customerName, bookingNumber, paymentMethod } = req.body;
+
+        if (!amount || isNaN(Number(amount))) {
+            return res.status(400).json({ success: false, error: 'Geçerli tutar gerekli' });
+        }
+
+        const collection = await prisma.driverCollection.create({
+            data: {
+                tenantId: req.user.tenantId,
+                driverId: req.user.id,
+                bookingId: bookingId || null,
+                amount: Number(amount),
+                currency: currency || 'TRY',
+                customerName: customerName || null,
+                bookingNumber: bookingNumber || null,
+                paymentMethod: paymentMethod || 'CASH',
+                status: 'PENDING'
+            }
+        });
+
+        res.json({ success: true, data: collection });
+    } catch (error) {
+        console.error('Create collection error:', error);
+        res.status(500).json({ success: false, error: 'Server error' });
+    }
+});
+
+// GET /api/driver/collections/accounting-personnel
+// List accounting personnel available for handover
+router.get('/collections/accounting-personnel', authMiddleware, ensureDriver, async (req, res) => {
+    try {
+        const personnel = await prisma.user.findMany({
+            where: {
+                tenantId: req.user.tenantId,
+                role: {
+                    type: { in: ['ADMIN', 'ACCOUNTANT', 'OPERATION_MANAGER', 'TENANT_ADMIN'] }
+                },
+                status: 'ACTIVE'
+            },
+            select: { id: true, fullName: true, email: true }
+        });
+
+        res.json({ success: true, data: personnel });
+    } catch (error) {
+        console.error('Accounting personnel error:', error);
+        res.status(500).json({ success: false, error: 'Server error' });
+    }
+});
+
+// POST /api/driver/collections/:id/handover
+// Hand over collections to accounting personnel
+router.post('/collections/:id/handover', authMiddleware, ensureDriver, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { handedOverTo, handoverNotes } = req.body;
+
+        if (!handedOverTo) {
+            return res.status(400).json({ success: false, error: 'Teslim alacak personel gerekli' });
+        }
+
+        const collection = await prisma.driverCollection.findFirst({
+            where: { id, driverId: req.user.id, status: 'PENDING' }
+        });
+
+        if (!collection) {
+            return res.status(404).json({ success: false, error: 'Tahsilat bulunamadı veya teslim edilmiş' });
+        }
+
+        const updated = await prisma.driverCollection.update({
+            where: { id },
+            data: {
+                status: 'HANDED_OVER',
+                handedOverAt: new Date(),
+                handedOverTo,
+                handoverNotes: handoverNotes || null
+            }
+        });
+
+        // Notify the accounting personnel
+        const io = req.app.get('io');
+        if (io) {
+            io.to(`user_${handedOverTo}`).emit('collection_handed_over', {
+                collectionId: id,
+                driverId: req.user.id,
+                driverName: req.user.fullName,
+                amount: collection.amount,
+                currency: collection.currency,
+                handedOverAt: new Date().toISOString()
+            });
+        }
+
+        res.json({ success: true, data: updated });
+    } catch (error) {
+        console.error('Handover error:', error);
         res.status(500).json({ success: false, error: 'Server error' });
     }
 });

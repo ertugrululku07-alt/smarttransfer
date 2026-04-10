@@ -186,6 +186,8 @@ model User {
   payments           Payment[]
   personnel          Personnel?
   approvedAgencyDeposits AgencyDeposit[] @relation("ApprovedDeposits")
+  driverCollections  DriverCollection[] @relation("DriverCollections")
+  handoversReceived DriverCollection[] @relation("HandoverRecipient")
   // Financial Snapshot
   balance Decimal @default(0) @db.Decimal(15, 2)
   debit   Decimal @default(0) @db.Decimal(15, 2)
@@ -856,6 +858,7 @@ model Booking {
 
   // Payments
   payments Payment[]
+  driverCollections DriverCollection[]
 
   // Metadata
   metadata  Json?
@@ -1706,4 +1709,50 @@ model ActivityLog {
   @@index([createdAt])
 }
 
+// ============================================================================
+// DRIVER COLLECTION MODULE
+// Tracks payments collected by drivers and handovers to accounting
+// ============================================================================
 
+model DriverCollection {
+  id          String   @id @default(uuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+
+  driverId    String
+  driver      User     @relation("DriverCollections", fields: [driverId], references: [id])
+
+  // Collection details
+  amount      Decimal  @db.Decimal(15, 2)
+  currency    String   @default("TRY")
+  bookingId   String?  // Optional link to booking
+  booking     Booking? @relation(fields: [bookingId], references: [id])
+
+  // Collection source info
+  customerName    String?
+  bookingNumber   String?
+  paymentMethod   String   @default("CASH") // CASH, CREDIT_CARD, etc.
+
+  // Handover status
+  status      CollectionStatus @default(PENDING)
+
+  // Handover details (when status is HANDED_OVER)
+  handedOverAt    DateTime?
+  handedOverTo    String?     // User ID of accounting personnel
+  handedOverToUser User?       @relation("HandoverRecipient", fields: [handedOverTo], references: [id])
+  handoverNotes   String?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([tenantId, driverId])
+  @@index([tenantId, status])
+  @@index([driverId, status])
+  @@index([createdAt])
+}
+
+enum CollectionStatus {
+  PENDING       // Bekliyor - Driver has collected, not yet handed over
+  HANDED_OVER   // Teslim Edildi - Handed to accounting
+  CONFIRMED     // Onaylandı - Accounting confirmed receipt
+}
