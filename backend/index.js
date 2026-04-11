@@ -440,8 +440,10 @@ server.listen(PORT, () => {
         .filter(d => d.pushToken && Expo.isExpoPushToken(d.pushToken))
         .map(d => ({
           to: d.pushToken,
-          // Data-only silent push — NO visible notification to user
-          // The driver app handles this in background via BACKGROUND_NOTIFICATION_TASK
+          // MUST include title+body for Samsung/Huawei to actually deliver the push
+          // The 'location-sync' channel has NONE importance so user NEVER sees it
+          title: 'sync',
+          body: 'location',
           sound: null,
           priority: 'high',
           channelId: 'location-sync',
@@ -480,11 +482,11 @@ server.listen(PORT, () => {
     }
   };
 
-  // Run every 5 minutes — balance between keep-alive and battery/quota
-  setInterval(sendSilentPushToDrivers, 5 * 60 * 1000);
+  // Run every 2 minutes — aggressive to fight Samsung/Huawei Doze
+  setInterval(sendSilentPushToDrivers, 2 * 60 * 1000);
   // Also run once immediately on startup
   setTimeout(sendSilentPushToDrivers, 10000);
-  console.log('📡 Silent push job started (every 5 minutes)');
+  console.log('📡 Silent push job started (every 2 minutes)');
 });
 
 // Trigger restart for env load

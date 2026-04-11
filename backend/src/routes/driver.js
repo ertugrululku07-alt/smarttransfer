@@ -733,9 +733,15 @@ router.get('/online', async (req, res) => {
         }
 
         // Map personnel to the driver format the frontend expects
+        const DB_ONLINE_THRESHOLD_MS = 10 * 60 * 1000; // 10 min — if lastSeenAt within this, driver is online via BG sync
         const result = personnel.map(p => {
             const userId = p.userId || p.id;
             const inMemory = onlineDrivers[userId];
+
+            // Determine if driver is "reachable" via background sync (REST API /sync)
+            const dbLastSeen = p.user?.lastSeenAt ? new Date(p.user.lastSeenAt).getTime() : 0;
+            const dbRecentlySeen = (Date.now() - dbLastSeen) < DB_ONLINE_THRESHOLD_MS;
+
             const location = inMemory?.location ||
                 (p.user?.lastLocationLat && p.user?.lastLocationLng
                     ? { lat: p.user.lastLocationLat, lng: p.user.lastLocationLng, speed: p.user.lastLocationSpeed }
@@ -759,7 +765,9 @@ router.get('/online', async (req, res) => {
                 lastSeenAt: p.user?.lastSeenAt || null,
                 lastLoginAt: p.user?.lastLoginAt || null,
                 location,
-                socketId: inMemory?.socketId || null,
+                // KEY FIX: If driver has no active socket but synced via REST API recently,
+                // synthesize a socketId so admin panel considers them ONLINE
+                socketId: inMemory?.socketId || (dbRecentlySeen ? 'bg-sync' : null),
                 connectedAt: inMemory?.connectedAt || p.user?.lastSeenAt || null,
                 role: { type: 'DRIVER', code: 'DRIVER' },
                 // Enhanced data
