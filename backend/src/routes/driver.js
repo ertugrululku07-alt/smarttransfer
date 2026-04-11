@@ -738,9 +738,15 @@ router.get('/online', async (req, res) => {
             const userId = p.userId || p.id;
             const inMemory = onlineDrivers[userId];
 
-            // Determine if driver is "reachable" via background sync (REST API /sync)
+            // Determine if driver is "reachable" via background sync or recent socket ping
             const dbLastSeen = p.user?.lastSeenAt ? new Date(p.user.lastSeenAt).getTime() : 0;
-            const dbRecentlySeen = (Date.now() - dbLastSeen) < DB_ONLINE_THRESHOLD_MS;
+            
+            // KEY FIX: Also check in-memory lastSeen. If the driver had the app open, 
+            // the DB lastSeenAt wasn't updating, only the inMemory lastSeen was updated via Socket!
+            const memLastSeen = inMemory?.lastSeen || 0;
+            const actualLastSeen = Math.max(dbLastSeen, memLastSeen);
+            
+            const isRecentlySeen = (Date.now() - actualLastSeen) < DB_ONLINE_THRESHOLD_MS;
 
             const location = inMemory?.location ||
                 (p.user?.lastLocationLat && p.user?.lastLocationLng
@@ -762,13 +768,13 @@ router.get('/online', async (req, res) => {
                 phone: p.phone,
                 jobTitle: p.jobTitle,
                 department: p.department,
-                lastSeenAt: p.user?.lastSeenAt || null,
+                lastSeenAt: actualLastSeen > 0 ? new Date(actualLastSeen).toISOString() : null,
                 lastLoginAt: p.user?.lastLoginAt || null,
                 location,
                 // KEY FIX: If driver has no active socket but synced via REST API recently,
                 // synthesize a socketId so admin panel considers them ONLINE
-                socketId: inMemory?.socketId || (dbRecentlySeen ? 'bg-sync' : null),
-                connectedAt: inMemory?.connectedAt || p.user?.lastSeenAt || null,
+                socketId: inMemory?.socketId || (isRecentlySeen ? 'bg-sync' : null),
+                connectedAt: inMemory?.connectedAt || (actualLastSeen > 0 ? new Date(actualLastSeen).toISOString() : null),
                 role: { type: 'DRIVER', code: 'DRIVER' },
                 // Enhanced data
                 activeBookings: driverBookings,
