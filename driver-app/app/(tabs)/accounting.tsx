@@ -5,7 +5,6 @@ import {
   Animated
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../../context/AuthContext';
 import { useSocket } from '../../context/SocketContext';
 import { Ionicons } from '@expo/vector-icons';
@@ -236,15 +235,10 @@ export default function AccountingScreen() {
             onPress={() => openHandoverModal(item)}
             activeOpacity={0.8}
           >
-            <LinearGradient
-              colors={['#4F46E5', '#6366F1']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={st.handoverGradient}
-            >
+            <View style={[st.handoverGradient, { backgroundColor: '#4F46E5' }]}>
               <Ionicons name="arrow-redo" size={16} color="#fff" />
               <Text style={st.handoverBtnText}>Muhasebeye Teslim Et</Text>
-            </LinearGradient>
+            </View>
           </TouchableOpacity>
         )}
       </View>
@@ -253,13 +247,8 @@ export default function AccountingScreen() {
 
   return (
     <View style={st.root}>
-      {/* ── GRADIENT HEADER ── */}
-      <LinearGradient
-        colors={['#0F172A', '#1E293B', '#334155']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={st.header}
-      >
+      {/* ── SOLID HEADER (Fallback for gradient) ── */}
+      <View style={[st.header, { backgroundColor: '#1E293B' }]}>
         <SafeAreaView edges={['top']} style={{ paddingBottom: 0 }}>
           {/* Decorative elements */}
           <View style={st.headerDecor1} />
@@ -309,7 +298,7 @@ export default function AccountingScreen() {
             </View>
           </ScrollView>
         </SafeAreaView>
-      </LinearGradient>
+      </View>
 
       {/* ── FILTER TABS ── */}
       <View style={st.tabBar}>
@@ -381,10 +370,7 @@ export default function AccountingScreen() {
 
             {/* Selected Amount */}
             {selectedCollection && (
-              <LinearGradient
-                colors={['#EEF2FF', '#E0E7FF']}
-                style={st.modalAmountCard}
-              >
+              <View style={[st.modalAmountCard, { backgroundColor: '#EEF2FF' }]}>
                 <Text style={st.modalAmountLabel}>Teslim Edilecek Tutar</Text>
                 <Text style={st.modalAmount}>
                   {formatCurrency(selectedCollection.amount, selectedCollection.currency)}
@@ -392,7 +378,7 @@ export default function AccountingScreen() {
                 <Text style={st.modalCustomer}>
                   {selectedCollection.customerName || 'İsimsiz Müşteri'}
                 </Text>
-              </LinearGradient>
+              </View>
             )}
 
             {/* Personnel Selection */}
@@ -465,12 +451,7 @@ export default function AccountingScreen() {
                 disabled={handoverLoading || !selectedPerson}
                 activeOpacity={0.8}
               >
-                <LinearGradient
-                  colors={(!selectedPerson || handoverLoading) ? ['#94A3B8', '#94A3B8'] : ['#4F46E5', '#6366F1']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={st.modalSubmitGradient}
-                >
+                <View style={[st.modalSubmitGradient, { backgroundColor: (!selectedPerson || handoverLoading) ? '#94A3B8' : '#4F46E5' }]}>
                   {handoverLoading ? (
                     <ActivityIndicator color="#fff" size="small" />
                   ) : (
@@ -479,7 +460,7 @@ export default function AccountingScreen() {
                       <Text style={st.modalSubmitText}>Teslim Et</Text>
                     </>
                   )}
-                </LinearGradient>
+                </View>
               </TouchableOpacity>
             </View>
           </View>
