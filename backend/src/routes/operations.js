@@ -1367,16 +1367,22 @@ router.get('/driver-collections', authMiddleware, async (req, res) => {
             }
         });
 
-        // Calculate summary stats
         const summary = collections.reduce((acc, c) => {
             const key = c.status;
             acc[key] = acc[key] || { count: 0, amounts: {} };
             acc[key].count++;
-            acc[key].amounts[c.currency] = (acc[key].amounts[c.currency] || 0) + Number(c.amount);
+            const amt = typeof c.amount === 'object' ? parseFloat(c.amount.toString()) : Number(c.amount);
+            acc[key].amounts[c.currency] = (acc[key].amounts[c.currency] || 0) + amt;
             return acc;
         }, {});
 
-        res.json({ success: true, data: { collections, summary } });
+        // Also ensure each collection's amount is a proper number for frontend
+        const cleanCollections = collections.map(c => ({
+            ...c,
+            amount: typeof c.amount === 'object' ? parseFloat(c.amount.toString()) : Number(c.amount)
+        }));
+
+        res.json({ success: true, data: { collections: cleanCollections, summary } });
     } catch (error) {
         console.error('Driver collections fetch error:', error);
         res.status(500).json({ success: false, error: 'Server error' });
