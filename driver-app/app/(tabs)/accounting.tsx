@@ -1,15 +1,18 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   StyleSheet, View, Text, FlatList, TouchableOpacity, RefreshControl,
-  Alert, Modal, ScrollView, ActivityIndicator, TextInput
+  Alert, Modal, ScrollView, ActivityIndicator, TextInput, Dimensions,
+  Animated
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../../context/AuthContext';
 import { useSocket } from '../../context/SocketContext';
 import { Ionicons } from '@expo/vector-icons';
 import { Brand } from '../../constants/theme';
 
 const API_URL = 'https://backend-production-69e7.up.railway.app/api';
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 interface Collection {
   id: string;
@@ -73,7 +76,7 @@ export default function AccountingScreen() {
     if (!socket) return;
     const handleConfirmed = (data: { collectionId: string; confirmedAt: string }) => {
       Alert.alert(
-        'Teslimat Onaylandı',
+        '✅ Teslimat Onaylandı',
         'Muhasebe tahsilatınızı onayladı.'
       );
       fetchCollections();
@@ -124,7 +127,7 @@ export default function AccountingScreen() {
       });
       const json = await res.json();
       if (json.success) {
-        Alert.alert('Başarılı', 'Tahsilat muhasebeye teslim edildi');
+        Alert.alert('✅ Başarılı', 'Tahsilat muhasebeye teslim edildi');
         setHandoverModal(false);
         fetchCollections();
       } else {
@@ -138,7 +141,9 @@ export default function AccountingScreen() {
   };
 
   const formatCurrency = (amount: number, currency: string) => {
-    return `${amount.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ${currency}`;
+    const symbols: Record<string, string> = { TRY: '₺', EUR: '€', USD: '$', GBP: '£' };
+    const sym = symbols[currency] || currency;
+    return `${sym}${amount.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
   const formatDate = (dateStr: string) => {
@@ -146,59 +151,100 @@ export default function AccountingScreen() {
     return date.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
   };
 
-  const getStatusStyle = (status: string) => {
+  const getStatusConfig = (status: string) => {
     switch (status) {
-      case 'PENDING': return { bg: '#fef3c7', color: '#92400e', label: 'Bekliyor' };
-      case 'HANDED_OVER': return { bg: '#dbeafe', color: '#1e40af', label: 'Teslim Edildi' };
-      case 'CONFIRMED': return { bg: '#dcfce7', color: '#166534', label: 'Onaylandı' };
-      default: return { bg: '#f3f4f6', color: '#6b7280', label: status };
+      case 'PENDING': return { 
+        bg: '#FFF7ED', border: '#FDBA74', color: '#C2410C', label: 'Bekliyor',
+        icon: 'time-outline' as const, gradient: ['#FB923C', '#F97316'] as const
+      };
+      case 'HANDED_OVER': return { 
+        bg: '#EFF6FF', border: '#93C5FD', color: '#1D4ED8', label: 'Teslim Edildi',
+        icon: 'arrow-redo-outline' as const, gradient: ['#60A5FA', '#3B82F6'] as const
+      };
+      case 'CONFIRMED': return { 
+        bg: '#F0FDF4', border: '#86EFAC', color: '#15803D', label: 'Onaylandı',
+        icon: 'checkmark-circle-outline' as const, gradient: ['#4ADE80', '#22C55E'] as const
+      };
+      default: return { 
+        bg: '#F9FAFB', border: '#D1D5DB', color: '#6B7280', label: status,
+        icon: 'help-outline' as const, gradient: ['#9CA3AF', '#6B7280'] as const
+      };
     }
   };
 
-  const renderCollection = ({ item }: { item: Collection }) => {
-    const status = getStatusStyle(item.status);
+  // Stats
+  const pendingCount = collections.filter(c => c.status === 'PENDING').length;
+  const handedOverCount = collections.filter(c => c.status === 'HANDED_OVER').length;
+  const confirmedCount = collections.filter(c => c.status === 'CONFIRMED').length;
+
+  const renderCollection = ({ item, index }: { item: Collection; index: number }) => {
+    const config = getStatusConfig(item.status);
     return (
-      <View style={st.collectionCard}>
-        <View style={st.collectionHeader}>
-          <View style={st.amountBox}>
-            <Text style={st.amountText}>{formatCurrency(item.amount, item.currency)}</Text>
+      <View style={[st.card, { borderLeftColor: config.border, borderLeftWidth: 4 }]}>
+        {/* Card Header */}
+        <View style={st.cardHeader}>
+          <View style={st.cardAmountSection}>
+            <Text style={st.cardAmount}>{formatCurrency(item.amount, item.currency)}</Text>
+            <Text style={st.cardCurrency}>{item.currency}</Text>
           </View>
-          <View style={[st.statusBadge, { backgroundColor: status.bg }]}>
-            <Text style={[st.statusText, { color: status.color }]}>{status.label}</Text>
+          <View style={[st.statusChip, { backgroundColor: config.bg, borderColor: config.border }]}>
+            <Ionicons name={config.icon} size={12} color={config.color} />
+            <Text style={[st.statusChipText, { color: config.color }]}>{config.label}</Text>
           </View>
         </View>
-        
-        <View style={st.collectionDetails}>
+
+        {/* Card Details */}
+        <View style={st.cardBody}>
           {item.customerName && (
-            <View style={st.detailRow}>
-              <Ionicons name="person" size={14} color="#64748b" />
-              <Text style={st.detailText}>{item.customerName}</Text>
+            <View style={st.cardRow}>
+              <View style={st.cardIconCircle}>
+                <Ionicons name="person" size={12} color="#8B5CF6" />
+              </View>
+              <Text style={st.cardRowText}>{item.customerName}</Text>
             </View>
           )}
           {item.bookingNumber && (
-            <View style={st.detailRow}>
-              <Ionicons name="document-text" size={14} color="#64748b" />
-              <Text style={st.detailText}>#{item.bookingNumber}</Text>
+            <View style={st.cardRow}>
+              <View style={st.cardIconCircle}>
+                <Ionicons name="receipt" size={12} color="#0EA5E9" />
+              </View>
+              <Text style={[st.cardRowText, { fontFamily: 'monospace' }]}>#{item.bookingNumber}</Text>
             </View>
           )}
-          <View style={st.detailRow}>
-            <Ionicons name="time" size={14} color="#64748b" />
-            <Text style={st.detailText}>{formatDate(item.createdAt)}</Text>
+          <View style={st.cardRow}>
+            <View style={st.cardIconCircle}>
+              <Ionicons name="calendar" size={12} color="#64748B" />
+            </View>
+            <Text style={st.cardRowText}>{formatDate(item.createdAt)}</Text>
           </View>
           {item.handedOverToUser && (
-            <View style={st.detailRow}>
-              <Ionicons name="checkmark-circle" size={14} color="#059669" />
-              <Text style={[st.detailText, { color: '#059669' }]}>
-                Teslim: {item.handedOverToUser.fullName}
+            <View style={st.cardRow}>
+              <View style={[st.cardIconCircle, { backgroundColor: '#F0FDF4' }]}>
+                <Ionicons name="checkmark-done" size={12} color="#16A34A" />
+              </View>
+              <Text style={[st.cardRowText, { color: '#16A34A', fontWeight: '600' }]}>
+                → {item.handedOverToUser.fullName}
               </Text>
             </View>
           )}
         </View>
 
+        {/* Handover Button */}
         {item.status === 'PENDING' && (
-          <TouchableOpacity style={st.handoverBtn} onPress={() => openHandoverModal(item)}>
-            <Ionicons name="arrow-redo" size={16} color="#fff" />
-            <Text style={st.handoverBtnText}>Muhasebeye Teslim Et</Text>
+          <TouchableOpacity
+            style={st.handoverBtn}
+            onPress={() => openHandoverModal(item)}
+            activeOpacity={0.8}
+          >
+            <LinearGradient
+              colors={['#4F46E5', '#6366F1']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={st.handoverGradient}
+            >
+              <Ionicons name="arrow-redo" size={16} color="#fff" />
+              <Text style={st.handoverBtnText}>Muhasebeye Teslim Et</Text>
+            </LinearGradient>
           </TouchableOpacity>
         )}
       </View>
@@ -206,233 +252,432 @@ export default function AccountingScreen() {
   };
 
   return (
-    <SafeAreaView style={st.container} edges={['top']}>
-      {/* Header */}
-      <View style={st.header}>
-        <Ionicons name="cash" size={22} color={Brand.primary} />
-        <Text style={st.title}>Tahsilatlarım</Text>
-      </View>
-
-      {/* Filter Tabs */}
-      <View style={st.tabs}>
-        {[
-          { key: 'ALL', label: 'Tümü' },
-          { key: 'PENDING', label: 'Bekleyen' },
-          { key: 'HANDED_OVER', label: 'Teslim' }
-        ].map((tab) => (
-          <TouchableOpacity
-            key={tab.key}
-            style={[st.tab, filter === tab.key && st.activeTab]}
-            onPress={() => setFilter(tab.key as any)}
-          >
-            <Text style={[st.tabText, filter === tab.key && st.activeTabText]}>{tab.label}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      {/* Totals Summary */}
-      {Object.keys(totals).length > 0 && (
-        <View style={st.totalsCard}>
-          <Text style={st.totalsTitle}>Bekleyen Tahsilatlar</Text>
-          <View style={st.totalsRow}>
-            {Object.entries(totals).map(([currency, amount]) => (
-              <View key={currency} style={st.totalItem}>
-                <Text style={st.totalAmount}>{formatCurrency(amount, currency)}</Text>
-                <Text style={st.totalCurrency}>{currency}</Text>
+    <View style={st.root}>
+      {/* ── GRADIENT HEADER ── */}
+      <LinearGradient
+        colors={['#0F172A', '#1E293B', '#334155']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={st.header}
+      >
+        <SafeAreaView edges={['top']} style={{ paddingBottom: 0 }}>
+          {/* Decorative elements */}
+          <View style={st.headerDecor1} />
+          <View style={st.headerDecor2} />
+          
+          <View style={st.headerContent}>
+            <View style={st.headerTitleRow}>
+              <View style={st.headerIconBox}>
+                <Ionicons name="wallet" size={20} color="#fff" />
               </View>
-            ))}
+              <View>
+                <Text style={st.headerTitle}>Tahsilatlarım</Text>
+                <Text style={st.headerSubtitle}>{collections.length} kayıt</Text>
+              </View>
+            </View>
           </View>
-        </View>
-      )}
 
-      {/* Collections List */}
+          {/* ── SUMMARY CARDS ── */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={st.summaryScroll}
+          >
+            <View style={[st.summaryCard, st.summaryPending]}>
+              <View style={st.summaryIconBox}>
+                <Ionicons name="time" size={18} color="#F59E0B" />
+              </View>
+              <Text style={st.summaryValue}>{pendingCount}</Text>
+              <Text style={st.summaryLabel}>Bekleyen</Text>
+              {Object.entries(totals).map(([cur, amt]) => (
+                <Text key={cur} style={st.summaryAmount}>{formatCurrency(amt, cur)}</Text>
+              ))}
+            </View>
+            <View style={[st.summaryCard, st.summaryHandedOver]}>
+              <View style={st.summaryIconBox}>
+                <Ionicons name="arrow-redo" size={18} color="#3B82F6" />
+              </View>
+              <Text style={st.summaryValue}>{handedOverCount}</Text>
+              <Text style={st.summaryLabel}>Teslim Edildi</Text>
+            </View>
+            <View style={[st.summaryCard, st.summaryConfirmed]}>
+              <View style={st.summaryIconBox}>
+                <Ionicons name="checkmark-circle" size={18} color="#22C55E" />
+              </View>
+              <Text style={st.summaryValue}>{confirmedCount}</Text>
+              <Text style={st.summaryLabel}>Onaylanan</Text>
+            </View>
+          </ScrollView>
+        </SafeAreaView>
+      </LinearGradient>
+
+      {/* ── FILTER TABS ── */}
+      <View style={st.tabBar}>
+        {[
+          { key: 'ALL', label: 'Tümü', icon: 'apps' as const },
+          { key: 'PENDING', label: 'Bekleyen', icon: 'time' as const },
+          { key: 'HANDED_OVER', label: 'Teslim', icon: 'checkmark-done' as const },
+        ].map((tab) => {
+          const active = filter === tab.key;
+          return (
+            <TouchableOpacity
+              key={tab.key}
+              style={[st.tab, active && st.tabActive]}
+              onPress={() => setFilter(tab.key as any)}
+              activeOpacity={0.7}
+            >
+              <Ionicons
+                name={tab.icon}
+                size={14}
+                color={active ? '#4F46E5' : '#94A3B8'}
+              />
+              <Text style={[st.tabText, active && st.tabTextActive]}>{tab.label}</Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
+      {/* ── COLLECTIONS LIST ── */}
       <FlatList
         data={collections}
         renderItem={renderCollection}
         keyExtractor={(item) => item.id}
         contentContainerStyle={st.list}
-        refreshControl={<RefreshControl refreshing={loading} onRefresh={fetchCollections} />}
+        refreshControl={<RefreshControl refreshing={loading} onRefresh={fetchCollections} tintColor="#4F46E5" />}
+        showsVerticalScrollIndicator={false}
         ListEmptyComponent={
-          <View style={st.empty}>
-            <Ionicons name="cash-outline" size={48} color={Brand.textLight} />
-            <Text style={st.emptyText}>Tahsilat bulunamadı.</Text>
+          <View style={st.emptyState}>
+            <View style={st.emptyIconBox}>
+              <Ionicons name="wallet-outline" size={36} color="#CBD5E1" />
+            </View>
+            <Text style={st.emptyTitle}>Henüz tahsilat yok</Text>
             <Text style={st.emptySub}>Ödeme aldıkça burada görünecek.</Text>
           </View>
         }
       />
 
-      {/* Handover Modal */}
+      {/* ── HANDOVER MODAL ── */}
       <Modal visible={handoverModal} animationType="slide" transparent>
         <View style={st.modalOverlay}>
           <View style={st.modalCard}>
+            {/* Modal Handle */}
+            <View style={st.modalHandle} />
+            
+            {/* Modal Header */}
             <View style={st.modalHeader}>
-              <Text style={st.modalTitle}>Muhasebeye Teslim</Text>
-              <TouchableOpacity onPress={() => setHandoverModal(false)}>
-                <Ionicons name="close" size={24} color="#64748b" />
+              <View style={st.modalHeaderLeft}>
+                <View style={st.modalIconBox}>
+                  <Ionicons name="swap-horizontal" size={18} color="#4F46E5" />
+                </View>
+                <Text style={st.modalTitle}>Muhasebeye Teslim</Text>
+              </View>
+              <TouchableOpacity
+                style={st.modalCloseBtn}
+                onPress={() => setHandoverModal(false)}
+              >
+                <Ionicons name="close" size={20} color="#64748b" />
               </TouchableOpacity>
             </View>
 
+            {/* Selected Amount */}
             {selectedCollection && (
-              <View style={st.selectedInfo}>
-                <Text style={st.selectedAmount}>
+              <LinearGradient
+                colors={['#EEF2FF', '#E0E7FF']}
+                style={st.modalAmountCard}
+              >
+                <Text style={st.modalAmountLabel}>Teslim Edilecek Tutar</Text>
+                <Text style={st.modalAmount}>
                   {formatCurrency(selectedCollection.amount, selectedCollection.currency)}
                 </Text>
-                <Text style={st.selectedCustomer}>
+                <Text style={st.modalCustomer}>
                   {selectedCollection.customerName || 'İsimsiz Müşteri'}
                 </Text>
-              </View>
+              </LinearGradient>
             )}
 
-            <Text style={st.modalLabel}>Teslim Alacak Personel</Text>
-            <ScrollView style={st.personnelList}>
-              {personnel.map((p) => (
-                <TouchableOpacity
-                  key={p.id}
-                  style={[st.personnelItem, selectedPerson === p.id && st.personnelActive]}
-                  onPress={() => setSelectedPerson(p.id)}
-                >
-                  <Ionicons
-                    name={selectedPerson === p.id ? 'radio-button-on' : 'radio-button-off'}
-                    size={20}
-                    color={selectedPerson === p.id ? Brand.primary : '#94a3b8'}
-                  />
-                  <View style={st.personnelInfo}>
-                    <Text style={[st.personnelName, selectedPerson === p.id && st.personnelNameActive]}>
-                      {p.fullName}
-                    </Text>
-                    <Text style={st.personnelEmail}>{p.email}</Text>
-                  </View>
-                </TouchableOpacity>
-              ))}
+            {/* Personnel Selection */}
+            <Text style={st.modalSectionLabel}>
+              <Ionicons name="people" size={13} color="#64748B" /> Teslim Alacak Personel
+            </Text>
+            <ScrollView style={st.personnelList} showsVerticalScrollIndicator={false}>
+              {personnel.length === 0 ? (
+                <View style={st.personnelEmpty}>
+                  <ActivityIndicator color="#4F46E5" />
+                  <Text style={st.personnelEmptyText}>Personel yükleniyor...</Text>
+                </View>
+              ) : (
+                personnel.map((p) => {
+                  const isActive = selectedPerson === p.id;
+                  return (
+                    <TouchableOpacity
+                      key={p.id}
+                      style={[st.personnelItem, isActive && st.personnelItemActive]}
+                      onPress={() => setSelectedPerson(p.id)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={[st.personnelAvatar, isActive && st.personnelAvatarActive]}>
+                        <Text style={[st.personnelAvatarText, isActive && { color: '#fff' }]}>
+                          {p.fullName.charAt(0)}
+                        </Text>
+                      </View>
+                      <View style={st.personnelInfo}>
+                        <Text style={[st.personnelName, isActive && st.personnelNameActive]}>
+                          {p.fullName}
+                        </Text>
+                        <Text style={st.personnelEmail}>{p.email}</Text>
+                      </View>
+                      <Ionicons
+                        name={isActive ? 'checkmark-circle' : 'ellipse-outline'}
+                        size={22}
+                        color={isActive ? '#4F46E5' : '#D1D5DB'}
+                      />
+                    </TouchableOpacity>
+                  );
+                })
+              )}
             </ScrollView>
 
-            <Text style={st.modalLabel}>Not (opsiyonel)</Text>
+            {/* Notes */}
+            <Text style={st.modalSectionLabel}>
+              <Ionicons name="chatbox-ellipses" size={13} color="#64748B" /> Not (opsiyonel)
+            </Text>
             <TextInput
               style={st.modalInput}
-              placeholder="Teslimat notu..."
-              placeholderTextColor="#94a3b8"
+              placeholder="Teslimat notu ekleyin..."
+              placeholderTextColor="#94A3B8"
               value={handoverNotes}
               onChangeText={setHandoverNotes}
               multiline
               numberOfLines={2}
             />
 
+            {/* Action Buttons */}
             <View style={st.modalBtnRow}>
-              <TouchableOpacity style={st.modalCancel} onPress={() => setHandoverModal(false)}>
+              <TouchableOpacity
+                style={st.modalCancelBtn}
+                onPress={() => setHandoverModal(false)}
+              >
                 <Text style={st.modalCancelText}>İptal</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[st.modalSubmit, handoverLoading && { opacity: 0.6 }]}
+                style={[st.modalSubmitBtn, (!selectedPerson || handoverLoading) && st.modalSubmitDisabled]}
                 onPress={submitHandover}
                 disabled={handoverLoading || !selectedPerson}
+                activeOpacity={0.8}
               >
-                {handoverLoading ? (
-                  <ActivityIndicator color="#fff" size="small" />
-                ) : (
-                  <>
-                    <Ionicons name="checkmark-circle" size={16} color="#fff" />
-                    <Text style={st.modalSubmitText}>Teslim Et</Text>
-                  </>
-                )}
+                <LinearGradient
+                  colors={(!selectedPerson || handoverLoading) ? ['#94A3B8', '#94A3B8'] : ['#4F46E5', '#6366F1']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={st.modalSubmitGradient}
+                >
+                  {handoverLoading ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    <>
+                      <Ionicons name="checkmark-circle" size={18} color="#fff" />
+                      <Text style={st.modalSubmitText}>Teslim Et</Text>
+                    </>
+                  )}
+                </LinearGradient>
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const st = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f1f5f9' },
+  root: { flex: 1, backgroundColor: '#F8FAFC' },
+
+  // ── HEADER ──
   header: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    paddingHorizontal: 20, paddingVertical: 14,
-    backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#e2e8f0',
+    paddingBottom: 0,
+    overflow: 'hidden',
   },
-  title: { fontSize: 17, fontWeight: '700', color: '#0f172a', flex: 1 },
-
-  tabs: { flexDirection: 'row', paddingHorizontal: 16, paddingVertical: 10, gap: 8 },
-  tab: { paddingVertical: 7, paddingHorizontal: 14, borderRadius: 20, backgroundColor: '#e2e8f0' },
-  activeTab: { backgroundColor: Brand.primary },
-  tabText: { color: '#64748b', fontWeight: '600', fontSize: 13 },
-  activeTabText: { color: '#fff' },
-
-  totalsCard: {
-    backgroundColor: '#fff', marginHorizontal: 16, marginBottom: 12,
-    padding: 16, borderRadius: 16,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2
+  headerDecor1: {
+    position: 'absolute', width: 200, height: 200, borderRadius: 100,
+    backgroundColor: 'rgba(79, 70, 229, 0.08)', top: -60, right: -40,
   },
-  totalsTitle: { fontSize: 13, fontWeight: '600', color: '#64748b', marginBottom: 8 },
-  totalsRow: { flexDirection: 'row', gap: 16, flexWrap: 'wrap' },
-  totalItem: { alignItems: 'center' },
-  totalAmount: { fontSize: 20, fontWeight: '800', color: '#0f172a' },
-  totalCurrency: { fontSize: 12, fontWeight: '600', color: '#64748b', marginTop: 2 },
-
-  list: { paddingHorizontal: 16, paddingBottom: 20 },
-
-  collectionCard: {
-    backgroundColor: '#fff', borderRadius: 16, padding: 14, marginBottom: 10,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2
+  headerDecor2: {
+    position: 'absolute', width: 120, height: 120, borderRadius: 60,
+    backgroundColor: 'rgba(99, 102, 241, 0.06)', bottom: 40, left: -30,
   },
-  collectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-  amountBox: { backgroundColor: '#ecfdf5', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10 },
-  amountText: { fontSize: 16, fontWeight: '800', color: '#059669' },
-  statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
-  statusText: { fontSize: 11, fontWeight: '700' },
-
-  collectionDetails: { gap: 6, marginBottom: 12 },
-  detailRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  detailText: { fontSize: 13, color: '#475569' },
-
-  handoverBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-    backgroundColor: Brand.primary, paddingVertical: 10, borderRadius: 12
+  headerContent: { paddingHorizontal: 20, paddingTop: 8 },
+  headerTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  headerIconBox: {
+    width: 40, height: 40, borderRadius: 12,
+    backgroundColor: 'rgba(99, 102, 241, 0.2)',
+    justifyContent: 'center', alignItems: 'center',
   },
-  handoverBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  headerTitle: { color: '#fff', fontSize: 20, fontWeight: '800', letterSpacing: 0.3 },
+  headerSubtitle: { color: 'rgba(255,255,255,0.5)', fontSize: 12, fontWeight: '500', marginTop: 2 },
 
-  empty: { padding: 60, alignItems: 'center' },
-  emptyText: { color: '#64748b', fontSize: 16, fontWeight: '600', marginTop: 12 },
-  emptySub: { color: '#94a3b8', fontSize: 13, marginTop: 4 },
+  // ── SUMMARY CARDS ──
+  summaryScroll: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 20, gap: 10 },
+  summaryCard: {
+    width: 130, backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 16, padding: 14, borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+  },
+  summaryPending: { borderLeftWidth: 3, borderLeftColor: '#F59E0B' },
+  summaryHandedOver: { borderLeftWidth: 3, borderLeftColor: '#3B82F6' },
+  summaryConfirmed: { borderLeftWidth: 3, borderLeftColor: '#22C55E' },
+  summaryIconBox: { marginBottom: 8 },
+  summaryValue: { color: '#fff', fontSize: 28, fontWeight: '900', letterSpacing: -1 },
+  summaryLabel: { color: 'rgba(255,255,255,0.5)', fontSize: 11, fontWeight: '600', marginTop: 2 },
+  summaryAmount: { color: '#C7D2FE', fontSize: 12, fontWeight: '700', marginTop: 6 },
 
-  // Modal
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  // ── TABS ──
+  tabBar: {
+    flexDirection: 'row', paddingHorizontal: 16, paddingVertical: 10, gap: 8,
+    backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#F1F5F9',
+  },
+  tab: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    paddingVertical: 8, paddingHorizontal: 14, borderRadius: 12,
+    backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0',
+  },
+  tabActive: {
+    backgroundColor: '#EEF2FF', borderColor: '#C7D2FE',
+  },
+  tabText: { color: '#94A3B8', fontWeight: '600', fontSize: 13 },
+  tabTextActive: { color: '#4F46E5' },
+
+  // ── LIST ──
+  list: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 30 },
+
+  // ── CARD ──
+  card: {
+    backgroundColor: '#fff', borderRadius: 16, padding: 16, marginBottom: 12,
+    shadowColor: '#1E293B', shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06, shadowRadius: 16, elevation: 3,
+    borderWidth: 1, borderColor: '#F1F5F9',
+  },
+  cardHeader: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    marginBottom: 12,
+  },
+  cardAmountSection: { flexDirection: 'row', alignItems: 'baseline', gap: 6 },
+  cardAmount: { fontSize: 20, fontWeight: '900', color: '#0F172A', letterSpacing: -0.5 },
+  cardCurrency: { fontSize: 12, fontWeight: '600', color: '#94A3B8' },
+  statusChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20,
+    borderWidth: 1,
+  },
+  statusChipText: { fontSize: 11, fontWeight: '700' },
+
+  cardBody: { gap: 8 },
+  cardRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  cardIconCircle: {
+    width: 26, height: 26, borderRadius: 8,
+    backgroundColor: '#F8FAFC', justifyContent: 'center', alignItems: 'center',
+  },
+  cardRowText: { fontSize: 13, color: '#475569', fontWeight: '500' },
+
+  handoverBtn: { marginTop: 14 },
+  handoverGradient: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    paddingVertical: 12, borderRadius: 12,
+  },
+  handoverBtnText: { color: '#fff', fontWeight: '700', fontSize: 14, letterSpacing: 0.3 },
+
+  // ── EMPTY ──
+  emptyState: { padding: 60, alignItems: 'center' },
+  emptyIconBox: {
+    width: 72, height: 72, borderRadius: 24,
+    backgroundColor: '#F1F5F9', justifyContent: 'center', alignItems: 'center',
+    marginBottom: 16,
+  },
+  emptyTitle: { color: '#475569', fontSize: 16, fontWeight: '700' },
+  emptySub: { color: '#94A3B8', fontSize: 13, marginTop: 4 },
+
+  // ── MODAL ──
+  modalOverlay: {
+    flex: 1, backgroundColor: 'rgba(15, 23, 42, 0.6)',
+    justifyContent: 'flex-end',
+  },
   modalCard: {
-    backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24,
-    padding: 20, paddingBottom: 36, maxHeight: '85%'
+    backgroundColor: '#fff', borderTopLeftRadius: 28, borderTopRightRadius: 28,
+    paddingHorizontal: 20, paddingBottom: 40, maxHeight: '90%',
   },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  modalTitle: { fontSize: 18, fontWeight: '800', color: '#0f172a' },
-
-  selectedInfo: {
-    backgroundColor: '#f0fdf4', padding: 14, borderRadius: 12,
-    marginBottom: 16, alignItems: 'center'
+  modalHandle: {
+    width: 40, height: 4, borderRadius: 2,
+    backgroundColor: '#E2E8F0', alignSelf: 'center', marginTop: 12, marginBottom: 16,
   },
-  selectedAmount: { fontSize: 24, fontWeight: '800', color: '#059669' },
-  selectedCustomer: { fontSize: 14, color: '#64748b', marginTop: 4 },
+  modalHeader: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    marginBottom: 16,
+  },
+  modalHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  modalIconBox: {
+    width: 36, height: 36, borderRadius: 10,
+    backgroundColor: '#EEF2FF', justifyContent: 'center', alignItems: 'center',
+  },
+  modalTitle: { fontSize: 18, fontWeight: '800', color: '#0F172A' },
+  modalCloseBtn: {
+    width: 32, height: 32, borderRadius: 8,
+    backgroundColor: '#F8FAFC', justifyContent: 'center', alignItems: 'center',
+  },
 
-  modalLabel: { fontSize: 12, fontWeight: '600', color: '#64748b', marginBottom: 8, marginTop: 8 },
-  personnelList: { maxHeight: 200, marginBottom: 12 },
+  modalAmountCard: {
+    padding: 20, borderRadius: 16, marginBottom: 20, alignItems: 'center',
+    borderWidth: 1, borderColor: '#C7D2FE',
+  },
+  modalAmountLabel: { fontSize: 11, fontWeight: '600', color: '#6366F1', letterSpacing: 0.5, textTransform: 'uppercase' },
+  modalAmount: { fontSize: 32, fontWeight: '900', color: '#4F46E5', marginTop: 4, letterSpacing: -1 },
+  modalCustomer: { fontSize: 13, color: '#64748B', marginTop: 4 },
+
+  modalSectionLabel: {
+    fontSize: 12, fontWeight: '700', color: '#64748B', marginBottom: 10,
+    letterSpacing: 0.3,
+  },
+  personnelList: { maxHeight: 180, marginBottom: 16 },
+  personnelEmpty: {
+    padding: 20, alignItems: 'center', gap: 8,
+  },
+  personnelEmptyText: { color: '#94A3B8', fontSize: 12 },
   personnelItem: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
-    paddingVertical: 12, paddingHorizontal: 10, borderBottomWidth: 1, borderBottomColor: '#f1f5f9'
+    paddingVertical: 12, paddingHorizontal: 12, borderRadius: 14,
+    marginBottom: 6, borderWidth: 1.5, borderColor: '#F1F5F9',
+    backgroundColor: '#FAFBFC',
   },
-  personnelActive: { backgroundColor: '#eff6ff', borderRadius: 10 },
+  personnelItemActive: {
+    borderColor: '#C7D2FE', backgroundColor: '#EEF2FF',
+  },
+  personnelAvatar: {
+    width: 38, height: 38, borderRadius: 12,
+    backgroundColor: '#E2E8F0', justifyContent: 'center', alignItems: 'center',
+  },
+  personnelAvatarActive: {
+    backgroundColor: '#4F46E5',
+  },
+  personnelAvatarText: { fontSize: 15, fontWeight: '800', color: '#64748B' },
   personnelInfo: { flex: 1 },
-  personnelName: { fontSize: 14, fontWeight: '600', color: '#334155' },
-  personnelNameActive: { color: Brand.primary },
-  personnelEmail: { fontSize: 12, color: '#94a3b8', marginTop: 2 },
+  personnelName: { fontSize: 14, fontWeight: '700', color: '#1E293B' },
+  personnelNameActive: { color: '#4F46E5' },
+  personnelEmail: { fontSize: 11, color: '#94A3B8', marginTop: 1 },
 
   modalInput: {
-    backgroundColor: '#f8fafc', borderRadius: 12, borderWidth: 1, borderColor: '#e2e8f0',
-    padding: 12, fontSize: 14, color: '#0f172a', minHeight: 60, textAlignVertical: 'top'
+    backgroundColor: '#F8FAFC', borderRadius: 14, borderWidth: 1.5, borderColor: '#E2E8F0',
+    padding: 14, fontSize: 14, color: '#0F172A', minHeight: 56, textAlignVertical: 'top',
+    marginBottom: 16,
   },
-  modalBtnRow: { flexDirection: 'row', gap: 10, marginTop: 16 },
-  modalCancel: { flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: '#f1f5f9', alignItems: 'center' },
-  modalCancelText: { color: '#64748b', fontWeight: '600', fontSize: 14 },
-  modalSubmit: {
-    flex: 1, flexDirection: 'row', paddingVertical: 12, borderRadius: 12,
-    backgroundColor: Brand.primary, alignItems: 'center', justifyContent: 'center', gap: 6
+  modalBtnRow: { flexDirection: 'row', gap: 10, marginTop: 4 },
+  modalCancelBtn: {
+    flex: 0.4, paddingVertical: 14, borderRadius: 14,
+    backgroundColor: '#F1F5F9', alignItems: 'center',
   },
-  modalSubmitText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  modalCancelText: { color: '#64748B', fontWeight: '700', fontSize: 15 },
+  modalSubmitBtn: { flex: 0.6 },
+  modalSubmitDisabled: { opacity: 0.6 },
+  modalSubmitGradient: {
+    flexDirection: 'row', paddingVertical: 14, borderRadius: 14,
+    alignItems: 'center', justifyContent: 'center', gap: 8,
+  },
+  modalSubmitText: { color: '#fff', fontWeight: '800', fontSize: 15 },
 });

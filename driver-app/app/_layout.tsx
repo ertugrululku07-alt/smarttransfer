@@ -48,9 +48,11 @@ Notifications.setNotificationHandler({
 
 // Create a silent notification channel for location-sync pushes (Android)
 if (Platform.OS === 'android') {
+  // NONE importance = notifications on this channel are COMPLETELY invisible to user
+  // No popup, no sound, no badge, not even in the notification drawer
   Notifications.setNotificationChannelAsync('location-sync', {
     name: 'Konum Senkronizasyonu',
-    importance: Notifications.AndroidImportance.MIN,
+    importance: Notifications.AndroidImportance.NONE,
     sound: null,
     vibrationPattern: [],
     showBadge: false,

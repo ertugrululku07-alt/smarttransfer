@@ -440,11 +440,9 @@ server.listen(PORT, () => {
         .filter(d => d.pushToken && Expo.isExpoPushToken(d.pushToken))
         .map(d => ({
           to: d.pushToken,
-          // Huawei EMUI suppresses data-only push. Include title/body with
-          // priority:high so FCM wakes the process even if doze-mode is on.
-          title: '📍 Konum Senkronizasyonu',
-          body: 'Konum bilginiz güncelleniyor...',
-          sound: null, // No sound — this is a maintenance notification
+          // Data-only silent push — NO visible notification to user
+          // The driver app handles this in background via BACKGROUND_NOTIFICATION_TASK
+          sound: null,
           priority: 'high',
           channelId: 'location-sync',
           data: { type: 'LOCATION_REQUEST', timestamp: Date.now() },
@@ -471,7 +469,7 @@ server.listen(PORT, () => {
           });
           // Only log occasionally to avoid spam
           if (Math.random() < 0.1) {
-            console.log(`[Push] Sent wake-up to ${messages.length} driver(s)`);
+            console.log(`[Push] Sent silent wake-up to ${messages.length} driver(s)`);
           }
         } catch (err) {
           console.error('[Push] Error sending chunk:', err.message);
@@ -482,11 +480,11 @@ server.listen(PORT, () => {
     }
   };
 
-  // Run every 3 minutes — balance between keep-alive and battery/quota
-  setInterval(sendSilentPushToDrivers, 3 * 60 * 1000);
+  // Run every 5 minutes — balance between keep-alive and battery/quota
+  setInterval(sendSilentPushToDrivers, 5 * 60 * 1000);
   // Also run once immediately on startup
   setTimeout(sendSilentPushToDrivers, 10000);
-  console.log('📡 Silent push job started (every 3 minutes)');
+  console.log('📡 Silent push job started (every 5 minutes)');
 });
 
 // Trigger restart for env load

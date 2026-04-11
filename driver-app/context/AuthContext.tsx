@@ -59,7 +59,24 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     };
 
     const signOut = async () => {
-        // 1. Stop all background tasks so the app truly stops
+        const API_URL = 'https://backend-production-69e7.up.railway.app/api';
+
+        // 1. Clear push token on backend (stops silent push notifications)
+        try {
+            if (token) {
+                await fetch(`${API_URL}/driver/push-token`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+            }
+        } catch (e) {
+            console.warn('Push token cleanup error (non-fatal):', e);
+        }
+
+        // 2. Stop background location task
         try {
             const isRegistered = await TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME);
             if (isRegistered) {
@@ -69,18 +86,27 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             console.warn('Stop location task error:', e);
         }
 
-        // 2. Clear all persisted data
+        // 3. Stop background fetch task
+        try {
+            const BG_FETCH_TASK = 'background-sync-task';
+            const isBgRegistered = await TaskManager.isTaskRegisteredAsync(BG_FETCH_TASK);
+            if (isBgRegistered) {
+                await TaskManager.unregisterTaskAsync(BG_FETCH_TASK);
+            }
+        } catch (e) {
+            console.warn('Stop BG fetch task error:', e);
+        }
+
+        // 4. Clear ALL persisted data (prevents bg tasks from re-activating)
         await SecureStore.deleteItemAsync('token');
         await SecureStore.deleteItemAsync('user');
+        await SecureStore.deleteItemAsync('lastSyncTime');
 
-        // 3. Clear in-memory state — triggers AuthGuard redirect
+        // 5. Clear in-memory state — triggers AuthGuard redirect
         setToken(null);
         setUser(null);
 
-        // 4. Navigate to login
-        //    On Android we try router.replace first, then exitApp as fallback.
-        //    Stopping the location task above kills the foreground service,
-        //    so the app won't linger in background anymore.
+        // 6. Navigate to login
         try {
             router.replace('/');
         } catch (e) {

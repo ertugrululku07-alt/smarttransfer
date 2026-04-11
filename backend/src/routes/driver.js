@@ -476,6 +476,22 @@ router.post('/push-token', authMiddleware, async (req, res) => {
     }
 });
 
+// DELETE /api/driver/push-token
+// Remove push token on logout so server stops sending silent pushes to this device
+router.delete('/push-token', authMiddleware, async (req, res) => {
+    try {
+        await prisma.user.update({
+            where: { id: req.user.id },
+            data: { pushToken: null }
+        });
+        console.log(`[Push] Token cleared for ${req.user.fullName} (logout)`);
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Push token clear error:', error);
+        res.status(500).json({ success: false, error: 'Server error' });
+    }
+});
+
 // POST /api/driver/sync
 // Receives background location updates AND returns pending notifications
 router.post('/sync', authMiddleware, async (req, res) => {
@@ -1092,10 +1108,19 @@ router.get('/collections/accounting-personnel', authMiddleware, ensureDriver, as
         const personnel = await prisma.user.findMany({
             where: {
                 tenantId: req.user.tenantId,
+                status: 'ACTIVE',
                 role: {
-                    type: { in: ['ADMIN', 'ACCOUNTANT', 'OPERATION_MANAGER', 'TENANT_ADMIN'] }
+                    OR: [
+                        // Match by role type (from enum RoleType)
+                        { type: { in: ['SUPER_ADMIN', 'TENANT_ADMIN', 'TENANT_MANAGER', 'TENANT_STAFF'] } },
+                        // Also match by role code (custom defined roles)
+                        { code: { in: ['ADMIN', 'SUPER_ADMIN', 'TENANT_ADMIN', 'ACCOUNTANT', 'OPERATION'] } }
+                    ]
                 },
-                status: 'ACTIVE'
+                // Exclude drivers/partners — they shouldn't receive handovers
+                NOT: {
+                    role: { type: { in: ['DRIVER', 'PARTNER', 'CUSTOMER'] } }
+                }
             },
             select: { id: true, fullName: true, email: true }
         });
