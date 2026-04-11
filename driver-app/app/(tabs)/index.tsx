@@ -145,26 +145,24 @@ export default function DashboardScreen() {
         );
       }
 
-      const isRegistered = await TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME);
-      if (!isRegistered) {
-        await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
-          accuracy: Location.Accuracy.Balanced,
-          timeInterval: 10000,       // 10 seconds — more aggressive for Huawei
-          distanceInterval: 5,       // 5m — ensures callbacks even when barely moving
-          deferredUpdatesInterval: 10000,
-          deferredUpdatesDistance: 5,
-          showsBackgroundLocationIndicator: true,
-          activityType: Location.ActivityType.AutomotiveNavigation,
-          pausesUpdatesAutomatically: false,  // CRITICAL: prevents iOS/Android from pausing
-          foregroundService: {
-            notificationTitle: 'SmartTransfer Sürücü',
-            notificationBody: 'Konum paylaşımı aktif',
-            notificationColor: '#4361ee',
-            killServiceOnDestroy: false,  // Keep service alive even if app is swiped away
-            notificationChannelId: 'location-tracking',  // HIGH importance channel — Huawei won't kill this
-          }
-        });
-      }
+      // We purposely call startLocationUpdatesAsync EVERY TIME the app reaches foreground.
+      // Even if TaskManager says "isRegistered" = true, Android's Doze mode may have silently
+      // suppressed the foreground service. Calling it again forces OS to re-awaken it.
+      await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
+        accuracy: Location.Accuracy.High, // Force GPS hardware to stay on
+        timeInterval: 10000,       // 10 seconds constant ping
+        distanceInterval: 0,       // DO NOT wait for distance changes (prevents sleep freeze)
+        showsBackgroundLocationIndicator: true,
+        activityType: Location.ActivityType.AutomotiveNavigation,
+        pausesUpdatesAutomatically: false,  // CRITICAL: prevents iOS/Android from pausing
+        foregroundService: {
+          notificationTitle: 'SmartTransfer Sürücü',
+          notificationBody: 'Arka planda konum takip ediliyor.',
+          notificationColor: '#4361ee',
+          killServiceOnDestroy: false,
+          notificationChannelId: 'location-tracking',
+        }
+      });
       setLocationActive(true);
     } catch (err) {
       console.error('Location error:', err);
