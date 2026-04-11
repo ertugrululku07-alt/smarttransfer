@@ -244,12 +244,41 @@ async function handleLocationSyncRequest() {
 
     let location: Location.LocationObject | null = null;
     try {
-      location = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-        timeInterval: 3000,
+      // Prefer last known position during silent push to avoid UI hanging/throwing in background
+      location = await Location.getLastKnownPositionAsync({
+        maxAge: 60000 // Accept up to 1 minute old
       });
-    } catch {
-      // If we can't get location, still send a ping to update lastSeen
+      if (!location) {
+        location = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+          timeInterval: 5000,
+        });
+      }
+    } catch (e) {
+      console.log('[SilentPush] GPS location fetch failed:', e);
+      // Still proceeds below to hit our driver/sync API without coordinates and keep driver online
+    }
+
+    try {
+      // Forcefully re-bind the Foreground Service if Android killed the app via aggressive Doze/Swipe
+      await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
+        accuracy: Location.Accuracy.High,
+        timeInterval: 10000,
+        distanceInterval: 0,
+        showsBackgroundLocationIndicator: true,
+        activityType: Location.ActivityType.AutomotiveNavigation,
+        pausesUpdatesAutomatically: false,
+        foregroundService: {
+          notificationTitle: 'SmartTransfer Sürücü',
+          notificationBody: 'Arka planda konum takip ediliyor.',
+          notificationColor: '#4361ee',
+          killServiceOnDestroy: false,
+          notificationChannelId: 'location-tracking',
+        }
+      });
+      console.log('[SilentPush] Re-activated foreground tracking loop');
+    } catch(e) {
+      console.log('[SilentPush] Could not revive foreground service:', e);
     }
 
     const lastSyncTime = await SecureStore.getItemAsync('lastSyncTime') || new Date(Date.now() - 60000).toISOString();

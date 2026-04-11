@@ -1374,17 +1374,18 @@ export default function OperationsPage() {
         }
     };
 
-    const handleVehicleChange = async (bookingId: string, vehicleId: string) => {
-        const selectedVehicle = vehicles.find((v: any) => v.id === vehicleId);
+    const handleVehicleChange = async (bookingId: string, vehicleId: string | null) => {
+        const selectedVehicle = vehicleId ? vehicles.find((v: any) => v.id === vehicleId) : null;
         const autoDriverId = selectedVehicle?.driverId || null;
 
         const doSave = async (skip = false) => {
-            const payload: any = { assignedVehicleId: vehicleId, skipConflictCheck: skip };
+            shuttleActionTimeRef.current = Date.now();
+            const payload: any = { assignedVehicleId: vehicleId || null, skipConflictCheck: skip };
             if (autoDriverId) payload.driverId = autoDriverId;
             await doAssign(bookingId, payload);
             setBookings(prev => prev.map((b: any) =>
                 b.id === bookingId
-                    ? { ...b, assignedVehicleId: vehicleId, ...(autoDriverId ? { driverId: autoDriverId } : {}) }
+                    ? { ...b, assignedVehicleId: vehicleId || null, ...(autoDriverId ? { driverId: autoDriverId } : {}) }
                     : b
             ));
             if (autoDriverId) {
@@ -1403,17 +1404,18 @@ export default function OperationsPage() {
         }
     };
 
-    const handleDriverChange = async (bookingId: string, driverId: string) => {
-        const autoVehicle = vehicles.find((v: any) => v.driverId === driverId) || null;
+    const handleDriverChange = async (bookingId: string, driverId: string | null) => {
+        const autoVehicle = driverId ? vehicles.find((v: any) => v.driverId === driverId) : null;
         const autoVehicleId = autoVehicle?.id || null;
 
         const doSave = async (skip = false) => {
-            const payload: any = { driverId, skipConflictCheck: skip };
+            shuttleActionTimeRef.current = Date.now();
+            const payload: any = { driverId: driverId || null, skipConflictCheck: skip };
             if (autoVehicleId) payload.assignedVehicleId = autoVehicleId;
             await doAssign(bookingId, payload);
             setBookings(prev => prev.map((b: any) =>
                 b.id === bookingId
-                    ? { ...b, driverId, ...(autoVehicleId ? { assignedVehicleId: autoVehicleId } : {}) }
+                    ? { ...b, driverId: driverId || null, ...(autoVehicleId ? { assignedVehicleId: autoVehicleId } : {}) }
                     : b
             ));
             if (autoVehicleId) {
@@ -1823,22 +1825,24 @@ export default function OperationsPage() {
         }
     }, [operationsMode, filters.dateRange]);
 
-    const handleShuttleAssign = async (run: any, driverId?: string, vehicleId?: string) => {
+    const handleShuttleAssign = async (run: any, driverId: string | null = null, vehicleId: string | null = null) => {
         const bookingIds = run.bookings.map((b: any) => b.id);
         if (bookingIds.length === 0) return;
         try {
+            shuttleActionTimeRef.current = Date.now();
             await apiClient.patch('/api/operations/shuttle-runs/assign', { bookingIds, driverId, vehicleId });
+            shuttleActionTimeRef.current = Date.now();
             // Optimistic update
             setShuttleRuns(prev => prev.map(r => {
                 if (r.runKey !== run.runKey) return r;
                 return {
                     ...r,
-                    driverId: driverId ?? r.driverId,
-                    vehicleId: vehicleId ?? r.vehicleId,
+                    driverId: driverId,
+                    vehicleId: vehicleId,
                     bookings: r.bookings.map((b: any) => ({
                         ...b,
-                        driverId: driverId ?? b.driverId,
-                        assignedVehicleId: vehicleId ?? b.assignedVehicleId,
+                        driverId: driverId,
+                        assignedVehicleId: vehicleId,
                     }))
                 };
             }));
@@ -1885,6 +1889,7 @@ export default function OperationsPage() {
                 try {
                     const sortItems = newBookings.map((b: any, idx: number) => ({ bookingId: b.id, sortOrder: idx + 1 }));
                     const res = await apiClient.post('/api/operations/shuttle-runs/sort', { items: sortItems });
+                    shuttleActionTimeRef.current = Date.now();
                     if (res.data.success) message.success('Sıralama güncellendi');
                 } catch (err) {
                     message.error('Sıralama kaydedilemedi');
@@ -1912,6 +1917,7 @@ export default function OperationsPage() {
                     payload.targetBookingIds = targetRun.bookings.map((b: any) => b.id);
                 }
 
+                shuttleActionTimeRef.current = Date.now();
                 const res = await apiClient.post('/api/operations/shuttle-runs/move', payload);
                 if (res.data.success) {
                     shuttleActionTimeRef.current = Date.now();
@@ -2633,8 +2639,8 @@ export default function OperationsPage() {
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                                     <Select
                                                         placeholder="Şoför Seç"
-                                                        value={run.driverId}
-                                                        onChange={(val) => handleShuttleAssign(run, val, run.vehicleId)}
+                                                        value={run.driverId || undefined}
+                                                        onChange={(val) => handleShuttleAssign(run, val !== undefined ? val : null, run.vehicleId !== undefined ? run.vehicleId : null)}
                                                         style={{ width: 150 }}
                                                         allowClear
                                                         size="small"
@@ -2645,8 +2651,8 @@ export default function OperationsPage() {
                                                     </Select>
                                                     <Select
                                                         placeholder="Araç Seç"
-                                                        value={run.vehicleId}
-                                                        onChange={(val) => handleShuttleAssign(run, run.driverId, val)}
+                                                        value={run.vehicleId || undefined}
+                                                        onChange={(val) => handleShuttleAssign(run, run.driverId !== undefined ? run.driverId : null, val !== undefined ? val : null)}
                                                         style={{ width: 150 }}
                                                         allowClear
                                                         size="small"

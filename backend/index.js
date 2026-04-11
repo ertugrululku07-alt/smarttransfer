@@ -440,10 +440,8 @@ server.listen(PORT, () => {
         .filter(d => d.pushToken && Expo.isExpoPushToken(d.pushToken))
         .map(d => ({
           to: d.pushToken,
-          // MUST include title+body for Samsung/Huawei to actually deliver the push
-          // The 'location-sync' channel has NONE importance so user NEVER sees it
-          title: 'sync',
-          body: 'location',
+          // Data-only push (no title or body). Android processes these purely in the background (Firebase Messaging Service)
+          // without displaying a notification bubble.
           sound: null,
           priority: 'high',
           channelId: 'location-sync',
