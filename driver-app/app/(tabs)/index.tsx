@@ -158,9 +158,10 @@ export default function DashboardScreen() {
           pausesUpdatesAutomatically: false,  // CRITICAL: prevents iOS/Android from pausing
           foregroundService: {
             notificationTitle: 'SmartTransfer Sürücü',
-            notificationBody: 'Konum paylaşımı aktif — Operasyon takip ediliyor',
+            notificationBody: 'Konum paylaşımı aktif',
             notificationColor: '#4361ee',
             killServiceOnDestroy: false,  // Keep service alive even if app is swiped away
+            notificationChannelId: 'location-tracking',  // HIGH importance channel — Huawei won't kill this
           }
         });
       }

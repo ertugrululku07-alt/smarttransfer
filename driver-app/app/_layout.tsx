@@ -46,10 +46,23 @@ Notifications.setNotificationHandler({
   },
 });
 
-// Create a silent notification channel for location-sync pushes (Android)
+// Create notification channels for Android
 if (Platform.OS === 'android') {
-  // NONE importance = notifications on this channel are COMPLETELY invisible to user
-  // No popup, no sound, no badge, not even in the notification drawer
+  // CRITICAL: HIGH importance channel for the foreground service
+  // Huawei EMUI uses channel importance to decide whether to keep foreground services alive
+  // NONE/LOW = Huawei kills it, HIGH = Huawei keeps it running
+  Notifications.setNotificationChannelAsync('location-tracking', {
+    name: 'Konum Takibi',
+    importance: Notifications.AndroidImportance.HIGH,
+    sound: null,
+    vibrationPattern: [],
+    showBadge: false,
+    enableVibrate: false,
+    lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+    description: 'Şoför konum takip servisi - arka planda çalışır',
+  }).catch(() => {});
+
+  // Silent channel for push wake-ups (invisible to user)
   Notifications.setNotificationChannelAsync('location-sync', {
     name: 'Konum Senkronizasyonu',
     importance: Notifications.AndroidImportance.NONE,
@@ -367,17 +380,12 @@ async function promptBatteryOptimization() {
   if (Platform.OS !== 'android') return;
 
   try {
-    // Check if we've already shown the detailed manufacturer guide
-    const lastAsked = await SecureStore.getItemAsync('battery_opt_asked_v2');
-    const daysSinceAsked = lastAsked 
-      ? (Date.now() - parseInt(lastAsked)) / (1000 * 60 * 60 * 24)
-      : 999;
-    
-    // Show every 3 days — Huawei EMUI resets these settings after updates
-    if (daysSinceAsked < 3) return;
+    // Check if user explicitly dismissed
+    const dismissed = await SecureStore.getItemAsync('battery_opt_dismissed');
+    if (dismissed === 'true') return;
 
     // Wait for app to fully load
-    await new Promise(resolve => setTimeout(resolve, 4000));
+    await new Promise(resolve => setTimeout(resolve, 3000));
 
     // Step 2: Try manufacturer-specific intents first (auto-detect)
     let opened = false;
@@ -408,8 +416,7 @@ async function promptBatteryOptimization() {
           text: 'Bir Daha Gösterme',
           style: 'cancel',
           onPress: async () => {
-            // Set far future so it never shows again
-            await SecureStore.setItemAsync('battery_opt_asked_v2', String(Date.now() + 365 * 24 * 60 * 60 * 1000));
+            await SecureStore.setItemAsync('battery_opt_dismissed', 'true');
           }
         },
         {
@@ -435,8 +442,6 @@ async function promptBatteryOptimization() {
         }
       ]
     );
-
-    await SecureStore.setItemAsync('battery_opt_asked_v2', String(Date.now()));
   } catch (err) {
     console.warn('Battery optimization prompt error:', err);
   }
