@@ -319,10 +319,10 @@ export default function DashboardScreen() {
               <Text style={st.greetingText}>{greeting}</Text>
               <Text style={st.nameText}>{user?.firstName} {user?.lastName}</Text>
             </View>
-            <View style={[st.statusPill, { backgroundColor: isConnected ? 'rgba(16,185,129,0.2)' : 'rgba(255,255,255,0.1)' }]}>
-              <View style={[st.statusDot, { backgroundColor: isConnected ? '#34d399' : '#9ca3af' }]} />
-              <Text style={[st.statusLabel, { color: isConnected ? '#34d399' : '#9ca3af' }]}>
-                {isConnected ? 'Aktif' : 'Çevrimdışı'}
+            <View style={[st.statusPill, { backgroundColor: isConnected ? 'rgba(16,185,129,0.2)' : 'rgba(245,158,11,0.2)' }]}>
+              <View style={[st.statusDot, { backgroundColor: isConnected ? '#34d399' : '#f59e0b' }]} />
+              <Text style={[st.statusLabel, { color: isConnected ? '#34d399' : '#f59e0b' }]}>
+                {isConnected ? 'Aktif' : 'Bağlanıyor...'}
               </Text>
             </View>
           </View>
