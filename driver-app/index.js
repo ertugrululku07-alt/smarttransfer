@@ -26,6 +26,37 @@ let lastNetRecoveryMs = 0;
 const NET_RECOVERY_DEBOUNCE = 30000; // Min 30s between net_recovery syncs
 let bootSyncDone = false;
 
+const LOCATION_UPDATES_OPTIONS = {
+  accuracy: Location.Accuracy.High,
+  timeInterval: 15000,
+  distanceInterval: 5,
+  showsBackgroundLocationIndicator: true,
+  activityType: Location.ActivityType.AutomotiveNavigation,
+  pausesUpdatesAutomatically: false,
+  foregroundService: {
+    notificationTitle: 'SmartTransfer Sürücü',
+    notificationBody: 'Arka planda konum takip ediliyor.',
+    notificationColor: '#4361ee',
+    killServiceOnDestroy: false,
+  }
+};
+
+const ensureLocationTaskRunning = async (reason) => {
+  try {
+    const token = await readToken('token');
+    if (!token) return false;
+    const isRegistered = await TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME);
+    if (!isRegistered) {
+      await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, LOCATION_UPDATES_OPTIONS);
+      console.log(`[Headless] Location task started (${reason})`);
+    }
+    return true;
+  } catch (e) {
+    console.log(`[Headless] ensureLocationTaskRunning failed (${reason}):`, e?.message || e);
+    return false;
+  }
+};
+
 // Read tokens safely from secure storage (fallback to AsyncStorage)
 const readToken = async (key) => {
   let v = await SecureStore.getItemAsync(key);
@@ -194,7 +225,9 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
 
 // 2. Scheduled Background Fetch Event
 TaskManager.defineTask(BG_FETCH_TASK_NAME, async () => {
+  await ensureLocationTaskRunning('bg_fetch');
   await syncLocationWithBackend(null, null, null, null, null, 'bg_fetch');
+  return BackgroundFetch.BackgroundFetchResult.NewData;
 });
 
 // 3. Silent Wake-Up Push Task
@@ -206,31 +239,20 @@ TaskManager.defineTask(BACKGROUND_NOTIFICATION_TASK, async ({ data, error }) => 
      console.log('[Headless] Silent push location request received');
      await syncLocationWithBackend(null, null, null, null, null, 'silent_push');
      
-     // CRITICAL: Aggressively force-revive the tracking loop if Android had previously killed the service 
-     // when the user swiped the app away.
-     try {
-       await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
-         accuracy: Location.Accuracy.High,
-         timeInterval: 15000,
-         distanceInterval: 5,
-         showsBackgroundLocationIndicator: true,
-         activityType: Location.ActivityType.AutomotiveNavigation,
-         pausesUpdatesAutomatically: false,
-         foregroundService: {
-           notificationTitle: 'SmartTransfer Sürücü',
-           notificationBody: 'Arka planda konum takip ediliyor.',
-           notificationColor: '#4361ee',
-           killServiceOnDestroy: false,
-           notificationChannelId: 'location-tracking',
-         }
-       });
-       console.log('[Headless] Background tracking successfully re-bound to OS');
-     } catch (e) {
-       console.log('[Headless] Background tracking revive loop failed:', e);
-     }
+     await ensureLocationTaskRunning('silent_push');
   }
 });
-Notifications.registerTaskAsync(BACKGROUND_NOTIFICATION_TASK);
+
+(async () => {
+  try {
+    const isRegistered = await TaskManager.isTaskRegisteredAsync(BACKGROUND_NOTIFICATION_TASK);
+    if (!isRegistered) {
+      await Notifications.registerTaskAsync(BACKGROUND_NOTIFICATION_TASK);
+    }
+  } catch (e) {
+    console.log('[Headless] Notification task register failed (non-fatal):', e?.message || e);
+  }
+})();
 
 // 4. Auto-Recovery: Listen for Connectivity Restoration (debounced)
 NetInfo.addEventListener(state => {
@@ -243,56 +265,24 @@ NetInfo.addEventListener(state => {
     lastNetRecoveryMs = now;
     console.log('[Headless] Connectivity detected! Pinging server...');
     syncLocationWithBackend(null, null, null, null, null, 'net_recovery');
-    
-    // Also re-ensure tracking service is bound
-    Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
-        accuracy: Location.Accuracy.High,
-        timeInterval: 15000,
-        distanceInterval: 5,
-        showsBackgroundLocationIndicator: true,
-        activityType: Location.ActivityType.AutomotiveNavigation,
-        pausesUpdatesAutomatically: false,
-        foregroundService: {
-          notificationTitle: 'SmartTransfer Sürücü',
-          notificationBody: 'Arka planda konum takip ediliyor.',
-          notificationColor: '#4361ee',
-          killServiceOnDestroy: false,
-          notificationChannelId: 'location-tracking',
-        }
-    }).catch(e => console.log('[Headless] Net recovery service restart failed:', e));
+    ensureLocationTaskRunning('net_recovery');
   }
 });
 
 // Initial trigger if already connected at boot (skip if net_recovery already fired)
 NetInfo.fetch().then(async (state) => {
+    await ensureLocationTaskRunning('boot_init');
     if (state.isConnected && !bootSyncDone) {
       bootSyncDone = true;
       lastNetRecoveryMs = Date.now(); // Prevent immediate net_recovery duplicate
       syncLocationWithBackend(null, null, null, null, null, 'boot_sync');
-      try {
-        const isRegistered = await TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME);
-        if (!isRegistered) {
-          await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
-            accuracy: Location.Accuracy.High,
-            timeInterval: 15000,
-            distanceInterval: 5,
-            showsBackgroundLocationIndicator: true,
-            activityType: Location.ActivityType.AutomotiveNavigation,
-            pausesUpdatesAutomatically: false,
-            foregroundService: {
-              notificationTitle: 'SmartTransfer Sürücü',
-              notificationBody: 'Arka planda konum takip ediliyor.',
-              notificationColor: '#4361ee',
-              killServiceOnDestroy: false,
-              notificationChannelId: 'location-tracking',
-            }
-          });
-        }
-      } catch (e) {
-        console.log('[Headless] Boot ensure service failed:', e);
-      }
     }
 });
+
+// Self-heal once at process startup (after cold boot / process recreation)
+setTimeout(() => {
+  ensureLocationTaskRunning('startup_self_heal');
+}, 4000);
 
 // Ensure BackgroundFetch is registered to wake the app periodically even if OS throttles timers
 (async () => {

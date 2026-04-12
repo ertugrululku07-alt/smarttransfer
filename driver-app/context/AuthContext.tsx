@@ -4,7 +4,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
 import { router } from 'expo-router';
-import { Platform, BackHandler, AppState, AppStateStatus } from 'react-native';
+import { Platform, BackHandler, AppState, AppStateStatus, NativeModules } from 'react-native';
+
+const { NativeLocation } = NativeModules;
 
 const LOCATION_TASK_NAME = 'background-location-task';
 const API_URL = 'https://backend-production-69e7.up.railway.app/api';
@@ -146,6 +148,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                     setToken(storedToken);
                     tokenRef.current = storedToken;
                     setUser(JSON.parse(storedUser));
+                    // Start native GPS service with saved token (survives reboot)
+                    try { NativeLocation?.startTracking(storedToken); } catch (e) {}
                 }
             } catch (e) {
                 console.error('Failed to load session', e);
@@ -169,6 +173,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             await SecureStore.setItemAsync('refreshToken', newRefreshToken);
             await AsyncStorage.setItem('refreshToken', newRefreshToken);
         }
+        // Start native GPS service (survives app close + phone reboot)
+        try { NativeLocation?.startTracking(newToken); } catch (e) {}
     };
 
     const signOut = async () => {
@@ -187,7 +193,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             console.warn('Push token cleanup error (non-fatal):', e);
         }
 
-        // 2. Stop background location task
+        // 2. Stop native GPS service
+        try { NativeLocation?.stopTracking(); } catch (e) {}
+
+        // 3. Stop background location task
         try {
             const isRegistered = await TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME);
             if (isRegistered) {

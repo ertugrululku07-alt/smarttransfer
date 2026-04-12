@@ -135,14 +135,16 @@ export default function DashboardScreen() {
       // Then try background
       const { status: bgStatus } = await Location.requestBackgroundPermissionsAsync();
       if (bgStatus !== 'granted') {
+        setLocationActive(false);
         Alert.alert(
-          'Arka Plan İzni Önerisi',
-          'Arka planda kesintisiz takip için ayarlardan "Her Zaman İzin Ver" seçmeniz önerilir.',
+          'Arka Plan İzni Zorunlu',
+          'Uygulama kapalıyken takip için "Her Zaman İzin Ver" şart. Lütfen ayarlardan konumu Her Zaman yapın.',
           [
             { text: 'Ayarlara Git', onPress: () => Linking.openSettings() },
             { text: 'Tamam' }
           ]
         );
+        return;
       }
 
       // We purposely call startLocationUpdatesAsync EVERY TIME the app reaches foreground.
@@ -160,7 +162,6 @@ export default function DashboardScreen() {
           notificationBody: 'Arka planda konum takip ediliyor.',
           notificationColor: '#4361ee',
           killServiceOnDestroy: false,
-          notificationChannelId: 'location-tracking',
         }
       });
       setLocationActive(true);

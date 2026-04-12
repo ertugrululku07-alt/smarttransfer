@@ -7,6 +7,7 @@ import { Audio } from 'expo-av';
 import * as Notifications from 'expo-notifications';
 
 const SOCKET_URL = 'https://backend-production-69e7.up.railway.app';
+const SOCKET_DISABLED = true;
 
 interface SocketContextType {
     socket: Socket | null;
@@ -197,6 +198,17 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     // Socket lifecycle: create on login, destroy on logout
     useEffect(() => {
+        if (SOCKET_DISABLED) {
+            if (socketRef.current) {
+                socketRef.current.removeAllListeners();
+                socketRef.current.disconnect();
+                socketRef.current = null;
+            }
+            setSocket(null);
+            setIsConnected(false);
+            return;
+        }
+
         if (!token) {
             // Logout — destroy socket
             if (socketRef.current) {
@@ -216,7 +228,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     // Foreground/background handler + keep-alive (foreground only)
     useEffect(() => {
-        if (!token) return;
+        if (SOCKET_DISABLED || !token) return;
 
         const handleAppStateChange = (nextState: AppStateStatus) => {
             const prev = appStateRef.current;
