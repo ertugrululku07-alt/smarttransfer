@@ -743,7 +743,7 @@ router.get('/online', async (req, res) => {
         }
 
         // Map personnel to the driver format the frontend expects
-        const DB_ONLINE_THRESHOLD_MS = 15 * 60 * 1000; // 15 min — if lastSeenAt within this, driver is online via BG sync
+        const DB_ONLINE_THRESHOLD_MS = 3 * 60 * 1000; // 3 min — if no sync in 3 min, driver is offline
         const connectionLogs = req.app.get('driverConnectionLogs') || {};
         const result = personnel.map(p => {
             const userId = p.userId || p.id;
