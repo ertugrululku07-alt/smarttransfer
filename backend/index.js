@@ -398,7 +398,9 @@ const wss = new WebSocketServer({ server, path: '/ws/driver' });
 
 wss.on('connection', async (ws, req) => {
   const url = new URL(req.url, 'http://localhost');
-  const token = url.searchParams.get('token');
+  const fromQuery = url.searchParams.get('token');
+  const fromHeader = req.headers['authorization']?.replace('Bearer ', '');
+  const token = fromQuery || fromHeader;
 
   if (!token) { ws.close(4001, 'No token'); return; }
 
