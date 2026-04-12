@@ -185,10 +185,8 @@ export default function OperationDashboard() {
                 const online = new Set<string>();
                 const locs: Record<string, { lat: number; lng: number; speed?: number }> = {};
                 driverList.forEach(d => {
-                    // Online if seen within last 15 minutes OR backend synthesized bg-sync socketId
-                    const seenRecently = d.lastSeenAt && dayjs().diff(dayjs(d.lastSeenAt), 'second') <= 180;
-                    const bgSync = (d as any).socketId === 'bg-sync';
-                    if (seenRecently || bgSync) {
+                    // Online if seen within last 3 minutes (native service syncs every 15s)
+                    if (d.lastSeenAt && dayjs().diff(dayjs(d.lastSeenAt), 'second') <= 180) {
                         online.add(d.id);
                     }
                     if (d.location) locs[d.id] = d.location;
