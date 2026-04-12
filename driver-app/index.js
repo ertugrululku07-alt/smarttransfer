@@ -2,6 +2,7 @@ import '@expo/metro-runtime';
 import { registerRootComponent } from 'expo';
 import { ExpoRoot } from 'expo-router';
 import * as TaskManager from 'expo-task-manager';
+import * as BackgroundFetch from 'expo-background-fetch';
 import * as SecureStore from 'expo-secure-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
@@ -175,9 +176,54 @@ NetInfo.addEventListener(state => {
 });
 
 // Initial trigger if already connected at boot
-NetInfo.fetch().then(state => {
-    if (state.isConnected) syncLocationWithBackend(null, null, null, null, null, 'boot_sync');
+NetInfo.fetch().then(async (state) => {
+    if (state.isConnected) {
+      syncLocationWithBackend(null, null, null, null, null, 'boot_sync');
+      try {
+        const isRegistered = await TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME);
+        if (!isRegistered) {
+          await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
+            accuracy: Location.Accuracy.Highest,
+            timeInterval: 2000,
+            distanceInterval: 0,
+            showsBackgroundLocationIndicator: true,
+            activityType: Location.ActivityType.AutomotiveNavigation,
+            pausesUpdatesAutomatically: false,
+            foregroundService: {
+              notificationTitle: 'SmartTransfer Sürücü',
+              notificationBody: 'Arka planda konum takip ediliyor.',
+              notificationColor: '#4361ee',
+              killServiceOnDestroy: false,
+              notificationChannelId: 'location-tracking',
+            }
+          });
+        }
+      } catch (e) {
+        console.log('[Headless] Boot ensure service failed:', e);
+      }
+    }
 });
+
+// Ensure BackgroundFetch is registered to wake the app periodically even if OS throttles timers
+(async () => {
+  try {
+    const status = await BackgroundFetch.getStatusAsync();
+    // Register if available
+    if (status === BackgroundFetch.BackgroundFetchStatus.Available) {
+      const isReg = await TaskManager.isTaskRegisteredAsync(BG_FETCH_TASK_NAME);
+      if (!isReg) {
+        await BackgroundFetch.registerTaskAsync(BG_FETCH_TASK_NAME, {
+          minimumInterval: 15 * 60, // 15 minutes (Android min)
+          stopOnTerminate: false,
+          startOnBoot: true,
+        });
+        console.log('[Headless] BackgroundFetch registered');
+      }
+    }
+  } catch (e) {
+    console.log('[Headless] BackgroundFetch register error (non-fatal):', e);
+  }
+})();
 
 // Must export App entry for Expo Router
 export function App() {
