@@ -80,7 +80,9 @@ module.exports = (io, app) => {
     io.on('connection', (socket) => {
         let currentUser = null;
 
-        socket.on('authenticate', async (token) => {
+        socket.on('authenticate', async (rawToken) => {
+            // Accept both plain string token and object { token: '...' }
+            const token = (rawToken && typeof rawToken === 'object') ? rawToken.token : rawToken;
             try {
                 let decoded;
                 try {
