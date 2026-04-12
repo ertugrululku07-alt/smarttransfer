@@ -143,9 +143,7 @@ module.exports = (io, app) => {
                         };
 
                         // Update database on connect for durability
-                        const { PrismaClient } = require('@prisma/client');
-                        const prismaInner = new PrismaClient();
-                        prismaInner.user.update({
+                        prisma.user.update({
                             where: { id: user.id },
                             data: { lastSeenAt: new Date() }
                         }).catch(err => console.error('[DriverHandler] Connect DB update failed', err));
@@ -228,8 +226,6 @@ module.exports = (io, app) => {
                 onlineDrivers[driverId].lastSeen = Date.now(); // *** Numeric ms ***
 
                 // Update database on disconnect to ensure durability if server restarts
-                const { PrismaClient } = require('@prisma/client');
-                const prisma = new PrismaClient();
                 prisma.user.update({
                     where: { id: driverId },
                     data: { lastSeenAt: new Date() }
