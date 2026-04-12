@@ -389,6 +389,76 @@ require('./src/socket/driverHandler')(io, app);
 // Make io accessible to our router
 app.set('io', io);
 
+// ── Raw WebSocket endpoint for native Android service ─────────────────────
+const { WebSocketServer } = require('ws');
+const jwt = require('jsonwebtoken');
+const { JWT_SECRET } = require('./src/middleware/auth');
+
+const wss = new WebSocketServer({ server, path: '/ws/driver' });
+
+wss.on('connection', async (ws, req) => {
+  const url = new URL(req.url, 'http://localhost');
+  const token = url.searchParams.get('token');
+
+  if (!token) { ws.close(4001, 'No token'); return; }
+
+  let userId, userName;
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    userId = decoded.userId;
+    const prisma = require('./src/lib/prisma');
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, fullName: true } });
+    if (!user) { ws.close(4002, 'User not found'); return; }
+    userName = user.fullName;
+  } catch (e) { ws.close(4003, 'Invalid token'); return; }
+
+  console.log(`[WS/driver] ${userName} connected`);
+  ws.isAlive = true;
+
+  ws.on('pong', () => { ws.isAlive = true; });
+
+  ws.on('message', (data) => {
+    try {
+      const loc = JSON.parse(data);
+      if (!loc.lat || !loc.lng) return;
+
+      // Update onlineDrivers in memory
+      const onlineDrivers = app.get('onlineDrivers');
+      if (onlineDrivers) {
+        onlineDrivers[userId] = {
+          ...onlineDrivers[userId],
+          socketId: 'ws-native',
+          lastSeen: Date.now(),
+          location: { lat: loc.lat, lng: loc.lng, speed: loc.speed || 0, heading: loc.heading || 0 }
+        };
+      }
+
+      // Forward to admin panel via Socket.IO
+      io.to('admin_monitoring').emit('driver_location', {
+        driverId: userId,
+        driverName: userName,
+        lat: loc.lat,
+        lng: loc.lng,
+        speed: loc.speed || 0,
+        heading: loc.heading || 0,
+        source: 'ws_native',
+        timestamp: new Date()
+      });
+    } catch (e) { /* ignore parse errors */ }
+  });
+
+  ws.on('close', () => { console.log(`[WS/driver] ${userName} disconnected`); });
+});
+
+// Heartbeat: drop dead connections every 30s
+setInterval(() => {
+  wss.clients.forEach((ws) => {
+    if (!ws.isAlive) { ws.terminate(); return; }
+    ws.isAlive = false;
+    ws.ping();
+  });
+}, 30000);
+
 server.listen(PORT, () => {
   console.log('');
   console.log('🚀 ========================================');
