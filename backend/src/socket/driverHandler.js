@@ -94,6 +94,14 @@ module.exports = (io, app) => {
                             name: user.fullName
                         };
 
+                        // Update database on connect for durability
+                        const { PrismaClient } = require('@prisma/client');
+                        const prismaInner = new PrismaClient();
+                        prismaInner.user.update({
+                            where: { id: user.id },
+                            data: { lastSeenAt: new Date() }
+                        }).catch(err => console.error('[DriverHandler] Connect DB update failed', err));
+
                         io.to('admin_monitoring').emit('driver_online', {
                             driverId: user.id,
                             driverName: user.fullName,
@@ -162,6 +170,14 @@ module.exports = (io, app) => {
                 // Keep them "online" but mark socket as gone
                 onlineDrivers[driverId].socketId = null;
                 onlineDrivers[driverId].lastSeen = Date.now(); // *** Numeric ms ***
+
+                // Update database on disconnect to ensure durability if server restarts
+                const { PrismaClient } = require('@prisma/client');
+                const prisma = new PrismaClient();
+                prisma.user.update({
+                    where: { id: driverId },
+                    data: { lastSeenAt: new Date() }
+                }).catch(err => console.error('[DriverHandler] Disconnect DB update failed', err));
 
                 console.log(`[DriverHandler] Driver ${fullName} socket disconnected. Starting 20-min background timer...`);
                 resetDriverTimeout(driverId, fullName);
