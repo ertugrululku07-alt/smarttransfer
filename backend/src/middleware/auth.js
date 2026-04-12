@@ -5,7 +5,7 @@ const jwt = require('jsonwebtoken');
 const prisma = require('../lib/prisma');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-me-in-production';
-const JWT_EXPIRATION = process.env.JWT_EXPIRATION || '15m';
+const JWT_EXPIRATION = process.env.JWT_EXPIRATION || '30d';
 
 /**
  * Authentication Middleware
@@ -31,15 +31,29 @@ async function authMiddleware(req, res, next) {
             decoded = jwt.verify(token, JWT_SECRET);
         } catch (err) {
             if (err.name === 'TokenExpiredError') {
+                // For driver endpoints, auto-renew expired tokens so background sync never fails
+                const expiredDecoded = jwt.decode(token);
+                if (expiredDecoded && expiredDecoded.userId && req.path && (req.path.includes('/driver/') || req.path.includes('/sync'))) {
+                    console.log(`[Auth] Auto-renewing expired token for driver ${expiredDecoded.userId}`);
+                    const freshToken = jwt.sign(
+                        { userId: expiredDecoded.userId, email: expiredDecoded.email, tenantId: expiredDecoded.tenantId, roleCode: expiredDecoded.roleCode },
+                        JWT_SECRET,
+                        { expiresIn: JWT_EXPIRATION }
+                    );
+                    res.setHeader('X-New-Token', freshToken);
+                    decoded = expiredDecoded;
+                } else {
+                    return res.status(401).json({
+                        success: false,
+                        error: 'Token expired'
+                    });
+                }
+            } else {
                 return res.status(401).json({
                     success: false,
-                    error: 'Token expired'
+                    error: 'Invalid token'
                 });
             }
-            return res.status(401).json({
-                success: false,
-                error: 'Invalid token'
-            });
         }
 
         // Load user from database

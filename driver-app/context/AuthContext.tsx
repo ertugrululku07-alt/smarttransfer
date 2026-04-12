@@ -1,19 +1,22 @@
-import React, { createContext, useState, useContext, useEffect } from 'react';
+import React, { createContext, useState, useContext, useEffect, useRef, useCallback } from 'react';
 import * as SecureStore from 'expo-secure-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
 import { router } from 'expo-router';
-import { Platform, BackHandler } from 'react-native';
+import { Platform, BackHandler, AppState, AppStateStatus } from 'react-native';
 
 const LOCATION_TASK_NAME = 'background-location-task';
+const API_URL = 'https://backend-production-69e7.up.railway.app/api';
+const TOKEN_REFRESH_INTERVAL = 10 * 60 * 1000; // Refresh token every 10 minutes proactively
 
 interface AuthContextType {
     user: any | null;
     token: string | null;
     isLoading: boolean;
-    signIn: (token: string, user: any) => Promise<void>;
+    signIn: (token: string, user: any, refreshToken?: string) => Promise<void>;
     signOut: () => Promise<void>;
+    refreshTokenNow: () => Promise<string | null>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -22,6 +25,7 @@ const AuthContext = createContext<AuthContextType>({
     isLoading: true,
     signIn: async () => { },
     signOut: async () => { },
+    refreshTokenNow: async () => null,
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -30,15 +34,105 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const [user, setUser] = useState<any | null>(null);
     const [token, setToken] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const tokenRef = useRef<string | null>(null);
+    const refreshTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const appStateRef = useRef<AppStateStatus>(AppState.currentState);
+
+    // Keep tokenRef in sync
+    useEffect(() => { tokenRef.current = token; }, [token]);
+
+    // Core refresh function — called proactively before expiry
+    const refreshTokenNow = useCallback(async (): Promise<string | null> => {
+        try {
+            let refreshTkn = await SecureStore.getItemAsync('refreshToken');
+            if (!refreshTkn) refreshTkn = await AsyncStorage.getItem('refreshToken');
+            if (!refreshTkn) {
+                console.log('[Auth] No refresh token available');
+                return null;
+            }
+
+            const res = await fetch(`${API_URL}/auth/refresh`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ refreshToken: refreshTkn })
+            });
+
+            if (!res.ok) {
+                console.log('[Auth] Refresh failed:', res.status);
+                return null;
+            }
+
+            const json = await res.json();
+            const newToken = json?.data?.token;
+            if (newToken) {
+                // Persist everywhere so headless tasks also get the new token
+                await SecureStore.setItemAsync('token', newToken);
+                await AsyncStorage.setItem('token', newToken);
+                setToken(newToken);
+                tokenRef.current = newToken;
+                console.log('[Auth] Token refreshed successfully');
+                return newToken;
+            }
+            return null;
+        } catch (e) {
+            console.warn('[Auth] Token refresh error:', e);
+            return null;
+        }
+    }, []);
+
+    // Proactive refresh interval — keeps token alive even in background
+    useEffect(() => {
+        if (!token) {
+            if (refreshTimerRef.current) clearInterval(refreshTimerRef.current);
+            return;
+        }
+
+        // Refresh immediately on mount, then every 10 minutes
+        refreshTimerRef.current = setInterval(() => {
+            console.log('[Auth] Proactive token refresh tick');
+            refreshTokenNow();
+        }, TOKEN_REFRESH_INTERVAL);
+
+        return () => {
+            if (refreshTimerRef.current) clearInterval(refreshTimerRef.current);
+        };
+    }, [token, refreshTokenNow]);
+
+    // When app comes to foreground, refresh token immediately
+    useEffect(() => {
+        const sub = AppState.addEventListener('change', (nextState: AppStateStatus) => {
+            if (appStateRef.current.match(/inactive|background/) && nextState === 'active' && tokenRef.current) {
+                console.log('[Auth] App foregrounded — refreshing token');
+                refreshTokenNow();
+            }
+            appStateRef.current = nextState;
+        });
+        return () => sub.remove();
+    }, [refreshTokenNow]);
+
+    // Listen for headless token updates (when index.js refreshes token in background)
+    useEffect(() => {
+        if (!token) return;
+        const syncInterval = setInterval(async () => {
+            try {
+                let storedToken = await SecureStore.getItemAsync('token');
+                if (!storedToken) storedToken = await AsyncStorage.getItem('token');
+                if (storedToken && storedToken !== tokenRef.current) {
+                    console.log('[Auth] Detected headless token update — syncing to React state');
+                    setToken(storedToken);
+                    tokenRef.current = storedToken;
+                }
+            } catch {}
+        }, 30000); // Check every 30 seconds
+        return () => clearInterval(syncInterval);
+    }, [token]);
 
     useEffect(() => {
-        // Check for stored session
         const loadSession = async () => {
             try {
                 let storedToken = await SecureStore.getItemAsync('token');
                 let storedUser = await SecureStore.getItemAsync('user');
                 
-                // Fallback to AsyncStorage if SecureStore fails
                 if (!storedToken) {
                     storedToken = await AsyncStorage.getItem('token');
                     storedUser = await AsyncStorage.getItem('user');
@@ -46,6 +140,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
                 if (storedToken && storedUser) {
                     setToken(storedToken);
+                    tokenRef.current = storedToken;
                     setUser(JSON.parse(storedUser));
                 }
             } catch (e) {
@@ -58,25 +153,28 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         loadSession();
     }, []);
 
-    const signIn = async (newToken: string, newUser: any) => {
+    const signIn = async (newToken: string, newUser: any, newRefreshToken?: string) => {
         setToken(newToken);
+        tokenRef.current = newToken;
         setUser(newUser);
         await SecureStore.setItemAsync('token', newToken);
-        await AsyncStorage.setItem('token', newToken); // Headless JS Fallback
+        await AsyncStorage.setItem('token', newToken);
         await SecureStore.setItemAsync('user', JSON.stringify(newUser));
         await AsyncStorage.setItem('user', JSON.stringify(newUser));
+        if (newRefreshToken) {
+            await SecureStore.setItemAsync('refreshToken', newRefreshToken);
+            await AsyncStorage.setItem('refreshToken', newRefreshToken);
+        }
     };
 
     const signOut = async () => {
-        const API_URL = 'https://backend-production-69e7.up.railway.app/api';
-
-        // 1. Clear push token on backend (stops silent push notifications)
+        // 1. Clear push token on backend
         try {
-            if (token) {
+            if (tokenRef.current) {
                 await fetch(`${API_URL}/driver/push-token`, {
                     method: 'DELETE',
                     headers: {
-                        'Authorization': `Bearer ${token}`,
+                        'Authorization': `Bearer ${tokenRef.current}`,
                         'Content-Type': 'application/json'
                     }
                 });
@@ -106,13 +204,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             console.warn('Stop BG fetch task error:', e);
         }
 
-        // 4. Clear ALL persisted data (prevents bg tasks from re-activating)
+        // 4. Clear ALL persisted data
         await SecureStore.deleteItemAsync('token');
         await SecureStore.deleteItemAsync('user');
+        await SecureStore.deleteItemAsync('refreshToken');
         await SecureStore.deleteItemAsync('lastSyncTime');
+        await AsyncStorage.removeItem('token');
+        await AsyncStorage.removeItem('refreshToken');
 
-        // 5. Clear in-memory state — triggers AuthGuard redirect
+        // 5. Clear in-memory state
         setToken(null);
+        tokenRef.current = null;
         setUser(null);
 
         // 6. Navigate to login
@@ -121,7 +223,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         } catch (e) {
             console.warn('signOut navigation error:', e);
         }
-        // Fallback: if navigation didn't work (Samsung quirk), force close
         if (Platform.OS === 'android') {
             setTimeout(() => {
                 BackHandler.exitApp();
@@ -130,7 +231,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     };
 
     return (
-        <AuthContext.Provider value={{ user, token, isLoading, signIn, signOut }}>
+        <AuthContext.Provider value={{ user, token, isLoading, signIn, signOut, refreshTokenNow }}>
             {children}
         </AuthContext.Provider>
     );

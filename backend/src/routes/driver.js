@@ -551,7 +551,17 @@ router.post('/sync', authMiddleware, async (req, res) => {
             console.log(`[SPEED] ⚠️ ${req.user.fullName} hız ihlali: ${parseFloat(speed).toFixed(0)} km/h @ ${lat},${lng}`);
         }
 
-        // 1c. Update Location via Socket to Admin (real-time)
+        // 1c. Log connection event for debugging
+        const logDriverEvent = req.app.get('logDriverEvent');
+        if (typeof logDriverEvent === 'function') {
+            logDriverEvent(driverId, req.user.fullName, 'HTTP_SYNC', { 
+                source: req.body.source || 'unknown',
+                hasLocation: !!(lat && lng),
+                tokenAutoRenewed: !!res.getHeader('X-New-Token')
+            });
+        }
+
+        // 1d. Update Location via Socket to Admin (real-time)
         const io = req.app.get('io');
         if (io && lat && lng) {
             io.to('admin_monitoring').emit('driver_location', {
@@ -734,6 +744,7 @@ router.get('/online', async (req, res) => {
 
         // Map personnel to the driver format the frontend expects
         const DB_ONLINE_THRESHOLD_MS = 10 * 60 * 1000; // 10 min — if lastSeenAt within this, driver is online via BG sync
+        const connectionLogs = req.app.get('driverConnectionLogs') || {};
         const result = personnel.map(p => {
             const userId = p.userId || p.id;
             const inMemory = onlineDrivers[userId];
@@ -782,7 +793,9 @@ router.get('/online', async (req, res) => {
                 vehicle: vehicleInfo,
                 todayJobCount: driverBookings.length,
                 speedViolations: driverViolations.length,
-                lastViolation: driverViolations.length > 0 ? driverViolations[driverViolations.length - 1] : null
+                lastViolation: driverViolations.length > 0 ? driverViolations[driverViolations.length - 1] : null,
+                // Last 10 connection events for debugging
+                recentConnectionEvents: (connectionLogs[userId] || []).slice(-10)
             };
         });
 
@@ -793,7 +806,28 @@ router.get('/online', async (req, res) => {
     }
 });
 
+// GET /api/driver/connection-logs
+// Returns connection event logs for all drivers (admin debugging)
+router.get('/connection-logs', async (req, res) => {
+    try {
+        const logs = req.app.get('driverConnectionLogs') || {};
+        res.json({ success: true, data: logs });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Server error' });
+    }
+});
 
+// GET /api/driver/connection-logs/:id
+// Returns connection event logs for a specific driver
+router.get('/connection-logs/:id', async (req, res) => {
+    try {
+        const logs = req.app.get('driverConnectionLogs') || {};
+        const driverLogs = logs[req.params.id] || [];
+        res.json({ success: true, data: driverLogs });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Server error' });
+    }
+});
 
 // GET /api/driver/:id/violations
 // Returns speed violation history for a specific driver, grouped by date

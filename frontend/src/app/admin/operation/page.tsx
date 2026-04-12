@@ -11,7 +11,9 @@ import {
     TeamOutlined, EnvironmentOutlined, ThunderboltOutlined, StarOutlined,
     ArrowRightOutlined, AlertOutlined, WifiOutlined, DashboardOutlined,
     UserOutlined, PhoneOutlined, CalendarOutlined, EyeOutlined,
-    RiseOutlined, AimOutlined, CompassOutlined
+    RiseOutlined, AimOutlined, CompassOutlined, HistoryOutlined,
+    DisconnectOutlined, ApiOutlined, SafetyCertificateOutlined,
+    WarningOutlined, LinkOutlined
 } from '@ant-design/icons';
 import { useRouter } from 'next/navigation';
 import apiClient, { getImageUrl } from '@/lib/api-client';
@@ -38,6 +40,22 @@ dayjs.extend(relativeTime);
 
 const { Text, Title } = Typography;
 
+interface ConnectionEvent {
+    event: string;
+    driverName?: string;
+    ts: string;
+    tsMs: number;
+    reason?: string;
+    source?: string;
+    socketId?: string;
+    hasLocation?: boolean;
+    tokenAutoRenewed?: boolean;
+    lastSeenAgoSec?: number;
+    hadSocket?: boolean;
+    error?: string;
+    via?: string;
+}
+
 interface Driver {
     id: string;
     fullName: string;
@@ -48,6 +66,7 @@ interface Driver {
     location?: { lat: number; lng: number; speed?: number } | null;
     lastSeenAt?: string;
     socketId?: string;
+    recentConnectionEvents?: ConnectionEvent[];
 }
 
 interface Booking {
@@ -90,6 +109,11 @@ export default function OperationDashboard() {
     const [detailDrawer, setDetailDrawer] = useState(false);
 
     const [selectedDriver, setSelectedDriver] = useState<any>(null);
+    const [driverLogDrawer, setDriverLogDrawer] = useState(false);
+    const [selectedDriverForLog, setSelectedDriverForLog] = useState<Driver | null>(null);
+    const [driverLogs, setDriverLogs] = useState<ConnectionEvent[]>([]);
+    const [loadingLogs, setLoadingLogs] = useState(false);
+    const [realtimeEvents, setRealtimeEvents] = useState<ConnectionEvent[]>([]);
 
     const getStatusColor = (status: string) => {
         const map: Record<string, string> = {
@@ -202,12 +226,56 @@ export default function OperationDashboard() {
         socket.on('driver_location', handleLocUpdate);
         socket.on('booking_status_update', handleStatusUpdate);
         socket.on('new_booking', handleNewBooking);
+
+        // Real-time connection events for debugging
+        const handleConnectionEvent = (data: any) => {
+            setRealtimeEvents(prev => {
+                const next = [...prev, data];
+                return next.length > 100 ? next.slice(-100) : next;
+            });
+            // If the log drawer is open for this driver, append in real-time
+            setDriverLogs(prev => {
+                if (prev.length === 0) return prev; // drawer not loaded yet
+                return [...prev, data];
+            });
+        };
+        socket.on('driver_connection_event', handleConnectionEvent);
+
         return () => {
             socket.off('driver_location', handleLocUpdate);
             socket.off('booking_status_update', handleStatusUpdate);
             socket.off('new_booking', handleNewBooking);
+            socket.off('driver_connection_event', handleConnectionEvent);
         };
     }, [socket, fetchAll]);
+
+    // Open driver connection log drawer
+    const openDriverLog = async (driver: Driver) => {
+        setSelectedDriverForLog(driver);
+        setDriverLogDrawer(true);
+        setLoadingLogs(true);
+        try {
+            const res = await apiClient.get(`/api/driver/connection-logs/${driver.id}`);
+            if (res.data.success) {
+                setDriverLogs(res.data.data);
+            }
+        } catch {
+            // Fallback to inline data from /online endpoint
+            setDriverLogs(driver.recentConnectionEvents || []);
+        } finally {
+            setLoadingLogs(false);
+        }
+    };
+
+    // Event type configuration for display
+    const eventConfig: Record<string, { color: string; icon: React.ReactNode; label: string }> = {
+        SOCKET_CONNECT: { color: '#10b981', icon: <LinkOutlined />, label: 'Socket Bağlandı' },
+        SOCKET_DISCONNECT: { color: '#ef4444', icon: <DisconnectOutlined />, label: 'Socket Koptu' },
+        HTTP_SYNC: { color: '#3b82f6', icon: <ApiOutlined />, label: 'HTTP Sync' },
+        TOKEN_AUTO_REFRESH: { color: '#f59e0b', icon: <SafetyCertificateOutlined />, label: 'Token Yenilendi' },
+        AUTH_FAILED: { color: '#ef4444', icon: <WarningOutlined />, label: 'Auth Başarısız' },
+        OFFLINE: { color: '#6b7280', icon: <DisconnectOutlined />, label: 'Offline Oldu' },
+    };
 
     const driversForMap = drivers.filter(d => onlineDriverIds.has(d.id) && driverLocations[d.id]).map(d => {
         const speedMS = driverLocations[d.id].speed || 0;
@@ -521,8 +589,13 @@ export default function OperationDashboard() {
                                                     display: 'flex', alignItems: 'center', gap: 10,
                                                     padding: '8px 10px', borderRadius: 8,
                                                     background: isOnline ? '#10b98108' : 'transparent',
-                                                    border: `1px solid ${isOnline ? '#10b98130' : '#f0f0f0'}`
-                                                }}>
+                                                    border: `1px solid ${isOnline ? '#10b98130' : '#f0f0f0'}`,
+                                                    cursor: 'pointer', transition: 'all 0.2s'
+                                                }}
+                                                    onClick={() => openDriverLog(d)}
+                                                    onMouseEnter={e => (e.currentTarget.style.borderColor = '#6366f1')}
+                                                    onMouseLeave={e => (e.currentTarget.style.borderColor = isOnline ? '#10b98130' : '#f0f0f0')}
+                                                >
                                                     <Badge dot status={isOnline ? 'success' : 'default'}>
                                                         <Avatar src={getImageUrl(d.avatar)} size={34} style={{ background: '#6366f1' }}>
                                                             {d.firstName?.charAt(0)}
@@ -547,6 +620,9 @@ export default function OperationDashboard() {
                                                             </div>
                                                         )}
                                                     </div>
+                                                    <Tooltip title="Bağlantı Geçmişi">
+                                                        <HistoryOutlined style={{ color: '#9ca3af', fontSize: 14 }} />
+                                                    </Tooltip>
                                                 </div>
                                             );
                                         })}
@@ -712,6 +788,98 @@ export default function OperationDashboard() {
                                     <Text style={{ fontSize: 12, fontWeight: 500 }}>{item.value}</Text>
                                 </div>
                             ))}
+                        </div>
+                    )}
+                </Drawer>
+
+                {/* Driver Connection Log Drawer */}
+                <Drawer
+                    title={
+                        <Space>
+                            <HistoryOutlined style={{ color: '#6366f1' }} />
+                            <div>
+                                <div style={{ fontWeight: 600 }}>{selectedDriverForLog?.fullName}</div>
+                                <div style={{ fontSize: 11, color: '#888' }}>Bağlantı Geçmişi</div>
+                            </div>
+                        </Space>
+                    }
+                    placement="right"
+                    width={420}
+                    open={driverLogDrawer}
+                    onClose={() => setDriverLogDrawer(false)}
+                    extra={
+                        <Button size="small" onClick={() => selectedDriverForLog && openDriverLog(selectedDriverForLog)}>
+                            <SyncOutlined /> Yenile
+                        </Button>
+                    }
+                >
+                    {loadingLogs ? (
+                        <div style={{ textAlign: 'center', padding: 40 }}><Spin /></div>
+                    ) : driverLogs.length === 0 ? (
+                        <Empty description="Henüz bağlantı kaydı yok" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+                    ) : (
+                        <div>
+                            {/* Summary stats */}
+                            <Card style={{ marginBottom: 16, borderRadius: 10 }} styles={{ body: { padding: 12 } }}>
+                                <Row gutter={[8, 8]}>
+                                    {(() => {
+                                        const stats = [
+                                            { label: 'Bağlantı', count: driverLogs.filter(l => l.event === 'SOCKET_CONNECT').length, color: '#10b981' },
+                                            { label: 'Kopma', count: driverLogs.filter(l => l.event === 'SOCKET_DISCONNECT').length, color: '#ef4444' },
+                                            { label: 'HTTP Sync', count: driverLogs.filter(l => l.event === 'HTTP_SYNC').length, color: '#3b82f6' },
+                                            { label: 'Token Yenileme', count: driverLogs.filter(l => l.event === 'TOKEN_AUTO_REFRESH').length, color: '#f59e0b' },
+                                            { label: 'Hata', count: driverLogs.filter(l => l.event === 'AUTH_FAILED' || l.event === 'OFFLINE').length, color: '#6b7280' },
+                                        ];
+                                        return stats.map((s, i) => (
+                                            <Col span={i < 3 ? 8 : 12} key={i}>
+                                                <div style={{ textAlign: 'center' }}>
+                                                    <div style={{ fontSize: 18, fontWeight: 700, color: s.color }}>{s.count}</div>
+                                                    <div style={{ fontSize: 10, color: '#888' }}>{s.label}</div>
+                                                </div>
+                                            </Col>
+                                        ));
+                                    })()}
+                                </Row>
+                            </Card>
+
+                            {/* Timeline */}
+                            <Timeline
+                                items={[...driverLogs].reverse().map((log, i) => {
+                                    const cfg = eventConfig[log.event] || { color: '#6b7280', icon: <ClockCircleOutlined />, label: log.event };
+                                    const time = dayjs(log.ts);
+                                    const details: string[] = [];
+                                    if (log.reason) details.push(`Neden: ${log.reason}`);
+                                    if (log.source) details.push(`Kaynak: ${log.source}`);
+                                    if (log.socketId) details.push(`Socket: ${log.socketId.substring(0, 8)}...`);
+                                    if (log.hasLocation !== undefined) details.push(log.hasLocation ? 'Konum var' : 'Konum yok');
+                                    if (log.tokenAutoRenewed) details.push('Token otomatik yenilendi');
+                                    if (log.lastSeenAgoSec !== undefined && log.lastSeenAgoSec !== null) details.push(`Son görülme: ${log.lastSeenAgoSec}s önce`);
+                                    if (log.hadSocket !== undefined) details.push(log.hadSocket ? 'Socket aktifti' : 'Socket yoktu');
+                                    if (log.error) details.push(`Hata: ${log.error}`);
+                                    if (log.via) details.push(`Via: ${log.via}`);
+
+                                    return {
+                                        color: cfg.color,
+                                        dot: <span style={{ color: cfg.color }}>{cfg.icon}</span>,
+                                        children: (
+                                            <div style={{ paddingBottom: 4 }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                    <Tag color={cfg.color} style={{ fontSize: 11, margin: 0 }}>{cfg.label}</Tag>
+                                                    <span style={{ fontSize: 10, color: '#9ca3af' }}>{time.format('HH:mm:ss')}</span>
+                                                </div>
+                                                {details.length > 0 && (
+                                                    <div style={{ marginTop: 4, fontSize: 11, color: '#6b7280', lineHeight: 1.6 }}>
+                                                        {details.map((d, j) => (
+                                                            <div key={j}>• {d}</div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                                <div style={{ fontSize: 10, color: '#c0c0c0', marginTop: 2 }}>{time.fromNow()}</div>
+                                            </div>
+                                        )
+                                    };
+                                })}
+                            />
                         </div>
                     )}
                 </Drawer>

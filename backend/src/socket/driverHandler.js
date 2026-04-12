@@ -11,9 +11,33 @@ module.exports = (io, app) => {
     // Online drivers map: { userId: { socketId, connectedAt, lastSeen (timestamp ms), location, name } }
     const onlineDrivers = {};
     const disconnectTimers = {}; // Track timeout IDs for delayed disconnection
+    // Connection event log buffer: { driverId: [ { event, detail, ts, ... } ] }  — max 50 per driver
+    const driverConnectionLogs = {};
+    const MAX_LOG_PER_DRIVER = 50;
+
+    const logDriverEvent = (driverId, driverName, event, detail = {}) => {
+        if (!driverConnectionLogs[driverId]) driverConnectionLogs[driverId] = [];
+        const log = { event, driverName, ts: new Date().toISOString(), tsMs: Date.now(), ...detail };
+        driverConnectionLogs[driverId].push(log);
+        if (driverConnectionLogs[driverId].length > MAX_LOG_PER_DRIVER) {
+            driverConnectionLogs[driverId].shift();
+        }
+        // Also emit to admin panel for real-time debugging
+        io.to('admin_monitoring').emit('driver_connection_event', { driverId, driverName, ...log });
+    };
+
     if (app) app.set('onlineDrivers', onlineDrivers);
+    if (app) app.set('driverConnectionLogs', driverConnectionLogs);
+    if (app) app.set('logDriverEvent', logDriverEvent);
 
     const markDriverOffline = (driverId, fullName) => {
+        const driverData = onlineDrivers[driverId];
+        const lastSeenAgo = driverData ? Math.round((Date.now() - driverData.lastSeen) / 1000) : null;
+        logDriverEvent(driverId, fullName, 'OFFLINE', { 
+            reason: 'timeout_expired', 
+            lastSeenAgoSec: lastSeenAgo,
+            hadSocket: !!driverData?.socketId
+        });
         delete onlineDrivers[driverId];
         delete disconnectTimers[driverId];
         io.to('admin_monitoring').emit('driver_offline', {
@@ -58,7 +82,31 @@ module.exports = (io, app) => {
 
         socket.on('authenticate', async (token) => {
             try {
-                const decoded = jwt.verify(token, JWT_SECRET);
+                let decoded;
+                try {
+                    decoded = jwt.verify(token, JWT_SECRET);
+                } catch (jwtErr) {
+                    // If token is expired, try to decode without verification to get userId
+                    // then issue a fresh token silently (mobile apps need this)
+                    if (jwtErr.name === 'TokenExpiredError') {
+                        decoded = jwt.decode(token);
+                        if (decoded && decoded.userId) {
+                            // Issue a new token and send it back to client
+                            const freshToken = jwt.sign(
+                                { userId: decoded.userId, email: decoded.email, tenantId: decoded.tenantId, roleCode: decoded.roleCode },
+                                JWT_SECRET,
+                                { expiresIn: '30d' }
+                            );
+                            socket.emit('token_refreshed', { token: freshToken });
+                            logDriverEvent(decoded.userId, decoded.email || 'unknown', 'TOKEN_AUTO_REFRESH', { via: 'socket_auth' });
+                            console.log(`[DriverHandler] Auto-refreshed expired token for userId ${decoded.userId}`);
+                        } else {
+                            throw jwtErr;
+                        }
+                    } else {
+                        throw jwtErr;
+                    }
+                }
                 const user = await prisma.user.findUnique({
                     where: { id: decoded.userId },
                     include: { role: true }
@@ -102,6 +150,7 @@ module.exports = (io, app) => {
                             data: { lastSeenAt: new Date() }
                         }).catch(err => console.error('[DriverHandler] Connect DB update failed', err));
 
+                        logDriverEvent(user.id, user.fullName, 'SOCKET_CONNECT', { socketId: socket.id });
                         io.to('admin_monitoring').emit('driver_online', {
                             driverId: user.id,
                             driverName: user.fullName,
@@ -116,6 +165,8 @@ module.exports = (io, app) => {
                     socket.emit('error', { message: 'User not found' });
                 }
             } catch (err) {
+                const failedId = currentUser?.id || 'unknown';
+                logDriverEvent(failedId, currentUser?.fullName || 'unknown', 'AUTH_FAILED', { error: err.message });
                 console.error('[DriverHandler] Socket auth error:', err.message);
                 socket.emit('error', { message: 'Authentication failed: ' + err.message });
             }
@@ -162,10 +213,15 @@ module.exports = (io, app) => {
             socket.join(`booking_${bookingId}`);
         });
 
-        socket.on('disconnect', () => {
+        socket.on('disconnect', (reason) => {
             if (currentUser && onlineDrivers[currentUser.id]) {
                 const driverId = currentUser.id;
                 const fullName = currentUser.fullName;
+
+                logDriverEvent(driverId, fullName, 'SOCKET_DISCONNECT', { 
+                    reason: reason || 'unknown',
+                    socketId: socket.id
+                });
 
                 // Keep them "online" but mark socket as gone
                 onlineDrivers[driverId].socketId = null;

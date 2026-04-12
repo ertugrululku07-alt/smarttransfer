@@ -101,15 +101,7 @@ export default function LoginScreen() {
                     await SecureStore.deleteItemAsync('remembered_email');
                     await SecureStore.deleteItemAsync('remember_me');
                 }
-                // Persist refreshToken for background token renewal
-                try {
-                    if (refreshToken) {
-                        await SecureStore.setItemAsync('refreshToken', refreshToken);
-                        await AsyncStorage.setItem('refreshToken', refreshToken);
-                    }
-                } catch {}
-
-                await signIn(newToken, user);
+                await signIn(newToken, user, refreshToken);
                 router.replace('/(tabs)');
             } else {
                 Alert.alert('Giriş Başarısız', data.error || 'Kullanıcı adı veya şifre hatalı.');

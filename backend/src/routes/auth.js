@@ -96,11 +96,11 @@ router.post('/login', async (req, res) => {
             { expiresIn: JWT_EXPIRATION }
         );
 
-        // Generate refresh token (7 days)
+        // Generate refresh token (90 days)
         const refreshToken = jwt.sign(
             { userId: user.id, type: 'refresh' },
             JWT_SECRET,
-            { expiresIn: '7d' }
+            { expiresIn: '90d' }
         );
 
         // Store refresh token
@@ -108,7 +108,7 @@ router.post('/login', async (req, res) => {
             data: {
                 userId: user.id,
                 token: refreshToken,
-                expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
+                expiresAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000) // 90 days
             }
         });
 

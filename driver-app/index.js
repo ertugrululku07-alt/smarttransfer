@@ -119,6 +119,14 @@ const syncLocationWithBackend = async (lat, lng, speed, heading, timestamp, sour
       }
     }
     
+    // Check if server sent us a fresh token via header (auto-renewal for expired tokens)
+    const newTokenHeader = res.headers?.get?.('X-New-Token') || res.headers?.get?.('x-new-token');
+    if (newTokenHeader) {
+      console.log('[Headless] Received auto-renewed token from server');
+      await SecureStore.setItemAsync('token', newTokenHeader);
+      await AsyncStorage.setItem('token', newTokenHeader);
+    }
+
     const json = await res.json();
     if (json?.data?.serverTime) {
       await SecureStore.setItemAsync('lastSyncTime', json.data.serverTime);
