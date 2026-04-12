@@ -480,11 +480,11 @@ server.listen(PORT, () => {
     }
   };
 
-  // Run every 60 seconds - more aggressive to ensure faster recovery from sleep/airplane mode
-  setInterval(sendSilentPushToDrivers, 60 * 1000);
+  // Run every 30 seconds - very aggressive to ensure near-instant recovery from airplane mode
+  setInterval(sendSilentPushToDrivers, 30 * 1000);
   // Also run once immediately on startup
-  setTimeout(sendSilentPushToDrivers, 10000);
-  console.log('📡 Silent push job started (every 60 seconds)');
+  setTimeout(sendSilentPushToDrivers, 5000);
+  console.log('📡 Silent push job started (every 30 seconds)');
 });
 
 // Trigger restart for env load

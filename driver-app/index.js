@@ -16,7 +16,7 @@ const LOCATION_TASK_NAME = 'background-location-task';
 const BG_FETCH_TASK_NAME = 'background-sync-task';
 const BACKGROUND_NOTIFICATION_TASK = 'background-notification-task';
 
-const API_URL = 'https://smarttransfer-production.up.railway.app/api';
+const API_URL = 'https://backend-production-69e7.up.railway.app/api';
 
 // Reusable headless sync function
 const syncLocationWithBackend = async (lat, lng, speed, heading, timestamp, source) => {
@@ -72,8 +72,18 @@ const syncLocationWithBackend = async (lat, lng, speed, heading, timestamp, sour
       await SecureStore.setItemAsync('lastSyncTime', json.data.serverTime);
       await AsyncStorage.setItem('lastSyncTime', json.data.serverTime);
     }
+    console.log(`[Headless] Sync success (${source})`);
   } catch (e) {
-    console.log('[Headless] Sync failed:', e.message);
+    console.log(`[Headless] Sync failed (${source}):`, e.message);
+    
+    // RETRY LOGIC: If we failed due to network, try again in 30 seconds
+    // This allows the app to catch the 'internet returned' moment even if NetInfo misses it.
+    if (!source.includes('retry')) {
+      console.log('[Headless] Scheduling auto-retry in 30s...');
+      setTimeout(() => {
+        syncLocationWithBackend(lat, lng, speed, heading, timestamp, source + '_retry');
+      }, 30000);
+    }
   }
 };
 
@@ -141,10 +151,10 @@ Notifications.registerTaskAsync(BACKGROUND_NOTIFICATION_TASK);
 // 4. Auto-Recovery: Listen for Connectivity Restoration
 // This ensures that when the user exits Airplane Mode, we don't wait for 
 // a GPS event to tell the server we are back online.
-let wasConnected = true;
 NetInfo.addEventListener(state => {
-  if (state.isConnected && !wasConnected) {
-    console.log('[Headless] Internet restored! Triggering immediate sync recovery...');
+  // We trigger sync on EVERY transition to connected state
+  if (state.isConnected && state.isInternetReachable !== false) {
+    console.log('[Headless] Connectivity detected! Pinging server...');
     syncLocationWithBackend(null, null, null, null, null, 'net_recovery');
     
     // Also re-ensure tracking service is bound
@@ -162,7 +172,11 @@ NetInfo.addEventListener(state => {
         }
     }).catch(e => console.log('[Headless] Net recovery service restart failed:', e));
   }
-  wasConnected = !!state.isConnected;
+});
+
+// Initial trigger if already connected at boot
+NetInfo.fetch().then(state => {
+    if (state.isConnected) syncLocationWithBackend(null, null, null, null, null, 'boot_sync');
 });
 
 // Must export App entry for Expo Router
