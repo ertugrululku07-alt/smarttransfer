@@ -31,17 +31,17 @@ const storage = multer.diskStorage({
 
 // Filter
 const fileFilter = (req, file, cb) => {
-    if (file.mimetype.startsWith('image/')) {
+    if (file.mimetype.startsWith('image/') || file.mimetype.startsWith('audio/') || file.mimetype.startsWith('video/')) {
         cb(null, true);
     } else {
-        cb(new Error('Sadece resim dosyaları yüklenebilir!'), false);
+        cb(new Error('Sadece resim, ses veya video dosyaları yüklenebilir!'), false);
     }
 };
 
 const upload = multer({
     storage: storage,
     limits: {
-        fileSize: 5 * 1024 * 1024 // 5MB limit
+        fileSize: 20 * 1024 * 1024 // 20MB limit
     },
     fileFilter: fileFilter
 });

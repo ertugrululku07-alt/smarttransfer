@@ -28,12 +28,19 @@ const BG_FETCH_TASK_NAME = 'background-sync-task';
 const BACKGROUND_NOTIFICATION_TASK = 'background-notification-task';
 const API_URL = 'https://backend-production-69e7.up.railway.app/api';
 
+// Global flag: suppress chat notifications when messages screen is open
+export const isMessagesScreenOpen = { current: false };
+
 // Configure how notifications appear when app is in foreground
 Notifications.setNotificationHandler({
   handleNotification: async (notification) => {
-    // Suppress location-sync wake-up notifications from showing to user
     const data = notification.request.content.data as any;
+    // Suppress location wake-ups
     if (data?.type === 'LOCATION_REQUEST') {
+      return { shouldShowAlert: false, shouldPlaySound: false, shouldSetBadge: false, shouldShowBanner: false, shouldShowList: false };
+    }
+    // Suppress chat notifications when user is already on messages screen
+    if (data?.type === 'chatMessage' && isMessagesScreenOpen.current) {
       return { shouldShowAlert: false, shouldPlaySound: false, shouldSetBadge: false, shouldShowBanner: false, shouldShowList: false };
     }
     return {
@@ -355,18 +362,7 @@ async function registerPushToken(token: string) {
 
     const fJson = await fRes.json();
     if (fJson.success) {
-      Toast.show({
-        type: 'success',
-        text1: 'Cihaz Kaydedildi',
-        text2: 'Bildirim altyapısı (Push) başarılı şekilde aktifleşti.'
-      });
       console.log('Push token registered successfully:', pushToken);
-    } else {
-      Toast.show({
-        type: 'error',
-        text1: 'Kayıt Hatası',
-        text2: 'Bildirim altyapısı sunucuya kaydedilemedi.'
-      });
     }
 
   } catch (e: any) {

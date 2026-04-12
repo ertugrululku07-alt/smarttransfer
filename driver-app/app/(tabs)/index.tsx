@@ -117,6 +117,9 @@ export default function DashboardScreen() {
   };
 
   const ensureLocationAlwaysOn = async () => {
+    // Native foreground service handles GPS tracking — Expo location service disabled
+    setLocationActive(true);
+    return;
     try {
       // First request foreground
       const { status: fgStatus } = await Location.requestForegroundPermissionsAsync();

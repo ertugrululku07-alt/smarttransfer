@@ -14,13 +14,15 @@ interface SocketContextType {
     isConnected: boolean;
     unreadCount: number;
     setUnreadCount: React.Dispatch<React.SetStateAction<number>>;
+    setMessagesOpen: (open: boolean) => void;
 }
 
 const SocketContext = createContext<SocketContextType>({
     socket: null,
     isConnected: false,
     unreadCount: 0,
-    setUnreadCount: () => { }
+    setUnreadCount: () => { },
+    setMessagesOpen: () => { }
 });
 
 export const useSocket = () => useContext(SocketContext);
@@ -31,6 +33,8 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const [isConnected, setIsConnected] = useState(false);
     const [unreadCount, setUnreadCount] = useState(0);
     const socketRef = useRef<Socket | null>(null);
+    const isMessagesOpenRef = useRef(false);
+    const setMessagesOpen = useCallback((open: boolean) => { isMessagesOpenRef.current = open; }, []);
     const appStateRef = useRef<AppStateStatus>(AppState.currentState);
     const soundRef = useRef<Audio.Sound | null>(null);
     const userIdRef = useRef(user?.id);
@@ -155,11 +159,10 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         // Global message listener
         instance.on('new_message', async (message: any) => {
             if (message.senderId === userIdRef.current) return;
+            // Don't alert/notify if messages screen is open
+            if (isMessagesOpenRef.current) return;
             setUnreadCount(prev => prev + 1);
             await playSound();
-            if (appStateRef.current === 'active') {
-                Alert.alert('💬 Yeni Mesaj', message.content || 'Operasyon merkezinden yeni bir mesajınız var.');
-            }
             await Notifications.scheduleNotificationAsync({
                 content: {
                     title: '💬 Yeni Mesaj',
@@ -277,7 +280,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }, [token, createSocket]);
 
     return (
-        <SocketContext.Provider value={{ socket, isConnected, unreadCount, setUnreadCount }}>
+        <SocketContext.Provider value={{ socket, isConnected, unreadCount, setUnreadCount, setMessagesOpen }}>
             {children}
         </SocketContext.Provider>
     );

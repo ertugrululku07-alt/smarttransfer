@@ -42,19 +42,8 @@ const LOCATION_UPDATES_OPTIONS = {
 };
 
 const ensureLocationTaskRunning = async (reason) => {
-  try {
-    const token = await readToken('token');
-    if (!token) return false;
-    const isRegistered = await TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME);
-    if (!isRegistered) {
-      await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, LOCATION_UPDATES_OPTIONS);
-      console.log(`[Headless] Location task started (${reason})`);
-    }
-    return true;
-  } catch (e) {
-    console.log(`[Headless] ensureLocationTaskRunning failed (${reason}):`, e?.message || e);
-    return false;
-  }
+  // Native foreground service handles GPS — Expo location task disabled
+  return true;
 };
 
 // Read tokens safely from secure storage (fallback to AsyncStorage)

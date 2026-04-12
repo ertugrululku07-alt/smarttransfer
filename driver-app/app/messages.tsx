@@ -4,18 +4,55 @@ import {
     KeyboardAvoidingView, Platform, ActivityIndicator, Keyboard, Image, Alert, Modal
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { Audio } from 'expo-av';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
+import { isMessagesScreenOpen } from './_layout';
 
 const API_URL = 'https://backend-production-69e7.up.railway.app/api';
 
+function AudioPlayer({ url, isMe, time }: { url: string; isMe: boolean; time: string }) {
+    const [sound, setSound] = useState<Audio.Sound | null>(null);
+    const [playing, setPlaying] = useState(false);
+
+    const toggle = async () => {
+        try {
+            if (playing && sound) {
+                await sound.pauseAsync(); setPlaying(false); return;
+            }
+            if (sound) {
+                await sound.playAsync(); setPlaying(true); return;
+            }
+            const { sound: s } = await Audio.Sound.createAsync({ uri: url }, { shouldPlay: true });
+            setSound(s);
+            setPlaying(true);
+            s.setOnPlaybackStatusUpdate(st => {
+                if ('didJustFinish' in st && st.didJustFinish) { setPlaying(false); s.unloadAsync(); setSound(null); }
+            });
+        } catch (e) { console.error('Audio play error:', e); }
+    };
+
+    return (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, padding: 10,
+            backgroundColor: isMe ? '#4361ee' : '#fff', borderRadius: 18, minWidth: 120 }}>
+            <TouchableOpacity onPress={toggle}>
+                <Ionicons name={playing ? 'pause-circle' : 'play-circle'} size={36} color={isMe ? '#fff' : '#4361ee'} />
+            </TouchableOpacity>
+            <View style={{ flex: 1 }}>
+                <Text style={{ color: isMe ? 'rgba(255,255,255,0.7)' : '#6b7280', fontSize: 10 }}>Ses kaydı</Text>
+                <Text style={{ color: isMe ? 'rgba(255,255,255,0.5)' : '#9ca3af', fontSize: 9, marginTop: 2 }}>{time}</Text>
+            </View>
+        </View>
+    );
+}
+
 export default function MessagesScreen() {
     const { user, token } = useAuth();
-    const { socket, setUnreadCount } = useSocket();
+    const { socket, setUnreadCount, setMessagesOpen } = useSocket();
     const router = useRouter();
     const [messages, setMessages] = useState<any[]>([]);
     const [inputText, setInputText] = useState('');
@@ -23,6 +60,8 @@ export default function MessagesScreen() {
     const [sending, setSending] = useState(false);
     const [contactId, setContactId] = useState<string | null>(null);
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
+    const [isRecording, setIsRecording] = useState(false);
+    const recordingRef = useRef<Audio.Recording | null>(null);
     const flatListRef = useRef<FlatList>(null);
 
     const getImageUrl = (url: string | undefined | null) => {
@@ -37,11 +76,18 @@ export default function MessagesScreen() {
         return url;
     };
 
-    // Clear unread count when screen is open
+    // Tell global handler + SocketContext: messages screen is open
     useFocusEffect(
         React.useCallback(() => {
+            isMessagesScreenOpen.current = true;
+            setMessagesOpen(true);
             setUnreadCount(0);
-        }, [setUnreadCount])
+            if (contactId) fetchMessages(contactId, false);
+            return () => {
+                isMessagesScreenOpen.current = false;
+                setMessagesOpen(false);
+            };
+        }, [setUnreadCount, setMessagesOpen, contactId])
     );
 
     // Step 1: fetch the contact (admin) first
@@ -51,9 +97,7 @@ export default function MessagesScreen() {
 
     // Step 2: when contactId is ready, fetch messages
     useEffect(() => {
-        if (contactId) {
-            fetchMessages(contactId);
-        }
+        if (contactId) fetchMessages(contactId, true);
     }, [contactId]);
 
     // Socket listener for incoming messages
@@ -61,12 +105,11 @@ export default function MessagesScreen() {
         if (!socket) return;
 
         const handleNewMessage = (msg: any) => {
-            // Check if it's already in the list to avoid duplicate renders
             setMessages(prev => {
                 if (prev.find(m => m.id === msg.id)) return prev;
                 return [...prev, msg];
             });
-            setUnreadCount(0); // If a message comes in while we are here, immediately clear it
+            setUnreadCount(0);
         };
 
         socket.on('new_message', handleNewMessage);
@@ -74,6 +117,21 @@ export default function MessagesScreen() {
             socket.off('new_message', handleNewMessage);
         };
     }, [socket, user?.id]);
+
+    // Polling: 2s while focused for near-realtime updates without socket
+    const isFocusedRef = useRef(false);
+    useFocusEffect(
+        React.useCallback(() => {
+            isFocusedRef.current = true;
+            const interval = setInterval(() => {
+                if (contactId && isFocusedRef.current) fetchMessages(contactId, false);
+            }, 2000);
+            return () => {
+                isFocusedRef.current = false;
+                clearInterval(interval);
+            };
+        }, [contactId])
+    );
 
     const fetchContact = async () => {
         try {
@@ -93,8 +151,8 @@ export default function MessagesScreen() {
         }
     };
 
-    const fetchMessages = async (cId: string) => {
-        setLoading(true);
+    const fetchMessages = async (cId: string, showSpinner = true) => {
+        if (showSpinner) setLoading(true);
         try {
             const res = await fetch(`${API_URL}/messages?contactId=${cId}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
@@ -141,6 +199,49 @@ export default function MessagesScreen() {
         } finally {
             setSending(false);
         }
+    };
+
+    // ── Voice recording ────────────────────────────────────────────────────
+    const startRecording = async () => {
+        try {
+            const { granted } = await Audio.requestPermissionsAsync();
+            if (!granted) { Alert.alert('İzin Gerekli', 'Mikrofon erişimine izin verin.'); return; }
+            await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
+            const { recording } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
+            recordingRef.current = recording;
+            setIsRecording(true);
+        } catch (e) { console.error('Record start error:', e); }
+    };
+
+    const stopRecording = async () => {
+        try {
+            setIsRecording(false);
+            if (!recordingRef.current || !contactId) return;
+            await recordingRef.current.stopAndUnloadAsync();
+            const uri = recordingRef.current.getURI();
+            recordingRef.current = null;
+            if (!uri) return;
+            setSending(true);
+            const formData = new FormData();
+            formData.append('file', { uri, name: 'voice.m4a', type: 'audio/m4a' } as any);
+            const uploadRes = await fetch(`${API_URL}/upload`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` },
+                body: formData
+            });
+            const uploadJson = await uploadRes.json();
+            if (!uploadJson.success) { Alert.alert('Hata', 'Ses yüklenemedi'); setSending(false); return; }
+            const res = await fetch(`${API_URL}/messages`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ receiverId: contactId, content: uploadJson.data.url, format: 'AUDIO' })
+            });
+            const json = await res.json();
+            if (json.success) {
+                setMessages(prev => prev.find((m: any) => m.id === json.data.id) ? prev : [...prev, json.data]);
+            }
+        } catch (e) { console.error('Record stop error:', e); }
+        finally { setSending(false); }
     };
 
     const openCamera = async () => {
@@ -228,6 +329,7 @@ export default function MessagesScreen() {
     const renderItem = ({ item }: { item: any }) => {
         const isMe = item.senderId === user?.id;
         const time = new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const imgUrl = getImageUrl(item.content);
         return (
             <View style={[styles.bubbleRow, isMe ? styles.rowRight : styles.rowLeft]}>
                 {!isMe && (
@@ -235,23 +337,30 @@ export default function MessagesScreen() {
                         <Ionicons name="headset" size={14} color="#4361ee" />
                     </View>
                 )}
-                <View style={[styles.bubble, isMe ? styles.bubbleMe : styles.bubbleOther]}>
+                <View style={[styles.bubble, isMe ? styles.bubbleMe : styles.bubbleOther,
+                    (item.format === 'IMAGE' || item.format === 'AUDIO') && { padding: 4, backgroundColor: 'transparent', elevation: 0 }]}>
                     {item.format === 'IMAGE' ? (
-                        <TouchableOpacity onPress={() => setSelectedImage(getImageUrl(item.content))}>
+                        <TouchableOpacity onPress={() => setSelectedImage(imgUrl)}>
                             <Image
-                                source={{ uri: getImageUrl(item.content) }}
+                                source={{ uri: imgUrl }}
                                 style={styles.attachedImage}
                                 resizeMode="cover"
+                                onError={() => console.log('Image load error:', imgUrl)}
                             />
+                            <Text style={[styles.timeText, { color: '#6b7280', textAlign: 'right', marginTop: 2 }]}>{time}</Text>
                         </TouchableOpacity>
+                    ) : item.format === 'AUDIO' ? (
+                        <AudioPlayer url={imgUrl} isMe={isMe} time={time} />
                     ) : (
-                        <Text style={[styles.bubbleText, isMe ? styles.textMe : styles.textOther]}>
-                            {item.content}
-                        </Text>
+                        <>
+                            <Text style={[styles.bubbleText, isMe ? styles.textMe : styles.textOther]}>
+                                {item.content}
+                            </Text>
+                            <Text style={[styles.timeText, isMe ? { color: 'rgba(255,255,255,0.6)' } : { color: '#9ca3af' }]}>
+                                {time}
+                            </Text>
+                        </>
                     )}
-                    <Text style={[styles.timeText, isMe ? { color: 'rgba(255,255,255,0.6)' } : { color: '#9ca3af' }]}>
-                        {time}
-                    </Text>
                 </View>
             </View>
         );
@@ -315,6 +424,14 @@ export default function MessagesScreen() {
                         disabled={!contactId || sending}
                     >
                         <Ionicons name="camera" size={24} color="#6b7280" />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[styles.cameraBtn, isRecording && { backgroundColor: '#fee2e2', borderRadius: 20 }]}
+                        onPressIn={startRecording}
+                        onPressOut={stopRecording}
+                        disabled={!contactId || sending}
+                    >
+                        <Ionicons name={isRecording ? 'mic' : 'mic-outline'} size={24} color={isRecording ? '#ef4444' : '#6b7280'} />
                     </TouchableOpacity>
                     <TextInput
                         style={styles.input}
