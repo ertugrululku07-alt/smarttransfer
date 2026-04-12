@@ -19,6 +19,13 @@ const BACKGROUND_NOTIFICATION_TASK = 'background-notification-task';
 
 const API_URL = 'https://backend-production-69e7.up.railway.app/api';
 
+// Throttle & debounce tracking
+let lastForegroundSyncMs = 0;
+const FOREGROUND_SYNC_MIN_INTERVAL = 25000; // Min 25s between foreground location syncs
+let lastNetRecoveryMs = 0;
+const NET_RECOVERY_DEBOUNCE = 30000; // Min 30s between net_recovery syncs
+let bootSyncDone = false;
+
 // Read tokens safely from secure storage (fallback to AsyncStorage)
 const readToken = async (key) => {
   let v = await SecureStore.getItemAsync(key);
@@ -64,24 +71,35 @@ const syncLocationWithBackend = async (lat, lng, speed, heading, timestamp, sour
     // If coordinates weren't provided directly, try to fetch last known location reliably
     if (!lat) {
       try {
-        const fallback = await Location.getLastKnownPositionAsync({ maxAge: 60000 });
+        // Try cached location first (up to 5 min old — useful when app is backgrounded)
+        const fallback = await Location.getLastKnownPositionAsync({ maxAge: 300000 });
         if (fallback) {
           lat = fallback.coords.latitude;
           lng = fallback.coords.longitude;
           speed = fallback.coords.speed;
           heading = fallback.coords.heading;
           timestamp = fallback.timestamp;
-        } else {
-          // Last resort if cache is empty
-          const fresh = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced, timeInterval: 5000 });
-          lat = fresh.coords.latitude;
-          lng = fresh.coords.longitude;
-          speed = fresh.coords.speed;
-          heading = fresh.coords.heading;
-          timestamp = fresh.timestamp;
         }
       } catch (e) { 
-        console.log('[Headless] Failed to acquire GPS fallback:', e);
+        console.log('[Headless] getLastKnownPosition failed:', e?.message);
+      }
+      // If still no location, try active GPS with timeout
+      if (!lat) {
+        try {
+          const fresh = await Promise.race([
+            Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('GPS timeout')), 8000))
+          ]);
+          if (fresh) {
+            lat = fresh.coords.latitude;
+            lng = fresh.coords.longitude;
+            speed = fresh.coords.speed;
+            heading = fresh.coords.heading;
+            timestamp = fresh.timestamp;
+          }
+        } catch (e) {
+          console.log('[Headless] getCurrentPosition failed:', e?.message);
+        }
       }
     }
 
@@ -147,7 +165,7 @@ const syncLocationWithBackend = async (lat, lng, speed, heading, timestamp, sour
   }
 };
 
-// 1. Foreground Tracking Real-time Task
+// 1. Foreground Tracking Real-time Task (throttled to avoid spam)
 TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
   if (error) {
     console.error('[Headless] Location Task Error:', error);
@@ -156,6 +174,12 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
   if (data) {
     const location = data.locations?.[0];
     if (location) {
+      const now = Date.now();
+      // Throttle: skip if we synced less than 25s ago
+      if (now - lastForegroundSyncMs < FOREGROUND_SYNC_MIN_INTERVAL) {
+        return;
+      }
+      lastForegroundSyncMs = now;
       await syncLocationWithBackend(
         location.coords.latitude, 
         location.coords.longitude,
@@ -186,9 +210,9 @@ TaskManager.defineTask(BACKGROUND_NOTIFICATION_TASK, async ({ data, error }) => 
      // when the user swiped the app away.
      try {
        await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
-         accuracy: Location.Accuracy.Highest,
-         timeInterval: 2000,
-         distanceInterval: 0,
+         accuracy: Location.Accuracy.High,
+         timeInterval: 15000,
+         distanceInterval: 5,
          showsBackgroundLocationIndicator: true,
          activityType: Location.ActivityType.AutomotiveNavigation,
          pausesUpdatesAutomatically: false,
@@ -208,21 +232,26 @@ TaskManager.defineTask(BACKGROUND_NOTIFICATION_TASK, async ({ data, error }) => 
 });
 Notifications.registerTaskAsync(BACKGROUND_NOTIFICATION_TASK);
 
-// 4. Auto-Recovery: Listen for Connectivity Restoration
-// This ensures that when the user exits Airplane Mode, we don't wait for 
-// a GPS event to tell the server we are back online.
+// 4. Auto-Recovery: Listen for Connectivity Restoration (debounced)
 NetInfo.addEventListener(state => {
-  // We trigger sync on EVERY transition to connected state
   if (state.isConnected && state.isInternetReachable !== false) {
+    const now = Date.now();
+    // Debounce: skip if we already synced within last 30s
+    if (now - lastNetRecoveryMs < NET_RECOVERY_DEBOUNCE) {
+      return;
+    }
+    lastNetRecoveryMs = now;
     console.log('[Headless] Connectivity detected! Pinging server...');
     syncLocationWithBackend(null, null, null, null, null, 'net_recovery');
     
     // Also re-ensure tracking service is bound
     Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
-        accuracy: Location.Accuracy.Highest,
-        timeInterval: 2000,
-        distanceInterval: 0,
+        accuracy: Location.Accuracy.High,
+        timeInterval: 15000,
+        distanceInterval: 5,
         showsBackgroundLocationIndicator: true,
+        activityType: Location.ActivityType.AutomotiveNavigation,
+        pausesUpdatesAutomatically: false,
         foregroundService: {
           notificationTitle: 'SmartTransfer Sürücü',
           notificationBody: 'Arka planda konum takip ediliyor.',
@@ -234,17 +263,19 @@ NetInfo.addEventListener(state => {
   }
 });
 
-// Initial trigger if already connected at boot
+// Initial trigger if already connected at boot (skip if net_recovery already fired)
 NetInfo.fetch().then(async (state) => {
-    if (state.isConnected) {
+    if (state.isConnected && !bootSyncDone) {
+      bootSyncDone = true;
+      lastNetRecoveryMs = Date.now(); // Prevent immediate net_recovery duplicate
       syncLocationWithBackend(null, null, null, null, null, 'boot_sync');
       try {
         const isRegistered = await TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME);
         if (!isRegistered) {
           await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
-            accuracy: Location.Accuracy.Highest,
-            timeInterval: 2000,
-            distanceInterval: 0,
+            accuracy: Location.Accuracy.High,
+            timeInterval: 15000,
+            distanceInterval: 5,
             showsBackgroundLocationIndicator: true,
             activityType: Location.ActivityType.AutomotiveNavigation,
             pausesUpdatesAutomatically: false,

@@ -149,9 +149,9 @@ export default function DashboardScreen() {
       // Even if TaskManager says "isRegistered" = true, Android's Doze mode may have silently
       // suppressed the foreground service. Calling it again forces OS to re-awaken it.
       await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
-        accuracy: Location.Accuracy.Highest, // Maximum accuracy to read raw un-smoothed values
-        timeInterval: 2000,       // 2 seconds constant ping (high sensitivity)
-        distanceInterval: 0,       // DO NOT wait for distance changes (prevents sleep freeze)
+        accuracy: Location.Accuracy.High,
+        timeInterval: 15000,       // 15 seconds — throttled in task handler to 25s min
+        distanceInterval: 5,        // At least 5m movement to trigger
         showsBackgroundLocationIndicator: true,
         activityType: Location.ActivityType.AutomotiveNavigation,
         pausesUpdatesAutomatically: false,  // CRITICAL: prevents iOS/Android from pausing
