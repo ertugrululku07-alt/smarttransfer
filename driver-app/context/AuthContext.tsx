@@ -68,9 +68,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                 // Persist everywhere so headless tasks also get the new token
                 await SecureStore.setItemAsync('token', newToken);
                 await AsyncStorage.setItem('token', newToken);
-                setToken(newToken);
+                // Only update React state if token actually changed — avoids unnecessary re-renders
+                const changed = newToken !== tokenRef.current;
                 tokenRef.current = newToken;
-                console.log('[Auth] Token refreshed successfully');
+                if (changed) {
+                    setToken(newToken);
+                }
+                console.log('[Auth] Token refreshed successfully (changed:', changed, ')');
                 return newToken;
             }
             return null;

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { useAuth } from './AuthContext';
 import { AppState, AppStateStatus, Alert } from 'react-native';
@@ -36,10 +36,17 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const lastPongRef = useRef<number>(Date.now());
     const reconnectAttemptsRef = useRef(0);
     const tokenRef = useRef<string | null>(token);
+    // Track whether we've ever created a socket for this session
+    const socketCreatedRef = useRef(false);
 
     useEffect(() => {
         userIdRef.current = user?.id;
     }, [user?.id]);
+
+    // Keep tokenRef always in sync — but DON'T trigger socket recreation
+    useEffect(() => {
+        tokenRef.current = token;
+    }, [token]);
 
     // Initial sound loader — use bundled fallback-safe approach
     useEffect(() => {
@@ -70,11 +77,23 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }
     };
 
-    const createSocket = (tkn: string) => {
+    // Re-authenticate existing socket with fresh token (NO disconnect)
+    const reAuthSocket = useCallback((tkn: string) => {
+        if (socketRef.current) {
+            console.log('[Socket] Re-authenticating with fresh token (no disconnect)');
+            if (!socketRef.current.connected) {
+                socketRef.current.connect();
+            }
+            socketRef.current.emit('authenticate', tkn);
+        }
+    }, []);
+
+    const createSocket = useCallback((tkn: string) => {
         // Clean up existing socket first
         if (socketRef.current) {
             socketRef.current.removeAllListeners();
             socketRef.current.disconnect();
+            socketRef.current = null;
         }
 
         const instance = io(SOCKET_URL, {
@@ -89,7 +108,8 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
         instance.on('connect', () => {
             console.log('[Socket] Connected:', instance.id);
-            instance.emit('authenticate', tkn);
+            // Always use the latest token for authentication
+            instance.emit('authenticate', tokenRef.current || tkn);
         });
 
         instance.on('authenticated', (data: any) => {
@@ -116,10 +136,18 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         instance.on('disconnect', (reason: string) => {
             console.log('[Socket] Disconnected:', reason);
             setIsConnected(false);
-            // If server dropped us, try to reconnect immediately
-            if (reason === 'io server disconnect') {
-                setTimeout(() => instance.connect(), 1000);
+
+            // Auto-reconnect for all recoverable disconnect reasons
+            if (reason === 'io server disconnect' || reason === 'transport close' || reason === 'transport error') {
+                console.log(`[Socket] Auto-reconnecting after ${reason}`);
+                setTimeout(() => {
+                    if (socketRef.current && !socketRef.current.connected) {
+                        socketRef.current.connect();
+                    }
+                }, 1000);
             }
+            // 'client namespace disconnect' = our code called disconnect() — do NOT reconnect
+            // 'ping timeout' = Socket.IO will handle reconnect automatically
         });
 
         instance.on('connect_error', async (err: any) => {
@@ -128,13 +156,11 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         });
 
         instance.on('reconnect', async () => {
-            console.log('[Socket] Reconnected - re-authenticating with fresh token');
+            console.log('[Socket] Reconnected - re-authenticating');
             reconnectAttemptsRef.current = 0;
             lastPongRef.current = Date.now();
-            // Try to get fresh token before re-authenticating
-            const freshToken = await refreshTokenNow();
-            const authToken = freshToken || tokenRef.current || tkn;
-            instance.emit('authenticate', authToken);
+            // Use latest tokenRef — no need to call refreshTokenNow here (avoids race)
+            instance.emit('authenticate', tokenRef.current || tkn);
         });
 
         // Pong response from server keeps connection health tracked
@@ -202,61 +228,62 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
         instance.connect();
         socketRef.current = instance;
+        socketCreatedRef.current = true;
         setSocket(instance);
         return instance;
-    };
+    }, []);
 
+    // Socket lifecycle: ONLY create on first token, destroy on logout
     useEffect(() => {
         if (!token) {
+            // Logout — destroy socket
             if (socketRef.current) {
                 socketRef.current.removeAllListeners();
                 socketRef.current.disconnect();
                 socketRef.current = null;
                 setSocket(null);
                 setIsConnected(false);
+                socketCreatedRef.current = false;
             }
             return;
         }
 
-        createSocket(token);
-
-        return () => {
-            if (socketRef.current) {
-                socketRef.current.removeAllListeners();
-                socketRef.current.disconnect();
-                socketRef.current = null;
-                setSocket(null);
-                setIsConnected(false);
-            }
-        };
-    }, [token]);
-
-    // Keep tokenRef in sync with latest token
-    useEffect(() => {
-        tokenRef.current = token;
-    }, [token]);
+        // First login or first token — create socket
+        if (!socketCreatedRef.current) {
+            createSocket(token);
+        }
+        // Token changed (refresh) — just re-authenticate, DON'T recreate
+        // This is the KEY FIX: no more disconnect on token refresh
+    }, [token, createSocket]);
 
     // Reconnect when app comes to foreground + aggressive keep-alive
     useEffect(() => {
+        if (!token) return;
+
         const handleAppStateChange = async (nextState: AppStateStatus) => {
             if (
                 appState.current.match(/inactive|background/) &&
-                nextState === 'active' &&
-                token
+                nextState === 'active'
             ) {
-                console.log('[Socket] App foregrounded - checking connection');
+                console.log('[Socket] App foregrounded — checking connection');
                 const timeSincePong = Date.now() - lastPongRef.current;
+                const activeToken = tokenRef.current || token;
 
-                // Get a fresh token first
-                const freshToken = await refreshTokenNow();
-                const activeToken = freshToken || tokenRef.current || token;
-
-                // If socket is dead or stale (no pong >90s), recreate entirely
-                if (!socketRef.current || !socketRef.current.connected || timeSincePong > 90000) {
-                    console.log('[Socket] Connection stale/dead — full recreate');
+                if (!socketRef.current) {
+                    // Socket was garbage collected — recreate
+                    console.log('[Socket] No socket instance — creating');
+                    createSocket(activeToken);
+                } else if (!socketRef.current.connected) {
+                    // Socket exists but disconnected — just reconnect
+                    console.log('[Socket] Socket disconnected — reconnecting');
+                    socketRef.current.connect();
+                } else if (timeSincePong > 90000) {
+                    // Connected but no pong in 90s — zombie, recreate
+                    console.log('[Socket] Zombie connection — full recreate');
                     createSocket(activeToken);
                 } else {
-                    // Force re-authenticate in case server dropped our session
+                    // Healthy connection — just re-authenticate to be safe
+                    console.log('[Socket] Connection alive — re-authenticating');
                     socketRef.current.emit('authenticate', activeToken);
                 }
                 reconnectAttemptsRef.current = 0;
@@ -268,23 +295,24 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
         // Aggressive keep-alive: 25s interval
         const keepAliveInterval = setInterval(async () => {
-            if (!token) return;
+            if (!tokenRef.current) return;
 
             if (!socketRef.current || !socketRef.current.connected) {
                 reconnectAttemptsRef.current++;
                 console.log(`[Socket] Keep-alive: disconnected (attempt ${reconnectAttemptsRef.current})`);
 
-                // After 3 failed reconnects, get fresh token and recreate
-                if (reconnectAttemptsRef.current >= 3) {
-                    console.log('[Socket] Too many failed reconnects — refreshing token + full recreate');
-                    const freshToken = await refreshTokenNow();
-                    const activeToken = freshToken || tokenRef.current || token;
-                    createSocket(activeToken);
+                if (reconnectAttemptsRef.current >= 5) {
+                    // After 5 failed attempts, full recreate
+                    console.log('[Socket] Too many failed reconnects — full recreate');
+                    createSocket(tokenRef.current || token);
                     reconnectAttemptsRef.current = 0;
                 } else if (socketRef.current) {
+                    // Try simple reconnect
                     socketRef.current.connect();
                 } else {
+                    // No socket at all
                     createSocket(tokenRef.current || token);
+                    reconnectAttemptsRef.current = 0;
                 }
             } else {
                 // Send a lightweight ping to keep the connection alive
@@ -295,8 +323,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                 if (timeSincePong > 120000) {
                     // Server hasn't responded in 2min — connection is zombie
                     console.log('[Socket] Zombie connection detected (no pong) — recreating');
-                    const freshToken = await refreshTokenNow();
-                    createSocket(freshToken || tokenRef.current || token);
+                    createSocket(tokenRef.current || token);
                     reconnectAttemptsRef.current = 0;
                 }
             }
@@ -306,7 +333,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             subscription.remove();
             clearInterval(keepAliveInterval);
         };
-    }, [token]);
+    }, [token, createSocket]);
 
     return (
         <SocketContext.Provider value={{ socket, isConnected, unreadCount, setUnreadCount }}>
