@@ -115,7 +115,7 @@ TaskManager.defineTask(BACKGROUND_NOTIFICATION_TASK, async ({ data, error }) => 
      // when the user swiped the app away.
      try {
        await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
-         accuracy: Location.Accuracy.BestForNavigation,
+         accuracy: Location.Accuracy.Highest,
          timeInterval: 2000,
          distanceInterval: 0,
          showsBackgroundLocationIndicator: true,
