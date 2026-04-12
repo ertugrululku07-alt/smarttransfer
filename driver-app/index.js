@@ -19,11 +19,42 @@ const BACKGROUND_NOTIFICATION_TASK = 'background-notification-task';
 
 const API_URL = 'https://backend-production-69e7.up.railway.app/api';
 
+// Read tokens safely from secure storage (fallback to AsyncStorage)
+const readToken = async (key) => {
+  let v = await SecureStore.getItemAsync(key);
+  if (!v) v = await AsyncStorage.getItem(key);
+  return v;
+};
+
+// Refresh access token using stored refreshToken
+const refreshAccessToken = async () => {
+  try {
+    const refreshToken = await readToken('refreshToken');
+    if (!refreshToken) return null;
+    const res = await fetch(`${API_URL}/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken })
+    });
+    if (!res.ok) return null;
+    const json = await res.json();
+    const newToken = json?.data?.token;
+    if (newToken) {
+      await SecureStore.setItemAsync('token', newToken);
+      await AsyncStorage.setItem('token', newToken);
+      return newToken;
+    }
+    return null;
+  } catch (e) {
+    console.log('[Headless] Token refresh failed:', e?.message || e);
+    return null;
+  }
+};
+
 // Reusable headless sync function
 const syncLocationWithBackend = async (lat, lng, speed, heading, timestamp, source) => {
   try {
-    let token = await SecureStore.getItemAsync('token');
-    if (!token) token = await AsyncStorage.getItem('token');
+    let token = await readToken('token');
     if (!token) return;
     
     let lastSyncTime = await SecureStore.getItemAsync('lastSyncTime');
@@ -54,7 +85,7 @@ const syncLocationWithBackend = async (lat, lng, speed, heading, timestamp, sour
       }
     }
 
-    const res = await fetch(`${API_URL}/driver/sync`, {
+    let res = await fetch(`${API_URL}/driver/sync`, {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json', 
@@ -67,6 +98,26 @@ const syncLocationWithBackend = async (lat, lng, speed, heading, timestamp, sour
         lastSyncTime 
       })
     });
+    // If token expired, try refresh once and retry the sync immediately
+    if (res.status === 401) {
+      const newToken = await refreshAccessToken();
+      if (newToken) {
+        token = newToken;
+        res = await fetch(`${API_URL}/driver/sync`, {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json', 
+            'Authorization': `Bearer ${token}`, 
+            'X-Tenant-Slug': 'smarttravel-demo' 
+          },
+          body: JSON.stringify({ 
+            lat, lng, speed, heading, timestamp, source: source + '_retry_after_refresh', 
+            checkNotifications: false, 
+            lastSyncTime 
+          })
+        });
+      }
+    }
     
     const json = await res.json();
     if (json?.data?.serverTime) {

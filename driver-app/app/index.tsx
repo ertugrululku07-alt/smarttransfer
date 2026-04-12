@@ -9,6 +9,7 @@ import { router } from 'expo-router';
 import { useAuth } from '../context/AuthContext';
 import { Ionicons } from '@expo/vector-icons';
 import * as SecureStore from 'expo-secure-store';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Brand } from '../constants/theme';
 
 const API_URL = 'https://backend-production-69e7.up.railway.app/api';
@@ -87,7 +88,7 @@ export default function LoginScreen() {
             }
             const data = await response.json();
             if (data.success) {
-                const { user, token: newToken } = data.data;
+                const { user, token: newToken, refreshToken } = data.data;
                 const isDriver = user.role?.code === 'DRIVER' || user.role?.type === 'DRIVER' || user.role?.type === 'PARTNER';
                 if (!isDriver) {
                     Alert.alert('Yetkisiz Giriş', 'Bu uygulama yalnızca sürücüler içindir.');
@@ -100,6 +101,14 @@ export default function LoginScreen() {
                     await SecureStore.deleteItemAsync('remembered_email');
                     await SecureStore.deleteItemAsync('remember_me');
                 }
+                // Persist refreshToken for background token renewal
+                try {
+                    if (refreshToken) {
+                        await SecureStore.setItemAsync('refreshToken', refreshToken);
+                        await AsyncStorage.setItem('refreshToken', refreshToken);
+                    }
+                } catch {}
+
                 await signIn(newToken, user);
                 router.replace('/(tabs)');
             } else {
