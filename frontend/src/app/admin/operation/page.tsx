@@ -531,7 +531,7 @@ export default function OperationDashboard() {
                                                         <div style={{ fontWeight: 600, fontSize: 12 }}>{d.fullName}</div>
                                                         <div style={{ fontSize: 11, color: '#888' }}>
                                                             {d.jobTitle || 'Şoför'}
-                                                            {loc?.speed ? ` • ${Math.round(loc.speed * 3.6)} km/h` : ''}
+                                                            {loc?.speed !== undefined ? ` • ${Math.round(loc.speed * 3.6)} km/h` : ''}
                                                         </div>
                                                     </div>
                                                     <div style={{ textAlign: 'right', fontSize: 11 }}>
