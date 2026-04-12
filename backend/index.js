@@ -377,7 +377,10 @@ const io = new Server(server, {
   cors: {
     origin: '*', // Allow all origins for mobile app/web panel
     methods: ['GET', 'POST']
-  }
+  },
+  // Generous timeouts for mobile clients (Android kills WebSocket in background)
+  pingTimeout: 60000,   // Wait 60s for pong before considering connection dead (default 20s)
+  pingInterval: 25000,  // Send ping every 25s (default 25s)
 });
 
 // Import socket handler
