@@ -82,20 +82,18 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             socketRef.current = null;
         }
 
-        console.log('[Socket] Creating new socket');
+        console.log('[Socket] Creating new socket (optional — HTTP sync is primary)');
         const instance = io(SOCKET_URL, {
             autoConnect: false,
+            // Limited reconnection — don't burn battery chasing socket
             reconnection: true,
-            reconnectionAttempts: Infinity,
-            reconnectionDelay: 2000,
-            reconnectionDelayMax: 10000,
+            reconnectionAttempts: 3,
+            reconnectionDelay: 5000,
+            reconnectionDelayMax: 30000,
             timeout: 20000,
-            // Start with polling (reliable), then upgrade to websocket
-            // Polling survives Android's aggressive WebSocket killing
+            // Polling first, then upgrade — more reliable on mobile
             transports: ['polling', 'websocket'],
             upgrade: true,
-            rememberUpgrade: false,
-            // Force new connection each time to avoid stale session issues
             forceNew: true,
         });
 

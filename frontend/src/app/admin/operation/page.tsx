@@ -185,8 +185,8 @@ export default function OperationDashboard() {
                 const online = new Set<string>();
                 const locs: Record<string, { lat: number; lng: number; speed?: number }> = {};
                 driverList.forEach(d => {
-                    // Strictly require fresh data. No data in 15s means offline (Instant detection).
-                    if (d.lastSeenAt && dayjs().diff(dayjs(d.lastSeenAt), 'second') <= 15) {
+                    // Online if seen within last 2 minutes (HTTP sync sends every ~30s)
+                    if (d.lastSeenAt && dayjs().diff(dayjs(d.lastSeenAt), 'second') <= 120) {
                         online.add(d.id);
                     }
                     if (d.location) locs[d.id] = d.location;
@@ -206,7 +206,8 @@ export default function OperationDashboard() {
 
     useEffect(() => {
         fetchAll();
-        const interval = setInterval(() => fetchAll(true), 30000);
+        // Poll every 10s for near-real-time tracking (no socket dependency)
+        const interval = setInterval(() => fetchAll(true), 10000);
         return () => clearInterval(interval);
     }, [fetchAll]);
 

@@ -169,39 +169,46 @@ export default function DashboardScreen() {
     }
   };
 
-  // Start FOREGROUND tracking to stream live points to Web Sockets for Admin Map
+  // Foreground HTTP sync: send location every 10s via REST API (no socket dependency)
   useEffect(() => {
-    let locationSubscription: Location.LocationSubscription | null = null;
+    if (!locationActive || !token) return;
+    let active = true;
 
-    const startForegroundTracking = async () => {
-      if (!locationActive || !socket || !isConnected) return;
-
-      locationSubscription = await Location.watchPositionAsync(
-        {
-          accuracy: Location.Accuracy.Highest,
-          timeInterval: 2000, // Emit every 2 seconds for aggressive live tracking
-          distanceInterval: 0,
-        },
-        (location) => {
-          socket.emit('driver_location_update', {
-            lat: location.coords.latitude,
-            lng: location.coords.longitude,
-            speed: location.coords.speed || 0,
-            heading: location.coords.heading || 0,
-            timestamp: new Date(location.timestamp).toISOString()
-          });
+    const syncLoop = async () => {
+      while (active) {
+        try {
+          const loc = await Location.getLastKnownPositionAsync({ maxAge: 30000 });
+          if (loc && token) {
+            await fetch(`${API_URL}/driver/sync`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`,
+                'X-Tenant-Slug': 'smarttravel-demo'
+              },
+              body: JSON.stringify({
+                lat: loc.coords.latitude,
+                lng: loc.coords.longitude,
+                speed: loc.coords.speed || 0,
+                heading: loc.coords.heading || 0,
+                timestamp: loc.timestamp,
+                source: 'foreground_http_poll',
+                checkNotifications: true,
+                lastSyncTime: new Date(Date.now() - 60000).toISOString()
+              })
+            });
+          }
+        } catch (e) {
+          // Silent fail — background service is fallback
         }
-      );
-    };
-
-    startForegroundTracking();
-
-    return () => {
-      if (locationSubscription) {
-        locationSubscription.remove();
+        // Wait 10s before next sync
+        await new Promise(resolve => setTimeout(resolve, 10000));
       }
     };
-  }, [locationActive, socket, isConnected]);
+
+    syncLoop();
+    return () => { active = false; };
+  }, [locationActive, token]);
 
   const fetchStats = async () => {
     setLoading(true);
