@@ -480,11 +480,11 @@ server.listen(PORT, () => {
     }
   };
 
-  // Run every 2 minutes — aggressive to fight Samsung/Huawei Doze
-  setInterval(sendSilentPushToDrivers, 2 * 60 * 1000);
+  // Run every 60 seconds - more aggressive to ensure faster recovery from sleep/airplane mode
+  setInterval(sendSilentPushToDrivers, 60 * 1000);
   // Also run once immediately on startup
   setTimeout(sendSilentPushToDrivers, 10000);
-  console.log('📡 Silent push job started (every 2 minutes)');
+  console.log('📡 Silent push job started (every 60 seconds)');
 });
 
 // Trigger restart for env load

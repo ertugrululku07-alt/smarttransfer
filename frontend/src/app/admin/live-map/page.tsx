@@ -57,9 +57,9 @@ const STATUS_COLORS = {
 
 function getDriverStatus(d: DriverRaw): 'on_job' | 'idle' | 'speeding' | 'offline' {
     const speed = d.location?.speed ? parseFloat(String(d.location.speed)) : 0;
-    // 1. We strictly require fresh data. If no data arrived in 60s, they are offline.
-    // We do NOT trust socketId alone because Airplane Mode causes 'ghost' sockets for ~45s.
-    const isOnline = d.lastSeenAt && dayjs().diff(dayjs(d.lastSeenAt), 'second') <= 60;
+    // 1. We strictly require fresh data. If no data arrived in 15s (7-8 expected beats), they are offline.
+    // This gives the 'instant' feedback required by suppressing ghost sockets.
+    const isOnline = d.lastSeenAt && dayjs().diff(dayjs(d.lastSeenAt), 'second') <= 15;
     if (!isOnline) return 'offline';
     if (speed > 120) return 'speeding';
     if (d.currentBooking) return 'on_job';

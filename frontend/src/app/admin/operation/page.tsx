@@ -161,8 +161,8 @@ export default function OperationDashboard() {
                 const online = new Set<string>();
                 const locs: Record<string, { lat: number; lng: number; speed?: number }> = {};
                 driverList.forEach(d => {
-                    // Strictly require fresh data. Ignore ghost sockets that stay alive for 45s during airplane mode.
-                    if (d.lastSeenAt && dayjs().diff(dayjs(d.lastSeenAt), 'second') <= 60) {
+                    // Strictly require fresh data. No data in 15s means offline (Instant detection).
+                    if (d.lastSeenAt && dayjs().diff(dayjs(d.lastSeenAt), 'second') <= 15) {
                         online.add(d.id);
                     }
                     if (d.location) locs[d.id] = d.location;

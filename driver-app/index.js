@@ -6,6 +6,7 @@ import * as SecureStore from 'expo-secure-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
+import NetInfo from '@react-native-community/netinfo';
 
 // -------------------------------------------------------------
 // HEADLESS BACKGROUND TASKS - MUST BE DECLARED HERE AT ROOT
@@ -136,6 +137,33 @@ TaskManager.defineTask(BACKGROUND_NOTIFICATION_TASK, async ({ data, error }) => 
   }
 });
 Notifications.registerTaskAsync(BACKGROUND_NOTIFICATION_TASK);
+
+// 4. Auto-Recovery: Listen for Connectivity Restoration
+// This ensures that when the user exits Airplane Mode, we don't wait for 
+// a GPS event to tell the server we are back online.
+let wasConnected = true;
+NetInfo.addEventListener(state => {
+  if (state.isConnected && !wasConnected) {
+    console.log('[Headless] Internet restored! Triggering immediate sync recovery...');
+    syncLocationWithBackend(null, null, null, null, null, 'net_recovery');
+    
+    // Also re-ensure tracking service is bound
+    Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
+        accuracy: Location.Accuracy.Highest,
+        timeInterval: 2000,
+        distanceInterval: 0,
+        showsBackgroundLocationIndicator: true,
+        foregroundService: {
+          notificationTitle: 'SmartTransfer Sürücü',
+          notificationBody: 'Arka planda konum takip ediliyor.',
+          notificationColor: '#4361ee',
+          killServiceOnDestroy: false,
+          notificationChannelId: 'location-tracking',
+        }
+    }).catch(e => console.log('[Headless] Net recovery service restart failed:', e));
+  }
+  wasConnected = !!state.isConnected;
+});
 
 // Must export App entry for Expo Router
 export function App() {
