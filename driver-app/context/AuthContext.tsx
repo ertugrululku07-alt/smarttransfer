@@ -1,5 +1,6 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import * as SecureStore from 'expo-secure-store';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
 import { router } from 'expo-router';
@@ -34,8 +35,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         // Check for stored session
         const loadSession = async () => {
             try {
-                const storedToken = await SecureStore.getItemAsync('token');
-                const storedUser = await SecureStore.getItemAsync('user');
+                let storedToken = await SecureStore.getItemAsync('token');
+                let storedUser = await SecureStore.getItemAsync('user');
+                
+                // Fallback to AsyncStorage if SecureStore fails
+                if (!storedToken) {
+                    storedToken = await AsyncStorage.getItem('token');
+                    storedUser = await AsyncStorage.getItem('user');
+                }
 
                 if (storedToken && storedUser) {
                     setToken(storedToken);
@@ -55,7 +62,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setToken(newToken);
         setUser(newUser);
         await SecureStore.setItemAsync('token', newToken);
+        await AsyncStorage.setItem('token', newToken); // Headless JS Fallback
         await SecureStore.setItemAsync('user', JSON.stringify(newUser));
+        await AsyncStorage.setItem('user', JSON.stringify(newUser));
     };
 
     const signOut = async () => {

@@ -161,7 +161,7 @@ export default function OperationDashboard() {
                 const online = new Set<string>();
                 const locs: Record<string, { lat: number; lng: number; speed?: number }> = {};
                 driverList.forEach(d => {
-                    if (d.socketId || (d.lastSeenAt && dayjs().diff(dayjs(d.lastSeenAt), 'minute') < 5)) {
+                    if (d.socketId || (d.lastSeenAt && dayjs().diff(dayjs(d.lastSeenAt), 'second') <= 60)) {
                         online.add(d.id);
                     }
                     if (d.location) locs[d.id] = d.location;

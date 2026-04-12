@@ -3,6 +3,7 @@ import { registerRootComponent } from 'expo';
 import { ExpoRoot } from 'expo-router';
 import * as TaskManager from 'expo-task-manager';
 import * as SecureStore from 'expo-secure-store';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
 
@@ -19,9 +20,13 @@ const API_URL = 'https://smarttransfer-production.up.railway.app/api';
 // Reusable headless sync function
 const syncLocationWithBackend = async (lat, lng, speed, heading, timestamp, source) => {
   try {
-    const token = await SecureStore.getItemAsync('token');
+    let token = await SecureStore.getItemAsync('token');
+    if (!token) token = await AsyncStorage.getItem('token');
     if (!token) return;
-    const lastSyncTime = await SecureStore.getItemAsync('lastSyncTime') || new Date(Date.now() - 60000).toISOString();
+    
+    let lastSyncTime = await SecureStore.getItemAsync('lastSyncTime');
+    if (!lastSyncTime) lastSyncTime = await AsyncStorage.getItem('lastSyncTime');
+    lastSyncTime = lastSyncTime || new Date(Date.now() - 60000).toISOString();
     
     // If coordinates weren't provided directly, try to fetch last known location reliably
     if (!lat) {
@@ -64,6 +69,7 @@ const syncLocationWithBackend = async (lat, lng, speed, heading, timestamp, sour
     const json = await res.json();
     if (json?.data?.serverTime) {
       await SecureStore.setItemAsync('lastSyncTime', json.data.serverTime);
+      await AsyncStorage.setItem('lastSyncTime', json.data.serverTime);
     }
   } catch (e) {
     console.log('[Headless] Sync failed:', e.message);
