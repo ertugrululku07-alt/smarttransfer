@@ -1346,6 +1346,30 @@ router.patch('/bookings/:id', authMiddleware, async (req, res) => {
                 flightNumber, flightTime, adults, price, status: newStatus, operationalStatus } = req.body;
         console.log(`[PATCH booking] id=${id} driverId=${driverId} assignedVehicleId=${assignedVehicleId}`);
 
+        // Auto-find vehicle assigned to this driver if not explicitly provided
+        let resolvedVehicleId = assignedVehicleId;
+        if (driverId && !assignedVehicleId) {
+            const driverVehicle = await prisma.vehicle.findFirst({
+                where: {
+                    metadata: { path: ['driverId'], equals: driverId }
+                }
+            });
+            if (driverVehicle) {
+                resolvedVehicleId = driverVehicle.id;
+                console.log(`[PATCH booking] Auto-resolved vehicle: ${driverVehicle.id} (${driverVehicle.plateNumber}) for driver ${driverId}`);
+            } else {
+                // Also try matching by personnel ID via user relation
+                const personnel = await prisma.personnel.findFirst({ where: { userId: driverId }, select: { id: true } });
+                if (personnel) {
+                    const v2 = await prisma.vehicle.findFirst({ where: { metadata: { path: ['driverId'], equals: personnel.id } } });
+                    if (v2) {
+                        resolvedVehicleId = v2.id;
+                        console.log(`[PATCH booking] Auto-resolved vehicle via personnelId: ${v2.id} (${v2.plateNumber})`);
+                    }
+                }
+            }
+        }
+
         const currentBooking = await prisma.booking.findUnique({ where: { id } });
         if (!currentBooking) {
             return res.status(404).json({ success: false, error: 'Rezervasyon bulunamadı' });
@@ -1370,7 +1394,7 @@ router.patch('/bookings/:id', authMiddleware, async (req, res) => {
         }
 
         // ---- Conflict Check (unless explicitly skipped) ----
-        if (!skipConflictCheck && (driverId || assignedVehicleId)) {
+        if (!skipConflictCheck && (driverId || resolvedVehicleId)) {
             const effectiveStartDate = pickupDateTime || currentBooking.startDate;
             const REST_MINUTES = 30;
             const totalMinutes = (estimatedDurationMinutes || 120) + REST_MINUTES;
@@ -1423,8 +1447,8 @@ router.patch('/bookings/:id', authMiddleware, async (req, res) => {
             }
 
             // Check vehicle conflict
-            if (assignedVehicleId) {
-                const conflict = checkConflict(assignedVehicleId, false);
+            if (resolvedVehicleId) {
+                const conflict = checkConflict(resolvedVehicleId, false);
                 if (conflict) {
                     const conflictEnd = new Date(new Date(conflict.startDate).getTime() + ((conflict.metadata?.estimatedDurationMinutes || 120) + 30) * 60000);
                     return res.status(409).json({
@@ -1447,7 +1471,7 @@ router.patch('/bookings/:id', authMiddleware, async (req, res) => {
 
         const newMetadata = {
             ...(currentBooking.metadata || {}),
-            ...(assignedVehicleId !== undefined ? { assignedVehicleId } : {}),
+            ...(resolvedVehicleId !== undefined ? { assignedVehicleId: resolvedVehicleId } : {}),
             estimatedDurationMinutes: estimatedDurationMinutes || 120,
             freeAt: freeAt.toISOString()
         };
