@@ -1403,10 +1403,11 @@ export default function OperationsPage() {
             shuttleActionTimeRef.current = Date.now();
             const payload: any = { driverId: driverId || null, skipConflictCheck: skip };
             if (autoVehicleId) payload.assignedVehicleId = autoVehicleId;
-            await doAssign(bookingId, payload);
+            const res = await doAssign(bookingId, payload);
+            const savedVehicleId = res?.data?.data?.metadata?.assignedVehicleId || autoVehicleId;
             setBookings(prev => prev.map((b: any) =>
                 b.id === bookingId
-                    ? { ...b, driverId: driverId || null, ...(autoVehicleId ? { assignedVehicleId: autoVehicleId } : {}) }
+                    ? { ...b, driverId: driverId || null, assignedVehicleId: savedVehicleId || b.assignedVehicleId }
                     : b
             ));
             if (autoVehicleId) {
