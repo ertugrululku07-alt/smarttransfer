@@ -17,7 +17,8 @@ router.get('/', authMiddleware, async (req, res) => {
                     select: {
                         id: true,
                         email: true,
-                        fullName: true
+                        fullName: true,
+                        roleCode: true
                     }
                 }
             }
@@ -203,8 +204,24 @@ router.put('/:id', authMiddleware, async (req, res) => {
             return res.status(404).json({ success: false, error: 'Personel bulunamadı' });
         }
 
-        // Exclude fields that shouldn't be updated directly or handle transformations
-        // Note: userId handling logic might be added here if needed to link/unlink user
+        // If personnel has no userId but has phone/email + password, create and link a user account
+        let linkedUserId = existing.userId;
+        if (!linkedUserId && data.password && (data.phone || data.email)) {
+            const hashedPassword = await bcrypt.hash(data.password, 10);
+            const newUser = await prisma.user.create({
+                data: {
+                    tenantId,
+                    fullName: `${data.firstName || existing.firstName} ${data.lastName || existing.lastName}`.trim(),
+                    email: data.email || existing.email || null,
+                    phone: data.phone || existing.phone || null,
+                    password: hashedPassword,
+                    roleCode: 'DRIVER',
+                    roleType: 'DRIVER',
+                    isActive: true,
+                }
+            });
+            linkedUserId = newUser.id;
+        }
 
         const personnel = await prisma.personnel.update({
             where: { id },
@@ -231,7 +248,7 @@ router.put('/:id', authMiddleware, async (req, res) => {
                 medicalHistory: data.medicalHistory,
                 bloodGroup: data.bloodGroup,
                 photo: data.photo,
-                // userId: data.userId
+                ...(linkedUserId && !existing.userId ? { userId: linkedUserId } : {})
             }
         });
 
