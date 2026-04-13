@@ -563,8 +563,6 @@ router.post('/sync', authMiddleware, async (req, res) => {
 
         // 1d. Update Location via Socket to Admin (real-time)
         const io = req.app.get('io');
-        const onlineDrivers = req.app.get('onlineDrivers');
-
         if (io && lat && lng) {
             io.to('admin_monitoring').emit('driver_location', {
                 driverId: driverId,
@@ -572,26 +570,22 @@ router.post('/sync', authMiddleware, async (req, res) => {
                 lat, lng, speed, heading,
                 timestamp: new Date()
             });
-        }
 
-        // Always update in-memory map — even without location, ping means driver is alive
-        if (onlineDrivers) {
-            if (onlineDrivers[driverId]) {
-                if (lat && lng) {
+            // Update in-memory map for fast /online response
+            const onlineDrivers = req.app.get('onlineDrivers');
+            if (onlineDrivers) {
+                if (onlineDrivers[driverId]) {
                     onlineDrivers[driverId].location = { lat, lng, speed, heading, ts: new Date() };
-                }
-                onlineDrivers[driverId].lastSeen = Date.now();
-            } else {
-                // Driver wasn't in memory (server restarted?) - add them back
-                const wasAlreadyOnline = !!onlineDrivers[driverId];
-                onlineDrivers[driverId] = {
-                    socketId: null,
-                    connectedAt: new Date(),
-                    lastSeen: Date.now(),
-                    location: (lat && lng) ? { lat, lng, speed, heading, ts: new Date() } : null,
-                    name: req.user.fullName
-                };
-                if (!wasAlreadyOnline && io) {
+                    onlineDrivers[driverId].lastSeen = Date.now();
+                } else {
+                    // Driver wasn't in memory (server restarted?) - add them back
+                    onlineDrivers[driverId] = {
+                        socketId: null,
+                        connectedAt: new Date(),
+                        lastSeen: Date.now(),
+                        location: { lat, lng, speed, heading, ts: new Date() },
+                        name: req.user.fullName
+                    };
                     io.to('admin_monitoring').emit('driver_online', {
                         driverId: driverId,
                         driverName: req.user.fullName,
@@ -749,7 +743,7 @@ router.get('/online', async (req, res) => {
         }
 
         // Map personnel to the driver format the frontend expects
-        const DB_ONLINE_THRESHOLD_MS = 20 * 60 * 1000; // 20 min — matches background sync intervals
+        const DB_ONLINE_THRESHOLD_MS = 3 * 60 * 1000; // 3 min — if no sync in 3 min, driver is offline
         const connectionLogs = req.app.get('driverConnectionLogs') || {};
         const result = personnel.map(p => {
             const userId = p.userId || p.id;
