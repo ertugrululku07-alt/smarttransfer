@@ -496,12 +496,11 @@ router.post('/:id/wake', authMiddleware, async (req, res) => {
             headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 to: pushToken,
-                title: '📍 Konum Güncelleme',
-                body: 'Uygulamanızı açarak konumunuzu güncelleyin.',
                 data: { type: 'wake_up' },
                 priority: 'high',
                 sound: null,
-                badge: 0
+                badge: 0,
+                _contentAvailable: true
             })
         });
         console.log(`[Wake] Silent push sent to driver ${target.fullName} (${id})`);
