@@ -2631,7 +2631,13 @@ export default function OperationsPage() {
                                                     <Select
                                                         placeholder="Şoför Seç"
                                                         value={run.driverId || undefined}
-                                                        onChange={(val) => handleShuttleAssign(run, val !== undefined ? val : null, run.vehicleId !== undefined ? run.vehicleId : null)}
+                                                        onChange={(val) => {
+                                                            const dId = val !== undefined ? val : null;
+                                                            const autoVehicle = dId ? vehicles.find((v: any) => v.driverId === dId) : null;
+                                                            const vId = autoVehicle?.id || (run.vehicleId !== undefined ? run.vehicleId : null);
+                                                            if (autoVehicle) message.success(`Şoför seçildi — Araç: ${autoVehicle.plateNumber} otomatik atandı`);
+                                                            handleShuttleAssign(run, dId, vId);
+                                                        }}
                                                         style={{ width: 150 }}
                                                         allowClear
                                                         size="small"
@@ -2643,7 +2649,17 @@ export default function OperationsPage() {
                                                     <Select
                                                         placeholder="Araç Seç"
                                                         value={run.vehicleId || undefined}
-                                                        onChange={(val) => handleShuttleAssign(run, run.driverId !== undefined ? run.driverId : null, val !== undefined ? val : null)}
+                                                        onChange={(val) => {
+                                                            const vId = val !== undefined ? val : null;
+                                                            const selectedVehicle = vId ? vehicles.find((v: any) => v.id === vId) : null;
+                                                            const autoDriverId = selectedVehicle?.driverId || null;
+                                                            const dId = autoDriverId || (run.driverId !== undefined ? run.driverId : null);
+                                                            if (autoDriverId) {
+                                                                const drv = drivers.find((d: any) => (d.user?.id || d.id) === autoDriverId);
+                                                                message.success(`Araç seçildi — Şoför: ${drv ? `${drv.firstName} ${drv.lastName}` : ''} otomatik atandı`);
+                                                            }
+                                                            handleShuttleAssign(run, dId, vId);
+                                                        }}
                                                         style={{ width: 150 }}
                                                         allowClear
                                                         size="small"
