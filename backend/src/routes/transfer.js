@@ -1349,24 +1349,22 @@ router.patch('/bookings/:id', authMiddleware, async (req, res) => {
         // Auto-find vehicle assigned to this driver if not explicitly provided
         let resolvedVehicleId = assignedVehicleId;
         if (driverId && !assignedVehicleId) {
-            const driverVehicle = await prisma.vehicle.findFirst({
-                where: {
-                    metadata: { path: ['driverId'], equals: driverId }
-                }
-            });
-            if (driverVehicle) {
-                resolvedVehicleId = driverVehicle.id;
-                console.log(`[PATCH booking] Auto-resolved vehicle: ${driverVehicle.id} (${driverVehicle.plateNumber}) for driver ${driverId}`);
+            // Fetch all vehicles and match in JS (avoids Prisma JSON path issues)
+            const allVehicles = await prisma.vehicle.findMany({ select: { id: true, plateNumber: true, metadata: true } });
+            // Also get personnelId for this user
+            const personnel = await prisma.personnel.findFirst({ where: { userId: driverId }, select: { id: true } });
+            const personnelId = personnel?.id || null;
+            console.log(`[PATCH booking] Looking for vehicle with driverId=${driverId} or personnelId=${personnelId}`);
+            console.log(`[PATCH booking] All vehicle driverIds:`, allVehicles.map(v => ({ plate: v.plateNumber, driverId: v.metadata?.driverId })));
+            const matched = allVehicles.find(v =>
+                v.metadata?.driverId === driverId ||
+                (personnelId && v.metadata?.driverId === personnelId)
+            );
+            if (matched) {
+                resolvedVehicleId = matched.id;
+                console.log(`[PATCH booking] Auto-resolved vehicle: ${matched.id} (${matched.plateNumber})`);
             } else {
-                // Also try matching by personnel ID via user relation
-                const personnel = await prisma.personnel.findFirst({ where: { userId: driverId }, select: { id: true } });
-                if (personnel) {
-                    const v2 = await prisma.vehicle.findFirst({ where: { metadata: { path: ['driverId'], equals: personnel.id } } });
-                    if (v2) {
-                        resolvedVehicleId = v2.id;
-                        console.log(`[PATCH booking] Auto-resolved vehicle via personnelId: ${v2.id} (${v2.plateNumber})`);
-                    }
-                }
+                console.log(`[PATCH booking] No vehicle found for driver ${driverId}`);
             }
         }
 
