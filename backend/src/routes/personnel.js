@@ -17,8 +17,7 @@ router.get('/', authMiddleware, async (req, res) => {
                     select: {
                         id: true,
                         email: true,
-                        fullName: true,
-                        roleCode: true
+                        fullName: true
                     }
                 }
             }
