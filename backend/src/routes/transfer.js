@@ -969,7 +969,8 @@ router.get('/bookings', authMiddleware, async (req, res) => {
             partnerName: b.confirmedBy ? (userMap[b.confirmedBy] || 'Bilinmiyor') : null, // Map Partner Name
             partnerRole: b.confirmedBy ? (roleMap[b.confirmedBy] || 'UNKNOWN') : null, // Map Partner Role
             driverId: b.metadata?.driverId || b.driverId || null, // Driver assignment
-            assignedVehicleId: b.metadata?.assignedVehicleId || null, // Vehicle assignment
+            assignedVehicleId: b.metadata?.assignedVehicleId || b.metadata?.vehicleId || null, // Vehicle assignment
+            vehicleId: b.metadata?.assignedVehicleId || b.metadata?.vehicleId || null, // UI compatibility
             // Nested relations mapping expected by the frontend:
             customer: b.customer,
             agencyName: b.agency?.name || b.agency?.companyName || b.customer?.agency?.name || b.customer?.agency?.companyName || b.metadata?.agencyName || null,

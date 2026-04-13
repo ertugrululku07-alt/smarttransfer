@@ -1099,6 +1099,8 @@ export default function OperationsPage() {
                         uetds: 'Gönderilmedi',
                         agencyNote: item.notes || item.metadata?.agencyNotes || '',
                         pax: item.adults || (item.vehicle?.pax) || 1,
+                        vehicleId: item.assignedVehicleId || item.metadata?.vehicleId || null,
+                        assignedVehicleId: item.assignedVehicleId || item.metadata?.vehicleId || null,
                         // Fix customer name mapping
                         contactName: item.contactName || item.customer?.name || item.passengerName || '',
                         // Fix agency name mapping
@@ -1380,7 +1382,7 @@ export default function OperationsPage() {
             await doAssign(bookingId, payload);
             setBookings(prev => prev.map((b: any) =>
                 b.id === bookingId
-                    ? { ...b, assignedVehicleId: vehicleId || null, ...(autoDriverId ? { driverId: autoDriverId } : {}) }
+                    ? { ...b, assignedVehicleId: vehicleId || null, vehicleId: vehicleId || null, ...(autoDriverId ? { driverId: autoDriverId } : {}) }
                     : b
             ));
             if (autoDriverId) {
