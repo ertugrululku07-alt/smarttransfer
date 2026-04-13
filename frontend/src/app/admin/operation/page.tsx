@@ -621,6 +621,24 @@ export default function OperationDashboard() {
                                                             </div>
                                                         )}
                                                     </div>
+                                                    {!isOnline && (
+                                                        <Tooltip title="Şöförü Uyandır (Silent Push)">
+                                                            <Button
+                                                                size="small"
+                                                                type="text"
+                                                                icon={<ThunderboltOutlined style={{ color: '#f59e0b' }} />}
+                                                                onClick={async (e) => {
+                                                                    e.stopPropagation();
+                                                                    try {
+                                                                        await apiClient.post(`/api/driver/${d.id}/wake`);
+                                                                        message.success(`${d.fullName} uyandırıldı`);
+                                                                    } catch {
+                                                                        message.error('Push token yok veya hata oluştu');
+                                                                    }
+                                                                }}
+                                                            />
+                                                        </Tooltip>
+                                                    )}
                                                     <Tooltip title="Bağlantı Geçmişi">
                                                         <HistoryOutlined style={{ color: '#9ca3af', fontSize: 14 }} />
                                                     </Tooltip>

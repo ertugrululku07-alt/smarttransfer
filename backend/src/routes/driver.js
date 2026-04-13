@@ -476,6 +476,42 @@ router.post('/push-token', authMiddleware, async (req, res) => {
     }
 });
 
+// POST /api/driver/:id/wake
+// Sends a silent push to wake up the driver app so it syncs location
+router.post('/:id/wake', authMiddleware, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const driver = await prisma.user.findUnique({ where: { id } });
+        if (!driver) {
+            const personnel = await prisma.personnel.findFirst({ where: { id }, include: { user: true } });
+            if (!personnel?.user) return res.status(404).json({ success: false, error: 'Şöför bulunamadı' });
+        }
+        const target = driver || (await prisma.personnel.findFirst({ where: { id }, include: { user: true } }))?.user;
+        const pushToken = target?.pushToken;
+        if (!pushToken || !pushToken.startsWith('ExponentPushToken')) {
+            return res.status(400).json({ success: false, error: 'Push token yok' });
+        }
+        await fetch('https://exp.host/--/api/v2/push/send', {
+            method: 'POST',
+            headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                to: pushToken,
+                title: '📍 Konum Güncelleme',
+                body: 'Uygulamanızı açarak konumunuzu güncelleyin.',
+                data: { type: 'wake_up' },
+                priority: 'high',
+                sound: null,
+                badge: 0
+            })
+        });
+        console.log(`[Wake] Silent push sent to driver ${target.fullName} (${id})`);
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Wake push error:', error);
+        res.status(500).json({ success: false, error: 'Server error' });
+    }
+});
+
 // DELETE /api/driver/push-token
 // Remove push token on logout so server stops sending silent pushes to this device
 router.delete('/push-token', authMiddleware, async (req, res) => {
