@@ -1302,11 +1302,13 @@ export default function OperationsPage() {
         try {
             const res = await apiClient.get('/api/personnel');
             if (res.data.success) {
-                // Filter driver personnel - case-insensitive, handles Turkish variants
-                const DRIVER_KEYWORDS = ['driver', 'şöför', 'sofor', 'sürücü', 'surucü', 'surücu'];
+                // Filter driver personnel - jobTitle keyword OR roleCode/isDriver flag
+                const DRIVER_KEYWORDS = ['driver', 'şöför', 'sofor', 'sürücü', 'surucü', 'surücu', 'şoför', 'soför'];
                 const driverList = res.data.data.filter((p: any) => {
                     const title = (p.jobTitle || '').toLowerCase().trim();
-                    return DRIVER_KEYWORDS.some(kw => title.includes(kw));
+                    const byTitle = DRIVER_KEYWORDS.some(kw => title.includes(kw));
+                    const byRole = p.roleCode === 'DRIVER' || p.user?.roleCode === 'DRIVER' || p.isDriver === true;
+                    return byTitle || byRole;
                 });
                 setDrivers(driverList);
             }
