@@ -136,9 +136,10 @@ router.post('/', authMiddleware, async (req, res) => {
                 const pushPayload = {
                     to: pushToken,
                     title: '💬 Yeni Mesaj',
-                    body: content,
+                    body: format === 'IMAGE' ? '📷 Fotoğraf gönderdi' : format === 'AUDIO' ? '🎤 Ses kaydı gönderdi' : content,
                     sound: 'default',
                     priority: 'high',
+                    ttl: 60,
                     channelId: 'messages',
                     data: {
                         type: 'chatMessage',
@@ -147,7 +148,8 @@ router.post('/', authMiddleware, async (req, res) => {
                     }
                 };
 
-                await fetch('https://exp.host/--/api/v2/push/send', {
+                // Fire and forget — don't await to avoid delaying HTTP response
+                fetch('https://exp.host/--/api/v2/push/send', {
                     method: 'POST',
                     headers: {
                         'Accept': 'application/json',
@@ -155,8 +157,9 @@ router.post('/', authMiddleware, async (req, res) => {
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify(pushPayload),
-                });
-                console.log(`Push notification sent to ${pushToken} for new message`);
+                }).then(() => console.log(`Push sent to ${pushToken}`))
+                  .catch(e => console.error('Push error:', e.message));
+                console.log(`Push notification queued for ${pushToken}`);
             }
         } catch (pushErr) {
             console.error('Message push notification error (non-fatal):', pushErr.message);
