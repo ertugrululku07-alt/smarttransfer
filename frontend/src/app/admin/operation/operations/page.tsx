@@ -1412,15 +1412,25 @@ export default function OperationsPage() {
             shuttleActionTimeRef.current = Date.now();
             const payload: any = { driverId: driverId || null, skipConflictCheck: skip };
             if (autoVehicleId) payload.assignedVehicleId = autoVehicleId;
-            await doAssign(bookingId, payload);
-            // Refetch to get real saved state (avoids stale optimistic update)
-            await fetchBookings();
+            const res = await doAssign(bookingId, payload);
+            const updatedBooking = res?.data?.data || res?.data;
+            // Immediately update state from response
+            setBookings((prev: any[]) => prev.map((b: any) =>
+                b.id === bookingId
+                    ? {
+                        ...b,
+                        driverId: driverId || null,
+                        assignedVehicleId: autoVehicleId || (updatedBooking?.metadata?.assignedVehicleId ?? b.assignedVehicleId),
+                      }
+                    : b
+            ));
             if (autoVehicleId) {
                 message.success(`Şöför atandı — Araç: ${autoVehicle.plateNumber} otomatik seçildi`);
             } else {
                 message.success('Şöför ataması güncellendi');
             }
             setConflictModal(null);
+            fetchBookings();
         };
 
         try {
