@@ -1402,6 +1402,7 @@ export default function OperationsPage() {
     const handleDriverChange = async (bookingId: string, driverId: string | null) => {
         const autoVehicle = driverId ? vehicles.find((v: any) => v.driverId === driverId) : null;
         const autoVehicleId = autoVehicle?.id || null;
+        console.log('[DriverChange] driverId=', driverId, 'vehicles driverIds=', vehicles.map((v:any)=>v.driverId), 'autoVehicle=', autoVehicle);
 
         const doSave = async (skip = false) => {
             shuttleActionTimeRef.current = Date.now();
