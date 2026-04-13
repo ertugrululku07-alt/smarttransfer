@@ -902,6 +902,65 @@ router.patch('/shuttle-runs/assign', authMiddleware, async (req, res) => {
             io.to('admin_monitoring').emit('shuttle_runs_updated', { updatedCount: updates.length });
         }
 
+        // Send push notification to driver if driverId provided
+        if (driverId) {
+            try {
+                const driver = await prisma.user.findUnique({ where: { id: driverId } });
+                console.log(`[Push] shuttle-runs/assign driverId=${driverId} found=${!!driver} pushToken=${driver?.pushToken}`);
+
+                let resolvedDriver = driver;
+                if (!resolvedDriver) {
+                    const personnel = await prisma.personnel.findFirst({ where: { id: driverId }, include: { user: true } });
+                    resolvedDriver = personnel?.user || null;
+                    if (resolvedDriver) console.log(`[Push] Resolved via personnel: userId=${resolvedDriver.id} pushToken=${resolvedDriver.pushToken}`);
+                }
+
+                let driverMeta = resolvedDriver?.metadata || {};
+                if (typeof driverMeta === 'string') {
+                    try { driverMeta = JSON.parse(driverMeta); } catch (e) { driverMeta = {}; }
+                }
+
+                const pushToken = resolvedDriver?.pushToken || driverMeta?.expoPushToken;
+
+                if (pushToken && pushToken.startsWith('ExponentPushToken')) {
+                    const firstUpdated = await prisma.booking.findFirst({ where: { id: { in: updates } }, select: { metadata: true, startDate: true, bookingNumber: true } });
+                    const pickupStr = firstUpdated?.metadata?.pickup || 'Belirtilmemiş';
+                    const dateStr = firstUpdated?.startDate
+                        ? new Date(firstUpdated.startDate).toLocaleString('tr-TR', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })
+                        : '';
+
+                    fetch('https://exp.host/--/api/v2/push/send', {
+                        method: 'POST',
+                        headers: {
+                            'Accept': 'application/json',
+                            'Accept-Encoding': 'gzip, deflate',
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            to: pushToken,
+                            sound: 'default',
+                            title: '🚗 Yeni İş Atandı!',
+                            body: `${pickupStr} • ${dateStr}`,
+                            data: {
+                                bookingIds: updates,
+                                bookingNumber: firstUpdated?.bookingNumber,
+                                type: 'operationAssigned',
+                                pickup: pickupStr,
+                                start: firstUpdated?.startDate
+                            },
+                            priority: 'high',
+                            channelId: 'operations'
+                        })
+                    }).then(() => console.log(`[Push] Sent to driver ${driverId} for ${updates.length} bookings`))
+                      .catch(e => console.error('[Push] Send error:', e.message));
+                } else {
+                    console.log(`[Push] No valid pushToken for driverId=${driverId}`);
+                }
+            } catch (pushErr) {
+                console.error('Push notification error (non-fatal):', pushErr.message);
+            }
+        }
+
         res.json({ success: true, updatedCount: updates.length, updatedIds: updates });
     } catch (error) {
         console.error('shuttle-runs/assign error:', error);
