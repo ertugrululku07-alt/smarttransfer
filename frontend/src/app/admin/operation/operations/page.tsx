@@ -1426,6 +1426,7 @@ export default function OperationsPage() {
                         ...b,
                         driverId: driverId || null,
                         assignedVehicleId: autoVehicleId || (updatedBooking?.metadata?.assignedVehicleId ?? b.assignedVehicleId),
+                        vehicleId: autoVehicleId || (updatedBooking?.metadata?.assignedVehicleId ?? b.vehicleId),
                       }
                     : b
             ));
@@ -3721,6 +3722,39 @@ export default function OperationsPage() {
                                 <Input placeholder="Örn: Serik -> Kemer" value={manualRunName} onChange={e => setManualRunName(e.target.value)} />
                             </div>
                         </div>
+                    </Modal>
+
+                    {/* ══════ CONFLICT MODAL ══════ */}
+                    <Modal
+                        open={conflictModal?.visible || false}
+                        onCancel={() => setConflictModal(null)}
+                        title={<span style={{ color: '#dc2626', fontWeight: 800 }}>⚠️ Çakışma Tespit Edildi</span>}
+                        footer={[
+                            <Button key="cancel" onClick={() => setConflictModal(null)}>
+                                Vazgeç
+                            </Button>,
+                            <Button key="force" danger type="primary" onClick={() => conflictModal?.onForceAssign()}>
+                                Yine de Ata
+                            </Button>
+                        ]}
+                    >
+                        {conflictModal && (
+                            <div style={{ marginTop: 16 }}>
+                                <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 16 }}>
+                                    {conflictModal.message}
+                                </div>
+                                <div style={{ background: '#fef2f2', padding: 12, borderRadius: 8, border: '1px solid #fecaca' }}>
+                                    <div style={{ fontWeight: 700, color: '#991b1b', marginBottom: 8 }}>Çakışan Transfer Bilgileri:</div>
+                                    <div style={{ fontSize: 13, color: '#7f1d1d' }}>
+                                        <div><strong>Rezervasyon:</strong> {conflictModal.conflictWith}</div>
+                                        <div><strong>Alış:</strong> {conflictModal.conflictPickup}</div>
+                                        <div><strong>Varış:</strong> {conflictModal.conflictDropoff}</div>
+                                        <div><strong>Başlangıç:</strong> {conflictModal.conflictStart}</div>
+                                        <div><strong>Tahmini Bitiş:</strong> {conflictModal.freeAt}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </Modal>
 
             </AdminLayout>
