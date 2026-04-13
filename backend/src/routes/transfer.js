@@ -1344,6 +1344,7 @@ router.patch('/bookings/:id', authMiddleware, async (req, res) => {
                 // Inline cell editing fields:
                 contactName, contactPhone, pickupDateTime, pickupLocation, dropoffLocation,
                 flightNumber, flightTime, adults, price, status: newStatus, operationalStatus } = req.body;
+        console.log(`[PATCH booking] id=${id} driverId=${driverId} assignedVehicleId=${assignedVehicleId}`);
 
         const currentBooking = await prisma.booking.findUnique({ where: { id } });
         if (!currentBooking) {
