@@ -1408,11 +1408,8 @@ export default function OperationsPage() {
             const payload: any = { driverId: driverId || null, skipConflictCheck: skip };
             if (autoVehicleId) payload.assignedVehicleId = autoVehicleId;
             await doAssign(bookingId, payload);
-            setBookings(prev => prev.map((b: any) =>
-                b.id === bookingId
-                    ? { ...b, driverId: driverId || null, ...(autoVehicleId ? { assignedVehicleId: autoVehicleId } : {}) }
-                    : b
-            ));
+            // Refetch to get real saved state (avoids stale optimistic update)
+            await fetchBookings();
             if (autoVehicleId) {
                 message.success(`Şöför atandı — Araç: ${autoVehicle.plateNumber} otomatik seçildi`);
             } else {
