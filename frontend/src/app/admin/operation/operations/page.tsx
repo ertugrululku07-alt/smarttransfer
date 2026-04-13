@@ -730,19 +730,7 @@ export default function OperationsPage() {
             render: (val: string, record: any) => {
                 const isShuttle = record.transferType === 'SHUTTLE';
 
-                // Get shuttle vehicle owners
-                const shuttleVehicles = vehicles.filter((v: any) => (Array.isArray(v.usageType) ? v.usageType.includes('SHUTTLE') : v.usageType === 'SHUTTLE') || v.shuttleMode);
-                const shuttleDriverIds = new Set(shuttleVehicles.filter((v: any) => v.driverId).map((v: any) => v.driverId));
-
-                // Filter drivers pool based on transfer type
-                const filteredDrivers = drivers.filter((d: any) => {
-                    const driverId = d.user?.id || d.id;
-                    if (isShuttle) {
-                        return shuttleDriverIds.has(driverId);
-                    } else {
-                        return !shuttleDriverIds.has(driverId);
-                    }
-                });
+                const filteredDrivers = drivers;
 
                 const options = filteredDrivers
                     .map((d: any) => ({
