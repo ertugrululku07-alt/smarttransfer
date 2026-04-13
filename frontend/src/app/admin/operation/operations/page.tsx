@@ -791,8 +791,12 @@ export default function OperationsPage() {
                 const isShuttle = record.transferType === 'SHUTTLE';
 
                 // Filter by usageType (set in vehicle management)
-                const shuttleVehicles = vehicles.filter((v: any) => (Array.isArray(v.usageType) ? v.usageType.includes('SHUTTLE') : v.usageType === 'SHUTTLE') || v.shuttleMode || (Array.isArray(v.metadata?.usageType) ? v.metadata?.usageType.includes('SHUTTLE') : v.metadata?.usageType === 'SHUTTLE') || v.metadata?.shuttleMode);
-                const privateVehicles = vehicles.filter((v: any) => !shuttleVehicles.includes(v));
+                const hasUsageType = (v: any, type: string) => {
+                    const ut = v.usageType || v.metadata?.usageType;
+                    return Array.isArray(ut) ? ut.includes(type) : ut === type;
+                };
+                const shuttleVehicles = vehicles.filter((v: any) => hasUsageType(v, 'SHUTTLE') || v.shuttleMode || v.metadata?.shuttleMode);
+                const privateVehicles = vehicles.filter((v: any) => hasUsageType(v, 'TRANSFER') || hasUsageType(v, 'PRIVATE') || hasUsageType(v, 'Özel Transfer') || (!hasUsageType(v, 'SHUTTLE') && !v.shuttleMode && !v.metadata?.shuttleMode));
 
                 // Use filtered list strictly depending on Shuttle or Private
                 const filteredVehicles = isShuttle ? shuttleVehicles : privateVehicles;
@@ -1403,11 +1407,10 @@ export default function OperationsPage() {
             shuttleActionTimeRef.current = Date.now();
             const payload: any = { driverId: driverId || null, skipConflictCheck: skip };
             if (autoVehicleId) payload.assignedVehicleId = autoVehicleId;
-            const res = await doAssign(bookingId, payload);
-            const savedVehicleId = res?.data?.data?.metadata?.assignedVehicleId || autoVehicleId;
+            await doAssign(bookingId, payload);
             setBookings(prev => prev.map((b: any) =>
                 b.id === bookingId
-                    ? { ...b, driverId: driverId || null, assignedVehicleId: savedVehicleId || b.assignedVehicleId }
+                    ? { ...b, driverId: driverId || null, ...(autoVehicleId ? { assignedVehicleId: autoVehicleId } : {}) }
                     : b
             ));
             if (autoVehicleId) {
