@@ -73,6 +73,7 @@ router.get('/', authMiddleware, async (req, res) => {
             driverId: v.metadata?.driverId || null
         }));
 
+        console.log('[GET vehicles] driverIds:', formattedVehicles.map(v => ({ plate: v.plateNumber, driverId: v.driverId })));
         res.json({ success: true, data: formattedVehicles });
     } catch (error) {
         console.error('Get vehicles error:', error);
