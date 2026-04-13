@@ -1512,14 +1512,23 @@ router.patch('/bookings/:id', authMiddleware, async (req, res) => {
             // Send Expo Push Notification (works when app is closed/background)
             try {
                 const driver = await prisma.user.findUnique({ where: { id: driverId } });
+                console.log(`[Push] driverId=${driverId} found=${!!driver} pushToken=${driver?.pushToken}`);
+
+                // If not found by userId, try finding via personnel
+                let resolvedDriver = driver;
+                if (!resolvedDriver) {
+                    const personnel = await prisma.personnel.findFirst({ where: { id: driverId }, include: { user: true } });
+                    resolvedDriver = personnel?.user || null;
+                    if (resolvedDriver) console.log(`[Push] Resolved via personnel: userId=${resolvedDriver.id} pushToken=${resolvedDriver.pushToken}`);
+                }
 
                 // metadata might be a string if stored raw, or an object if JSON
-                let driverMeta = driver?.metadata || {};
+                let driverMeta = resolvedDriver?.metadata || {};
                 if (typeof driverMeta === 'string') {
                     try { driverMeta = JSON.parse(driverMeta); } catch (e) { driverMeta = {}; }
                 }
 
-                const pushToken = driver?.pushToken || driverMeta?.expoPushToken;
+                const pushToken = resolvedDriver?.pushToken || driverMeta?.expoPushToken;
 
                 if (pushToken && pushToken.startsWith('ExponentPushToken')) {
                     const pickupStr = updated.metadata?.pickup || 'Belirtilmemiş';
