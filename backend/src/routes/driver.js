@@ -551,6 +551,21 @@ router.post('/sync', authMiddleware, async (req, res) => {
                 where: { id: driverId },
                 data: { lastSeenAt: new Date() }
             });
+            // Also update in-memory so /online sees them as recently seen
+            const onlineDriversMap = req.app.get('onlineDrivers');
+            if (onlineDriversMap) {
+                if (onlineDriversMap[driverId]) {
+                    onlineDriversMap[driverId].lastSeen = Date.now();
+                } else {
+                    onlineDriversMap[driverId] = {
+                        socketId: null,
+                        connectedAt: new Date(),
+                        lastSeen: Date.now(),
+                        location: null,
+                        name: req.user.fullName
+                    };
+                }
+            }
         }
 
         // 1b. Speed violation detection (>120 km/h) — persist to DB
