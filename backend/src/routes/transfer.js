@@ -1356,10 +1356,14 @@ router.patch('/bookings/:id', authMiddleware, async (req, res) => {
             const personnelId = personnel?.id || null;
             console.log(`[PATCH booking] Looking for vehicle with driverId=${driverId} or personnelId=${personnelId}`);
             console.log(`[PATCH booking] All vehicle driverIds:`, allVehicles.map(v => ({ plate: v.plateNumber, driverId: v.metadata?.driverId })));
-            const matched = allVehicles.find(v =>
-                v.metadata?.driverId === driverId ||
-                (personnelId && v.metadata?.driverId === personnelId)
-            );
+            const cleanId = (id) => id ? id.replace(/[-\s]/g, '').toLowerCase() : '';
+            const targetUserRaw = driverId ? cleanId(driverId) : null;
+            const targetStaffRaw = personnelId ? cleanId(personnelId) : null;
+            
+            const matched = allVehicles.find(v => {
+                const vDriver = cleanId(v.metadata?.driverId);
+                return (targetUserRaw && vDriver === targetUserRaw) || (targetStaffRaw && vDriver === targetStaffRaw);
+            });
             if (matched) {
                 resolvedVehicleId = matched.id;
                 console.log(`[PATCH booking] Auto-resolved vehicle: ${matched.id} (${matched.plateNumber})`);
