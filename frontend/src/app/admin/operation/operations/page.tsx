@@ -745,10 +745,9 @@ export default function OperationsPage() {
                 });
 
                 const options = filteredDrivers
-                    .filter((d: any) => !!d.user?.id) // Only drivers with a linked user account
                     .map((d: any) => ({
-                        value: d.user.id,
-                        label: `${d.firstName || ''} ${d.lastName || ''}`.trim() || d.user?.fullName || d.user?.email || `Şöför (${d.user.id.substring(0, 8)})`
+                        value: d.user?.id || d.id,
+                        label: `${d.firstName || ''} ${d.lastName || ''}`.trim() || d.user?.fullName || d.user?.email || `Şöför (${(d.user?.id || d.id).substring(0, 8)})`
                     }));
 
                 // Ensure the currently assigned driver is ALWAYS in the options list so its name resolves properly
