@@ -1400,9 +1400,13 @@ export default function OperationsPage() {
     };
 
     const handleDriverChange = async (bookingId: string, driverId: string | null) => {
-        const autoVehicle = driverId ? vehicles.find((v: any) => v.driverId === driverId) : null;
+        // Match against both userId and personnelId since vehicle management may store either
+        const selectedPersonnel = driverId ? drivers.find((d: any) => (d.user?.id || d.id) === driverId) : null;
+        const personnelId = selectedPersonnel?.id || null;
+        const autoVehicle = driverId ? vehicles.find((v: any) =>
+            v.driverId === driverId || (personnelId && v.driverId === personnelId)
+        ) : null;
         const autoVehicleId = autoVehicle?.id || null;
-        console.log('[DriverChange] driverId=', driverId, 'vehicles driverIds=', vehicles.map((v:any)=>v.driverId), 'autoVehicle=', autoVehicle);
 
         const doSave = async (skip = false) => {
             shuttleActionTimeRef.current = Date.now();
