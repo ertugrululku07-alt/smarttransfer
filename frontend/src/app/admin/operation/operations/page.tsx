@@ -1403,6 +1403,7 @@ export default function OperationsPage() {
         // Match against both userId and personnelId since vehicle management may store either
         const selectedPersonnel = driverId ? drivers.find((d: any) => (d.user?.id || d.id) === driverId) : null;
         const personnelId = selectedPersonnel?.id || null;
+        console.log('[DriverChange] driverId=', driverId, 'personnelId=', personnelId, 'vehicles driverIds=', vehicles.map((v: any) => ({ plate: v.plateNumber, driverId: v.driverId })));
         const autoVehicle = driverId ? vehicles.find((v: any) =>
             v.driverId === driverId || (personnelId && v.driverId === personnelId)
         ) : null;
