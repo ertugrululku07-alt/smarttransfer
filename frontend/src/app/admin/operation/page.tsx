@@ -303,8 +303,7 @@ export default function OperationDashboard() {
         }
         return true;
     }).map(d => {
-        const speedMS = driverLocations[d.id].speed || 0;
-        const speedKmH = speedMS * 3.6;
+        const speedKmH = driverLocations[d.id].speed || 0;
         const hasJob = !!(d as any).currentBooking;
         const status: 'idle' | 'on_job' | 'speeding' | 'offline' = speedKmH > 120 ? 'speeding' : hasJob ? 'on_job' : 'idle';
         return {

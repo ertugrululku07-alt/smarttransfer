@@ -14,6 +14,7 @@ import { useSocket } from '../../context/SocketContext';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Brand } from '../../constants/theme';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { NativeLocation } = NativeModules;
 
@@ -134,6 +135,25 @@ export default function DashboardScreen() {
           PermissionsAndroid.PERMISSIONS.ACCESS_BACKGROUND_LOCATION,
           { title: 'Arka Plan Konum İzni', message: 'Arka planda konum takibi için "Her zaman izin ver" seçeneğini seçin.', buttonPositive: 'Ayarlara Git' }
         );
+
+        // Show AutoStart prompt once
+        const hasShownAutoStart = await AsyncStorage.getItem('hasShownAutoStart');
+        if (!hasShownAutoStart) {
+          Alert.alert(
+            'Kesintisiz Takip İçin',
+            'Telefonunuz yeniden başladığında veya uygulama kapalıyken konum takibinin devam etmesi için cihaz ayarlarından "Otomatik Başlatma" (Auto Start) veya "Arka Planda Çalışma" iznini vermeniz gerekmektedir.',
+            [
+              { text: 'İptal', onPress: () => AsyncStorage.setItem('hasShownAutoStart', 'true') },
+              { 
+                text: 'Ayarlara Git', 
+                onPress: () => {
+                  AsyncStorage.setItem('hasShownAutoStart', 'true');
+                  NativeLocation?.openAutoStartSettings();
+                } 
+              }
+            ]
+          );
+        }
       } catch (e) { console.warn('Permission error:', e); }
     }
     
@@ -217,7 +237,7 @@ export default function DashboardScreen() {
               body: JSON.stringify({
                 lat: loc.coords.latitude,
                 lng: loc.coords.longitude,
-                speed: loc.coords.speed || 0,
+                speed: (loc.coords.speed || 0) * 3.6,
                 heading: loc.coords.heading || 0,
                 timestamp: loc.timestamp,
                 source: 'foreground_http_poll',
