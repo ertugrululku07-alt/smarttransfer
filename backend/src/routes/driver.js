@@ -842,6 +842,19 @@ router.get('/online', async (req, res) => {
                 (p.user?.lastLocationLat && p.user?.lastLocationLng
                     ? { lat: p.user.lastLocationLat, lng: p.user.lastLocationLng, speed: p.user.lastLocationSpeed }
                     : null);
+            
+            // Check if location is stale (older than 5 minutes)
+            const LOCATION_STALE_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes
+            const locationTimestamp = inMemory?.location?.ts || p.user?.lastSeenAt;
+            const isLocationStale = locationTimestamp 
+                ? (Date.now() - new Date(locationTimestamp).getTime()) > LOCATION_STALE_THRESHOLD_MS
+                : true; // No timestamp = stale
+            
+            // Add timestamp to location object if exists
+            if (location && !location.timestamp) {
+                location.timestamp = locationTimestamp;
+            }
+            location.isStale = isLocationStale;
 
             const driverBookings = bookingsByDriver[userId] || [];
             const currentBooking = driverBookings[0] || null; // Next/current booking

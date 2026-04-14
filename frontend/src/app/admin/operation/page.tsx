@@ -103,7 +103,13 @@ export default function OperationDashboard() {
     const [allBookings, setAllBookings] = useState<Booking[]>([]);
     const [drivers, setDrivers] = useState<Driver[]>([]);
     const [onlineDriverIds, setOnlineDriverIds] = useState<Set<string>>(new Set());
-    const [driverLocations, setDriverLocations] = useState<Record<string, { lat: number; lng: number; speed?: number }>>({});
+    const [driverLocations, setDriverLocations] = useState<Record<string, { 
+        lat: number; 
+        lng: number; 
+        speed?: number; 
+        timestamp?: string;
+        isStale?: boolean;
+    }>>(({}));
 
     const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
     const [detailDrawer, setDetailDrawer] = useState(false);
@@ -278,7 +284,22 @@ export default function OperationDashboard() {
         OFFLINE: { color: '#6b7280', icon: <DisconnectOutlined />, label: 'Offline Oldu' },
     };
 
-    const driversForMap = drivers.filter(d => onlineDriverIds.has(d.id) && driverLocations[d.id]).map(d => {
+    // Filter drivers for map - only show those with fresh locations (< 5 min old)
+    const LOCATION_STALE_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes
+    const driversForMap = drivers.filter(d => {
+        // Must be online
+        if (!onlineDriverIds.has(d.id)) return false;
+        // Must have location
+        if (!driverLocations[d.id]) return false;
+        // Check if location is fresh
+        const loc = driverLocations[d.id];
+        if (loc.isStale) return false; // Don't show stale locations on map
+        if (loc.timestamp) {
+            const locAge = Date.now() - new Date(loc.timestamp).getTime();
+            if (locAge > LOCATION_STALE_THRESHOLD_MS) return false;
+        }
+        return true;
+    }).map(d => {
         const speedMS = driverLocations[d.id].speed || 0;
         const speedKmH = speedMS * 3.6;
         const hasJob = !!(d as any).currentBooking;
@@ -289,7 +310,7 @@ export default function OperationDashboard() {
             lat: driverLocations[d.id].lat,
             lng: driverLocations[d.id].lng,
             speed: speedKmH, // Map expects km/h
-            timestamp: d.lastSeenAt || new Date().toISOString(),
+            timestamp: driverLocations[d.id].timestamp || d.lastSeenAt || new Date().toISOString(),
             heading: 0,
             status,
             vehicle: (d as any).vehicle || null,
@@ -585,6 +606,15 @@ export default function OperationDashboard() {
                                             const isOnline = onlineDriverIds.has(d.id);
                                             const loc = driverLocations[d.id];
                                             const lastSeen = d.lastSeenAt ? dayjs(d.lastSeenAt).fromNow() : null;
+                                            
+                                            // Check if location is stale (> 5 min old)
+                                            const isLocStale = loc?.isStale || false;
+                                            const locAge = loc?.timestamp 
+                                                ? Date.now() - new Date(loc.timestamp).getTime() 
+                                                : null;
+                                            const isLocOld = locAge && locAge > 5 * 60 * 1000; // > 5 min
+                                            const hasFreshLocation = loc && !isLocStale && !isLocOld;
+                                            
                                             return (
                                                 <div key={d.id} style={{
                                                     display: 'flex', alignItems: 'center', gap: 10,
@@ -606,7 +636,11 @@ export default function OperationDashboard() {
                                                         <div style={{ fontWeight: 600, fontSize: 12 }}>{d.fullName}</div>
                                                         <div style={{ fontSize: 11, color: '#888' }}>
                                                             {d.jobTitle || 'Şoför'}
-                                                            {loc?.speed !== undefined ? ` • ${Math.round(loc.speed)} km/h` : ''}
+                                                            {hasFreshLocation && loc?.speed !== undefined 
+                                                                ? ` • ${Math.round(loc.speed)} km/h` 
+                                                                : isLocOld 
+                                                                    ? ' • Konum eski' 
+                                                                    : ' • Konum yok'}
                                                         </div>
                                                     </div>
                                                     <div style={{ textAlign: 'right', fontSize: 11 }}>
@@ -615,11 +649,18 @@ export default function OperationDashboard() {
                                                         ) : (
                                                             <span style={{ color: '#9ca3af' }}>{lastSeen || 'Bilinmiyor'}</span>
                                                         )}
-                                                        {loc && (
+                                                        {hasFreshLocation ? (
                                                             <div>
                                                                 <EnvironmentOutlined style={{ color: '#6366f1', fontSize: 10 }} />
                                                             </div>
-                                                        )}
+                                                        ) : loc ? (
+                                                            <Tooltip title={`Konum ${locAge ? Math.round(locAge/60000) + ' dk önce' : 'bilinmiyor'}`}>
+                                                                <div>
+                                                                    <EnvironmentOutlined style={{ color: '#f59e0b', fontSize: 10 }} />
+                                                                    <WarningOutlined style={{ color: '#f59e0b', fontSize: 8, marginLeft: 2 }} />
+                                                                </div>
+                                                            </Tooltip>
+                                                        ) : null}
                                                     </div>
                                                     {!isOnline && (
                                                         <Tooltip title="Şöförü Uyandır (Silent Push)">
