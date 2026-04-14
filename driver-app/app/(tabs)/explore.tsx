@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import {
   StyleSheet, View, Text, FlatList, TouchableOpacity, RefreshControl,
   Linking, Platform, Alert, Modal, TextInput, ScrollView,
-  ActivityIndicator, Image,
+  ActivityIndicator, Image, Animated
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
@@ -64,6 +64,7 @@ export default function JobListScreen() {
   const [paymentSaving, setPaymentSaving] = useState(false);
   const [tenantCurrencies, setTenantCurrencies] = useState<string[]>(['TRY', 'EUR', 'USD']);
   const [defaultCurrency, setDefaultCurrency] = useState('TRY');
+  const [extrasModal, setExtrasModal] = useState<{ visible: boolean; extras: any[] }>({ visible: false, extras: [] });
 
   useEffect(() => {
     // Fetch tenant currencies on mount
@@ -283,6 +284,31 @@ export default function JobListScreen() {
   const [expandedCustomer, setExpandedCustomer] = useState<Record<string, boolean>>({});
   const toggleCustomer = (id: string) => setExpandedCustomer(prev => ({ ...prev, [id]: !prev[id] }));
 
+  // ─── FLASHING EXTRAS BUTTON ───
+  const FlashingExtrasBtn = ({ extras, onPress }: { extras: any[], onPress: () => void }) => {
+    const pulseAnim = React.useRef(new Animated.Value(1)).current;
+    
+    React.useEffect(() => {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, { toValue: 0.3, duration: 600, useNativeDriver: true }),
+          Animated.timing(pulseAnim, { toValue: 1, duration: 600, useNativeDriver: true })
+        ])
+      ).start();
+    }, []);
+
+    const totalItems = extras.reduce((sum, ex) => sum + (ex?.quantity || ex?.qty || 1), 0);
+
+    return (
+      <TouchableOpacity onPress={onPress} activeOpacity={0.8} style={{ marginVertical: 4 }}>
+        <Animated.View style={[st.flashingBtn, { opacity: pulseAnim }]}>
+          <Ionicons name="alert-circle" size={16} color="#fff" />
+          <Text style={st.flashingBtnText}>DİKKAT: MÜŞTERİ EKSTRA HİZMET ALMIŞTIR ({totalItems})</Text>
+        </Animated.View>
+      </TouchableOpacity>
+    );
+  };
+
   // ─── CUSTOMER ROW (Shuttle) ───
   const CustomerRow = ({ c, onCall }: { c: any; onCall?: () => void }) => {
     const name = (c.contactName || ((c.customerFirstName || '') + ' ' + (c.customerLastName || '')).trim() || 'Misafir');
@@ -307,14 +333,7 @@ export default function JobListScreen() {
               {c.flightNumber ? <Text style={st.flightBadge}>{c.flightNumber}</Text> : null}
             </View>
             {hasExtras && (
-              <View style={st.extrasRow}>
-                {extras.map((ex: any, i: number) => (
-                  <View key={i} style={st.extraBadge}>
-                    <Ionicons name="star" size={10} color="#d97706" />
-                    <Text style={st.extraBadgeText}>{ex.name || ex.label || ex}</Text>
-                  </View>
-                ))}
-              </View>
+              <FlashingExtrasBtn extras={extras} onPress={() => setExtrasModal({ visible: true, extras })} />
             )}
             {c.notes ? <Text style={st.noteText}>{c.notes}</Text> : null}
           </View>
@@ -450,14 +469,7 @@ export default function JobListScreen() {
 
         {/* Extra Services */}
         {hasPrivateExtras && (
-          <View style={st.privateExtrasBlock}>
-            {privateExtras.map((ex: any, i: number) => (
-              <View key={i} style={st.extraBadge}>
-                <Ionicons name="star" size={10} color="#d97706" />
-                <Text style={st.extraBadgeText}>{ex.name || ex.label || ex}</Text>
-              </View>
-            ))}
-          </View>
+          <FlashingExtrasBtn extras={privateExtras} onPress={() => setExtrasModal({ visible: true, extras: privateExtras })} />
         )}
 
         {/* Quick actions row */}
@@ -633,6 +645,44 @@ export default function JobListScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Extras Details Modal */}
+      <Modal visible={extrasModal.visible} animationType="fade" transparent>
+        <View style={st.modalOverlay}>
+          <View style={st.modalCard}>
+            <View style={st.modalHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Ionicons name="star" size={22} color="#e11d48" />
+                <Text style={st.modalTitle}>Ekstra Hizmetler</Text>
+              </View>
+              <TouchableOpacity onPress={() => setExtrasModal({ visible: false, extras: [] })}>
+                <Ionicons name="close" size={24} color="#64748b" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={{ maxHeight: 300, marginTop: 10 }}>
+              {extrasModal.extras.map((ex: any, i: number) => {
+                const qty = ex?.quantity || ex?.qty || 1;
+                const name = ex?.name || ex?.label || ex || 'Bilinmeyen Hizmet';
+                return (
+                  <View key={i} style={st.extraModalItem}>
+                    <Ionicons name="checkmark-circle" size={20} color="#10b981" />
+                    <Text style={st.extraModalItemName}>{name}</Text>
+                    <View style={st.extraModalItemQtyBadge}>
+                      <Text style={st.extraModalItemQtyText}>{qty} Adet</Text>
+                    </View>
+                  </View>
+                );
+              })}
+            </ScrollView>
+            
+            <TouchableOpacity style={[st.modalSubmit, { marginTop: 16 }]} onPress={() => setExtrasModal({ visible: false, extras: [] })}>
+              <Text style={st.modalSubmitText}>Tamam, Anladım</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
     </SafeAreaView>
   );
 }
@@ -776,4 +826,12 @@ const st = StyleSheet.create({
   currencyChipActive: { backgroundColor: '#059669', borderColor: '#059669' },
   currencyChipText: { fontSize: 14, fontWeight: '700', color: '#64748b' },
   currencyChipTextActive: { color: '#fff' },
+
+  // Flashing Btn
+  flashingBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#e11d48', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, gap: 6, alignSelf: 'flex-start' },
+  flashingBtnText: { color: '#fff', fontSize: 11, fontWeight: '800' },
+  extraModalItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f8fafc', padding: 12, borderRadius: 10, marginVertical: 4, borderWidth: 1, borderColor: '#e2e8f0', gap: 10 },
+  extraModalItemName: { flex: 1, fontSize: 15, fontWeight: '600', color: '#1e293b' },
+  extraModalItemQtyBadge: { backgroundColor: '#eef2ff', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+  extraModalItemQtyText: { fontSize: 13, fontWeight: '800', color: Brand.primary },
 });

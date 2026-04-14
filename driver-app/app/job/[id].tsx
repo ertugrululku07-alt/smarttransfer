@@ -262,12 +262,16 @@ export default function JobDetailScreen() {
                             <Text style={styles.sectionTitle}>Ekstra Hizmetler</Text>
                         </View>
                         <View style={styles.extrasContainer}>
-                            {job.metadata.extraServices.map((ex: any, i: number) => (
-                                <View key={i} style={styles.extraChip}>
-                                    <Ionicons name="star" size={12} color="#d97706" />
-                                    <Text style={styles.extraChipText}>{ex.name || ex.label || ex}</Text>
-                                </View>
-                            ))}
+                            {job.metadata.extraServices.map((ex: any, i: number) => {
+                                const qty = ex?.quantity || ex?.qty || 1;
+                                const name = ex?.name || ex?.label || ex || 'Özel Hizmet';
+                                return (
+                                    <View key={i} style={[styles.extraChip, { backgroundColor: '#ffe4e6', borderColor: '#fda4af' }]}>
+                                        <Ionicons name="alert-circle" size={16} color="#e11d48" />
+                                        <Text style={[styles.extraChipText, { color: '#e11d48', fontSize: 15 }]}>{qty} Adet: {name}</Text>
+                                    </View>
+                                );
+                            })}
                         </View>
                     </View>
                 )}
