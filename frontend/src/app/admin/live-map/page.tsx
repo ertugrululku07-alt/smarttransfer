@@ -4,7 +4,7 @@ import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useSocket } from '@/app/context/SocketContext';
 import apiClient from '@/lib/api-client';
 import AdminLayout from '../AdminLayout';
-import { Badge, Spin, Input, Tooltip, Typography, Empty, Drawer, Timeline, Tag } from 'antd';
+import { Badge, Spin, Input, Tooltip, Typography, Empty, Drawer, Timeline, Tag, DatePicker } from 'antd';
 import {
     CarOutlined, DashboardOutlined, EnvironmentOutlined, PhoneOutlined,
     ClockCircleOutlined, WarningOutlined, UserOutlined, SearchOutlined,
@@ -79,6 +79,36 @@ const LiveMapPage = () => {
     const [violationData, setViolationData] = useState<Record<string, any[]>>({});
     const [violationLoading, setViolationLoading] = useState(false);
     const [violationTotalCount, setViolationTotalCount] = useState(0);
+
+    // Route tracking state
+    const [routeDate, setRouteDate] = useState<string>(dayjs().format('YYYY-MM-DD'));
+    const [routePoints, setRoutePoints] = useState<any[]>([]);
+    const [routeLoading, setRouteLoading] = useState(false);
+
+    const fetchRoute = useCallback(async (driverId: string, date: string) => {
+        setRouteLoading(true);
+        try {
+            const res = await apiClient.get(`/api/driver/${driverId}/route?date=${date}`);
+            if (res.data?.success) {
+                setRoutePoints(res.data.data.points || []);
+            } else {
+                setRoutePoints([]);
+            }
+        } catch (err) {
+            console.error('Failed to fetch route:', err);
+            setRoutePoints([]);
+        } finally {
+            setRouteLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (selectedDriverId && routeDate) {
+            fetchRoute(selectedDriverId, routeDate);
+        } else {
+            setRoutePoints([]);
+        }
+    }, [selectedDriverId, routeDate, fetchRoute]);
 
     const fetchDrivers = useCallback(async () => {
         try {
@@ -250,6 +280,7 @@ const LiveMapPage = () => {
                             drivers={mapDrivers}
                             selectedDriver={selectedMapDriver}
                             onSelectDriver={(d) => setSelectedDriverId(d?.driverId || null)}
+                            routePoints={routePoints}
                         />
                         {/* Map Legend */}
                         <div style={{
@@ -285,8 +316,8 @@ const LiveMapPage = () => {
                             width: 340, background: '#fff', borderLeft: '1px solid #e2e8f0',
                             display: 'flex', flexDirection: 'column', flexShrink: 0
                         }}>
-                            {/* Search */}
-                            <div style={{ padding: '10px 12px', borderBottom: '1px solid #f1f5f9' }}>
+                            {/* Search / Route Date */}
+                            <div style={{ padding: '10px 12px', borderBottom: '1px solid #f1f5f9', display: 'flex', flexDirection: 'column', gap: 8 }}>
                                 <Input
                                     prefix={<SearchOutlined style={{ color: '#94a3b8' }} />}
                                     placeholder="Şoför ara..."
@@ -296,6 +327,20 @@ const LiveMapPage = () => {
                                     allowClear
                                     style={{ borderRadius: 8 }}
                                 />
+                                {selectedDriverId && (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#f8fafc', padding: '6px 10px', borderRadius: 8, fontSize: 12 }}>
+                                        <HistoryOutlined style={{ color: '#6366f1' }} />
+                                        <span style={{ fontWeight: 600, color: '#475569', flex: 1 }}>Geçmiş Rota</span>
+                                        <DatePicker 
+                                            size="small" 
+                                            value={dayjs(routeDate)} 
+                                            onChange={(d) => setRouteDate(d ? d.format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD'))} 
+                                            allowClear={false}
+                                            style={{ width: 110 }}
+                                        />
+                                        {routeLoading && <Spin size="small" />}
+                                    </div>
+                                )}
                             </div>
 
                             {/* Driver List */}

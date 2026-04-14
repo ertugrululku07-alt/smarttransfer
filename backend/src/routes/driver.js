@@ -565,13 +565,30 @@ router.post('/sync', authMiddleware, async (req, res) => {
 
         // 1. Handle Bulk Offline Locations (if sent)
         if (locationQueue && Array.isArray(locationQueue) && locationQueue.length > 0) {
-            // Optional: Save these to a separate DriverLocationHistory table if you want to draw routes later
-            // For now, we take the latest valid location from the queue to update the driver's current position
             const sortedQueue = [...locationQueue].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
             const latestValid = sortedQueue[sortedQueue.length - 1];
-            
+
             console.log(`[SYNC] 📡 Sürücü ${req.user.fullName} çevrimdışı kaldığı sürede biriken ${locationQueue.length} konumu gönderdi.`);
-            
+
+            // Save historical locations (Fire and forget, don't await blocking if queue is large, or await it carefully)
+            try {
+                const historyData = sortedQueue.map(qLoc => ({
+                    driverId: driverId,
+                    latitude: parseFloat(qLoc.lat),
+                    longitude: parseFloat(qLoc.lng),
+                    speed: qLoc.speed ? parseFloat(qLoc.speed) : 0,
+                    heading: qLoc.heading ? parseFloat(qLoc.heading) : 0,
+                    timestamp: new Date(qLoc.timestamp || Date.now())
+                }));
+                // Wait for save to ensure history is updated
+                await prisma.driverLocationHistory.createMany({
+                    data: historyData,
+                    skipDuplicates: true
+                });
+            } catch (histErr) {
+                console.error('Failed to save locationQueue to DriverLocationHistory:', histErr);
+            }
+
             // If they didn't send live lat/lng, use the newest from queue
             if (!lat || !lng) {
                 req.body.lat = latestValid.lat;
@@ -583,6 +600,24 @@ router.post('/sync', authMiddleware, async (req, res) => {
 
         // 1a. Always persist lastSeen + location to DB (survives server restarts)
         if (req.body.lat && req.body.lng) {
+            try {
+                // Also save current single ping to history if not part of queue
+                if (!locationQueue || locationQueue.length === 0) {
+                    await prisma.driverLocationHistory.create({
+                        data: {
+                            driverId: driverId,
+                            latitude: parseFloat(req.body.lat),
+                            longitude: parseFloat(req.body.lng),
+                            speed: req.body.speed ? parseFloat(req.body.speed) : 0,
+                            heading: req.body.heading ? parseFloat(req.body.heading) : 0,
+                            timestamp: new Date()
+                        }
+                    });
+                }
+            } catch (err) {
+                console.error('Failed to save single point to DriverLocationHistory:', err);
+            }
+
             await prisma.user.update({
                 where: { id: driverId },
                 data: {
@@ -1354,6 +1389,63 @@ router.post('/collections/:id/handover', authMiddleware, ensureDriver, async (re
         res.json({ success: true, data: updated });
     } catch (error) {
         console.error('Handover error:', error);
+        res.status(500).json({ success: false, error: 'Server error' });
+    }
+});
+
+// GET /api/driver/:id/route
+// Fetch driver's historical route and violations for a specific date
+router.get('/:id/route', authMiddleware, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { date } = req.query; // YYYY-MM-DD
+        
+        if (!date) {
+            return res.status(400).json({ success: false, error: 'Date is required (YYYY-MM-DD)' });
+        }
+
+        const targetDate = new Date(date);
+        targetDate.setHours(0, 0, 0, 0);
+        const endOfDay = new Date(targetDate);
+        endOfDay.setHours(23, 59, 59, 999);
+
+        // Fetch points from history
+        const routePoints = await prisma.driverLocationHistory.findMany({
+            where: {
+                driverId: id,
+                timestamp: {
+                    gte: targetDate,
+                    lte: endOfDay
+                }
+            },
+            orderBy: { timestamp: 'asc' },
+            select: { latitude: true, longitude: true, speed: true, heading: true, timestamp: true }
+        });
+
+        // Fetch violations for that date
+        const violations = await prisma.speedViolation.findMany({
+            where: {
+                driverId: id,
+                createdAt: {
+                    gte: targetDate,
+                    lte: endOfDay
+                }
+            },
+            orderBy: { createdAt: 'asc' }
+        });
+
+        res.json({
+            success: true,
+            data: {
+                date,
+                driverId: id,
+                points: routePoints,
+                violations: violations
+            }
+        });
+
+    } catch (error) {
+        console.error('Fetch driver route error:', error);
         res.status(500).json({ success: false, error: 'Server error' });
     }
 });

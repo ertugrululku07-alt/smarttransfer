@@ -189,6 +189,7 @@ model User {
   approvedAgencyDeposits AgencyDeposit[] @relation("ApprovedDeposits")
   driverCollections  DriverCollection[] @relation("DriverCollections")
   handoversReceived DriverCollection[] @relation("HandoverRecipient")
+  locationHistory   DriverLocationHistory[] @relation("DriverLocations")
   // Financial Snapshot
   balance Decimal @default(0) @db.Decimal(15, 2)
   debit   Decimal @default(0) @db.Decimal(15, 2)
@@ -1763,3 +1764,18 @@ enum CollectionStatus {
   HANDED_OVER   // Teslim Edildi - Handed to accounting
   CONFIRMED     // Onaylandı - Accounting confirmed receipt
 }
+
+model DriverLocationHistory {
+  id        String   @id @default(uuid())
+  driverId  String
+  driver    User     @relation("DriverLocations", fields: [driverId], references: [id], onDelete: Cascade)
+  latitude  Float
+  longitude Float
+  speed     Float    @default(0)
+  heading   Float    @default(0)
+  timestamp DateTime
+  createdAt DateTime @default(now())
+
+  @@index([driverId, timestamp])
+}
+

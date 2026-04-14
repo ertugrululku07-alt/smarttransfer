@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMap, CircleMarker, Tooltip as LTooltip } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, useMap, CircleMarker, Tooltip as LTooltip, Polyline } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
@@ -23,6 +23,7 @@ interface HereLiveMapClientProps {
     drivers: DriverMapData[];
     selectedDriver: DriverMapData | null;
     onSelectDriver: (driver: DriverMapData | null) => void;
+    routePoints?: { latitude: number; longitude: number; speed: number; timestamp: string }[];
 }
 
 const STATUS_CONFIG: Record<string, { markerColor: string; pulseColor: string; label: string }> = {
@@ -72,10 +73,15 @@ function createDriverIcon(status: string, speed: number, isSelected: boolean): L
     });
 }
 
-const MapController: React.FC<{ selectedDriver: DriverMapData | null; drivers: DriverMapData[] }> = ({ selectedDriver, drivers }) => {
+const MapController: React.FC<{ selectedDriver: DriverMapData | null; drivers: DriverMapData[]; routePoints?: any[] }> = ({ selectedDriver, drivers, routePoints }) => {
     const map = useMap();
     useEffect(() => {
-        if (selectedDriver && selectedDriver.lat !== 0) {
+        if (selectedDriver && routePoints && routePoints.length > 0) {
+            const bounds = L.latLngBounds(routePoints.map(p => [p.latitude, p.longitude] as [number, number]));
+            // Include current driver location in bounds if present
+            if (selectedDriver.lat !== 0) bounds.extend([selectedDriver.lat, selectedDriver.lng]);
+            map.fitBounds(bounds, { padding: [60, 60], maxZoom: 15, duration: 1.2 });
+        } else if (selectedDriver && selectedDriver.lat !== 0) {
             map.flyTo([selectedDriver.lat, selectedDriver.lng], 15, { duration: 1.2 });
         } else if (drivers.length > 0) {
             const valid = drivers.filter(d => d.lat !== 0 && d.lng !== 0);
@@ -84,15 +90,21 @@ const MapController: React.FC<{ selectedDriver: DriverMapData | null; drivers: D
                 map.fitBounds(bounds, { padding: [60, 60], maxZoom: 14 });
             }
         }
-    }, [selectedDriver, drivers, map]);
+    }, [selectedDriver, drivers, routePoints, map]);
     return null;
 };
 
-const HereLiveMapClient: React.FC<HereLiveMapClientProps> = ({ drivers, selectedDriver, onSelectDriver }) => {
+const HereLiveMapClient: React.FC<HereLiveMapClientProps> = ({ drivers, selectedDriver, onSelectDriver, routePoints }) => {
     const apiKey = process.env.NEXT_PUBLIC_HERE_API_KEY || 'RH04HVBUK6By3GfYWwVlCOG4Or1IzV-rRjygQRHbIvo';
     const tileUrl = `https://maps.hereapi.com/v3/base/mc/{z}/{x}/{y}/png8?apiKey=${apiKey}&size=256&style=explore.day`;
 
     const driversWithLocation = useMemo(() => drivers.filter(d => d.lat !== 0 && d.lng !== 0), [drivers]);
+
+    // Prepare route polyline coordinates
+    const polylineCoords = useMemo(() => {
+        if (!routePoints || routePoints.length === 0) return [];
+        return routePoints.map(p => [p.latitude, p.longitude] as [number, number]);
+    }, [routePoints]);
 
     return (
         <MapContainer
@@ -105,7 +117,31 @@ const HereLiveMapClient: React.FC<HereLiveMapClientProps> = ({ drivers, selected
                 attribution='&copy; <a href="https://here.com">HERE</a>'
                 url={tileUrl}
             />
-            <MapController selectedDriver={selectedDriver} drivers={driversWithLocation} />
+            <MapController selectedDriver={selectedDriver} drivers={driversWithLocation} routePoints={routePoints} />
+
+            {/* Render route polyline if available */}
+            {polylineCoords.length > 0 && (
+                <Polyline 
+                    positions={polylineCoords}
+                    pathOptions={{ color: '#6366f1', weight: 4, opacity: 0.7, dashArray: '10, 8' }}
+                />
+            )}
+
+            {/* Render violation markers along the route */}
+            {routePoints && routePoints.filter(p => p.speed > 120).map((vp, idx) => (
+                <CircleMarker
+                    key={`violation-${idx}`}
+                    center={[vp.latitude, vp.longitude]}
+                    radius={6}
+                    pathOptions={{ color: '#ef4444', fillColor: '#ef4444', fillOpacity: 0.6, weight: 1 }}
+                >
+                    <LTooltip direction="top" offset={[0, -5]}>
+                        <div style={{ fontWeight: 600, color: '#dc2626' }}>Hız İhlali</div>
+                        <div style={{ fontSize: 11 }}>{Math.round(vp.speed)} km/s</div>
+                        <div style={{ fontSize: 10, color: '#64748b' }}>{new Date(vp.timestamp).toLocaleTimeString('tr-TR')}</div>
+                    </LTooltip>
+                </CircleMarker>
+            ))}
 
             {driversWithLocation.map(driver => {
                 const isSelected = selectedDriver?.driverId === driver.driverId;

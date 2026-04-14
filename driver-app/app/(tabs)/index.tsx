@@ -136,11 +136,14 @@ export default function DashboardScreen() {
         );
       } catch (e) { console.warn('Permission error:', e); }
     }
+    
+    // START NATIVE ANDROID FOREGROUND SERVICE
     try {
       if (token) NativeLocation?.startTracking(token);
     } catch (e) { console.warn('startTracking error:', e); }
     setLocationActive(true);
-    return;
+    
+    // Also run Expo Location (for iOS compatibility or fallback)
     try {
       // First request foreground
       const { status: fgStatus } = await Location.requestForegroundPermissionsAsync();
