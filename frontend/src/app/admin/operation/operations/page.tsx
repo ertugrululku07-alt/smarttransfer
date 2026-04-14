@@ -1919,6 +1919,21 @@ export default function OperationsPage() {
             const targetRun = shuttleRuns.find(r => r.runKey === overId || r.bookings.some((b: any) => b.id === overId));
             if (!targetRun) return;
 
+            // --- DEP vs ARV Validation ---
+            const determineType = (routeStr: string) => {
+                const s = (routeStr || '').toUpperCase();
+                if (s.includes(' DEP')) return 'DEP';
+                if (s.includes(' ARV')) return 'ARV';
+                return 'TRF';
+            };
+            const sType = determineType(sourceRun.routeName);
+            const tType = determineType(targetRun.routeName);
+            
+            if ((sType === 'DEP' && tType === 'ARV') || (sType === 'ARV' && tType === 'DEP')) {
+                 message.error(`Hata: ${sType === 'DEP' ? 'Gidiş (DEP)' : 'Geliş (ARV)'} müşterisini ${tType === 'DEP' ? 'Gidiş (DEP)' : 'Geliş (ARV)'} seferine taşıyamazsınız!`);
+                 return;
+            }
+
             try {
                 const payload: any = { bookingIds: [passengerId] };
                 payload.targetRun = {

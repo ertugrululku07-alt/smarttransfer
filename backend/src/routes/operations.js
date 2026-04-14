@@ -681,6 +681,51 @@ router.get('/shuttle-runs', authMiddleware, async (req, res, next) => {
              return res.status(401).json({ success: false, error: 'Tenant context missing.' });
         }
 
+        LOG_TAG = "FETCH_TENANT_HUBS";
+        const tenantInfo = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { settings: true } });
+        const hubs = tenantInfo?.settings?.hubs || [];
+        const trLower = (s) => (s||'').toLocaleLowerCase('tr');
+        
+        function getAbbreviationAndType(fromStr, toStr) {
+             let fromCode = null;
+             let toCode = null;
+             let fromIsAirport = false;
+             let toIsAirport = false;
+             
+             for (const hub of hubs) {
+                 const keys = hub.keywords ? hub.keywords.split(',').map(k => trLower(k).trim()) : [];
+                 if (hub.code) keys.push(trLower(hub.code));
+                 if (hub.name) keys.push(trLower(hub.name));
+                 
+                 const isAirportHub = hub.name && (trLower(hub.name).includes('havaliman') || trLower(hub.name).includes('airport') || ['ayt', 'gzp'].includes(trLower(hub.code)));
+
+                 if (!fromCode && keys.some(k => k && trLower(fromStr).includes(k))) {
+                     fromCode = hub.code || '???';
+                     if(isAirportHub) fromIsAirport = true;
+                 }
+                 if (!toCode && keys.some(k => k && trLower(toStr).includes(k))) {
+                     toCode = hub.code || '???';
+                     if(isAirportHub) toIsAirport = true;
+                 }
+             }
+             
+             const safeUpper = s => (s||'').substring(0,3).toUpperCase();
+             if (!fromCode) fromCode = safeUpper(fromStr) || '???';
+             if (!toCode) toCode = safeUpper(toStr) || '???';
+             
+             let type = '';
+             let fLower = trLower(fromStr);
+             let tLower = trLower(toStr);
+             
+             if (toIsAirport && !fromIsAirport) type = 'DEP';
+             else if (fromIsAirport && !toIsAirport) type = 'ARV';
+             else if (tLower.includes('havaliman') || tLower.includes('airport')) type = 'DEP';
+             else if (fLower.includes('havaliman') || fLower.includes('airport')) type = 'ARV';
+             else type = 'TRF';
+             
+             return { fromCode, toCode, type };
+        }
+
         LOG_TAG = "QUERY_BOOKINGS";
         const bookings = await prisma.booking.findMany({
             where: {
@@ -734,9 +779,12 @@ router.get('/shuttle-runs', authMiddleware, async (req, res, next) => {
             } else if (routeId && routeMap[routeId]) {
                 key = `ROUTE::${routeId}${masterTime ? '::' + masterTime : ''}`;
                 const route = routeMap[routeId];
-                routeNameForGrouping = `${route.fromName} → ${route.toName}`;
+                
+                const { fromCode, toCode, type } = getAbbreviationAndType(route.fromName, route.toName);
+                routeNameForGrouping = `${fromCode} - ${toCode} ${type}`;
+                
                 if (masterTime) {
-                    routeNameForGrouping += ` (${masterTime} Seferi)`;
+                    routeNameForGrouping += ` (${masterTime})`;
                 }
                 fromNameForGrouping = route.fromName || fromNameForGrouping;
                 toNameForGrouping = route.toName || toNameForGrouping;
@@ -746,9 +794,12 @@ router.get('/shuttle-runs', authMiddleware, async (req, res, next) => {
                 const dropoff = String(m.dropoff || 'Bilinmeyen Varış').trim();
                 const dropoffKey = dropoff.substring(0, 60).toLowerCase().replace(/\s+/g, ' ');
                 key = `ADHOC::${dropoffKey}${masterTime ? '::' + masterTime : ''}`;
-                routeNameForGrouping = `Shuttle → ${dropoff}`;
+                
+                const { fromCode, toCode, type } = getAbbreviationAndType('Bilinmeyen', dropoff);
+                routeNameForGrouping = `Shuttle → ${toCode} ${type}`;
+                
                 if (masterTime) {
-                    routeNameForGrouping += ` (${masterTime} Seferi)`;
+                    routeNameForGrouping += ` (${masterTime})`;
                 }
                 fromNameForGrouping = 'Çeşitli Noktalar';
                 toNameForGrouping = dropoff;
