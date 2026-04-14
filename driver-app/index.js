@@ -219,16 +219,29 @@ TaskManager.defineTask(BG_FETCH_TASK_NAME, async () => {
   return BackgroundFetch.BackgroundFetchResult.NewData;
 });
 
+import { NativeModules } from 'react-native';
+
+const { NativeLocation } = NativeModules;
+
 // 3. Silent Wake-Up Push Task
 TaskManager.defineTask(BACKGROUND_NOTIFICATION_TASK, async ({ data, error }) => {
   if (error) return;
   const payload = data?.notification?.request?.content?.data;
   
-  if (payload?.type === 'LOCATION_REQUEST') {
+  if (payload?.type === 'LOCATION_REQUEST' || payload?.type === 'wake_up') {
      console.log('[Headless] Silent push location request received');
      await syncLocationWithBackend(null, null, null, null, null, 'silent_push');
      
-     await ensureLocationTaskRunning('silent_push');
+     // CRITICAL: Restart Native Foreground Service to keep driver online
+     try {
+       const token = await readToken('token');
+       if (token && NativeLocation) {
+         NativeLocation.startTracking(token);
+         console.log('[Headless] Native location tracking restarted from silent push');
+       }
+     } catch (e) {
+       console.log('[Headless] Native tracking restart error:', e?.message || e);
+     }
   }
 });
 

@@ -496,7 +496,7 @@ router.post('/:id/wake', authMiddleware, async (req, res) => {
             headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 to: pushToken,
-                data: { type: 'wake_up' },
+                data: { type: 'wake_up', action: 'LOCATION_REQUEST' },
                 priority: 'high',
                 sound: null,
                 badge: 0,
