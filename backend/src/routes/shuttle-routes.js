@@ -171,4 +171,33 @@ router.patch('/:id/active', authMiddleware, async (req, res) => {
     }
 });
 
+/**
+ * DELETE /api/shuttle-routes/:id
+ * Delete a shuttle route
+ */
+router.delete('/:id', authMiddleware, async (req, res) => {
+    try {
+        const tenantId = req.tenant?.id;
+        if (!tenantId) return res.status(401).json({ success: false, error: 'Tenant context missing.' });
+
+        // Ensure the route belongs to the tenant
+        const route = await prisma.shuttleRoute.findFirst({
+            where: { id: req.params.id, tenantId }
+        });
+
+        if (!route) {
+            return res.status(404).json({ success: false, error: 'Shuttle rotası bulunamadı.' });
+        }
+
+        await prisma.shuttleRoute.delete({
+            where: { id: req.params.id }
+        });
+
+        res.json({ success: true, message: 'Shuttle rotası başarıyla silindi.' });
+    } catch (error) {
+        console.error('Delete shuttle route error:', error);
+        res.status(500).json({ success: false, error: 'Shuttle rotası silinemedi' });
+    }
+});
+
 module.exports = router;

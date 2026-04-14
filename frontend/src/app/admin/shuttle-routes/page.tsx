@@ -21,6 +21,7 @@ import {
   Col,
   Tooltip,
   Card,
+  Popconfirm,
 } from 'antd';
 import {
   PlusOutlined,
@@ -35,6 +36,7 @@ import {
   SwapOutlined,
   CheckCircleOutlined,
   CloseCircleOutlined,
+  DeleteOutlined,
 } from '@ant-design/icons';
 import apiClient from '../../../lib/api-client';
 import moment from 'moment';
@@ -348,6 +350,20 @@ const AdminShuttleRoutesPage: React.FC = () => {
     }
   };
 
+  const handleDelete = async (id: number) => {
+    setLoading(true);
+    try {
+      await apiClient.delete(`/api/shuttle-routes/${id}`);
+      message.success('Shuttle rotası başarıyla silindi.');
+      fetchShuttleRoutes();
+    } catch (error) {
+      console.error('Error deleting shuttle route:', error);
+      message.error('Silme işlemi sırasında bir hata oluştu.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const shuttleVehicles = vehicles.filter((v) => Array.isArray(v.usageType) ? v.usageType.includes('SHUTTLE') : v.usageType === 'SHUTTLE');
   const activeCount = shuttleRoutes.filter(r => r.isActive).length;
 
@@ -533,21 +549,44 @@ const AdminShuttleRoutesPage: React.FC = () => {
     {
       title: '',
       key: 'actions',
-      width: 55,
+      width: 100,
       align: 'center' as const,
       render: (_: any, record: ShuttleRoute) => (
-        <Tooltip title="Düzenle">
-          <Button
-            icon={<EditOutlined />}
-            onClick={() => showModal(record)}
-            type="text"
-            style={{
-              width: 36, height: 36, borderRadius: 10,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              background: '#f1f5f9', color: '#6366f1', border: '1px solid #e2e8f0'
-            }}
-          />
-        </Tooltip>
+        <Space size="middle">
+          <Tooltip title="Düzenle">
+            <Button
+              icon={<EditOutlined />}
+              onClick={() => showModal(record)}
+              type="text"
+              style={{
+                width: 36, height: 36, borderRadius: 10,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: '#f1f5f9', color: '#6366f1', border: '1px solid #e2e8f0'
+              }}
+            />
+          </Tooltip>
+          <Tooltip title="Sil">
+            <Popconfirm
+                title="Şutle rotasını sil"
+                description="Bu rotayı silmek istediğinizden emin misiniz? Bu işlem geri alınamaz."
+                onConfirm={() => handleDelete(record.id)}
+                okText="Evet, Sil"
+                cancelText="Hayır"
+                okButtonProps={{ danger: true }}
+            >
+                <Button
+                    icon={<DeleteOutlined />}
+                    type="text"
+                    danger
+                    style={{
+                        width: 36, height: 36, borderRadius: 10,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        background: '#fff1f0', border: '1px solid #ffa39e'
+                    }}
+                />
+            </Popconfirm>
+          </Tooltip>
+        </Space>
       ),
     },
   ];
