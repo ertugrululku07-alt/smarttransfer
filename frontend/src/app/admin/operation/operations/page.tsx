@@ -3326,30 +3326,36 @@ export default function OperationsPage() {
                                 icon={<FileExcelOutlined />}
                                 style={{ borderRadius: 6, color: '#16a34a', borderColor: '#86efac' }}
                                 onClick={() => {
-                                    const headers = ['Rez. No', 'Tarih', 'Saat', 'Tip', 'Yön', 'Acente', 'Müşteri', 'Telefon', 'Uçuş', 'Alış Noktası', 'Varış Noktası', 'Pax', 'Şoför', 'Araç (Plaka)', 'Araç Model', 'Araç Tipi', 'Ekstra Hizmetler', 'Ücret', 'Para Birimi', 'Ödeme Durumu', 'Notlar'];
-                                    const rows = completedBookings.map((b: any) => [
-                                        b.bookingNumber || '',
-                                        dayjs(b.pickupDateTime).format('DD.MM.YYYY'),
-                                        dayjs(b.pickupDateTime).format('HH:mm'),
-                                        b.transferType === 'SHUTTLE' ? 'Shuttle' : 'Özel',
-                                        b.direction || '',
-                                        b.agencyName || 'Direkt',
-                                        b.contactName || b.customer?.name || '',
-                                        b.customer?.phone || b.contactPhone || '',
-                                        b.flightNumber || b.metadata?.flightNumber || '',
-                                        b.pickup?.rawLocation || b.pickup?.location || '',
-                                        b.dropoff?.rawLocation || b.dropoff?.location || '',
-                                        b.pax || 1,
-                                        (() => { const d = drivers.find((dr: any) => (dr.user?.id || dr.id) === b.driverId); return d ? `${d.firstName} ${d.lastName}` : ''; })(),
-                                        (() => { const v = vehicles.find((vh: any) => vh.id === b.assignedVehicleId); return v ? v.plateNumber : ''; })(),
-                                        (() => { const v = vehicles.find((vh: any) => vh.id === b.assignedVehicleId); return v ? (v.model || '') : ''; })(),
-                                        b.vehicleType || b.metadata?.vehicleType || '',
-                                        (b.metadata?.extraServices || []).map((s: any) => typeof s === 'string' ? s : s.name).join(', '),
-                                        b.price || b.total || 0,
-                                        b.currency || 'TRY',
-                                        b.paymentStatus === 'PAID' ? 'Ödendi' : b.paymentStatus === 'PENDING' ? 'Bekliyor' : (b.paymentStatus || ''),
-                                        b.specialRequests || b.notes || b.internalNotes || '',
-                                    ]);
+                                    const headers = ['Rez. No', 'Tarih', 'Plan Alış', 'Gerçek Alış', 'Gerçek Varış', 'Süre (dk)', 'Tip', 'Yön', 'Acente', 'Müşteri', 'Telefon', 'Uçuş', 'Alış Noktası', 'Varış Noktası', 'Pax', 'Şoför', 'Araç (Plaka)', 'Araç Model', 'Araç Tipi', 'Ekstra Hizmetler', 'Ücret', 'Para Birimi', 'Ödeme Durumu', 'Notlar'];
+                                    const rows = completedBookings.map((b: any) => {
+                                        const durationMins = b.pickedUpAt && b.droppedOffAt ? dayjs(b.droppedOffAt).diff(dayjs(b.pickedUpAt), 'minute') : 0;
+                                        return [
+                                            b.bookingNumber || '',
+                                            dayjs(b.pickupDateTime).format('DD.MM.YYYY'),
+                                            dayjs(b.pickupDateTime).format('HH:mm'),
+                                            b.pickedUpAt ? dayjs(b.pickedUpAt).format('HH:mm') : '',
+                                            b.droppedOffAt ? dayjs(b.droppedOffAt).format('HH:mm') : '',
+                                            durationMins,
+                                            b.transferType === 'SHUTTLE' ? 'Shuttle' : 'Özel',
+                                            b.direction || '',
+                                            b.agencyName || 'Direkt',
+                                            b.contactName || b.customer?.name || '',
+                                            b.customer?.phone || b.contactPhone || '',
+                                            b.flightNumber || b.metadata?.flightNumber || '',
+                                            b.pickup?.rawLocation || b.pickup?.location || '',
+                                            b.dropoff?.rawLocation || b.dropoff?.location || '',
+                                            b.pax || 1,
+                                            (() => { const d = drivers.find((dr: any) => (dr.user?.id || dr.id) === b.driverId); return d ? `${d.firstName} ${d.lastName}` : ''; })(),
+                                            (() => { const v = vehicles.find((vh: any) => vh.id === b.assignedVehicleId); return v ? v.plateNumber : ''; })(),
+                                            (() => { const v = vehicles.find((vh: any) => vh.id === b.assignedVehicleId); return v ? (v.model || '') : ''; })(),
+                                            b.vehicleType || b.metadata?.vehicleType || '',
+                                            (b.metadata?.extraServices || []).map((s: any) => typeof s === 'string' ? s : s.name).join(', '),
+                                            b.price || b.total || 0,
+                                            b.currency || 'TRY',
+                                            b.paymentStatus === 'PAID' ? 'Ödendi' : b.paymentStatus === 'PENDING' ? 'Bekliyor' : (b.paymentStatus || ''),
+                                            b.specialRequests || b.notes || b.internalNotes || '',
+                                        ];
+                                    });
                                     const csv = [headers, ...rows].map(r => r.map((c: any) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
                                     const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
                                     const url = URL.createObjectURL(blob);
@@ -3563,6 +3569,79 @@ export default function OperationsPage() {
                                                 background: '#eef2ff', borderRadius: 6, padding: '2px 8px',
                                             }}>{val || 1}</span>
                                         )
+                                    },
+                                    {
+                                        title: 'PLAN',
+                                        key: 'scheduledPickup',
+                                        width: 65,
+                                        align: 'center' as const,
+                                        render: (_: any, record: any) => (
+                                            <span style={{ fontSize: 11, fontWeight: 600, color: '#6b7280' }}>
+                                                {record.pickupDateTime ? dayjs(record.pickupDateTime).format('HH:mm') : '—'}
+                                            </span>
+                                        )
+                                    },
+                                    {
+                                        title: 'ALIŞ',
+                                        key: 'pickedUpAt',
+                                        width: 65,
+                                        align: 'center' as const,
+                                        sorter: (a: any, b: any) => {
+                                            const ta = a.pickedUpAt ? dayjs(a.pickedUpAt).unix() : 0;
+                                            const tb = b.pickedUpAt ? dayjs(b.pickedUpAt).unix() : 0;
+                                            return ta - tb;
+                                        },
+                                        render: (_: any, record: any) => {
+                                            if (!record.pickedUpAt) return <span style={{ color: '#d1d5db', fontSize: 10 }}>—</span>;
+                                            const scheduled = dayjs(record.pickupDateTime);
+                                            const actual = dayjs(record.pickedUpAt);
+                                            const diffMinutes = actual.diff(scheduled, 'minute');
+                                            let color = '#16a34a'; // green (on time)
+                                            let label = '✓';
+                                            if (diffMinutes > 5) { color = '#dc2626'; label = '↑'; } // late
+                                            else if (diffMinutes < -5) { color = '#2563eb'; label = '↓'; } // early
+                                            return (
+                                                <Tooltip title={`Planlanan: ${scheduled.format('HH:mm')} | Fark: ${diffMinutes > 0 ? '+' : ''}${diffMinutes} dk`}>
+                                                    <span style={{ fontSize: 11, fontWeight: 700, color }}>
+                                                        {actual.format('HH:mm')} <small>{label}</small>
+                                                    </span>
+                                                </Tooltip>
+                                            );
+                                        }
+                                    },
+                                    {
+                                        title: 'VARIŞ',
+                                        key: 'droppedOffAt',
+                                        width: 65,
+                                        align: 'center' as const,
+                                        sorter: (a: any, b: any) => {
+                                            const ta = a.droppedOffAt ? dayjs(a.droppedOffAt).unix() : 0;
+                                            const tb = b.droppedOffAt ? dayjs(b.droppedOffAt).unix() : 0;
+                                            return ta - tb;
+                                        },
+                                        render: (_: any, record: any) => {
+                                            if (!record.droppedOffAt) return <span style={{ color: '#d1d5db', fontSize: 10 }}>—</span>;
+                                            return <span style={{ fontSize: 11, fontWeight: 700, color: '#7c3aed' }}>{dayjs(record.droppedOffAt).format('HH:mm')}</span>;
+                                        }
+                                    },
+                                    {
+                                        title: 'SÜRE',
+                                        key: 'duration',
+                                        width: 70,
+                                        align: 'center' as const,
+                                        sorter: (a: any, b: any) => {
+                                            const da = a.pickedUpAt && a.droppedOffAt ? dayjs(a.droppedOffAt).diff(dayjs(a.pickedUpAt), 'minute') : 0;
+                                            const db = b.pickedUpAt && b.droppedOffAt ? dayjs(b.droppedOffAt).diff(dayjs(b.pickedUpAt), 'minute') : 0;
+                                            return da - db;
+                                        },
+                                        render: (_: any, record: any) => {
+                                            if (!record.pickedUpAt || !record.droppedOffAt) return <span style={{ color: '#d1d5db', fontSize: 10 }}>—</span>;
+                                            const mins = dayjs(record.droppedOffAt).diff(dayjs(record.pickedUpAt), 'minute');
+                                            const hours = Math.floor(mins / 60);
+                                            const remainingMins = mins % 60;
+                                            const text = hours > 0 ? `${hours}s ${remainingMins}dk` : `${mins}dk`;
+                                            return <span style={{ fontSize: 11, fontWeight: 700, color: '#0891b2', background: '#cffafe', padding: '2px 6px', borderRadius: 4 }}>{text}</span>;
+                                        }
                                     },
                                     {
                                         title: 'ŞOFÖR',

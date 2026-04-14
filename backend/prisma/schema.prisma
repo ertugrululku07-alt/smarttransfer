@@ -861,6 +861,10 @@ model Booking {
   payments Payment[]
   driverCollections DriverCollection[]
 
+  // Pickup/Dropoff Tracking (Actual times recorded by driver)
+  pickedUpAt   DateTime? // When driver picked up the customer
+  droppedOffAt DateTime? // When driver dropped off the customer
+
   // Metadata
   metadata  Json?
   createdAt DateTime @default(now())
@@ -869,6 +873,8 @@ model Booking {
   @@index([tenantId, status])
   @@index([bookingNumber])
   @@index([customerId])
+  @@index([pickedUpAt])
+  @@index([droppedOffAt])
 }
 
 enum BookingStatus {

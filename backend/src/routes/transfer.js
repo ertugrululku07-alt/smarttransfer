@@ -1015,7 +1015,10 @@ router.get('/bookings', authMiddleware, async (req, res) => {
             // Fatura alanları
             wantsInvoice: b.metadata?.wantsInvoice || false,
             billingDetails: b.metadata?.billingDetails || null,
-            metadata: b.metadata || {}
+            metadata: b.metadata || {},
+            // Pickup/Dropoff tracking timestamps
+            pickedUpAt: b.pickedUpAt,
+            droppedOffAt: b.droppedOffAt
         }));
 
         res.json({

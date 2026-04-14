@@ -247,18 +247,44 @@ router.get('/history', authMiddleware, ensureDriver, async (req, res) => {
 router.put('/bookings/:id/status', authMiddleware, ensureDriver, async (req, res) => {
     try {
         const { id } = req.params;
-        const { status } = req.body; // 'ON_WAY', 'PICKUP', 'STARTED', 'COMPLETED'
+        const { status } = req.body; // 'ON_WAY', 'ARRIVED', 'PICKUP', 'STARTED', 'COMPLETED'
+
+        // Build update data with timestamp tracking
+        const updateData = { status: status };
+        const now = new Date();
+
+        // Record pickup time when driver marks customer as picked up
+        if (status === 'PICKUP' || status === 'STARTED') {
+            updateData.pickedUpAt = now;
+        }
+
+        // Record dropoff time when transfer completed
+        if (status === 'COMPLETED') {
+            updateData.droppedOffAt = now;
+        }
 
         const booking = await prisma.booking.update({
             where: { id: id, driverId: req.user.id },
-            data: { status: status }
+            data: updateData
         });
 
         const io = req.app.get('io');
         if (io) {
-            io.to('admin_monitoring').emit('booking_status_update', { bookingId: id, status, driverId: req.user.id });
+            io.to('admin_monitoring').emit('booking_status_update', { 
+                bookingId: id, 
+                status, 
+                driverId: req.user.id,
+                pickedUpAt: updateData.pickedUpAt,
+                droppedOffAt: updateData.droppedOffAt
+            });
             // Also emit to the driver's own room so their app updates immediately
-            io.to(`user_${req.user.id}`).emit('booking_status_update', { bookingId: id, status, driverId: req.user.id });
+            io.to(`user_${req.user.id}`).emit('booking_status_update', { 
+                bookingId: id, 
+                status, 
+                driverId: req.user.id,
+                pickedUpAt: updateData.pickedUpAt,
+                droppedOffAt: updateData.droppedOffAt
+            });
         }
 
         res.json({ success: true, data: booking });
