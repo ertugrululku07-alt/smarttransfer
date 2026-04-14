@@ -108,6 +108,7 @@ const TransferBookingContent: React.FC = () => {
 
     // Params
     const vehicleId = searchParams.get('vehicleId');
+    const returnVehicleId = searchParams.get('returnVehicleId');
     const pickup = searchParams.get('pickup');
     const dropoff = searchParams.get('dropoff');
     const date = searchParams.get('date');
@@ -116,6 +117,9 @@ const TransferBookingContent: React.FC = () => {
     const type = searchParams.get('type');
     const durationParam = searchParams.get('duration'); // Get duration from URL
     const shuttleMasterTime = searchParams.get('shuttleMasterTime');
+    const returnShuttleMasterTime = searchParams.get('returnShuttleMasterTime');
+    const returnDate = searchParams.get('returnDate');
+    const returnTime = searchParams.get('returnTime');
 
     // Airport Transfer Detection: Check if pickup or dropoff contains airport keywords
     const AIRPORT_KEYWORDS = [
@@ -131,7 +135,9 @@ const TransferBookingContent: React.FC = () => {
     // For MVP, we'll calculate/display based on assumptions or params
     // Or re-fetch search to get the specific vehicle details
     const [vehicleDetails, setVehicleDetails] = useState<any>(null);
+    const [returnVehicleDetails, setReturnVehicleDetails] = useState<any>(null);
     const [tripStats, setTripStats] = useState({ distance: 'Calculating...', duration: 'Calculating...' });
+    const isRoundTrip = type === 'ROUND_TRIP' && returnVehicleId;
 
     const handleDistanceCalculated = (distance: string, duration: string) => {
         setTripStats({ distance, duration });
@@ -142,9 +148,13 @@ const TransferBookingContent: React.FC = () => {
             router.push('/');
             return;
         }
-        // Simulate fetching vehicle details or calculating price again
+        // Fetch outbound vehicle details
         fetchVehicleDetails();
-    }, [vehicleId]);
+        // Fetch return vehicle details if round trip
+        if (returnVehicleId) {
+            fetchReturnVehicleDetails();
+        }
+    }, [vehicleId, returnVehicleId]);
 
     // Initialize passenger list form
     useEffect(() => {
@@ -157,10 +167,7 @@ const TransferBookingContent: React.FC = () => {
 
     const fetchVehicleDetails = async () => {
         try {
-            // Re-use search endpoint to get fresh price/details for this specific trip
-            // Optimisation: Create a specific /api/transfer/quote endpoint later
             const pickupDateTime = time ? `${date}T${time}:00.000` : date;
-
             const pickupLat = searchParams.get('pickupLat');
             const pickupLng = searchParams.get('pickupLng');
             
@@ -174,7 +181,7 @@ const TransferBookingContent: React.FC = () => {
                 dropoff,
                 pickupDateTime,
                 passengers: Number(passengers),
-                transferType: type,
+                transferType: 'ONE_WAY',
                 pickupLat,
                 pickupLng,
                 distance: cleanDistance,
@@ -188,12 +195,46 @@ const TransferBookingContent: React.FC = () => {
                 if (found) {
                     setVehicleDetails(found);
                 } else {
-                    message.error('Seçilen araç artık müsait değil.');
+                    message.error('Gidiş aracı artık müsait değil.');
                     router.back();
                 }
             }
         } catch (err) {
             console.error('Vehicle details error:', err);
+        }
+    };
+
+    const fetchReturnVehicleDetails = async () => {
+        try {
+            // For return trip, swap pickup and dropoff
+            const returnPickupDateTime = returnTime ? `${returnDate}T${returnTime}:00.000` : returnDate;
+            const pickupLat = searchParams.get('pickupLat');
+            const pickupLng = searchParams.get('pickupLng');
+            const dropoffLat = searchParams.get('dropoffLat');
+            const dropoffLng = searchParams.get('dropoffLng');
+            
+            const payload = {
+                pickup: dropoff, // Reverse direction
+                dropoff: pickup,
+                pickupDateTime: returnPickupDateTime,
+                passengers: Number(passengers),
+                transferType: 'ONE_WAY',
+                pickupLat: dropoffLat,
+                pickupLng: dropoffLng,
+                shuttleMasterTime: returnShuttleMasterTime || undefined
+            };
+
+            const res = await apiClient.post('/api/transfer/search', payload);
+            if (res.data.success) {
+                const found = res.data.data.results.find((v: any) => String(v.id) === returnVehicleId);
+                if (found) {
+                    setReturnVehicleDetails(found);
+                } else {
+                    message.error('Dönüş aracı artık müsait değil.');
+                }
+            }
+        } catch (err) {
+            console.error('Return vehicle details error:', err);
         }
     };
 
@@ -253,9 +294,12 @@ const TransferBookingContent: React.FC = () => {
         return total;
     };
 
-    // Calculate Grand Total
+    // Calculate Grand Total (includes return vehicle for round trips)
     const vehiclePrice = vehicleDetails ? Number(vehicleDetails.price) : 0;
     const convertedVehiclePrice = vehicleDetails ? convertPrice(vehiclePrice, vehicleDetails.currency, selectedCurrency) : 0;
+    
+    const returnVehiclePrice = returnVehicleDetails ? Number(returnVehicleDetails.price) : 0;
+    const convertedReturnVehiclePrice = returnVehicleDetails ? convertPrice(returnVehiclePrice, returnVehicleDetails.currency, selectedCurrency) : 0;
 
     const getConvertedServicePrice = () => {
         let total = 0;
@@ -270,7 +314,7 @@ const TransferBookingContent: React.FC = () => {
         return total;
     };
 
-    const grandTotal = convertedVehiclePrice + getConvertedServicePrice();
+    const grandTotal = convertedVehiclePrice + convertedReturnVehiclePrice + getConvertedServicePrice();
 
 
     const onFinish = async (values: any) => {
@@ -336,13 +380,14 @@ const TransferBookingContent: React.FC = () => {
             };
             const resolvedPaymentMethod = paymentMethodMap[values.paymentMethod] || 'PAY_IN_VEHICLE';
 
-            const payload = {
+            // Build outbound payload
+            const outboundPayload = {
                 vehicleType: vehicleDetails.vehicleType,
                 pickup,
                 dropoff,
                 pickupDateTime: finalPickupDateTime,
                 passengers: Number(passengers),
-                price: grandTotal, 
+                price: convertedVehiclePrice, // Only outbound price
                 currency: selectedCurrency,
                 paymentMethod: resolvedPaymentMethod,
                 customerInfo: {
@@ -354,16 +399,14 @@ const TransferBookingContent: React.FC = () => {
                 flightTime: flightTimeToSend,
                 notes: values.notes || (flightTimeToSend ? `Uçuş Saati: ${flightTimeToSend}` : undefined),
                 passengerDetails: [
-                    // Passenger 1: Main Contact
                     {
                         firstName: values.fullName.split(' ')[0],
                         lastName: values.fullName.split(' ').slice(1).join(' ') || '',
-                        nationality: null // Main contact form doesn't have nationality yet, or needs to be added if critical
+                        nationality: null
                     },
-                    // Additional Passengers
                     ...(values.passengerList || [])
                 ],
-                extraServices: selectedServicesList, // Add Extra Services
+                extraServices: selectedServicesList,
                 billingDetails: wantInvoice ? {
                     type: invoiceType,
                     fullName: invoiceType === 'individual' ? values.billingFullName : undefined,
@@ -373,7 +416,48 @@ const TransferBookingContent: React.FC = () => {
                     taxOffice: invoiceType === 'corporate' ? values.taxOffice : undefined,
                     taxNo: invoiceType === 'corporate' ? values.taxNo : undefined,
                     address: values.billingAddress
-                } : undefined
+                } : undefined,
+                // Round trip info for linking
+                isRoundTrip: isRoundTrip,
+                tripLeg: 'OUTBOUND'
+            };
+
+            // Build return payload if round trip
+            const returnPayload = isRoundTrip && returnVehicleDetails ? {
+                vehicleType: returnVehicleDetails.vehicleType,
+                pickup: dropoff, // Reverse direction
+                dropoff: pickup,
+                pickupDateTime: returnTime ? `${returnDate}T${returnTime}:00.000` : returnDate,
+                passengers: Number(passengers),
+                price: convertedReturnVehiclePrice, // Only return price
+                currency: selectedCurrency,
+                paymentMethod: resolvedPaymentMethod,
+                customerInfo: {
+                    fullName: values.fullName,
+                    email: values.email,
+                    phone: fullPhone
+                },
+                flightNumber: values.returnFlightNumber || values.flightNumber,
+                notes: values.notes,
+                passengerDetails: [
+                    {
+                        firstName: values.fullName.split(' ')[0],
+                        lastName: values.fullName.split(' ').slice(1).join(' ') || '',
+                        nationality: null
+                    },
+                    ...(values.passengerList || [])
+                ],
+                extraServices: [], // Services only apply to outbound
+                billingDetails: undefined, // Billing handled by outbound
+                isRoundTrip: true,
+                tripLeg: 'RETURN',
+                linkedBookingNumber: null // Will be set by backend after outbound booking
+            } : null;
+
+            const payload = {
+                outbound: outboundPayload,
+                return: returnPayload,
+                totalPrice: grandTotal
             };
 
             const res = await apiClient.post('/api/transfer/book', payload);
@@ -951,19 +1035,57 @@ const TransferBookingContent: React.FC = () => {
                                             </div>
                                         </div>
 
-                                        {/* Vehicle Info */}
+                                        {/* Vehicle Info - Outbound */}
                                         {vehicleDetails && (
-                                            <div style={{ marginBottom: 16, textAlign: 'center' }}>
-                                                {vehicleDetails.image && (
-                                                    <img
-                                                        src={getImageUrl(vehicleDetails.image)}
-                                                        alt={vehicleDetails.vehicleType}
-                                                        style={{ width: '100%', borderRadius: 8, marginBottom: 8, objectFit: 'cover' }}
-                                                    />
+                                            <div style={{ marginBottom: 16 }}>
+                                                <div style={{ background: '#f0f5ff', padding: 12, borderRadius: 8, marginBottom: 8 }}>
+                                                    <Text strong style={{ fontSize: 13, color: '#1677ff' }}>🚗 GİDİŞ</Text>
+                                                    <div style={{ marginTop: 8, textAlign: 'center' }}>
+                                                        {vehicleDetails.image && (
+                                                            <img
+                                                                src={getImageUrl(vehicleDetails.image)}
+                                                                alt={vehicleDetails.vehicleType}
+                                                                style={{ width: '100%', borderRadius: 8, marginBottom: 8, objectFit: 'cover', maxHeight: 120 }}
+                                                            />
+                                                        )}
+                                                        <Text strong style={{ fontSize: 14 }}>{vehicleDetails.vehicleType}</Text>
+                                                        <div style={{ fontSize: 12, color: '#666', marginTop: 4 }}>
+                                                            {date} {time}
+                                                        </div>
+                                                        <div style={{ fontSize: 14, fontWeight: 600, color: '#52c41a', marginTop: 4 }}>
+                                                            {formatPrice(convertedVehiclePrice, selectedCurrency)}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                
+                                                {/* Return Vehicle - Only for round trips */}
+                                                {isRoundTrip && returnVehicleDetails && (
+                                                    <div style={{ background: '#f6ffed', padding: 12, borderRadius: 8 }}>
+                                                        <Text strong style={{ fontSize: 13, color: '#52c41a' }}>🚙 DÖNÜŞ</Text>
+                                                        <div style={{ marginTop: 8, textAlign: 'center' }}>
+                                                            {returnVehicleDetails.image && (
+                                                                <img
+                                                                    src={getImageUrl(returnVehicleDetails.image)}
+                                                                    alt={returnVehicleDetails.vehicleType}
+                                                                    style={{ width: '100%', borderRadius: 8, marginBottom: 8, objectFit: 'cover', maxHeight: 120 }}
+                                                                />
+                                                            )}
+                                                            <Text strong style={{ fontSize: 14 }}>{returnVehicleDetails.vehicleType}</Text>
+                                                            <div style={{ fontSize: 12, color: '#666', marginTop: 4 }}>
+                                                                {returnDate} {returnTime}
+                                                            </div>
+                                                            <div style={{ fontSize: 14, fontWeight: 600, color: '#52c41a', marginTop: 4 }}>
+                                                                {formatPrice(convertedReturnVehiclePrice, selectedCurrency)}
+                                                            </div>
+                                                        </div>
+                                                    </div>
                                                 )}
-                                                <Text strong style={{ fontSize: 16 }}>
-                                                    {type?.toLowerCase() === 'shuttle' ? 'Shuttle Transfer' : vehicleDetails.vehicleType}
-                                                </Text>
+                                                {isRoundTrip && !returnVehicleDetails && (
+                                                    <div style={{ background: '#fff7e6', padding: 12, borderRadius: 8, textAlign: 'center' }}>
+                                                        <Spin size="small" />
+                                                        <Text style={{ fontSize: 12, marginLeft: 8 }}>Dönüş aracı yükleniyor...</Text>
+                                                    </div>
+                                                )}
                                             </div>
                                         )}
 

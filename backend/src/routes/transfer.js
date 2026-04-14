@@ -707,6 +707,13 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
  */
 router.post('/book', optionalAuthMiddleware, async (req, res) => {
     try {
+        // Support both old format (single booking) and new format (outbound + return)
+        const { outbound, return: returnPayload, totalPrice } = req.body;
+        
+        // Use new format if available, otherwise fall back to old format
+        const isRoundTripFormat = outbound && returnPayload;
+        const bookingData = isRoundTripFormat ? outbound : req.body;
+        
         const {
             vehicleType,
             pickup,
@@ -715,18 +722,20 @@ router.post('/book', optionalAuthMiddleware, async (req, res) => {
             returnDateTime,
             passengers,
             price,
-            currency, // New field
-            paymentMethod, // Payment method from booking form
+            currency,
+            paymentMethod,
             customerInfo,
             flightNumber,
-            flightTime, // New field for Explicit Flight Time
+            flightTime,
             notes,
-            extraServices, // New field
-            passengerDetails, // New field
-            billingDetails, // Fatura bilgileri (undefined ise müşteri fatura istemedi)
-            shuttleRouteId, // From search matching
-            shuttleMasterTime // From closest offset
-        } = req.body;
+            extraServices,
+            passengerDetails,
+            billingDetails,
+            shuttleRouteId,
+            shuttleMasterTime,
+            isRoundTrip,
+            tripLeg
+        } = bookingData;
 
         // ... (keep validations) ...
 
@@ -742,65 +751,103 @@ router.post('/book', optionalAuthMiddleware, async (req, res) => {
         const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
         const randomSuffix = Math.floor(1000 + Math.random() * 9000);
         const bookingNumber = `TR-${dateStr}-${randomSuffix}`;
-
-        // Detect region codes from hub keywords
+        
+        // Load hubs for region detection
         const hubs = await loadTenantHubs(tenantId);
-        const pickupRegionCode = detectRegionCode(pickup, hubs);
-        const dropoffRegionCode = detectRegionCode(dropoff, hubs);
+        
+        // Helper function to create a booking
+        const createBooking = async (data, linkedBookingNumber = null) => {
+            const {
+                vehicleType,
+                pickup,
+                dropoff,
+                pickupDateTime,
+                passengers,
+                price,
+                currency,
+                paymentMethod,
+                customerInfo,
+                flightNumber,
+                flightTime,
+                notes,
+                extraServices,
+                passengerDetails,
+                billingDetails,
+                shuttleRouteId,
+                shuttleMasterTime,
+                tripLeg
+            } = data;
+            
+            const bn = linkedBookingNumber ? `${linkedBookingNumber}-D` : `TR-${dateStr}-${Math.floor(1000 + Math.random() * 9000)}`;
+            
+            const pickupRegionCode = detectRegionCode(pickup, hubs);
+            const dropoffRegionCode = detectRegionCode(dropoff, hubs);
 
-        // Create booking in Database
-        const booking = await prisma.booking.create({
-            data: {
-                tenantId: tenantId,
-                customerId: userId || null,
-                bookingNumber: bookingNumber,
-                productType: 'TRANSFER',
+            return await prisma.booking.create({
+                data: {
+                    tenantId: tenantId,
+                    customerId: userId || null,
+                    bookingNumber: bn,
+                    productType: 'TRANSFER',
 
-                startDate: new Date(pickupDateTime),
-                endDate: new Date(new Date(pickupDateTime).getTime() + 60 * 60 * 1000),
+                    startDate: new Date(pickupDateTime),
+                    endDate: new Date(new Date(pickupDateTime).getTime() + 60 * 60 * 1000),
 
-                adults: Number(passengers),
-                children: 0,
+                    adults: Number(passengers),
+                    children: 0,
 
-                // Pricing
-                subtotal: price || 0,
-                tax: 0,
-                serviceFee: 0,
-                total: price || 0,
-                currency: currency || 'TRY',
+                    // Pricing
+                    subtotal: price || 0,
+                    tax: 0,
+                    serviceFee: 0,
+                    total: price || 0,
+                    currency: currency || 'TRY',
 
-                status: 'PENDING',
-                paymentStatus: 'PENDING',
+                    status: 'PENDING',
+                    paymentStatus: 'PENDING',
 
-                contactName: customerInfo.fullName,
-                contactEmail: customerInfo.email,
-                contactPhone: customerInfo.phone,
+                    contactName: customerInfo.fullName,
+                    contactEmail: customerInfo.email,
+                    contactPhone: customerInfo.phone,
 
-                specialRequests: notes,
+                    specialRequests: notes,
 
-                // Store Transfer Specifics in Metadata
-                metadata: {
-                    vehicleType,
-                    pickup,
-                    dropoff,
-                    returnDateTime,
-                    flightNumber,
-                    flightTime, // Save actual flight time regardless of pickup time
-                    paymentMethod: paymentMethod || 'PAY_IN_VEHICLE', // Save payment method for operations display
-                    notes,
-                    distance: req.body.distance || '0 km',
-                    duration: req.body.duration || '0 dk',
-                    extraServices: extraServices || [], // Save Extra Services
-                    wantsInvoice: !!billingDetails,      // true ise fatura istiyor
-                    billingDetails: billingDetails || null, // Fatura detayları
-                    passengerDetails: passengerDetails || [], // Move passengerDetails inside metadata
-                    shuttleRouteId: shuttleRouteId || null,
-                    shuttleMasterTime: shuttleMasterTime || null,
-                    pickupRegionCode: pickupRegionCode || null,
-                    dropoffRegionCode: dropoffRegionCode || null
+                    // Store Transfer Specifics in Metadata
+                    metadata: {
+                        vehicleType,
+                        pickup,
+                        dropoff,
+                        flightNumber,
+                        flightTime,
+                        paymentMethod: paymentMethod || 'PAY_IN_VEHICLE',
+                        notes,
+                        distance: data.distance || '0 km',
+                        duration: data.duration || '0 dk',
+                        extraServices: extraServices || [],
+                        wantsInvoice: !!billingDetails && !linkedBookingNumber, // Only outbound has billing
+                        billingDetails: billingDetails || null,
+                        passengerDetails: passengerDetails || [],
+                        shuttleRouteId: shuttleRouteId || null,
+                        shuttleMasterTime: shuttleMasterTime || null,
+                        pickupRegionCode: pickupRegionCode || null,
+                        dropoffRegionCode: dropoffRegionCode || null,
+                        tripLeg: tripLeg || 'OUTBOUND',
+                        linkedBookingNumber: linkedBookingNumber
+                    }
                 }
-            }
-        });
+            });
+        };
+        
+        // Create outbound booking
+        const outboundBooking = await createBooking(outbound || req.body);
+        
+        // Create return booking if round trip
+        let returnBooking = null;
+        if (isRoundTripFormat && returnPayload) {
+            returnBooking = await createBooking(returnPayload, outboundBooking.bookingNumber);
+        }
+        
+        const booking = outboundBooking; // For backward compatibility
 
         const io = req.app.get('io');
         if (io) {
@@ -844,44 +891,58 @@ router.post('/book', optionalAuthMiddleware, async (req, res) => {
                     email: customerInfo.email || ''
                 };
 
-                // Create a single line item for the transfer
-                const subTotalStr = (Number(price) || 0) / 1.20; // Assuming 20% VAT inclusive for B2C transfers
+                // Create line items for both outbound and return
+                const totalPrice = Number(outboundBooking.total) + (returnBooking ? Number(returnBooking.total) : 0);
+                const subTotalStr = totalPrice / 1.20; // Assuming 20% VAT inclusive for B2C transfers
                 const subTotal = Number(subTotalStr.toFixed(2));
-                const totalVatStr = (Number(price) || 0) - subTotal;
+                const totalVatStr = totalPrice - subTotal;
                 const totalVat = Number(totalVatStr.toFixed(2));
-
-                const line = {
+                
+                const lines = [{
                     id: genId(),
-                    description: `Transfer Hizmet Bedeli (${bookingNumber})`,
+                    description: `Gidiş Transfer (${outboundBooking.bookingNumber})`,
                     quantity: 1,
-                    unitPrice: subTotal,
+                    unitPrice: Number((Number(outboundBooking.total) / 1.20).toFixed(2)),
                     vatRate: 20,
-                    vatAmount: totalVat,
-                    lineTotal: subTotal,
+                    vatAmount: Number((Number(outboundBooking.total) - (Number(outboundBooking.total) / 1.20)).toFixed(2)),
+                    lineTotal: Number((Number(outboundBooking.total) / 1.20).toFixed(2)),
                     unit: 'Hizmet'
-                };
+                }];
+                
+                if (returnBooking) {
+                    lines.push({
+                        id: genId(),
+                        description: `Dönüş Transfer (${returnBooking.bookingNumber})`,
+                        quantity: 1,
+                        unitPrice: Number((Number(returnBooking.total) / 1.20).toFixed(2)),
+                        vatRate: 20,
+                        vatAmount: Number((Number(returnBooking.total) - (Number(returnBooking.total) / 1.20)).toFixed(2)),
+                        lineTotal: Number((Number(returnBooking.total) / 1.20).toFixed(2)),
+                        unit: 'Hizmet'
+                    });
+                }
 
                 const invoice = {
                     id: genId(),
                     invoiceNo: invoiceNo,
                     invoiceType: 'SALES',
-                    invoiceKind: 'EARCHIVE', // Usually E-Archive for B2C customers
+                    invoiceKind: 'EARCHIVE',
                     status: 'DRAFT',
-                    sellerInfo: {}, // Admin/Company info can be left default or filled from tenant
+                    sellerInfo: {},
                     buyerInfo: buyerInfo,
-                    lines: [line],
+                    lines: lines,
                     subTotal: subTotal,
                     totalVat: totalVat,
                     discount: 0,
-                    grandTotal: Number(price) || 0,
-                    currency: currency || 'TRY',
+                    grandTotal: totalPrice,
+                    currency: outboundBooking.currency || 'TRY',
                     invoiceDate: new Date().toISOString(),
                     paymentMethod: 'CASH', // Default for now
-                    notes: `B2C Web Rezervasyonu: ${bookingNumber}`,
+                    notes: `B2C Web Rezervasyonu: ${outboundBooking.bookingNumber}`,
                     createdBy: userId || 'SYSTEM',
                     createdAt: new Date().toISOString(),
                     updatedAt: new Date().toISOString(),
-                    bookingRef: bookingNumber,
+                    bookingRef: outboundBooking.bookingNumber,
                 };
 
                 meta.invoices.push(invoice);
@@ -899,16 +960,27 @@ router.post('/book', optionalAuthMiddleware, async (req, res) => {
         res.status(201).json({
             success: true,
             data: {
-                ...booking,
+                ...outboundBooking,
                 // Flatten metadata for frontend consistency
-                vehicleType: booking.metadata?.vehicleType,
-                pickup: booking.metadata?.pickup,
-                dropoff: booking.metadata?.dropoff,
-                passengerName: booking.contactName,
-                passengerPhone: booking.contactPhone,
-                pickupDateTime: booking.startDate
+                vehicleType: outboundBooking.metadata?.vehicleType,
+                pickup: outboundBooking.metadata?.pickup,
+                dropoff: outboundBooking.metadata?.dropoff,
+                passengerName: outboundBooking.contactName,
+                passengerPhone: outboundBooking.contactPhone,
+                pickupDateTime: outboundBooking.startDate,
+                // Include return booking if round trip
+                returnBooking: returnBooking ? {
+                    ...returnBooking,
+                    vehicleType: returnBooking.metadata?.vehicleType,
+                    pickup: returnBooking.metadata?.pickup,
+                    dropoff: returnBooking.metadata?.dropoff,
+                    pickupDateTime: returnBooking.startDate
+                } : null,
+                totalPrice: Number(outboundBooking.total) + (returnBooking ? Number(returnBooking.total) : 0)
             },
-            message: 'Transfer rezervasyonunuz veritabanına kaydedildi.'
+            message: returnBooking 
+                ? 'Gidiş-Dönüş rezervasyonlarınız veritabanına kaydedildi.' 
+                : 'Transfer rezervasyonunuz veritabanına kaydedildi.'
         });
 
     } catch (error) {
