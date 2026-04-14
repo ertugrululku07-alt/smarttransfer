@@ -2205,6 +2205,18 @@ export default function OperationsPage() {
                     .ant-select-sm .ant-select-selector {
                         border-radius: 6px !important;
                     }
+                    .completed-row-shuttle td {
+                        background: #f0f7ff !important;
+                    }
+                    .completed-row-shuttle:hover td {
+                        background: #dbeafe !important;
+                    }
+                    .completed-row-private td {
+                        background: #faf5ff !important;
+                    }
+                    .completed-row-private:hover td {
+                        background: #f3e8ff !important;
+                    }
                 `}</style>
 
                 <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 64px)', overflow: 'hidden' }}>
@@ -3314,19 +3326,29 @@ export default function OperationsPage() {
                                 icon={<FileExcelOutlined />}
                                 style={{ borderRadius: 6, color: '#16a34a', borderColor: '#86efac' }}
                                 onClick={() => {
-                                    const headers = ['Tarih', 'Tip', 'Müşteri', 'Telefon', 'Alış', 'Varış', 'Yön', 'Pax', 'Şoför', 'Araç', 'Acente'];
+                                    const headers = ['Rez. No', 'Tarih', 'Saat', 'Tip', 'Yön', 'Acente', 'Müşteri', 'Telefon', 'Uçuş', 'Alış Noktası', 'Varış Noktası', 'Pax', 'Şoför', 'Araç (Plaka)', 'Araç Model', 'Araç Tipi', 'Ekstra Hizmetler', 'Ücret', 'Para Birimi', 'Ödeme Durumu', 'Notlar'];
                                     const rows = completedBookings.map((b: any) => [
-                                        dayjs(b.pickupDateTime).format('DD.MM.YYYY HH:mm'),
+                                        b.bookingNumber || '',
+                                        dayjs(b.pickupDateTime).format('DD.MM.YYYY'),
+                                        dayjs(b.pickupDateTime).format('HH:mm'),
                                         b.transferType === 'SHUTTLE' ? 'Shuttle' : 'Özel',
+                                        b.direction || '',
+                                        b.agencyName || 'Direkt',
                                         b.contactName || b.customer?.name || '',
-                                        b.customer?.phone || '',
+                                        b.customer?.phone || b.contactPhone || '',
+                                        b.flightNumber || b.metadata?.flightNumber || '',
                                         b.pickup?.rawLocation || b.pickup?.location || '',
                                         b.dropoff?.rawLocation || b.dropoff?.location || '',
-                                        b.direction || '',
                                         b.pax || 1,
                                         (() => { const d = drivers.find((dr: any) => (dr.user?.id || dr.id) === b.driverId); return d ? `${d.firstName} ${d.lastName}` : ''; })(),
                                         (() => { const v = vehicles.find((vh: any) => vh.id === b.assignedVehicleId); return v ? v.plateNumber : ''; })(),
-                                        b.agencyName || '',
+                                        (() => { const v = vehicles.find((vh: any) => vh.id === b.assignedVehicleId); return v ? (v.model || '') : ''; })(),
+                                        b.vehicleType || b.metadata?.vehicleType || '',
+                                        (b.metadata?.extraServices || []).map((s: any) => typeof s === 'string' ? s : s.name).join(', '),
+                                        b.price || b.total || 0,
+                                        b.currency || 'TRY',
+                                        b.paymentStatus === 'PAID' ? 'Ödendi' : b.paymentStatus === 'PENDING' ? 'Bekliyor' : (b.paymentStatus || ''),
+                                        b.specialRequests || b.notes || b.internalNotes || '',
                                     ]);
                                     const csv = [headers, ...rows].map(r => r.map((c: any) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
                                     const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
@@ -3344,27 +3366,37 @@ export default function OperationsPage() {
 
                         {/* Completed Info Bar */}
                         <div style={{
-                            background: '#f8fafc',
+                            background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
                             borderBottom: '1px solid #e2e8f0',
-                            padding: '6px 20px',
+                            padding: '8px 20px',
                             display: 'flex',
                             justifyContent: 'space-between',
                             alignItems: 'center',
                             flexShrink: 0,
                         }}>
-                            <Space size={16}>
-                                <Text style={{ fontSize: 12 }}>
-                                    <strong>{completedBookings.length}</strong> tamamlanan operasyon
-                                </Text>
-                                <Text style={{ fontSize: 11, color: '#7c3aed', fontWeight: 600 }}>
-                                    Özel: {completedBookings.filter((b: any) => b.transferType === 'PRIVATE').length}
-                                </Text>
-                                <Text style={{ fontSize: 11, color: '#2563eb', fontWeight: 600 }}>
-                                    Shuttle: {completedBookings.filter((b: any) => b.transferType === 'SHUTTLE').length}
-                                </Text>
-                                <Text style={{ fontSize: 11, color: '#16a34a', fontWeight: 600 }}>
-                                    Toplam Yolcu: {completedBookings.reduce((s: number, b: any) => s + (b.pax || 1), 0)}
-                                </Text>
+                            <Space size={12} wrap>
+                                <span style={{
+                                    background: 'linear-gradient(135deg, #4f46e5, #7c3aed)',
+                                    color: '#fff', borderRadius: 8, padding: '3px 12px',
+                                    fontSize: 12, fontWeight: 800,
+                                }}>
+                                    {completedBookings.length} Operasyon
+                                </span>
+                                <span style={{ fontSize: 11, fontWeight: 600, color: '#7c3aed', background: '#faf5ff', padding: '2px 8px', borderRadius: 6 }}>
+                                    🚗 Özel: {completedBookings.filter((b: any) => b.transferType === 'PRIVATE').length}
+                                </span>
+                                <span style={{ fontSize: 11, fontWeight: 600, color: '#2563eb', background: '#eff6ff', padding: '2px 8px', borderRadius: 6 }}>
+                                    🚌 Shuttle: {completedBookings.filter((b: any) => b.transferType === 'SHUTTLE').length}
+                                </span>
+                                <span style={{ fontSize: 11, fontWeight: 600, color: '#0f766e', background: '#f0fdfa', padding: '2px 8px', borderRadius: 6 }}>
+                                    👥 {completedBookings.reduce((s: number, b: any) => s + (b.pax || 1), 0)} Yolcu
+                                </span>
+                                <span style={{ fontSize: 11, fontWeight: 700, color: '#16a34a', background: '#f0fdf4', padding: '2px 8px', borderRadius: 6 }}>
+                                    💰 {completedBookings.reduce((s: number, b: any) => s + (b.price || b.total || 0), 0).toLocaleString('tr-TR')} ₺
+                                </span>
+                                <span style={{ fontSize: 10, color: '#64748b' }}>
+                                    Şoför: {new Set(completedBookings.filter((b: any) => b.driverId).map((b: any) => b.driverId)).size} | Araç: {new Set(completedBookings.filter((b: any) => b.assignedVehicleId).map((b: any) => b.assignedVehicleId)).size}
+                                </span>
                             </Space>
                         </div>
 
@@ -3376,31 +3408,51 @@ export default function OperationsPage() {
                                 size="small"
                                 loading={completedLoading}
                                 pagination={{ pageSize: 50, showSizeChanger: true, pageSizeOptions: ['25', '50', '100', '200'], size: 'small', showTotal: (total) => `${total} kayıt` }}
-                                scroll={{ x: 1400 }}
+                                scroll={{ x: 2400 }}
                                 style={{ fontSize: 12 }}
+                                rowClassName={(record: any) => record.transferType === 'SHUTTLE' ? 'completed-row-shuttle' : 'completed-row-private'}
                                 columns={[
                                     {
-                                        title: 'TARİH',
+                                        title: 'REZ. NO',
+                                        dataIndex: 'bookingNumber',
+                                        key: 'bookingNumber',
+                                        width: 100,
+                                        fixed: 'left' as const,
+                                        sorter: (a: any, b: any) => (a.bookingNumber || '').localeCompare(b.bookingNumber || ''),
+                                        render: (val: string) => (
+                                            <Tag color="blue" style={{ fontSize: 10, fontWeight: 700, margin: 0, letterSpacing: 0.3 }}>{val || '—'}</Tag>
+                                        )
+                                    },
+                                    {
+                                        title: 'TARİH / SAAT',
                                         dataIndex: 'pickupDateTime',
                                         key: 'date',
-                                        width: 130,
+                                        width: 120,
+                                        fixed: 'left' as const,
                                         sorter: (a: any, b: any) => dayjs(a.pickupDateTime).unix() - dayjs(b.pickupDateTime).unix(),
                                         defaultSortOrder: 'descend' as const,
                                         render: (val: string) => (
-                                            <span style={{ fontSize: 11, fontWeight: 600 }}>
-                                                {dayjs(val).format('DD.MM.YYYY')}
-                                                <br />
-                                                <span style={{ color: '#6366f1', fontWeight: 700 }}>{dayjs(val).format('HH:mm')}</span>
-                                            </span>
+                                            <div style={{ lineHeight: 1.3 }}>
+                                                <div style={{ fontSize: 11, fontWeight: 600, color: '#1e1b4b' }}>{dayjs(val).format('DD.MM.YYYY')}</div>
+                                                <div style={{ fontSize: 13, fontWeight: 800, color: '#4f46e5' }}>{dayjs(val).format('HH:mm')}</div>
+                                            </div>
                                         )
                                     },
                                     {
                                         title: 'TİP',
                                         dataIndex: 'transferType',
                                         key: 'type',
-                                        width: 80,
+                                        width: 85,
+                                        filters: [
+                                            { text: '🚗 Özel', value: 'PRIVATE' },
+                                            { text: '🚌 Shuttle', value: 'SHUTTLE' },
+                                        ],
+                                        onFilter: (value: any, record: any) => record.transferType === value,
                                         render: (val: string) => (
-                                            <Tag color={val === 'SHUTTLE' ? 'geekblue' : 'purple'} style={{ fontSize: 10, margin: 0 }}>
+                                            <Tag
+                                                color={val === 'SHUTTLE' ? 'geekblue' : 'purple'}
+                                                style={{ fontSize: 10, margin: 0, fontWeight: 600 }}
+                                            >
                                                 {val === 'SHUTTLE' ? '🚌 Shuttle' : '🚗 Özel'}
                                             </Tag>
                                         )
@@ -3409,44 +3461,94 @@ export default function OperationsPage() {
                                         title: 'YÖN',
                                         dataIndex: 'direction',
                                         key: 'direction',
-                                        width: 65,
+                                        width: 70,
+                                        filters: [
+                                            { text: 'Geliş', value: 'Geliş' },
+                                            { text: 'Gidiş', value: 'Gidiş' },
+                                            { text: 'Ara', value: 'Ara' },
+                                        ],
+                                        onFilter: (value: any, record: any) => record.direction === value,
                                         render: (val: string) => {
-                                            const color = val === 'Geliş' ? '#16a34a' : val === 'Gidiş' ? '#d97706' : '#6b7280';
-                                            return <Tag color={color === '#16a34a' ? 'green' : color === '#d97706' ? 'orange' : 'default'} style={{ fontSize: 10, margin: 0 }}>{val}</Tag>;
+                                            const m: Record<string, { color: string; icon: string }> = {
+                                                'Geliş': { color: 'green', icon: '↙' },
+                                                'Gidiş': { color: 'orange', icon: '↗' },
+                                                'Ara': { color: 'default', icon: '→' },
+                                            };
+                                            const s = m[val] || m['Ara'];
+                                            return <Tag color={s.color} style={{ fontSize: 10, margin: 0 }}>{s.icon} {val}</Tag>;
                                         }
+                                    },
+                                    {
+                                        title: 'ACENTE',
+                                        key: 'agency',
+                                        width: 120,
+                                        ellipsis: true,
+                                        sorter: (a: any, b: any) => (a.agencyName || '').localeCompare(b.agencyName || ''),
+                                        render: (_: any, record: any) => record.agencyName ? (
+                                            <Tag color="cyan" style={{ fontSize: 10, margin: 0, maxWidth: 110, overflow: 'hidden', textOverflow: 'ellipsis' }}>{record.agencyName}</Tag>
+                                        ) : <span style={{ color: '#d1d5db', fontSize: 10 }}>Direkt</span>
                                     },
                                     {
                                         title: 'MÜŞTERİ',
                                         key: 'customer',
-                                        width: 180,
+                                        width: 170,
+                                        sorter: (a: any, b: any) => (a.contactName || '').localeCompare(b.contactName || ''),
                                         render: (_: any, record: any) => (
-                                            <div>
-                                                <div style={{ fontWeight: 700, fontSize: 12, color: '#1e1b4b' }}>{record.contactName || record.customer?.name || '-'}</div>
-                                                <div style={{ fontSize: 10, color: '#6b7280' }}>{record.customer?.phone || '-'}</div>
+                                            <div style={{ lineHeight: 1.3 }}>
+                                                <div style={{ fontWeight: 700, fontSize: 12, color: '#1e1b4b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                    {record.contactName || record.customer?.name || '-'}
+                                                </div>
+                                                <div style={{ fontSize: 10, color: '#6b7280' }}>{record.customer?.phone || record.contactPhone || '-'}</div>
                                             </div>
                                         )
                                     },
                                     {
-                                        title: 'ALIŞ',
+                                        title: 'UÇUŞ',
+                                        key: 'flight',
+                                        width: 100,
+                                        render: (_: any, record: any) => {
+                                            const fn = record.flightNumber || record.metadata?.flightNumber;
+                                            const ft = record.flightTime || record.metadata?.flightTime;
+                                            if (!fn && !ft) return <span style={{ color: '#d1d5db', fontSize: 10 }}>—</span>;
+                                            return (
+                                                <div style={{ lineHeight: 1.3 }}>
+                                                    {fn && <div style={{ fontWeight: 700, fontSize: 11, color: '#0369a1' }}>{fn}</div>}
+                                                    {ft && <div style={{ fontSize: 10, color: '#6b7280' }}>{ft}</div>}
+                                                </div>
+                                            );
+                                        }
+                                    },
+                                    {
+                                        title: 'ALIŞ NOKTASI',
                                         key: 'pickup',
                                         width: 200,
                                         ellipsis: true,
-                                        render: (_: any, record: any) => (
-                                            <Tooltip title={record.pickup?.rawLocation || record.pickup?.location}>
-                                                <span style={{ fontSize: 11 }}>{record.pickup?.rawLocation || record.pickup?.location || '-'}</span>
-                                            </Tooltip>
-                                        )
+                                        render: (_: any, record: any) => {
+                                            const loc = record.pickup?.rawLocation || record.pickup?.location || '-';
+                                            return (
+                                                <Tooltip title={loc}>
+                                                    <div style={{ fontSize: 11, lineHeight: 1.3 }}>
+                                                        <span style={{ color: '#16a34a', fontWeight: 600 }}>📍</span> {loc}
+                                                    </div>
+                                                </Tooltip>
+                                            );
+                                        }
                                     },
                                     {
-                                        title: 'VARIŞ',
+                                        title: 'VARIŞ NOKTASI',
                                         key: 'dropoff',
                                         width: 200,
                                         ellipsis: true,
-                                        render: (_: any, record: any) => (
-                                            <Tooltip title={record.dropoff?.rawLocation || record.dropoff?.location}>
-                                                <span style={{ fontSize: 11 }}>{record.dropoff?.rawLocation || record.dropoff?.location || '-'}</span>
-                                            </Tooltip>
-                                        )
+                                        render: (_: any, record: any) => {
+                                            const loc = record.dropoff?.rawLocation || record.dropoff?.location || '-';
+                                            return (
+                                                <Tooltip title={loc}>
+                                                    <div style={{ fontSize: 11, lineHeight: 1.3 }}>
+                                                        <span style={{ color: '#dc2626', fontWeight: 600 }}>🏁</span> {loc}
+                                                    </div>
+                                                </Tooltip>
+                                            );
+                                        }
                                     },
                                     {
                                         title: 'PAX',
@@ -3454,38 +3556,128 @@ export default function OperationsPage() {
                                         key: 'pax',
                                         width: 55,
                                         align: 'center' as const,
-                                        render: (val: number) => <span style={{ fontWeight: 700, color: '#4f46e5' }}>{val || 1}</span>
+                                        sorter: (a: any, b: any) => (a.pax || 1) - (b.pax || 1),
+                                        render: (val: number) => (
+                                            <span style={{
+                                                fontWeight: 800, color: '#4f46e5', fontSize: 13,
+                                                background: '#eef2ff', borderRadius: 6, padding: '2px 8px',
+                                            }}>{val || 1}</span>
+                                        )
                                     },
                                     {
                                         title: 'ŞOFÖR',
                                         key: 'driver',
                                         width: 140,
+                                        sorter: (a: any, b: any) => {
+                                            const da = drivers.find((dr: any) => (dr.user?.id || dr.id) === a.driverId);
+                                            const db = drivers.find((dr: any) => (dr.user?.id || dr.id) === b.driverId);
+                                            return (da ? `${da.firstName} ${da.lastName}` : '').localeCompare(db ? `${db.firstName} ${db.lastName}` : '');
+                                        },
                                         render: (_: any, record: any) => {
                                             const d = drivers.find((dr: any) => (dr.user?.id || dr.id) === record.driverId);
                                             return d ? (
-                                                <span style={{ fontSize: 11, fontWeight: 600 }}>{d.firstName} {d.lastName}</span>
-                                            ) : <span style={{ color: '#d1d5db', fontSize: 11 }}>—</span>;
+                                                <div style={{ lineHeight: 1.3 }}>
+                                                    <div style={{ fontSize: 11, fontWeight: 700, color: '#1e1b4b' }}>👤 {d.firstName} {d.lastName}</div>
+                                                </div>
+                                            ) : <span style={{ color: '#d1d5db', fontSize: 10 }}>Atanmadı</span>;
                                         }
                                     },
                                     {
                                         title: 'ARAÇ',
                                         key: 'vehicle',
-                                        width: 120,
+                                        width: 140,
                                         render: (_: any, record: any) => {
                                             const v = vehicles.find((vh: any) => vh.id === record.assignedVehicleId);
-                                            return v ? (
-                                                <Tag color="blue" style={{ fontSize: 10, margin: 0 }}>{v.plateNumber}</Tag>
-                                            ) : <span style={{ color: '#d1d5db', fontSize: 11 }}>—</span>;
+                                            if (!v) return <span style={{ color: '#d1d5db', fontSize: 10 }}>Atanmadı</span>;
+                                            return (
+                                                <div style={{ lineHeight: 1.3 }}>
+                                                    <Tag color="blue" style={{ fontSize: 10, margin: 0, fontWeight: 700 }}>🚗 {v.plateNumber}</Tag>
+                                                    {v.model && <div style={{ fontSize: 9, color: '#6b7280', marginTop: 1 }}>{v.model}</div>}
+                                                </div>
+                                            );
                                         }
                                     },
                                     {
-                                        title: 'ACENTE',
-                                        key: 'agency',
-                                        width: 130,
+                                        title: 'ARAÇ TİPİ',
+                                        key: 'vehicleType',
+                                        width: 110,
                                         ellipsis: true,
                                         render: (_: any, record: any) => (
-                                            <span style={{ fontSize: 11 }}>{record.agencyName || '—'}</span>
+                                            <span style={{ fontSize: 10, color: '#6b7280' }}>{record.vehicleType || record.metadata?.vehicleType || '—'}</span>
                                         )
+                                    },
+                                    {
+                                        title: 'EKSTRA HİZMET',
+                                        key: 'extraServices',
+                                        width: 130,
+                                        render: (_: any, record: any) => {
+                                            const services = record.metadata?.extraServices || [];
+                                            if (!services.length) return <span style={{ color: '#d1d5db', fontSize: 10 }}>—</span>;
+                                            return (
+                                                <Tooltip title={services.map((s: any) => typeof s === 'string' ? s : s.name).join(', ')}>
+                                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+                                                        {services.slice(0, 3).map((s: any, i: number) => (
+                                                            <Tag key={i} color="volcano" style={{ fontSize: 9, margin: 0, padding: '0 4px' }}>
+                                                                {typeof s === 'string' ? s : s.name}
+                                                            </Tag>
+                                                        ))}
+                                                        {services.length > 3 && <Tag style={{ fontSize: 9, margin: 0 }}>+{services.length - 3}</Tag>}
+                                                    </div>
+                                                </Tooltip>
+                                            );
+                                        }
+                                    },
+                                    {
+                                        title: 'ÜCRET',
+                                        key: 'price',
+                                        width: 100,
+                                        align: 'right' as const,
+                                        sorter: (a: any, b: any) => (a.price || 0) - (b.price || 0),
+                                        render: (_: any, record: any) => {
+                                            const price = record.price || record.total || 0;
+                                            const currency = record.currency || 'TRY';
+                                            const sym: Record<string, string> = { TRY: '₺', USD: '$', EUR: '€', GBP: '£' };
+                                            return price > 0 ? (
+                                                <span style={{ fontWeight: 700, fontSize: 12, color: '#16a34a' }}>
+                                                    {price.toLocaleString('tr-TR')} {sym[currency] || currency}
+                                                </span>
+                                            ) : <span style={{ color: '#d1d5db', fontSize: 10 }}>—</span>;
+                                        }
+                                    },
+                                    {
+                                        title: 'ÖDEME',
+                                        key: 'payment',
+                                        width: 100,
+                                        filters: [
+                                            { text: 'Ödendi', value: 'PAID' },
+                                            { text: 'Bekliyor', value: 'PENDING' },
+                                        ],
+                                        onFilter: (value: any, record: any) => record.paymentStatus === value,
+                                        render: (_: any, record: any) => {
+                                            const ps = record.paymentStatus;
+                                            const pm: Record<string, { color: string; label: string }> = {
+                                                PAID: { color: '#16a34a', label: '✅ Ödendi' },
+                                                PENDING: { color: '#d97706', label: '⏳ Bekliyor' },
+                                                REFUNDED: { color: '#dc2626', label: '↩ İade' },
+                                            };
+                                            const s = pm[ps] || { color: '#6b7280', label: ps || '—' };
+                                            return <span style={{ fontSize: 10, fontWeight: 600, color: s.color }}>{s.label}</span>;
+                                        }
+                                    },
+                                    {
+                                        title: 'NOT',
+                                        key: 'notes',
+                                        width: 150,
+                                        ellipsis: true,
+                                        render: (_: any, record: any) => {
+                                            const note = record.specialRequests || record.notes || record.internalNotes || record.metadata?.internalNotes || '';
+                                            if (!note) return <span style={{ color: '#d1d5db', fontSize: 10 }}>—</span>;
+                                            return (
+                                                <Tooltip title={note}>
+                                                    <span style={{ fontSize: 10, color: '#6b7280' }}>📝 {note.length > 40 ? note.substring(0, 40) + '...' : note}</span>
+                                                </Tooltip>
+                                            );
+                                        }
                                     },
                                 ]}
                             />
