@@ -121,10 +121,38 @@ const HereLiveMapClient: React.FC<HereLiveMapClientProps> = ({ drivers, selected
 
             {/* Render route polyline if available */}
             {polylineCoords.length > 0 && (
-                <Polyline 
-                    positions={polylineCoords}
-                    pathOptions={{ color: '#6366f1', weight: 4, opacity: 0.7, dashArray: '10, 8' }}
-                />
+                <>
+                    <Polyline 
+                        positions={polylineCoords}
+                        pathOptions={{ color: '#6366f1', weight: 4, opacity: 0.7, dashArray: '10, 8' }}
+                    />
+                    
+                    {/* Start Marker */}
+                    <CircleMarker
+                        center={polylineCoords[0]}
+                        radius={6}
+                        pathOptions={{ color: '#10b981', fillColor: '#10b981', fillOpacity: 1, weight: 2 }}
+                    >
+                        <LTooltip direction="top" offset={[0, -5]}>
+                            <div style={{ fontWeight: 600, color: '#047857' }}>Rota Başlangıcı</div>
+                            <div style={{ fontSize: 10, color: '#64748b' }}>{new Date(routePoints![0].timestamp).toLocaleTimeString('tr-TR')}</div>
+                        </LTooltip>
+                    </CircleMarker>
+
+                    {/* End Marker */}
+                    {polylineCoords.length > 1 && (
+                        <CircleMarker
+                            center={polylineCoords[polylineCoords.length - 1]}
+                            radius={6}
+                            pathOptions={{ color: '#f59e0b', fillColor: '#f59e0b', fillOpacity: 1, weight: 2 }}
+                        >
+                            <LTooltip direction="top" offset={[0, -5]}>
+                                <div style={{ fontWeight: 600, color: '#b45309' }}>Rota Bitişi</div>
+                                <div style={{ fontSize: 10, color: '#64748b' }}>{new Date(routePoints![routePoints!.length - 1].timestamp).toLocaleTimeString('tr-TR')}</div>
+                            </LTooltip>
+                        </CircleMarker>
+                    )}
+                </>
             )}
 
             {/* Render violation markers along the route */}

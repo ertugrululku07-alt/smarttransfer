@@ -328,17 +328,40 @@ const LiveMapPage = () => {
                                     style={{ borderRadius: 8 }}
                                 />
                                 {selectedDriverId && (
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#f8fafc', padding: '6px 10px', borderRadius: 8, fontSize: 12 }}>
-                                        <HistoryOutlined style={{ color: '#6366f1' }} />
-                                        <span style={{ fontWeight: 600, color: '#475569', flex: 1 }}>Geçmiş Rota</span>
-                                        <DatePicker 
-                                            size="small" 
-                                            value={dayjs(routeDate)} 
-                                            onChange={(d) => setRouteDate(d ? d.format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD'))} 
-                                            allowClear={false}
-                                            style={{ width: 110 }}
-                                        />
-                                        {routeLoading && <Spin size="small" />}
+                                    <div style={{ background: '#f8fafc', padding: '10px 12px', borderRadius: 8, fontSize: 12, border: '1px solid #e2e8f0' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                                            <HistoryOutlined style={{ color: '#6366f1' }} />
+                                            <span style={{ fontWeight: 600, color: '#475569', flex: 1 }}>Geçmiş Rota</span>
+                                            <DatePicker 
+                                                size="small" 
+                                                value={dayjs(routeDate)} 
+                                                onChange={(d) => setRouteDate(d ? d.format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD'))} 
+                                                allowClear={false}
+                                                style={{ width: 110 }}
+                                            />
+                                        </div>
+                                        {routeLoading ? (
+                                            <div style={{ color: '#64748b', display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
+                                                <Spin size="small" /> Rota yükleniyor...
+                                            </div>
+                                        ) : routePoints.length > 0 ? (
+                                            <div style={{ color: '#15803d', fontSize: 11, fontWeight: 500 }}>
+                                                <EnvironmentOutlined /> {routePoints.length} konum noktası bulundu.
+                                                {routePoints.filter(p => p.speed > 120).length > 0 && (
+                                                    <span style={{ color: '#dc2626', marginLeft: 4, fontWeight: 600 }}>
+                                                        ({routePoints.filter(p => p.speed > 120).length} hız ihlali)
+                                                    </span>
+                                                )}
+                                                <div style={{ color: '#64748b', marginTop: 2, fontSize: 10 }}>
+                                                    Haritada mavi çizgi olarak gösteriliyor.
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div style={{ color: '#94a3b8', fontSize: 11 }}>
+                                                <WarningOutlined style={{ marginRight: 4 }} /> 
+                                                Seçili tarihe ait rota kaydı bulunamadı.
+                                            </div>
+                                        )}
                                     </div>
                                 )}
                             </div>
