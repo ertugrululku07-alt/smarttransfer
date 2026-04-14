@@ -4,8 +4,8 @@ const jwt = require('jsonwebtoken');
 
 const { JWT_SECRET } = require('../middleware/auth');
 
-const OFFLINE_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes — generous for background sync delays
-const OFFLINE_CHECK_THRESHOLD_MS = 28 * 60 * 1000; // 28 minutes - if lastSeen is within this, they're still online
+const OFFLINE_TIMEOUT_MS = 2 * 60 * 1000; // 2 minutes
+const OFFLINE_CHECK_THRESHOLD_MS = 2 * 60 * 1000; // 2 minutes - if lastSeen is within this, they're still online
 
 module.exports = (io, app) => {
     // Online drivers map: { userId: { socketId, connectedAt, lastSeen (timestamp ms), location, name } }
