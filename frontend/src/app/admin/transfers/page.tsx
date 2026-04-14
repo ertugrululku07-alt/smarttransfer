@@ -742,8 +742,22 @@ const TransfersPage: React.FC = () => {
         { ...makeHeader('adults'), key:'adults', width:colWidths.adults,
           sorter:(a:Booking,b:Booking)=>((a as any).passengers||a.adults||0)-((b as any).passengers||b.adults||0),
           render:(_:any, r:Booking)=>{
-              const n = (r as any).passengers || r.adults || r.metadata?.passengerDetails?.length || r.metadata?.passengersList?.length || 0;
-              return renderEditableCell(r, 'adults', <Text style={{fontSize:12}}>{n?`${n} kişi`:'-'}</Text>);
+              const adults = r.adults || (r as any).passengers || r.metadata?.passengerDetails?.length || r.metadata?.passengersList?.length || 0;
+              const children = (r as any).children || 0;
+              const infants = (r as any).infants || 0;
+              const total = adults + children + infants;
+              const parts: string[] = [];
+              if (adults > 0) parts.push(`${adults}Y`);
+              if (children > 0) parts.push(`${children}Ç`);
+              if (infants > 0) parts.push(`${infants}B`);
+              return renderEditableCell(r, 'adults', 
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      <Text style={{fontSize:12, fontWeight: 500}}>{total ? `${total} kişi` : '-'}</Text>
+                      {(children > 0 || infants > 0) && (
+                          <Text type="secondary" style={{fontSize:10, lineHeight: 1}}>{parts.join('+')}</Text>
+                      )}
+                  </div>
+              );
           }},
         { ...makeHeader('customerNote'), key:'customerNote', width:colWidths.customerNote || 120,
           render:(_:any,r:Booking)=>{

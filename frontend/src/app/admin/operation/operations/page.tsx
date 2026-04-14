@@ -875,13 +875,25 @@ export default function OperationsPage() {
         {
             title: 'PAX',
             key: 'pax',
-            width: 50,
+            width: 60,
             render: (_: any, record: any) => {
-                const n = record.passengers || record.adults || record.metadata?.passengerDetails?.length || record.metadata?.passengersList?.length || 0;
+                const adults = record.adults || record.passengers || 0;
+                const children = record.children || 0;
+                const infants = record.infants || 0;
+                const total = adults + children + infants;
+                const parts: string[] = [];
+                if (adults > 0) parts.push(`${adults}Y`);
+                if (children > 0) parts.push(`${children}Ç`);
+                if (infants > 0) parts.push(`${infants}B`);
                 return renderEditableCell(record, 'adults',
-                    <Text strong style={{ fontSize: 11, cursor: 'text' }}>{n ? n.toString() : '-'}</Text>,
+                    <div style={{ cursor: 'text' }}>
+                        <Text strong style={{ fontSize: 12, display: 'block' }}>{total || '-'}</Text>
+                        {(children > 0 || infants > 0) && (
+                            <span style={{ fontSize: 9, color: '#94a3b8', fontWeight: 600 }}>{parts.join('+')}</span>
+                        )}
+                    </div>,
                     <Input size="small" type="number" autoFocus min={1}
-                        defaultValue={n || 1}
+                        defaultValue={adults || 1}
                         onBlur={(e) => saveCellEdit(record.id, 'adults', e.target.value)}
                         onPressEnter={(e) => saveCellEdit(record.id, 'adults', (e.target as HTMLInputElement).value)}
                         style={{ width: 50 }}
@@ -3036,7 +3048,23 @@ export default function OperationsPage() {
                                                                                 </span>
                                                                             );
                                                                         }
-                                                                        case 'pax': return <span style={{ fontWeight: 700, color: '#374151' }}>{b.adults || 1} p</span>;
+                                                                        case 'pax': {
+                                                                            const pAdults = b.adults || 1;
+                                                                            const pChildren = b.children || 0;
+                                                                            const pInfants = b.infants || 0;
+                                                                            const pParts: string[] = [];
+                                                                            if (pAdults > 0) pParts.push(`${pAdults}Y`);
+                                                                            if (pChildren > 0) pParts.push(`${pChildren}Ç`);
+                                                                            if (pInfants > 0) pParts.push(`${pInfants}B`);
+                                                                            return (
+                                                                                <span style={{ fontWeight: 700, color: '#374151' }}>
+                                                                                    {pAdults + pChildren + pInfants}
+                                                                                    {(pChildren > 0 || pInfants > 0) && (
+                                                                                        <span style={{ fontSize: 9, color: '#94a3b8', fontWeight: 600, marginLeft: 3 }}>({pParts.join('+')})</span>
+                                                                                    )}
+                                                                                </span>
+                                                                            );
+                                                                        }
                                                                         case 'phone': return <span style={{ fontSize: 12, color: '#374151' }}>{b.contactPhone}</span>;
                                                                         case 'extras': {
                                                                             const extras = b.metadata?.extraServices || b.extraServices || [];
@@ -3568,7 +3596,14 @@ export default function OperationsPage() {
                                             </div>
                                             <div style={{ background: '#f8fafc', borderRadius: 10, padding: '12px 16px', border: '1px solid #e2e8f0' }}>
                                                 <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 4 }}>Yolcu</div>
-                                                <div style={{ fontWeight: 700, color: '#1e293b', fontSize: 14 }}>👥 {b.adults || 1} kişi</div>
+                                                <div style={{ fontWeight: 700, color: '#1e293b', fontSize: 14 }}>
+                                                    👥 {(b.adults || 1) + (b.children || 0) + (b.infants || 0)} kişi
+                                                    {((b.children || 0) > 0 || (b.infants || 0) > 0) && (
+                                                        <span style={{ fontSize: 11, color: '#64748b', fontWeight: 500, marginLeft: 6 }}>
+                                                            ({b.adults || 1} Yetişkin{b.children > 0 ? `, ${b.children} Çocuk` : ''}{b.infants > 0 ? `, ${b.infants} Bebek` : ''})
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
 

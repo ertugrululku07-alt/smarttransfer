@@ -1097,16 +1097,28 @@ export default function OperationsTable({
             width: columnWidths.pax,
             ellipsis: true,
             render: (_: any, record: any) => {
-                const total = (record.adults || 0) + (record.children || 0) + (record.infants || 0);
+                const adults = record.adults || 0;
+                const children = record.children || 0;
+                const infants = record.infants || 0;
+                const total = adults + children + infants;
+                const parts: string[] = [];
+                if (adults > 0) parts.push(`${adults}Y`);
+                if (children > 0) parts.push(`${children}Ç`);
+                if (infants > 0) parts.push(`${infants}B`);
                 return (
-                    <span style={{
-                        fontSize: 11, fontWeight: 800, color: '#1e293b',
-                        background: '#f8fafc', padding: '1px 6px',
-                        borderRadius: 4, border: '1px solid #e2e8f0',
-                        fontFamily: 'monospace'
-                    }}>
-                        {total}
-                    </span>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 1, lineHeight: 1.3 }}>
+                        <span style={{
+                            fontSize: 12, fontWeight: 800, color: '#1e293b',
+                            fontFamily: 'monospace'
+                        }}>
+                            {total}
+                        </span>
+                        {(children > 0 || infants > 0) && (
+                            <span style={{ fontSize: 9, color: '#94a3b8', fontWeight: 600 }}>
+                                {parts.join('+')}
+                            </span>
+                        )}
+                    </div>
                 );
             },
         },
