@@ -114,6 +114,7 @@ const HomePage: React.FC = () => {
   const [pickupDate, setPickupDate] = useState<Dayjs | null>(null);
   const [pickupTime, setPickupTime] = useState<Dayjs | null>(dayjs().hour(12).minute(0).second(0));
   const [returnDate, setReturnDate] = useState<Dayjs | null>(null);
+  const [returnTime, setReturnTime] = useState<Dayjs | null>(dayjs().hour(12).minute(0).second(0));
   const [tripType, setTripType] = useState<'oneway' | 'return'>('oneway');
   const [passengerCounts, setPassengerCounts] = useState({ adults: 1, children: 0, babies: 0 });
   const [passengers, setPassengers] = useState<number>(1);
@@ -193,9 +194,17 @@ const HomePage: React.FC = () => {
   const isAirportTransfer = isAirportLocation(pickup) || isAirportLocation(dropoff);
   const timeLabel = isAirportTransfer ? 'Uçuş Saati' : 'Alınış Saati';
 
+  // For return trip, the direction is reversed: pickup becomes dropoff and vice versa
+  const isReturnAirportTransfer = isAirportLocation(dropoff) || isAirportLocation(pickup);
+  const returnTimeLabel = isReturnAirportTransfer ? 'Dönüş Uçuş Saati' : 'Dönüş Alınış Saati';
+
   const handleTransferSearch = () => {
     if (!pickup || !dropoff || !pickupDate) {
       message.warning('Lütfen nereden, nereye ve tarihi doldurun.');
+      return;
+    }
+    if (tripType === 'return' && !returnDate) {
+      message.warning('Gidiş-Dönüş için dönüş tarihini seçin.');
       return;
     }
     const timeHour = pickupTime ? pickupTime.hour().toString().padStart(2, '0') : '12';
@@ -213,6 +222,9 @@ const HomePage: React.FC = () => {
     params.set('type', tripType === 'return' ? 'ROUND_TRIP' : 'ONE_WAY');
     if (tripType === 'return' && returnDate) {
       params.set('returnDate', returnDate.format('YYYY-MM-DD'));
+      const rTimeHour = returnTime ? returnTime.hour().toString().padStart(2, '0') : '12';
+      const rTimeMin = returnTime ? returnTime.minute().toString().padStart(2, '0') : '00';
+      params.set('returnTime', `${rTimeHour}:${rTimeMin}`);
     }
     if (pickupLocation) {
       params.set('pickupLat', pickupLocation.lat.toString());
@@ -354,6 +366,44 @@ const HomePage: React.FC = () => {
           </Radio.Group>
         </Col>
       </Row>
+      {tripType === 'return' && (
+        <Row gutter={[12, 16]} style={{ marginTop: 16 }}>
+          <Col xs={12} md={8}>
+            <Text strong style={{ display: 'block', marginBottom: 8, color: theme.labelColor, fontSize: 14 }}>
+              <CalendarOutlined style={{ color: theme.accentColor }} /> Dönüş Tarihi
+            </Text>
+            <DatePicker
+              size="large"
+              style={{ width: '100%', borderRadius: 12 }}
+              format="DD.MM.YYYY"
+              placeholder="Dönüş tarihi seçin"
+              value={returnDate}
+              onChange={(date) => setReturnDate(date)}
+              disabledDate={(current) => {
+                if (!pickupDate) return current && current < dayjs().startOf('day');
+                return current && current < pickupDate.startOf('day');
+              }}
+            />
+          </Col>
+          <Col xs={12} md={8}>
+            <Text strong style={{ display: 'block', marginBottom: 8, color: theme.labelColor, fontSize: 14 }}>
+              <ClockCircleOutlined style={{ color: theme.accentColor }} />{' '}
+              <span style={{ transition: 'all 0.3s' }}>{returnTimeLabel}</span>
+            </Text>
+            <TimePicker
+              size="large"
+              style={{ width: '100%', borderRadius: 12 }}
+              format="HH:mm"
+              minuteStep={5}
+              value={returnTime}
+              onChange={(time) => setReturnTime(time)}
+              placeholder="Dönüş saati seçin"
+              needConfirm={false}
+              showNow={false}
+            />
+          </Col>
+        </Row>
+      )}
       <Button
         type="primary" block size="large" icon={<SearchOutlined />}
         onClick={handleTransferSearch} loading={searchLoading}

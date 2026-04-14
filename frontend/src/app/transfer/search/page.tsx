@@ -74,16 +74,25 @@ const TransferSearchContent: React.FC = () => {
     const [isEditModalVisible, setIsEditModalVisible] = useState(false);
     const [form] = Form.useForm();
 
+    // Round-trip state
+    const [roundTripStep, setRoundTripStep] = useState<'outbound' | 'return'>('outbound');
+    const [returnResults, setReturnResults] = useState<TransferResult[]>([]);
+    const [returnLoading, setReturnLoading] = useState(false);
+    const [selectedOutbound, setSelectedOutbound] = useState<{ vehicleId: string; matchedMasterTime?: string } | null>(null);
+
     const pickup = searchParams.get('pickup') || '';
     const dropoff = searchParams.get('dropoff') || '';
     const date = searchParams.get('date') || '';
     const time = searchParams.get('time') || '';
     const passengers = searchParams.get('passengers') || '1';
     const type = searchParams.get('type') || 'ONE_WAY';
+    const returnDate = searchParams.get('returnDate') || '';
+    const returnTime = searchParams.get('returnTime') || '';
     const pickupLat = searchParams.get('pickupLat') || '';
     const pickupLng = searchParams.get('pickupLng') || '';
     const dropoffLat = searchParams.get('dropoffLat') || '';
     const dropoffLng = searchParams.get('dropoffLng') || '';
+    const isRoundTrip = type === 'ROUND_TRIP';
 
     useEffect(() => {
         if (pickup && dropoff && date) {
@@ -146,13 +155,64 @@ const TransferSearchContent: React.FC = () => {
         }
     };
 
+    const searchReturnTransfers = async () => {
+        try {
+            setReturnLoading(true);
+            let returnPickupDateTime = returnDate || date;
+            const rTime = returnTime || '12:00';
+            returnPickupDateTime = `${returnDate || date}T${rTime}:00.000`;
+
+            const payload = {
+                pickup: dropoff,   // Reversed!
+                dropoff: pickup,   // Reversed!
+                pickupDateTime: returnPickupDateTime,
+                passengers: Number(passengers) || 1,
+                transferType: 'ONE_WAY',
+                pickupLat: dropoffLat || undefined,
+                pickupLng: dropoffLng || undefined,
+                dropoffLat: pickupLat || undefined,
+                dropoffLng: pickupLng || undefined
+            };
+
+            const res = await apiClient.post('/api/transfer/search', payload);
+            if (res.data.success) {
+                setReturnResults(res.data.data.results);
+            }
+        } catch (err: any) {
+            message.error('Dönüş araçları aranamadı');
+        } finally {
+            setReturnLoading(false);
+        }
+    };
+
     const handleBook = (vehicleId: string, matchedMasterTime?: string) => {
+        if (isRoundTrip && roundTripStep === 'outbound') {
+            // Save outbound selection, search return
+            setSelectedOutbound({ vehicleId, matchedMasterTime });
+            setRoundTripStep('return');
+            searchReturnTransfers();
+            return;
+        }
+
         const currentDistance = routeStats?.distance;
         if (currentDistance) sessionStorage.setItem('routeDistance', currentDistance.toString());
         const params = new URLSearchParams(searchParams.toString());
-        params.set('vehicleId', vehicleId);
-        if (matchedMasterTime) {
-            params.set('shuttleMasterTime', matchedMasterTime);
+
+        if (isRoundTrip && selectedOutbound) {
+            // Both legs selected
+            params.set('vehicleId', selectedOutbound.vehicleId);
+            if (selectedOutbound.matchedMasterTime) {
+                params.set('shuttleMasterTime', selectedOutbound.matchedMasterTime);
+            }
+            params.set('returnVehicleId', vehicleId);
+            if (matchedMasterTime) {
+                params.set('returnShuttleMasterTime', matchedMasterTime);
+            }
+        } else {
+            params.set('vehicleId', vehicleId);
+            if (matchedMasterTime) {
+                params.set('shuttleMasterTime', matchedMasterTime);
+            }
         }
         if (routeStats?.duration) {
             params.set('duration', routeStats.duration.toString());
@@ -251,8 +311,45 @@ const TransferSearchContent: React.FC = () => {
                             </Card>
                         </Col>
                         <Col xs={24} lg={18}>
-                            <div style={{ marginBottom: 16 }}><Text strong>{results.length} araç bulundu</Text></div>
-                            {results.map((result) => (
+                            {/* Round-trip step indicator */}
+                            {isRoundTrip && (
+                                <div style={{
+                                    marginBottom: 20, padding: '16px 20px', borderRadius: 14,
+                                    background: roundTripStep === 'outbound'
+                                        ? 'linear-gradient(135deg, #667eea20, #764ba220)'
+                                        : 'linear-gradient(135deg, #10b98120, #059669 20)',
+                                    border: roundTripStep === 'outbound' ? '1px solid #667eea40' : '1px solid #10b98140',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12
+                                }}>
+                                    <div>
+                                        <Text strong style={{ fontSize: 15, color: roundTripStep === 'outbound' ? '#667eea' : '#059669' }}>
+                                            {roundTripStep === 'outbound' ? '1️⃣ Gidiş Aracını Seçin' : '2️⃣ Dönüş Aracını Seçin'}
+                                        </Text>
+                                        <div style={{ fontSize: 13, color: '#64748b', marginTop: 4 }}>
+                                            {roundTripStep === 'outbound'
+                                                ? `${pickup} → ${dropoff} • ${dayjs(date).format('DD MMM YYYY')} ${time}`
+                                                : `${dropoff} → ${pickup} • ${dayjs(returnDate || date).format('DD MMM YYYY')} ${returnTime || '12:00'}`
+                                            }
+                                        </div>
+                                    </div>
+                                    {roundTripStep === 'return' && (
+                                        <Button size="small" onClick={() => { setRoundTripStep('outbound'); setSelectedOutbound(null); }}>
+                                            ← Gidişe Dön
+                                        </Button>
+                                    )}
+                                </div>
+                            )}
+                            <div style={{ marginBottom: 16 }}>
+                                <Text strong>
+                                    {roundTripStep === 'return' ? `${returnResults.length} dönüş aracı bulundu` : `${results.length} araç bulundu`}
+                                </Text>
+                            </div>
+                            {returnLoading ? (
+                                <div style={{ textAlign: 'center', padding: '60px 0' }}>
+                                    <Spin size="large" />
+                                    <div style={{ marginTop: 16 }}>Dönüş araçları aranıyor...</div>
+                                </div>
+                            ) : (roundTripStep === 'return' ? returnResults : results).map((result) => (
                                 <Card key={result.id} hoverable style={{ marginBottom: 16, overflow: 'hidden' }} styles={{ body: { padding: 0 } }}>
                                     <Row>
                                         <Col xs={24} md={8} style={{ background: '#f9f9f9', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, minHeight: 200, overflow: 'hidden', position: 'relative' }}>
@@ -301,7 +398,9 @@ const TransferSearchContent: React.FC = () => {
                                         <Col xs={24} md={6} style={{ padding: 24, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center' }}>
                                             <Text type="secondary" delete>{formatPrice(Math.round(result.price * 1.2), result.currency)}</Text>
                                             <Title level={2} style={{ color: '#667eea', margin: '4px 0 16px', fontSize: 28 }}>{formatPrice(result.price, result.currency)}</Title>
-                                            <Button type="primary" size="large" block onClick={() => handleBook(result.id, result.matchedMasterTime)} style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', border: 'none' }}>Hemen Seç</Button>
+                                            <Button type="primary" size="large" block onClick={() => handleBook(result.id, result.matchedMasterTime)} style={{ background: roundTripStep === 'return' ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', border: 'none' }}>
+                                                {isRoundTrip ? (roundTripStep === 'outbound' ? 'Gidiş Seç →' : 'Dönüş Seç ✓') : 'Hemen Seç'}
+                                            </Button>
                                         </Col>
                                     </Row>
                                 </Card>
