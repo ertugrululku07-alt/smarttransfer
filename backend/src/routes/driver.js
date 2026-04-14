@@ -557,19 +557,39 @@ router.delete('/push-token', authMiddleware, async (req, res) => {
 // Receives background location updates AND returns pending notifications
 router.post('/sync', authMiddleware, async (req, res) => {
     try {
-        const { lat, lng, speed, heading, checkNotifications, lastSyncTime } = req.body;
+        // locationQueue is for OFFLINE syncing (Array of locations that couldn't be sent due to no internet)
+        const { lat, lng, speed, heading, checkNotifications, lastSyncTime, locationQueue } = req.body;
         const driverId = req.user.id;
 
-        // 1a. Always persist lastSeen + location to DB (survives server restarts)
         const now = Date.now();
-        if (lat && lng) {
+
+        // 1. Handle Bulk Offline Locations (if sent)
+        if (locationQueue && Array.isArray(locationQueue) && locationQueue.length > 0) {
+            // Optional: Save these to a separate DriverLocationHistory table if you want to draw routes later
+            // For now, we take the latest valid location from the queue to update the driver's current position
+            const sortedQueue = [...locationQueue].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+            const latestValid = sortedQueue[sortedQueue.length - 1];
+            
+            console.log(`[SYNC] 📡 Sürücü ${req.user.fullName} çevrimdışı kaldığı sürede biriken ${locationQueue.length} konumu gönderdi.`);
+            
+            // If they didn't send live lat/lng, use the newest from queue
+            if (!lat || !lng) {
+                req.body.lat = latestValid.lat;
+                req.body.lng = latestValid.lng;
+                req.body.speed = latestValid.speed;
+                req.body.heading = latestValid.heading;
+            }
+        }
+
+        // 1a. Always persist lastSeen + location to DB (survives server restarts)
+        if (req.body.lat && req.body.lng) {
             await prisma.user.update({
                 where: { id: driverId },
                 data: {
                     lastSeenAt: new Date(),
-                    lastLocationLat: parseFloat(lat),
-                    lastLocationLng: parseFloat(lng),
-                    lastLocationSpeed: speed ? parseFloat(speed) : null
+                    lastLocationLat: parseFloat(req.body.lat),
+                    lastLocationLng: parseFloat(req.body.lng),
+                    lastLocationSpeed: req.body.speed ? parseFloat(req.body.speed) : null
                 }
             });
         } else {
@@ -591,7 +611,12 @@ router.post('/sync', authMiddleware, async (req, res) => {
                     socketId: null,
                     connectedAt: new Date(),
                     lastSeen: now,
-                    location: lat && lng ? { lat: parseFloat(lat), lng: parseFloat(lng), speed, heading } : null,
+                    location: req.body.lat && req.body.lng ? { 
+                        lat: parseFloat(req.body.lat), 
+                        lng: parseFloat(req.body.lng), 
+                        speed: req.body.speed, 
+                        heading: req.body.heading 
+                    } : null,
                     name: req.user.fullName
                 };
             }
@@ -642,11 +667,14 @@ router.post('/sync', authMiddleware, async (req, res) => {
 
         // 1d. Update Location via Socket to Admin (real-time)
         const io = req.app.get('io');
-        if (io && lat && lng) {
+        if (io && req.body.lat && req.body.lng) {
             io.to('admin_monitoring').emit('driver_location', {
                 driverId: driverId,
                 driverName: req.user.fullName,
-                lat, lng, speed, heading,
+                lat: req.body.lat, 
+                lng: req.body.lng, 
+                speed: req.body.speed, 
+                heading: req.body.heading,
                 timestamp: new Date()
             });
 
@@ -654,7 +682,13 @@ router.post('/sync', authMiddleware, async (req, res) => {
             const onlineDrivers = req.app.get('onlineDrivers');
             if (onlineDrivers) {
                 if (onlineDrivers[driverId]) {
-                    onlineDrivers[driverId].location = { lat, lng, speed, heading, ts: new Date() };
+                    onlineDrivers[driverId].location = { 
+                        lat: req.body.lat, 
+                        lng: req.body.lng, 
+                        speed: req.body.speed, 
+                        heading: req.body.heading, 
+                        ts: new Date() 
+                    };
                     onlineDrivers[driverId].lastSeen = Date.now();
                 } else {
                     // Driver wasn't in memory (server restarted?) - add them back
@@ -662,14 +696,17 @@ router.post('/sync', authMiddleware, async (req, res) => {
                         socketId: null,
                         connectedAt: new Date(),
                         lastSeen: Date.now(),
-                        location: { lat, lng, speed, heading, ts: new Date() },
+                        location: { 
+                            lat: req.body.lat, 
+                            lng: req.body.lng, 
+                            speed: req.body.speed, 
+                            heading: req.body.heading, 
+                            ts: new Date() 
+                        },
                         name: req.user.fullName
                     };
                     io.to('admin_monitoring').emit('driver_online', {
-                        driverId: driverId,
-                        driverName: req.user.fullName,
-                        socketId: null,
-                        avatar: req.user.avatar || null
+                        driverId, name: req.user.fullName
                     });
                 }
             }
