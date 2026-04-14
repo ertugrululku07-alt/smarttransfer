@@ -1629,13 +1629,16 @@ export default function OperationsPage() {
     };
 
     // ---- Operations Mode (Private / Shuttle) ----
-    const [operationsMode, setOperationsMode] = useState<'private' | 'shuttle'>('private');
+    const [operationsMode, setOperationsMode] = useState<'private' | 'shuttle' | 'completed'>('private');
 
     // Sync mode change → automatically update the transferType filter
-    const handleModeChange = (mode: 'private' | 'shuttle') => {
+    const handleModeChange = (mode: 'private' | 'shuttle' | 'completed') => {
         setOperationsMode(mode);
         if (mode === 'private') {
             setFilters(prev => ({ ...prev, transferType: 'PRIVATE' }));
+        }
+        if (mode === 'completed') {
+            fetchCompletedBookings();
         }
     };
 
@@ -2027,6 +2030,107 @@ export default function OperationsPage() {
     // ---- Tab State ----
     const [bookingTab, setBookingTab] = useState<'active' | 'completed'>('active');
 
+    // ---- Completed Operations State ----
+    const [completedBookings, setCompletedBookings] = useState<any[]>([]);
+    const [completedLoading, setCompletedLoading] = useState(false);
+    const [completedFilters, setCompletedFilters] = useState({
+        dateRange: [dayjs().subtract(7, 'day'), dayjs()] as [any, any],
+        transferType: 'ALL' as string,
+        agency: 'ALL' as string,
+        driver: 'ALL' as string,
+        vehicle: 'ALL' as string,
+        search: '' as string,
+    });
+
+    const fetchCompletedBookings = async () => {
+        setCompletedLoading(true);
+        try {
+            const response = await apiClient.get('/api/transfer/bookings');
+            if (response.data.success) {
+                let data = response.data.data;
+                // Map + enrich
+                data = data.map((item: any) => {
+                    const pickupVal = typeof item.pickup === 'string' ? item.pickup : (item.pickup?.location || '');
+                    const dropoffVal = typeof item.dropoff === 'string' ? item.dropoff : (item.dropoff?.location || '');
+                    let direction = 'Ara';
+                    const p = pickupVal.toLowerCase();
+                    const d = dropoffVal.toLowerCase();
+                    if (p.includes('havaliman') || p.includes('airport')) direction = 'Geliş';
+                    else if (d.includes('havaliman') || d.includes('airport')) direction = 'Gidiş';
+                    const vtLower = (item.vehicleType || '').toLowerCase();
+                    const isShuttle = vtLower.includes('shuttle') || vtLower.includes('paylaşımlı') || vtLower.includes('paylaşım') || vtLower.includes('shared') || vtLower.includes('mercedes sprinter') || vtLower.includes('minibüs') || vtLower.includes('minibus');
+                    return {
+                        ...item,
+                        pickup: typeof item.pickup === 'string' ? { location: item.pickup, rawLocation: item.pickup } : item.pickup,
+                        dropoff: typeof item.dropoff === 'string' ? { location: item.dropoff, rawLocation: item.dropoff } : item.dropoff,
+                        direction,
+                        transferType: isShuttle ? 'SHUTTLE' : 'PRIVATE',
+                        pax: item.adults || (item.vehicle?.pax) || 1,
+                        assignedVehicleId: item.assignedVehicleId || item.metadata?.vehicleId || null,
+                        contactName: item.contactName || item.customer?.name || item.passengerName || '',
+                        agencyName: item.agencyName || item.agency?.name || item.partnerName || (item.agencyId ? `Acente#${item.agencyId.slice(-4)}` : null),
+                        customer: {
+                            ...item.customer,
+                            name: item.contactName || item.customer?.name || item.passengerName || '',
+                            phone: item.passengerPhone || item.contactPhone || item.customer?.phone || '-'
+                        }
+                    };
+                });
+                // Only COMPLETED
+                data = data.filter((i: any) => i.status === 'COMPLETED');
+                // Date filter
+                if (completedFilters.dateRange[0] && completedFilters.dateRange[1]) {
+                    const start = completedFilters.dateRange[0].startOf('day');
+                    const end = completedFilters.dateRange[1].endOf('day');
+                    data = data.filter((i: any) => {
+                        const date = dayjs(i.pickupDateTime);
+                        return (date.isAfter(start) || date.isSame(start)) && (date.isBefore(end) || date.isSame(end));
+                    });
+                }
+                // Transfer type
+                if (completedFilters.transferType !== 'ALL') {
+                    data = data.filter((i: any) => i.transferType === completedFilters.transferType);
+                }
+                // Agency
+                if (completedFilters.agency !== 'ALL') {
+                    data = data.filter((i: any) => (i.agencyName || '') === completedFilters.agency);
+                }
+                // Driver
+                if (completedFilters.driver !== 'ALL') {
+                    data = data.filter((i: any) => i.driverId === completedFilters.driver);
+                }
+                // Vehicle
+                if (completedFilters.vehicle !== 'ALL') {
+                    data = data.filter((i: any) => i.assignedVehicleId === completedFilters.vehicle);
+                }
+                // Search
+                if (completedFilters.search.trim()) {
+                    const q = completedFilters.search.toLowerCase().trim();
+                    data = data.filter((i: any) => {
+                        const contactName = (i.contactName || i.customer?.name || '').toLowerCase();
+                        const phone = (i.customer?.phone || '').toLowerCase();
+                        const pickup = (i.pickup?.rawLocation || i.pickup?.location || '').toLowerCase();
+                        const dropoff = (i.dropoff?.rawLocation || i.dropoff?.location || '').toLowerCase();
+                        const bookingNum = (i.bookingNumber || '').toLowerCase();
+                        return contactName.includes(q) || phone.includes(q) || pickup.includes(q) || dropoff.includes(q) || bookingNum.includes(q);
+                    });
+                }
+                setCompletedBookings(data);
+            }
+        } catch (error) {
+            console.error('Fetch completed bookings error:', error);
+            message.error('Tamamlanan operasyonlar alınamadı');
+        } finally {
+            setCompletedLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        if (operationsMode === 'completed') {
+            fetchCompletedBookings();
+        }
+    }, [completedFilters]);
+
     // ---- Auto-Assign State ----
     const [autoAssignModal, setAutoAssignModal] = useState<{
         visible: boolean;
@@ -2117,10 +2221,11 @@ export default function OperationsPage() {
                             <Space size={8} wrap>
                                 <Segmented
                                     value={operationsMode}
-                                    onChange={(v) => handleModeChange(v as 'private' | 'shuttle')}
+                                    onChange={(v) => handleModeChange(v as 'private' | 'shuttle' | 'completed')}
                                     options={[
                                         { label: '🚗 Özel Transferler', value: 'private' },
                                         { label: '🚌 Shuttle Seferleri', value: 'shuttle' },
+                                        { label: '✅ Tamamlanan Operasyonlar', value: 'completed' },
                                     ]}
                                     style={{ fontWeight: 600, fontSize: 13, background: '#f0f4ff' }}
                                 />
@@ -2329,8 +2434,8 @@ export default function OperationsPage() {
                             </Space>
                         </div>
 
-                        {/* Row 2: Compact filters */}
-                        <Row gutter={[8, 8]} align="middle">
+                        {/* Row 2: Compact filters (hidden in completed mode — has own filter bar) */}
+                        <Row gutter={[8, 8]} align="middle" style={{ display: operationsMode === 'completed' ? 'none' : undefined }}>
                             <Col xs={12} sm={8} md={5} lg={4}>
                                 <RangePicker
                                     size="small"
@@ -2435,51 +2540,30 @@ export default function OperationsPage() {
                         </Row>
                     </div>
 
-                    {/* ── TABS: Aktif / Tamamlandı (only for private mode) ── */}
+                    {/* ── INFO: Active count (private mode) ── */}
                     {operationsMode === 'private' && (
                         <div style={{
                             background: '#fff',
                             borderBottom: '1px solid #e5e7eb',
-                            padding: '0 16px',
+                            padding: '6px 16px',
                             display: 'flex',
-                            gap: 0,
+                            alignItems: 'center',
+                            gap: 8,
                             flexShrink: 0,
                         }}>
-                            {[
-                                { key: 'active', label: 'Aktif Operasyonlar', count: activeCount, color: '#2563eb' },
-                                { key: 'completed', label: 'Tamamlanan Operasyonlar', count: completedCount, color: '#16a34a' },
-                            ].map(tab => (
-                                <button
-                                    key={tab.key}
-                                    onClick={() => setBookingTab(tab.key as 'active' | 'completed')}
-                                    style={{
-                                        padding: '10px 20px',
-                                        border: 'none',
-                                        borderBottom: bookingTab === tab.key ? `2px solid ${tab.color}` : '2px solid transparent',
-                                        background: 'transparent',
-                                        cursor: 'pointer',
-                                        fontWeight: bookingTab === tab.key ? 700 : 500,
-                                        color: bookingTab === tab.key ? tab.color : '#6b7280',
-                                        fontSize: 13,
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: 8,
-                                        transition: 'all 0.15s',
-                                    }}
-                                >
-                                    {tab.label}
-                                    <span style={{
-                                        background: bookingTab === tab.key ? tab.color : '#d1d5db',
-                                        color: '#fff',
-                                        borderRadius: 20,
-                                        padding: '1px 8px',
-                                        fontSize: 11,
-                                        fontWeight: 700,
-                                    }}>
-                                        {tab.count}
-                                    </span>
-                                </button>
-                            ))}
+                            <span style={{ fontWeight: 700, color: '#2563eb', fontSize: 13 }}>
+                                Aktif Operasyonlar
+                            </span>
+                            <span style={{
+                                background: '#2563eb',
+                                color: '#fff',
+                                borderRadius: 20,
+                                padding: '1px 8px',
+                                fontSize: 11,
+                                fontWeight: 700,
+                            }}>
+                                {activeCount}
+                            </span>
                         </div>
                     )}
 
@@ -2534,15 +2618,20 @@ export default function OperationsPage() {
                             flexShrink: 0,
                         }}>
                             <Space size={16}>
-                                <Text style={{ fontSize: 12 }}>
-                                    <strong>{shuttleRuns.length}</strong> sefer listeleniyor
-                                </Text>
-                                <Text style={{ fontSize: 11, color: '#2563eb', fontWeight: 600 }}>
-                                    Toplam Yolcu: {shuttleRuns.reduce((sum, r) => sum + r.bookings.length, 0)}
-                                </Text>
-                                <Text style={{ fontSize: 11, color: '#9333ea', fontWeight: 600 }}>
-                                    Atanan Sefer: {shuttleRuns.filter(r => r.driverId).length} / {shuttleRuns.length}
-                                </Text>
+                                {(() => {
+                                    const activeRuns = shuttleRuns.filter(r => !(r.bookings.length > 0 && r.bookings.every((b: any) => b.status === 'COMPLETED')));
+                                    return (<>
+                                        <Text style={{ fontSize: 12 }}>
+                                            <strong>{activeRuns.length}</strong> sefer listeleniyor
+                                        </Text>
+                                        <Text style={{ fontSize: 11, color: '#2563eb', fontWeight: 600 }}>
+                                            Toplam Yolcu: {activeRuns.reduce((sum: number, r: any) => sum + r.bookings.length, 0)}
+                                        </Text>
+                                        <Text style={{ fontSize: 11, color: '#9333ea', fontWeight: 600 }}>
+                                            Atanan Sefer: {activeRuns.filter((r: any) => r.driverId).length} / {activeRuns.length}
+                                        </Text>
+                                    </>);
+                                })()}
                             </Space>
                             <Text type="secondary" style={{ fontSize: 11 }}>
                                 🚌 Şöför ve araç atamak için sefer satırında açılır menüyü kullanın
@@ -2554,10 +2643,7 @@ export default function OperationsPage() {
                     {operationsMode === 'private' && (
                     <div style={{ flex: 1, overflow: 'auto', padding: '16px 20px' }}>
                         <OperationsTable
-                            bookings={bookings.filter((b: any) => {
-                                if (bookingTab === 'completed') return b.status === 'COMPLETED';
-                                return b.status !== 'COMPLETED';
-                            })}
+                            bookings={bookings.filter((b: any) => b.status !== 'COMPLETED')}
                             loading={loading}
                             drivers={drivers}
                             vehicles={vehicles}
@@ -2584,7 +2670,11 @@ export default function OperationsPage() {
                         
                         <DndContext onDragEnd={handleShuttleDragEnd}>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                                {shuttleRuns.map((run: any) => {
+                                {shuttleRuns.filter((run: any) => {
+                                    // Hide runs where ALL bookings are completed
+                                    if (run.bookings.length > 0 && run.bookings.every((b: any) => b.status === 'COMPLETED')) return false;
+                                    return true;
+                                }).map((run: any) => {
                                     const totalPax = run.bookings.reduce((s: number, b: any) => s + (b.adults || 1), 0);
                                     const capacity = run.maxSeats || 0;
                                     const pct = capacity > 0 ? Math.round((totalPax / capacity) * 100) : 0;
@@ -3141,6 +3231,267 @@ export default function OperationsPage() {
                         </DndContext>
                     </div>
                 )}
+
+                    {/* ── COMPLETED OPERATIONS PANEL ── */}
+                    {operationsMode === 'completed' && (
+                    <div style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
+                        {/* Completed Filter Bar */}
+                        <div style={{
+                            background: 'linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%)',
+                            borderBottom: '1px solid #bbf7d0',
+                            padding: '12px 20px',
+                            display: 'flex',
+                            flexWrap: 'wrap',
+                            gap: 10,
+                            alignItems: 'center',
+                            flexShrink: 0,
+                        }}>
+                            <RangePicker
+                                size="small"
+                                value={completedFilters.dateRange}
+                                onChange={(dates) => setCompletedFilters(prev => ({ ...prev, dateRange: dates as [any, any] }))}
+                                format="DD.MM.YYYY"
+                                style={{ width: 220, borderRadius: 6 }}
+                                placeholder={['Başlangıç', 'Bitiş']}
+                            />
+                            <Select
+                                size="small"
+                                value={completedFilters.transferType}
+                                onChange={(v) => setCompletedFilters(prev => ({ ...prev, transferType: v }))}
+                                style={{ width: 140, borderRadius: 6 }}
+                            >
+                                <Option value="ALL">Tümü</Option>
+                                <Option value="PRIVATE">🚗 Özel</Option>
+                                <Option value="SHUTTLE">🚌 Shuttle</Option>
+                            </Select>
+                            <Select
+                                size="small"
+                                value={completedFilters.driver}
+                                onChange={(v) => setCompletedFilters(prev => ({ ...prev, driver: v }))}
+                                style={{ width: 160, borderRadius: 6 }}
+                                showSearch
+                                optionFilterProp="children"
+                            >
+                                <Option value="ALL">Tüm Şoförler</Option>
+                                {drivers.map((d: any) => (
+                                    <Option key={d.user?.id || d.id} value={d.user?.id || d.id}>
+                                        {d.firstName} {d.lastName}
+                                    </Option>
+                                ))}
+                            </Select>
+                            <Select
+                                size="small"
+                                value={completedFilters.vehicle}
+                                onChange={(v) => setCompletedFilters(prev => ({ ...prev, vehicle: v }))}
+                                style={{ width: 150, borderRadius: 6 }}
+                                showSearch
+                                optionFilterProp="children"
+                            >
+                                <Option value="ALL">Tüm Araçlar</Option>
+                                {vehicles.map((v: any) => (
+                                    <Option key={v.id} value={v.id}>{v.plateNumber}</Option>
+                                ))}
+                            </Select>
+                            <Input
+                                size="small"
+                                placeholder="🔍 Müşteri, telefon, konum..."
+                                value={completedFilters.search}
+                                onChange={(e) => setCompletedFilters(prev => ({ ...prev, search: e.target.value }))}
+                                style={{ width: 200, borderRadius: 6 }}
+                                allowClear
+                            />
+                            <Button
+                                size="small"
+                                icon={<ReloadOutlined />}
+                                onClick={fetchCompletedBookings}
+                                loading={completedLoading}
+                                style={{ borderRadius: 6 }}
+                            >
+                                Yenile
+                            </Button>
+                            <Button
+                                size="small"
+                                icon={<FileExcelOutlined />}
+                                style={{ borderRadius: 6, color: '#16a34a', borderColor: '#86efac' }}
+                                onClick={() => {
+                                    const headers = ['Tarih', 'Tip', 'Müşteri', 'Telefon', 'Alış', 'Varış', 'Yön', 'Pax', 'Şoför', 'Araç', 'Acente'];
+                                    const rows = completedBookings.map((b: any) => [
+                                        dayjs(b.pickupDateTime).format('DD.MM.YYYY HH:mm'),
+                                        b.transferType === 'SHUTTLE' ? 'Shuttle' : 'Özel',
+                                        b.contactName || b.customer?.name || '',
+                                        b.customer?.phone || '',
+                                        b.pickup?.rawLocation || b.pickup?.location || '',
+                                        b.dropoff?.rawLocation || b.dropoff?.location || '',
+                                        b.direction || '',
+                                        b.pax || 1,
+                                        (() => { const d = drivers.find((dr: any) => (dr.user?.id || dr.id) === b.driverId); return d ? `${d.firstName} ${d.lastName}` : ''; })(),
+                                        (() => { const v = vehicles.find((vh: any) => vh.id === b.assignedVehicleId); return v ? v.plateNumber : ''; })(),
+                                        b.agencyName || '',
+                                    ]);
+                                    const csv = [headers, ...rows].map(r => r.map((c: any) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
+                                    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+                                    const url = URL.createObjectURL(blob);
+                                    const a = document.createElement('a');
+                                    a.href = url;
+                                    a.download = `tamamlanan-operasyonlar-${dayjs().format('YYYY-MM-DD')}.csv`;
+                                    a.click();
+                                    URL.revokeObjectURL(url);
+                                }}
+                            >
+                                Excel
+                            </Button>
+                        </div>
+
+                        {/* Completed Info Bar */}
+                        <div style={{
+                            background: '#f8fafc',
+                            borderBottom: '1px solid #e2e8f0',
+                            padding: '6px 20px',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            flexShrink: 0,
+                        }}>
+                            <Space size={16}>
+                                <Text style={{ fontSize: 12 }}>
+                                    <strong>{completedBookings.length}</strong> tamamlanan operasyon
+                                </Text>
+                                <Text style={{ fontSize: 11, color: '#7c3aed', fontWeight: 600 }}>
+                                    Özel: {completedBookings.filter((b: any) => b.transferType === 'PRIVATE').length}
+                                </Text>
+                                <Text style={{ fontSize: 11, color: '#2563eb', fontWeight: 600 }}>
+                                    Shuttle: {completedBookings.filter((b: any) => b.transferType === 'SHUTTLE').length}
+                                </Text>
+                                <Text style={{ fontSize: 11, color: '#16a34a', fontWeight: 600 }}>
+                                    Toplam Yolcu: {completedBookings.reduce((s: number, b: any) => s + (b.pax || 1), 0)}
+                                </Text>
+                            </Space>
+                        </div>
+
+                        {/* Completed Table */}
+                        <div style={{ flex: 1, overflow: 'auto', padding: '12px 20px' }}>
+                            <Table
+                                dataSource={completedBookings}
+                                rowKey="id"
+                                size="small"
+                                loading={completedLoading}
+                                pagination={{ pageSize: 50, showSizeChanger: true, pageSizeOptions: ['25', '50', '100', '200'], size: 'small', showTotal: (total) => `${total} kayıt` }}
+                                scroll={{ x: 1400 }}
+                                style={{ fontSize: 12 }}
+                                columns={[
+                                    {
+                                        title: 'TARİH',
+                                        dataIndex: 'pickupDateTime',
+                                        key: 'date',
+                                        width: 130,
+                                        sorter: (a: any, b: any) => dayjs(a.pickupDateTime).unix() - dayjs(b.pickupDateTime).unix(),
+                                        defaultSortOrder: 'descend' as const,
+                                        render: (val: string) => (
+                                            <span style={{ fontSize: 11, fontWeight: 600 }}>
+                                                {dayjs(val).format('DD.MM.YYYY')}
+                                                <br />
+                                                <span style={{ color: '#6366f1', fontWeight: 700 }}>{dayjs(val).format('HH:mm')}</span>
+                                            </span>
+                                        )
+                                    },
+                                    {
+                                        title: 'TİP',
+                                        dataIndex: 'transferType',
+                                        key: 'type',
+                                        width: 80,
+                                        render: (val: string) => (
+                                            <Tag color={val === 'SHUTTLE' ? 'geekblue' : 'purple'} style={{ fontSize: 10, margin: 0 }}>
+                                                {val === 'SHUTTLE' ? '🚌 Shuttle' : '🚗 Özel'}
+                                            </Tag>
+                                        )
+                                    },
+                                    {
+                                        title: 'YÖN',
+                                        dataIndex: 'direction',
+                                        key: 'direction',
+                                        width: 65,
+                                        render: (val: string) => {
+                                            const color = val === 'Geliş' ? '#16a34a' : val === 'Gidiş' ? '#d97706' : '#6b7280';
+                                            return <Tag color={color === '#16a34a' ? 'green' : color === '#d97706' ? 'orange' : 'default'} style={{ fontSize: 10, margin: 0 }}>{val}</Tag>;
+                                        }
+                                    },
+                                    {
+                                        title: 'MÜŞTERİ',
+                                        key: 'customer',
+                                        width: 180,
+                                        render: (_: any, record: any) => (
+                                            <div>
+                                                <div style={{ fontWeight: 700, fontSize: 12, color: '#1e1b4b' }}>{record.contactName || record.customer?.name || '-'}</div>
+                                                <div style={{ fontSize: 10, color: '#6b7280' }}>{record.customer?.phone || '-'}</div>
+                                            </div>
+                                        )
+                                    },
+                                    {
+                                        title: 'ALIŞ',
+                                        key: 'pickup',
+                                        width: 200,
+                                        ellipsis: true,
+                                        render: (_: any, record: any) => (
+                                            <Tooltip title={record.pickup?.rawLocation || record.pickup?.location}>
+                                                <span style={{ fontSize: 11 }}>{record.pickup?.rawLocation || record.pickup?.location || '-'}</span>
+                                            </Tooltip>
+                                        )
+                                    },
+                                    {
+                                        title: 'VARIŞ',
+                                        key: 'dropoff',
+                                        width: 200,
+                                        ellipsis: true,
+                                        render: (_: any, record: any) => (
+                                            <Tooltip title={record.dropoff?.rawLocation || record.dropoff?.location}>
+                                                <span style={{ fontSize: 11 }}>{record.dropoff?.rawLocation || record.dropoff?.location || '-'}</span>
+                                            </Tooltip>
+                                        )
+                                    },
+                                    {
+                                        title: 'PAX',
+                                        dataIndex: 'pax',
+                                        key: 'pax',
+                                        width: 55,
+                                        align: 'center' as const,
+                                        render: (val: number) => <span style={{ fontWeight: 700, color: '#4f46e5' }}>{val || 1}</span>
+                                    },
+                                    {
+                                        title: 'ŞOFÖR',
+                                        key: 'driver',
+                                        width: 140,
+                                        render: (_: any, record: any) => {
+                                            const d = drivers.find((dr: any) => (dr.user?.id || dr.id) === record.driverId);
+                                            return d ? (
+                                                <span style={{ fontSize: 11, fontWeight: 600 }}>{d.firstName} {d.lastName}</span>
+                                            ) : <span style={{ color: '#d1d5db', fontSize: 11 }}>—</span>;
+                                        }
+                                    },
+                                    {
+                                        title: 'ARAÇ',
+                                        key: 'vehicle',
+                                        width: 120,
+                                        render: (_: any, record: any) => {
+                                            const v = vehicles.find((vh: any) => vh.id === record.assignedVehicleId);
+                                            return v ? (
+                                                <Tag color="blue" style={{ fontSize: 10, margin: 0 }}>{v.plateNumber}</Tag>
+                                            ) : <span style={{ color: '#d1d5db', fontSize: 11 }}>—</span>;
+                                        }
+                                    },
+                                    {
+                                        title: 'ACENTE',
+                                        key: 'agency',
+                                        width: 130,
+                                        ellipsis: true,
+                                        render: (_: any, record: any) => (
+                                            <span style={{ fontSize: 11 }}>{record.agencyName || '—'}</span>
+                                        )
+                                    },
+                                ]}
+                            />
+                        </div>
+                    </div>
+                    )}
             </div>
 
                     {/* Edit Columns Modal — with DnD reordering */}

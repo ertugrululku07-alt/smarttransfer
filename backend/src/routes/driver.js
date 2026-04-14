@@ -535,6 +535,7 @@ router.post('/sync', authMiddleware, async (req, res) => {
         const driverId = req.user.id;
 
         // 1a. Always persist lastSeen + location to DB (survives server restarts)
+        const now = Date.now();
         if (lat && lng) {
             await prisma.user.update({
                 where: { id: driverId },
@@ -551,20 +552,22 @@ router.post('/sync', authMiddleware, async (req, res) => {
                 where: { id: driverId },
                 data: { lastSeenAt: new Date() }
             });
-            // Also update in-memory so /online sees them as recently seen
-            const onlineDriversMap = req.app.get('onlineDrivers');
-            if (onlineDriversMap) {
-                if (onlineDriversMap[driverId]) {
-                    onlineDriversMap[driverId].lastSeen = Date.now();
-                } else {
-                    onlineDriversMap[driverId] = {
-                        socketId: null,
-                        connectedAt: new Date(),
-                        lastSeen: Date.now(),
-                        location: null,
-                        name: req.user.fullName
-                    };
-                }
+        }
+
+        // Always update in-memory and reset timeout to keep driver online
+        const onlineDriversMap = req.app.get('onlineDrivers');
+        
+        if (onlineDriversMap) {
+            if (onlineDriversMap[driverId]) {
+                onlineDriversMap[driverId].lastSeen = now;
+            } else {
+                onlineDriversMap[driverId] = {
+                    socketId: null,
+                    connectedAt: new Date(),
+                    lastSeen: now,
+                    location: lat && lng ? { lat: parseFloat(lat), lng: parseFloat(lng), speed, heading } : null,
+                    name: req.user.fullName
+                };
             }
         }
 

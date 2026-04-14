@@ -286,6 +286,14 @@ setTimeout(() => {
   ensureLocationTaskRunning('startup_self_heal');
 }, 4000);
 
+// 2-minute periodic keepalive sync - runs even in background to keep driver online
+// Must be < OFFLINE_TIMEOUT_MS (3min) to prevent timeout_expired
+const PERIODIC_SYNC_INTERVAL = 2 * 60 * 1000; // 2 minutes
+setInterval(() => {
+  console.log('[Headless] Periodic keepalive sync triggered');
+  syncLocationWithBackend(null, null, null, null, null, 'periodic_keepalive');
+}, PERIODIC_SYNC_INTERVAL);
+
 // Ensure BackgroundFetch is registered to wake the app periodically even if OS throttles timers
 (async () => {
   try {

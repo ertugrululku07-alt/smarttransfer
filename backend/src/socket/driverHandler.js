@@ -4,7 +4,7 @@ const jwt = require('jsonwebtoken');
 
 const { JWT_SECRET } = require('../middleware/auth');
 
-const OFFLINE_TIMEOUT_MS = 2 * 60 * 1000; // 2 minutes
+const OFFLINE_TIMEOUT_MS = 3 * 60 * 1000; // 3 minutes - balanced for mobile background
 const OFFLINE_CHECK_THRESHOLD_MS = 2 * 60 * 1000; // 2 minutes - if lastSeen is within this, they're still online
 
 module.exports = (io, app) => {

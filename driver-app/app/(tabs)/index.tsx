@@ -2,8 +2,9 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   StyleSheet, View, Text, Alert, ScrollView, RefreshControl,
   TouchableOpacity, Image, Platform, Linking, AppState,
-  Modal, TextInput
+  Modal, TextInput, PermissionsAndroid, NativeModules
 } from 'react-native';
+
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
 import * as Notifications from 'expo-notifications';
@@ -13,6 +14,8 @@ import { useSocket } from '../../context/SocketContext';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Brand } from '../../constants/theme';
+
+const { NativeLocation } = NativeModules;
 
 const API_URL = 'https://backend-production-69e7.up.railway.app/api';
 const LOCATION_TASK_NAME = 'background-location-task';
@@ -117,7 +120,25 @@ export default function DashboardScreen() {
   };
 
   const ensureLocationAlwaysOn = async () => {
-    // Native foreground service handles GPS tracking — Expo location service disabled
+    if (Platform.OS === 'android') {
+      try {
+        const fineGranted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+          { title: 'Konum İzni', message: 'Uygulama arka planda konum takibi için izin gerektirir.', buttonPositive: 'İzin Ver' }
+        );
+        if (fineGranted !== PermissionsAndroid.RESULTS.GRANTED) {
+          Alert.alert('Konum İzni Zorunlu', 'Konum izni olmadan servis çalışamaz. Lütfen uygulama ayarlarından konum iznini açın.');
+          return;
+        }
+        await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.ACCESS_BACKGROUND_LOCATION,
+          { title: 'Arka Plan Konum İzni', message: 'Arka planda konum takibi için "Her zaman izin ver" seçeneğini seçin.', buttonPositive: 'Ayarlara Git' }
+        );
+      } catch (e) { console.warn('Permission error:', e); }
+    }
+    try {
+      if (token) NativeLocation?.startTracking(token);
+    } catch (e) { console.warn('startTracking error:', e); }
     setLocationActive(true);
     return;
     try {
