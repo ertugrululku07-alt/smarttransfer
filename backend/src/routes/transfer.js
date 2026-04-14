@@ -397,10 +397,23 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                 }
             }
 
-            // 1c. Text matching fallback (if no coordinates sent)
+            // 1c. Text matching fallback (if no coordinates sent or no polygon/radius match)
             if (!isPickupMatch) {
                 const routeFrom = normalizeLocation(route.fromName);
                 isPickupMatch = (routeFrom.includes(pickupNorm) || pickupNorm.includes(routeFrom));
+            }
+
+            // 1d. Hub-based pickup matching: if user pickup resolves to a known hub,
+            //     match routes whose fromName contains that hub's keywords
+            if (!isPickupMatch && detectedBaseLocation) {
+                const pickupHub = hubs.find(h => h.code === detectedBaseLocation);
+                if (pickupHub) {
+                    const routeFromLower = route.fromName.toLowerCase();
+                    const hubKeys = pickupHub.keywords ? pickupHub.keywords.split(',').map(k => k.trim().toLowerCase()).filter(k => k) : [];
+                    hubKeys.push(pickupHub.code.toLowerCase());
+                    if (pickupHub.name) hubKeys.push(pickupHub.name.toLowerCase());
+                    isPickupMatch = hubKeys.some(k => k && routeFromLower.includes(k));
+                }
             }
 
             if (!isPickupMatch) return false;
@@ -423,6 +436,30 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
             if (!isDropoffMatch) {
                 const routeTo = normalizeLocation(route.toName);
                 isDropoffMatch = (routeTo.includes(dropoffNorm) || dropoffNorm.includes(routeTo));
+            }
+
+            // 2c. Hub-based dropoff matching: detect which hub the dropoff text maps to,
+            //     then check if route.toName contains that hub's keywords
+            if (!isDropoffMatch) {
+                const dropoffHubCode = detectRegionCode(dropoff, hubs);
+                if (dropoffHubCode) {
+                    const dropoffHub = hubs.find(h => h.code === dropoffHubCode);
+                    if (dropoffHub) {
+                        const routeToLower = route.toName.toLowerCase();
+                        const hubKeys = dropoffHub.keywords ? dropoffHub.keywords.split(',').map(k => k.trim().toLowerCase()).filter(k => k) : [];
+                        hubKeys.push(dropoffHub.code.toLowerCase());
+                        if (dropoffHub.name) hubKeys.push(dropoffHub.name.toLowerCase());
+                        isDropoffMatch = hubKeys.some(k => k && routeToLower.includes(k));
+                    }
+                }
+            }
+
+            // 2d. Zone-based dropoff matching: check if route.toName matches any zone name
+            if (!isDropoffMatch) {
+                const routeToLower = route.toName.toLowerCase();
+                const dropoffLower = dropoff.toLowerCase();
+                // Simple substring check on raw (non-normalized) names
+                isDropoffMatch = (routeToLower.includes(dropoffLower) || dropoffLower.includes(routeToLower));
             }
 
             if (!isDropoffMatch) return false;

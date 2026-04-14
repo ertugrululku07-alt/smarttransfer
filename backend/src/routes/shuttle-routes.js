@@ -60,6 +60,37 @@ router.post('/', authMiddleware, async (req, res) => {
         });
 
         if (data.isBidirectional && data.returnDepartureTimes && data.returnDepartureTimes.length > 0) {
+            // Build reverse metadata: swap fromZoneId and toHubCode
+            const originalMeta = data.metadata || {};
+            const reverseMeta = {
+                fromZoneId: null, // The reverse pickup is the hub (airport), not a zone
+                toHubCode: null,  // The reverse dropoff is the zone area, not a hub
+                reverseOf: 'auto-created'
+            };
+            // If the original route goes FROM a zone TO a hub,
+            // the reverse goes FROM the hub TO the zone.
+            // We need to set toHubCode to null (zone isn't a hub) but keep context.
+            // The key fix: the reverse route's fromName is the hub, so text matching works.
+
+            // Try to find a pickup polygon for the reverse direction from the destination hub
+            let reversePickupLocation = null;
+            let reversePickupPolygon = null;
+            
+            // If the destination (toHubCode) has a known location, use it for reverse pickup
+            if (originalMeta.toHubCode && req.tenant?.id) {
+                try {
+                    const tenantInfo = await prisma.tenant.findUnique({ where: { id: req.tenant.id }, select: { settings: true } });
+                    const tenantHubs = tenantInfo?.settings?.hubs || [];
+                    const destinationHub = tenantHubs.find(h => h.code === originalMeta.toHubCode);
+                    if (destinationHub && destinationHub.name) {
+                        // Create a generous pickup point around the hub for coordinate-based matching
+                        reversePickupLocation = { lat: 0, lng: 0, address: destinationHub.name };
+                    }
+                } catch (e) {
+                    console.error('Failed to resolve reverse hub location', e);
+                }
+            }
+
             await prisma.shuttleRoute.create({
                 data: {
                     vehicleId: data.vehicleId,     // Same vehicle
@@ -74,10 +105,11 @@ router.post('/', authMiddleware, async (req, res) => {
                     customStartDate: data.customStartDate,
                     customEndDate: data.customEndDate,
                     weeklyDays: data.weeklyDays,
-                    // Typically do not apply the origin's exact pickup locations to the destination (since it would make pickupPolygon of Alanya active in Antalya, which makes no sense). Left null.
-                    pickupLocation: null,
+                    pickupLocation: reversePickupLocation ? JSON.stringify(reversePickupLocation) : null,
                     pickupRadius: null,
-                    pickupPolygon: null
+                    pickupPolygon: reversePickupPolygon,
+                    metadata: reverseMeta,
+                    tenantId: req.tenant?.id || null
                 }
             });
         }
