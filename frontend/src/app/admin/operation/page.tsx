@@ -287,10 +287,13 @@ export default function OperationDashboard() {
     // Filter drivers for map - only show those with fresh locations (< 5 min old)
     const LOCATION_STALE_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes
     const driversForMap = drivers.filter(d => {
-        // Must be online
-        if (!onlineDriverIds.has(d.id)) return false;
+        // Must be online (seen in last 90s)
+        const isOnline = d.lastSeenAt ? dayjs().diff(dayjs(d.lastSeenAt), 'second') <= 90 : false;
+        if (!isOnline) return false;
+        
         // Must have location
         if (!driverLocations[d.id]) return false;
+        
         // Check if location is fresh
         const loc = driverLocations[d.id];
         if (loc.isStale) return false; // Don't show stale locations on map
@@ -401,8 +404,8 @@ export default function OperationDashboard() {
         }
     ];
 
-    const onlineDriversCount = onlineDriverIds.size;
-    const onlineDriversWithLoc = drivers.filter(d => onlineDriverIds.has(d.id) && driverLocations[d.id]);
+    const onlineDriversCount = drivers.filter(d => d.lastSeenAt && dayjs().diff(dayjs(d.lastSeenAt), 'second') <= 90).length;
+    const onlineDriversWithLoc = drivers.filter(d => (d.lastSeenAt && dayjs().diff(dayjs(d.lastSeenAt), 'second') <= 90) && driverLocations[d.id]);
 
     return (
         <AdminGuard>
@@ -603,7 +606,7 @@ export default function OperationDashboard() {
                                 ) : (
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6, width: '100%' }}>
                                         {drivers.slice(0, 6).map(d => {
-                                            const isOnline = onlineDriverIds.has(d.id);
+                                            const isOnline = d.lastSeenAt ? dayjs().diff(dayjs(d.lastSeenAt), 'second') <= 90 : false;
                                             const loc = driverLocations[d.id];
                                             const lastSeen = d.lastSeenAt ? dayjs(d.lastSeenAt).fromNow() : null;
                                             
