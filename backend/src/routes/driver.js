@@ -851,10 +851,10 @@ router.get('/online', async (req, res) => {
                 : true; // No timestamp = stale
             
             // Add timestamp to location object if exists
-            if (location && !location.timestamp) {
-                location.timestamp = locationTimestamp;
+            if (location) {
+                if (!location.timestamp) location.timestamp = locationTimestamp;
+                location.isStale = isLocationStale;
             }
-            location.isStale = isLocationStale;
 
             const driverBookings = bookingsByDriver[userId] || [];
             const currentBooking = driverBookings[0] || null; // Next/current booking
