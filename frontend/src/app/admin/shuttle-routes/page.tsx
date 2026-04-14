@@ -441,21 +441,38 @@ const AdminShuttleRoutesPage: React.FC = () => {
       dataIndex: 'departureTimes',
       key: 'departureTimes',
       width: 200,
-      render: (times: string[]) => (
-        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-          {times.map((time, index) => (
-            <span key={index} style={{
-              display: 'inline-flex', alignItems: 'center', gap: 3,
-              padding: '2px 8px', borderRadius: 6, fontSize: 12, fontWeight: 600,
-              background: 'linear-gradient(135deg, #dbeafe, #ede9fe)',
-              color: '#4338ca', border: '1px solid #c7d2fe'
-            }}>
-              <ClockCircleOutlined style={{ fontSize: 10 }} />
-              {time}
-            </span>
-          ))}
-        </div>
-      ),
+      render: (times: string[]) => {
+        const displayLimit = 6;
+        const visibleTimes = times.slice(0, displayLimit);
+        const hiddenCount = times.length - displayLimit;
+        return (
+          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+            {visibleTimes.map((time, index) => (
+              <span key={index} style={{
+                display: 'inline-flex', alignItems: 'center', gap: 3,
+                padding: '2px 8px', borderRadius: 6, fontSize: 12, fontWeight: 600,
+                background: 'linear-gradient(135deg, #dbeafe, #ede9fe)',
+                color: '#4338ca', border: '1px solid #c7d2fe'
+              }}>
+                <ClockCircleOutlined style={{ fontSize: 10 }} />
+                {time}
+              </span>
+            ))}
+            {hiddenCount > 0 && (
+                <Tooltip title={times.slice(displayLimit).join(', ')}>
+                    <span style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 3,
+                        padding: '2px 8px', borderRadius: 6, fontSize: 12, fontWeight: 600,
+                        background: '#f1f5f9',
+                        color: '#64748b', border: '1px solid #cbd5e1', cursor: 'pointer'
+                    }}>
+                        +{hiddenCount}
+                    </span>
+                </Tooltip>
+            )}
+          </div>
+        );
+      },
     },
     {
       title: 'Fiyat',
