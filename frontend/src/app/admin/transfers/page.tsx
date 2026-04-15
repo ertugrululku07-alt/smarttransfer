@@ -963,6 +963,8 @@ const TransfersPage: React.FC = () => {
                                     vehicleType: selectedBooking.metadata?.vehicleType || selectedBooking.vehicleType,
                                     price: selectedBooking.price,
                                     adults: selectedBooking.adults,
+                                    children: selectedBooking.children,
+                                    infants: selectedBooking.infants,
                                     notes: selectedBooking.notes
                                 });
                             }
@@ -1073,7 +1075,11 @@ const TransfersPage: React.FC = () => {
                                                 <Select.Option value="SUV">SUV</Select.Option>
                                             </Select>
                                         </Form.Item>
-                                        <Form.Item name="adults" label="Yolcu Sayısı"><InputNumber min={1} style={{width:'100%'}}/></Form.Item>
+                                        <div style={{display:'flex', gap:8}}>
+                                            <Form.Item name="adults" label="Yetişkin" style={{flex:1, marginBottom:0}}><InputNumber min={1} style={{width:'100%'}}/></Form.Item>
+                                            <Form.Item name="children" label="Çocuk" style={{flex:1, marginBottom:0}}><InputNumber min={0} defaultValue={0} style={{width:'100%'}}/></Form.Item>
+                                            <Form.Item name="infants" label="Bebek" style={{flex:1, marginBottom:0}}><InputNumber min={0} defaultValue={0} style={{width:'100%'}}/></Form.Item>
+                                        </div>
                                         <Form.Item name="price" label="Müşteri Fiyatı (₺)" rules={[{required:true, message:'Zorunlu'}]}><InputNumber min={0} style={{width:'100%'}}/></Form.Item>
                                         <Form.Item name="notes" label="Notlar (Özel İstekler)"><Input.TextArea rows={2}/></Form.Item>
                                     </div>
@@ -1139,7 +1145,11 @@ const TransfersPage: React.FC = () => {
                             <Form.Item name="passengerName" label="Ad Soyad" rules={[{required:true, message:'Zorunlu'}]}><Input/></Form.Item>
                             <Form.Item name="passengerPhone" label="Telefon" rules={[{required:true, message:'Zorunlu'}]}><Input/></Form.Item>
                             <Form.Item name="passengerEmail" label="E-posta"><Input/></Form.Item>
-                            <Form.Item name="adults" label="Yolcu Sayısı" initialValue={1}><InputNumber min={1} style={{width:'100%'}}/></Form.Item>
+                            <div style={{display:'flex', gap:8}}>
+                                <Form.Item name="adults" label="Yetişkin" initialValue={1} style={{flex:1, marginBottom:0}}><InputNumber min={1} style={{width:'100%'}}/></Form.Item>
+                                <Form.Item name="children" label="Çocuk" initialValue={0} style={{flex:1, marginBottom:0}}><InputNumber min={0} style={{width:'100%'}}/></Form.Item>
+                                <Form.Item name="infants" label="Bebek" initialValue={0} style={{flex:1, marginBottom:0}}><InputNumber min={0} style={{width:'100%'}}/></Form.Item>
+                            </div>
                             
                             <Divider style={{gridColumn:'1 / -1', margin:'4px 0'}}>Transfer Detayları</Divider>
                             

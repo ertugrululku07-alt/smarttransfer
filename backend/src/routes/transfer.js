@@ -1721,7 +1721,7 @@ router.patch('/bookings/:id', authMiddleware, async (req, res) => {
  */
 router.post('/bookings/admin', authMiddleware, async (req, res) => {
     try {
-        const { passengerName, passengerPhone, passengerEmail, pickup, dropoff, pickupDateTime, vehicleType, flightNumber, price, notes, adults } = req.body;
+        const { passengerName, passengerPhone, passengerEmail, pickup, dropoff, pickupDateTime, vehicleType, flightNumber, price, notes, adults, children, infants } = req.body;
 
         const tenantId = req.tenant?.id;
         if (!tenantId) return res.status(500).json({ success: false, error: 'Tenant context missing' });
@@ -1762,6 +1762,8 @@ router.post('/bookings/admin', authMiddleware, async (req, res) => {
                 contactEmail: passengerEmail || '',
                 contactPhone: passengerPhone || '',
                 adults: Number(adults || 1),
+                children: Number(children || 0),
+                infants: Number(infants || 0),
                 specialRequests: notes || '',
                 metadata: metadata,
             }
@@ -1781,7 +1783,7 @@ router.post('/bookings/admin', authMiddleware, async (req, res) => {
 router.put('/bookings/admin/:id', authMiddleware, async (req, res) => {
     try {
         const { id } = req.params;
-        const { passengerName, passengerPhone, pickup, dropoff, pickupDateTime, vehicleType, flightNumber, price, notes, adults } = req.body;
+        const { passengerName, passengerPhone, pickup, dropoff, pickupDateTime, vehicleType, flightNumber, price, notes, adults, children, infants } = req.body;
 
         const currentBooking = await prisma.booking.findUnique({ where: { id: id } });
         if (!currentBooking) {
@@ -1811,6 +1813,8 @@ router.put('/bookings/admin/:id', authMiddleware, async (req, res) => {
         }
         if (notes !== undefined) updateData.specialRequests = notes;
         if (adults !== undefined) updateData.adults = Number(adults);
+        if (children !== undefined) updateData.children = Number(children);
+        if (infants !== undefined) updateData.infants = Number(infants);
 
         const updated = await prisma.booking.update({
             where: { id: id },

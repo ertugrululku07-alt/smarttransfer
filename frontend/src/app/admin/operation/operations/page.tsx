@@ -1203,6 +1203,7 @@ export default function OperationsPage() {
                     ? { ...b, status: data.status, driverId: data.driverId || b.driverId }
                     : b
             ));
+            fetchShuttleRuns(true);
         };
 
         const handleNewBooking = () => {
