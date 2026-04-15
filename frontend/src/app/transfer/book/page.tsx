@@ -947,7 +947,7 @@ const TransferBookingContent: React.FC = () => {
                                                                 />
                                                                 <Text style={{ fontSize: 13 }}>Dönüş transferi için de aynı hizmetleri ekle</Text>
                                                             </div>
-                                                        )}}
+                                                        )}
                                                     </div>
                                                 )
                                             }
