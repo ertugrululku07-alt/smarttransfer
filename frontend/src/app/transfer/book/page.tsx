@@ -114,6 +114,9 @@ const TransferBookingContent: React.FC = () => {
     const date = searchParams.get('date');
     const time = searchParams.get('time');
     const passengers = searchParams.get('passengers');
+    const adultsParam = searchParams.get('adults');
+    const childrenParam = searchParams.get('children');
+    const babiesParam = searchParams.get('babies');
     const type = searchParams.get('type');
     const durationParam = searchParams.get('duration'); // Get duration from URL
     const shuttleMasterTime = searchParams.get('shuttleMasterTime');
@@ -242,6 +245,7 @@ const TransferBookingContent: React.FC = () => {
     const [extraServices, setExtraServices] = useState<any[]>([]);
     const [selectedServices, setSelectedServices] = useState<Map<string, number>>(new Map());
     const [servicesLoading, setServicesLoading] = useState(false);
+    const [addServicesToReturn, setAddServicesToReturn] = useState(true);
 
     useEffect(() => {
         // Fetch Extra Services
@@ -314,7 +318,8 @@ const TransferBookingContent: React.FC = () => {
         return total;
     };
 
-    const grandTotal = convertedVehiclePrice + convertedReturnVehiclePrice + getConvertedServicePrice();
+    const serviceMultiplier = (isRoundTrip && addServicesToReturn) ? 2 : 1;
+    const grandTotal = convertedVehiclePrice + convertedReturnVehiclePrice + (getConvertedServicePrice() * serviceMultiplier);
 
 
     const onFinish = async (values: any) => {
@@ -387,6 +392,9 @@ const TransferBookingContent: React.FC = () => {
                 dropoff,
                 pickupDateTime: finalPickupDateTime,
                 passengers: Number(passengers),
+                adults: Number(adultsParam) || Number(passengers) || 1,
+                children: Number(childrenParam) || 0,
+                infants: Number(babiesParam) || 0,
                 price: convertedVehiclePrice, // Only outbound price
                 currency: selectedCurrency,
                 paymentMethod: resolvedPaymentMethod,
@@ -429,6 +437,9 @@ const TransferBookingContent: React.FC = () => {
                 dropoff: pickup,
                 pickupDateTime: returnTime ? `${returnDate}T${returnTime}:00.000` : returnDate,
                 passengers: Number(passengers),
+                adults: Number(adultsParam) || Number(passengers) || 1,
+                children: Number(childrenParam) || 0,
+                infants: Number(babiesParam) || 0,
                 price: convertedReturnVehiclePrice, // Only return price
                 currency: selectedCurrency,
                 paymentMethod: resolvedPaymentMethod,
@@ -447,7 +458,7 @@ const TransferBookingContent: React.FC = () => {
                     },
                     ...(values.passengerList || [])
                 ],
-                extraServices: [], // Services only apply to outbound
+                extraServices: addServicesToReturn ? selectedServicesList : [],
                 billingDetails: undefined, // Billing handled by outbound
                 isRoundTrip: true,
                 tripLeg: 'RETURN',
@@ -919,6 +930,24 @@ const TransferBookingContent: React.FC = () => {
                                                                     );
                                                                 })
                                                         )}
+                                                        {isRoundTrip && selectedServices.size > 0 && (
+                                                            <div style={{
+                                                                marginTop: 12,
+                                                                padding: '10px 12px',
+                                                                background: '#e6f7ff',
+                                                                border: '1px solid #91d5ff',
+                                                                borderRadius: 8,
+                                                                display: 'flex',
+                                                                alignItems: 'center',
+                                                                gap: 8
+                                                            }}>
+                                                                <Checkbox
+                                                                    checked={addServicesToReturn}
+                                                                    onChange={(e) => setAddServicesToReturn(e.target.checked)}
+                                                                />
+                                                                <Text style={{ fontSize: 13 }}>Dönüş transferi için de aynı hizmetleri ekle</Text>
+                                                            </div>
+                                                        )}}
                                                     </div>
                                                 )
                                             }
@@ -1095,10 +1124,14 @@ const TransferBookingContent: React.FC = () => {
                                             {Array.from(selectedServices.entries()).map(([id, qty]) => {
                                                 const s = extraServices.find(srv => srv.id === id);
                                                 if (!s) return null;
+                                                const multiplier = (isRoundTrip && addServicesToReturn) ? 2 : 1;
+                                                const label = (isRoundTrip && addServicesToReturn)
+                                                    ? `${s.name} x ${qty} (Gidiş+Dönüş)`
+                                                    : `${s.name} x ${qty}`;
                                                 return (
                                                     <div key={id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#666', marginTop: 4 }}>
-                                                        <span>{s.name} x {qty}</span>
-                                                        <span>{formatPrice(Number(s.price) * qty, s.currency)}</span>
+                                                        <span>{label}</span>
+                                                        <span>{formatPrice(Number(s.price) * qty * multiplier, s.currency)}</span>
                                                     </div>
                                                 );
                                             })}

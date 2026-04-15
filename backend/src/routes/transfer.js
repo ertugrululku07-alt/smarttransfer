@@ -763,6 +763,9 @@ router.post('/book', optionalAuthMiddleware, async (req, res) => {
                 dropoff,
                 pickupDateTime,
                 passengers,
+                adults,
+                children,
+                infants,
                 price,
                 currency,
                 paymentMethod,
@@ -793,8 +796,9 @@ router.post('/book', optionalAuthMiddleware, async (req, res) => {
                     startDate: new Date(pickupDateTime),
                     endDate: new Date(new Date(pickupDateTime).getTime() + 60 * 60 * 1000),
 
-                    adults: Number(passengers),
-                    children: 0,
+                    adults: Number(adults) || Number(passengers) || 1,
+                    children: Number(children) || 0,
+                    infants: Number(infants) || 0,
 
                     // Pricing
                     subtotal: price || 0,

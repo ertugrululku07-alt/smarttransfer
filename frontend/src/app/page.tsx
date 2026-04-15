@@ -219,6 +219,9 @@ const HomePage: React.FC = () => {
     }
     const totalPassengers = passengerCounts.adults + passengerCounts.children + passengerCounts.babies;
     params.set('passengers', totalPassengers.toString());
+    params.set('adults', passengerCounts.adults.toString());
+    params.set('children', passengerCounts.children.toString());
+    params.set('babies', passengerCounts.babies.toString());
     params.set('type', tripType === 'return' ? 'ROUND_TRIP' : 'ONE_WAY');
     if (tripType === 'return' && returnDate) {
       params.set('returnDate', returnDate.format('YYYY-MM-DD'));
