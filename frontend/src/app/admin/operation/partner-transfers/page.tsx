@@ -218,17 +218,27 @@ export default function PartnerTransfersPage() {
         {
             title: 'Pax',
             key: 'pax',
-            width: 60,
+            width: 80,
             align: 'center' as const,
-            render: (_: any, record: any) => (
-                <div style={{
-                    display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 10px',
-                    borderRadius: 8, background: '#f8fafc', border: '1px solid #e2e8f0',
-                    fontWeight: 700, fontSize: 13, color: '#475569'
-                }}>
-                    👤 {record.adults || record.pax || '-'}
-                </div>
-            ),
+            render: (_: any, record: any) => {
+                const a = record.adults || 1;
+                const c = record.children || 0;
+                const inf = record.infants || 0;
+                const total = a + c + inf;
+                const parts: string[] = [];
+                if (a > 0) parts.push(`${a}Y`);
+                if (c > 0) parts.push(`${c}Ç`);
+                if (inf > 0) parts.push(`${inf}B`);
+                return (
+                    <div style={{
+                        display: 'inline-flex', flexDirection: 'column', alignItems: 'center', padding: '3px 10px',
+                        borderRadius: 8, background: '#f8fafc', border: '1px solid #e2e8f0',
+                    }}>
+                        <span style={{ fontWeight: 700, fontSize: 13, color: '#475569' }}>👤 {total}</span>
+                        <span style={{ fontSize: 9, color: '#94a3b8', fontWeight: 600 }}>{parts.join('+')}</span>
+                    </div>
+                );
+            },
         },
     ];
 

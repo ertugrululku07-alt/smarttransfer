@@ -839,7 +839,7 @@ export default function OperationDashboard() {
                             {[
                                 { label: 'Müşteri', value: selectedBooking.contactName },
                                 { label: 'Telefon', value: selectedBooking.contactPhone, icon: <PhoneOutlined /> },
-                                { label: 'Yolcu Sayısı', value: selectedBooking.adults ? `${selectedBooking.adults} kişi` : '-' },
+                                { label: 'Yolcu Sayısı', value: (() => { const a = selectedBooking.adults || 1; const c = selectedBooking.children || 0; const inf = selectedBooking.infants || 0; const total = a + c + inf; const parts: string[] = []; if (a > 0) parts.push(`${a} Yetişkin`); if (c > 0) parts.push(`${c} Çocuk`); if (inf > 0) parts.push(`${inf} Bebek`); return `${total} kişi (${parts.join(', ')})`; })() },
                                 { label: 'Araç Tipi', value: selectedBooking.vehicleType || '-', icon: <CarOutlined /> },
                                 { label: 'Uçuş Kodu', value: selectedBooking.flightNumber || '-' },
                                 { label: 'Tutar', value: `${selectedBooking.total} ${selectedBooking.currency}` },

@@ -1108,7 +1108,7 @@ export default function OperationsPage() {
                         passport: '-',
                         uetds: 'Gönderilmedi',
                         agencyNote: item.notes || item.metadata?.agencyNotes || '',
-                        pax: item.adults || (item.vehicle?.pax) || 1,
+                        pax: (item.adults || 1) + (item.children || 0) + (item.infants || 0),
                         vehicleId: item.assignedVehicleId || item.metadata?.vehicleId || null,
                         assignedVehicleId: item.assignedVehicleId || item.metadata?.vehicleId || null,
                         // Fix customer name mapping
@@ -2064,7 +2064,7 @@ export default function OperationsPage() {
                         dropoff: typeof item.dropoff === 'string' ? { location: item.dropoff, rawLocation: item.dropoff } : item.dropoff,
                         direction,
                         transferType: isShuttle ? 'SHUTTLE' : 'PRIVATE',
-                        pax: item.adults || (item.vehicle?.pax) || 1,
+                        pax: (item.adults || 1) + (item.children || 0) + (item.infants || 0),
                         assignedVehicleId: item.assignedVehicleId || item.metadata?.vehicleId || null,
                         contactName: item.contactName || item.customer?.name || item.passengerName || '',
                         agencyName: item.agencyName || item.agency?.name || item.partnerName || (item.agencyId ? `Acente#${item.agencyId.slice(-4)}` : null),
