@@ -875,7 +875,7 @@ export default function OperationsPage() {
         {
             title: 'PAX',
             key: 'pax',
-            width: 60,
+            width: 70,
             render: (_: any, record: any) => {
                 const adults = record.adults || record.passengers || 0;
                 const children = record.children || 0;
@@ -888,9 +888,7 @@ export default function OperationsPage() {
                 return renderEditableCell(record, 'adults',
                     <div style={{ cursor: 'text' }}>
                         <Text strong style={{ fontSize: 12, display: 'block' }}>{total || '-'}</Text>
-                        {(children > 0 || infants > 0) && (
-                            <span style={{ fontSize: 9, color: '#94a3b8', fontWeight: 600 }}>{parts.join('+')}</span>
-                        )}
+                        <span style={{ fontSize: 9, color: '#94a3b8', fontWeight: 600 }}>{parts.join('+') || `${adults}Y`}</span>
                     </div>,
                     <Input size="small" type="number" autoFocus min={1}
                         defaultValue={adults || 1}
@@ -2637,7 +2635,7 @@ export default function OperationsPage() {
                                             <strong>{activeRuns.length}</strong> sefer listeleniyor
                                         </Text>
                                         <Text style={{ fontSize: 11, color: '#2563eb', fontWeight: 600 }}>
-                                            Toplam Yolcu: {activeRuns.reduce((sum: number, r: any) => sum + r.bookings.length, 0)}
+                                            Toplam Yolcu: {activeRuns.reduce((sum: number, r: any) => sum + r.bookings.reduce((paxSum: number, b: any) => paxSum + ((b.adults || 1) + (b.children || 0) + (b.infants || 0)), 0), 0)}
                                         </Text>
                                         <Text style={{ fontSize: 11, color: '#9333ea', fontWeight: 600 }}>
                                             Atanan Sefer: {activeRuns.filter((r: any) => r.driverId).length} / {activeRuns.length}
@@ -2687,7 +2685,7 @@ export default function OperationsPage() {
                                     if (run.bookings.length > 0 && run.bookings.every((b: any) => b.status === 'COMPLETED')) return false;
                                     return true;
                                 }).map((run: any) => {
-                                    const totalPax = run.bookings.reduce((s: number, b: any) => s + (b.adults || 1), 0);
+                                    const totalPax = run.bookings.reduce((s: number, b: any) => s + ((b.adults || 1) + (b.children || 0) + (b.infants || 0)), 0);
                                     const capacity = run.maxSeats || 0;
                                     const pct = capacity > 0 ? Math.round((totalPax / capacity) * 100) : 0;
                                     const fillColor = pct >= 90 ? '#dc2626' : pct >= 70 ? '#d97706' : '#16a34a';
@@ -3161,9 +3159,7 @@ export default function OperationsPage() {
                                                                             return (
                                                                                 <span style={{ fontWeight: 700, color: '#374151' }}>
                                                                                     {pAdults + pChildren + pInfants}
-                                                                                    {(pChildren > 0 || pInfants > 0) && (
-                                                                                        <span style={{ fontSize: 9, color: '#94a3b8', fontWeight: 600, marginLeft: 3 }}>({pParts.join('+')})</span>
-                                                                                    )}
+                                                                                    <span style={{ fontSize: 9, color: '#94a3b8', fontWeight: 600, marginLeft: 3 }}>({pParts.join('+') || `${pAdults}Y`})</span>
                                                                                 </span>
                                                                             );
                                                                         }
@@ -3395,7 +3391,7 @@ export default function OperationsPage() {
                                     🚌 Shuttle: {completedBookings.filter((b: any) => b.transferType === 'SHUTTLE').length}
                                 </span>
                                 <span style={{ fontSize: 11, fontWeight: 600, color: '#0f766e', background: '#f0fdfa', padding: '2px 8px', borderRadius: 6 }}>
-                                    👥 {completedBookings.reduce((s: number, b: any) => s + (b.pax || 1), 0)} Yolcu
+                                    👥 {completedBookings.reduce((s: number, b: any) => s + ((b.adults || 1) + (b.children || 0) + (b.infants || 0)), 0)} Yolcu
                                 </span>
                                 <span style={{ fontSize: 11, fontWeight: 700, color: '#16a34a', background: '#f0fdf4', padding: '2px 8px', borderRadius: 6 }}>
                                     💰 {completedBookings.reduce((s: number, b: any) => s + (b.price || b.total || 0), 0).toLocaleString('tr-TR')} ₺
@@ -3558,17 +3554,35 @@ export default function OperationsPage() {
                                     },
                                     {
                                         title: 'PAX',
-                                        dataIndex: 'pax',
                                         key: 'pax',
                                         width: 55,
                                         align: 'center' as const,
-                                        sorter: (a: any, b: any) => (a.pax || 1) - (b.pax || 1),
-                                        render: (val: number) => (
-                                            <span style={{
-                                                fontWeight: 800, color: '#4f46e5', fontSize: 13,
-                                                background: '#eef2ff', borderRadius: 6, padding: '2px 8px',
-                                            }}>{val || 1}</span>
-                                        )
+                                        sorter: (a: any, b: any) => {
+                                            const totalA = (a.adults || 1) + (a.children || 0) + (a.infants || 0);
+                                            const totalB = (b.adults || 1) + (b.children || 0) + (b.infants || 0);
+                                            return totalA - totalB;
+                                        },
+                                        render: (_: any, record: any) => {
+                                            const adults = record.adults || 1;
+                                            const children = record.children || 0;
+                                            const infants = record.infants || 0;
+                                            const total = adults + children + infants;
+                                            const parts: string[] = [];
+                                            if (adults > 0) parts.push(`${adults}Y`);
+                                            if (children > 0) parts.push(`${children}Ç`);
+                                            if (infants > 0) parts.push(`${infants}B`);
+                                            return (
+                                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                                                    <span style={{
+                                                        fontWeight: 800, color: '#4f46e5', fontSize: 13,
+                                                        background: '#eef2ff', borderRadius: 6, padding: '2px 8px',
+                                                    }}>{total}</span>
+                                                    {(children > 0 || infants > 0) && (
+                                                        <span style={{ fontSize: 9, color: '#94a3b8', fontWeight: 600, marginTop: 2 }}>{parts.join('+')}</span>
+                                                    )}
+                                                </div>
+                                            );
+                                        }
                                     },
                                     {
                                         title: 'PLAN',

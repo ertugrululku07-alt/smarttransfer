@@ -755,9 +755,7 @@ const TransfersPage: React.FC = () => {
               return renderEditableCell(r, 'adults', 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                       <Text style={{fontSize:12, fontWeight: 500}}>{total ? `${total} kişi` : '-'}</Text>
-                      {(children > 0 || infants > 0) && (
-                          <Text type="secondary" style={{fontSize:10, lineHeight: 1}}>{parts.join('+')}</Text>
-                      )}
+                      <Text type="secondary" style={{fontSize:10, lineHeight: 1, letterSpacing: '-0.3px'}}>{parts.join('+') || `${adults}Y`}</Text>
                   </div>
               );
           }},
@@ -1021,7 +1019,7 @@ const TransfersPage: React.FC = () => {
                                                 if (a > 0) parts.push(`${a} Yetişkin`);
                                                 if (c > 0) parts.push(`${c} Çocuk`);
                                                 if (inf > 0) parts.push(`${inf} Bebek`);
-                                                return <span><strong>{total} kişi</strong>{(c > 0 || inf > 0) ? ` (${parts.join(', ')})` : ''}</span>;
+                                                return <span><strong>{total} kişi</strong> <span style={{color:'#64748b'}}>({parts.join(', ')})</span></span>;
                                             })()}
                                         </Descriptions.Item>
                                         <Descriptions.Item label="Notlar" span={2}>{selectedBooking.notes||'-'}</Descriptions.Item>
