@@ -1462,7 +1462,7 @@ router.patch('/bookings/:id', authMiddleware, async (req, res) => {
         const { driverId, assignedVehicleId, skipConflictCheck, internalNotes, returnToReservation, returnReason,
                 // Inline cell editing fields:
                 contactName, contactPhone, pickupDateTime, pickupLocation, dropoffLocation,
-                flightNumber, flightTime, adults, price, status: newStatus, operationalStatus } = req.body;
+                flightNumber, flightTime, adults, children, infants, price, status: newStatus, operationalStatus } = req.body;
         console.log(`[PATCH booking] id=${id} driverId=${driverId} assignedVehicleId=${assignedVehicleId}`);
 
         // Auto-find vehicle assigned to this driver if not explicitly provided
@@ -1626,6 +1626,8 @@ router.patch('/bookings/:id', authMiddleware, async (req, res) => {
         if (contactPhone !== undefined) updateData.contactPhone = contactPhone;
         if (pickupDateTime !== undefined) { updateData.startDate = new Date(pickupDateTime); updateData.endDate = new Date(pickupDateTime); }
         if (adults !== undefined) updateData.adults = Number(adults);
+        if (children !== undefined) updateData.children = Number(children);
+        if (infants !== undefined) updateData.infants = Number(infants);
         if (price !== undefined) { updateData.total = Number(price); updateData.subtotal = Number(price); }
         if (newStatus !== undefined) updateData.status = newStatus;
         if (returnToReservation) {

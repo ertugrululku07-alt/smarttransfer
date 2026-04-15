@@ -255,6 +255,8 @@ export default function OperationsPage() {
             else if (field === 'flightNumber') payload.flightNumber = value;
             else if (field === 'flightTime') payload.flightTime = value;
             else if (field === 'adults') payload.adults = value;
+            else if (field === 'children') payload.children = value;
+            else if (field === 'infants') payload.infants = value;
             else if (field === 'price') payload.price = value;
             else if (field === 'internalNotes') payload.internalNotes = value;
             else if (field === 'customerNote') payload.specialRequests = value;
@@ -271,6 +273,8 @@ export default function OperationsPage() {
                 else if (field === 'flightNumber') updated.flightNumber = value;
                 else if (field === 'flightTime') updated.flightTime = value;
                 else if (field === 'adults') updated.adults = Number(value);
+                else if (field === 'children') updated.children = Number(value);
+                else if (field === 'infants') updated.infants = Number(value);
                 else if (field === 'price') { updated.price = Number(value); updated.total = Number(value); }
                 else if (field === 'internalNotes') updated.internalNotes = value;
                 else if (field === 'customerNote') updated.specialRequests = value;
@@ -885,17 +889,48 @@ export default function OperationsPage() {
                 if (adults > 0) parts.push(`${adults}Y`);
                 if (children > 0) parts.push(`${children}Ç`);
                 if (infants > 0) parts.push(`${infants}B`);
-                return renderEditableCell(record, 'adults',
-                    <div style={{ cursor: 'text' }}>
+                
+                const isEditing = editingCell === `${record.id}_pax`;
+                
+                if (isEditing) {
+                    return (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                <span style={{ fontSize: 9, color: '#666', width: 12 }}>Y</span>
+                                <Input size="small" type="number" autoFocus min={0}
+                                    defaultValue={adults || 1}
+                                    onBlur={(e) => { saveCellEdit(record.id, 'adults', e.target.value); }}
+                                    onPressEnter={(e) => saveCellEdit(record.id, 'adults', (e.target as HTMLInputElement).value)}
+                                    style={{ width: 40, fontSize: 11 }}
+                                />
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                <span style={{ fontSize: 9, color: '#666', width: 12 }}>Ç</span>
+                                <Input size="small" type="number" min={0}
+                                    defaultValue={children}
+                                    onBlur={(e) => saveCellEdit(record.id, 'children', e.target.value)}
+                                    onPressEnter={(e) => saveCellEdit(record.id, 'children', (e.target as HTMLInputElement).value)}
+                                    style={{ width: 40, fontSize: 11 }}
+                                />
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                <span style={{ fontSize: 9, color: '#666', width: 12 }}>B</span>
+                                <Input size="small" type="number" min={0}
+                                    defaultValue={infants}
+                                    onBlur={(e) => saveCellEdit(record.id, 'infants', e.target.value)}
+                                    onPressEnter={(e) => saveCellEdit(record.id, 'infants', (e.target as HTMLInputElement).value)}
+                                    style={{ width: 40, fontSize: 11 }}
+                                />
+                            </div>
+                        </div>
+                    );
+                }
+                
+                return (
+                    <div style={{ cursor: 'text' }} onDoubleClick={() => setEditingCell(`${record.id}_pax`)}>
                         <Text strong style={{ fontSize: 12, display: 'block' }}>{total || '-'}</Text>
                         <span style={{ fontSize: 9, color: '#94a3b8', fontWeight: 600 }}>{parts.join('+') || `${adults}Y`}</span>
-                    </div>,
-                    <Input size="small" type="number" autoFocus min={1}
-                        defaultValue={adults || 1}
-                        onBlur={(e) => saveCellEdit(record.id, 'adults', e.target.value)}
-                        onPressEnter={(e) => saveCellEdit(record.id, 'adults', (e.target as HTMLInputElement).value)}
-                        style={{ width: 50 }}
-                    />
+                    </div>
                 );
             }
         },
