@@ -17,6 +17,7 @@ import {
 import dayjs from 'dayjs';
 import 'dayjs/locale/tr';
 import apiClient from '@/lib/api-client';
+import { useSocket } from '@/app/context/SocketContext';
 import AdminGuard from '../AdminGuard';
 import AdminLayout from '../AdminLayout';
 import * as XLSX from 'xlsx';
@@ -340,6 +341,7 @@ function getEffectiveStatus(r: Booking) {
 
 // ─── Main Page ───────────────────────────────────────────────────────────────
 const TransfersPage: React.FC = () => {
+    const { socket, isConnected } = useSocket();
     const [loading, setLoading] = useState(false);
     const [bookings, setBookings] = useState<Booking[]>([]);
     const [searchText, setSearchText] = useState('');
@@ -498,6 +500,18 @@ const TransfersPage: React.FC = () => {
         } catch { message.error('Rezervasyonlar yüklenemedi'); }
         finally { setLoading(false); }
     };
+
+    useEffect(() => {
+        if (!socket || !isConnected) return;
+        const handleNewBooking = () => {
+            console.log("Socket: New booking received, reloading list...");
+            fetchBookings();
+        };
+        socket.on('new_booking', handleNewBooking);
+        return () => {
+            socket.off('new_booking', handleNewBooking);
+        };
+    }, [socket, isConnected]);
 
     const handleUpdateStatus = async (id: string, status: string, subStatus?: string) => {
         try {

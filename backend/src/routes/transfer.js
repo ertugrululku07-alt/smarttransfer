@@ -1775,6 +1775,11 @@ router.post('/bookings/admin', authMiddleware, async (req, res) => {
             }
         });
 
+        const io = req.app.get('io');
+        if (io) {
+            io.to('admin_monitoring').emit('new_booking', booking);
+        }
+
         res.json({ success: true, data: booking });
     } catch (error) {
         console.error('Create booking admin error:', error);
