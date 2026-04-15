@@ -3444,6 +3444,7 @@ export default function OperationsPage() {
                                 dataSource={completedBookings}
                                 rowKey="id"
                                 size="small"
+                                childrenColumnName="nested_children_disabled"
                                 loading={completedLoading}
                                 pagination={{ pageSize: 50, showSizeChanger: true, pageSizeOptions: ['25', '50', '100', '200'], size: 'small', showTotal: (total) => `${total} kayıt` }}
                                 scroll={{ x: 2400 }}

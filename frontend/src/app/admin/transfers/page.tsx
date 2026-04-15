@@ -263,7 +263,7 @@ const FilterPopover: React.FC<{ colKey: string; filter: ColFilter; onFilter: (k:
         </div>
     );
     return (
-        <Popover content={content} title={null} trigger="click" placement="bottomRight" destroyTooltipOnHide>
+        <Popover content={content} title={null} trigger="click" placement="bottomRight" destroyOnHidden>
             <Button type="text" size="small" style={{ padding:'0 2px', color: isActive ? '#6366f1' : '#ccc', marginLeft:2 }}
                 icon={isActive ? <FilterFilled style={{fontSize:11}} /> : <FilterOutlined style={{fontSize:11}} />} />
         </Popover>
@@ -929,6 +929,7 @@ const TransfersPage: React.FC = () => {
                         loading={loading} scroll={{x: Math.max(totalWidth, 1000)}}
                         components={tableComponents}
                         tableLayout="fixed"
+                        childrenColumnName="nested_children_disabled"
                         pagination={{pageSize:15,showSizeChanger:true,
                             showTotal:(total,range)=>`${range[0]}-${range[1]} / ${total} kayıt`,
                             pageSizeOptions:['10','15','25','50','100']}}

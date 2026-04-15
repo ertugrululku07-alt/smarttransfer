@@ -407,6 +407,7 @@ export default function PoolTransfersPage() {
                         columns={columns}
                         dataSource={filteredBookings}
                         rowKey="id"
+                        childrenColumnName="nested_children_disabled"
                         loading={loading}
                         pagination={{
                             pageSize: 10,

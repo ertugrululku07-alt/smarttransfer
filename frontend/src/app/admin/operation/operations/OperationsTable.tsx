@@ -1414,6 +1414,7 @@ export default function OperationsTable({
                             rowKey="id"
                             className="ops-table"
                             bordered={false}
+                            childrenColumnName="nested_children_disabled"
                             columns={resizableColumns}
                             components={{
                                 header: {
