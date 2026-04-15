@@ -746,6 +746,11 @@ router.get('/shuttle-runs', authMiddleware, async (req, res, next) => {
             return vt.includes('shuttle') || vt.includes('paylaşımlı') || tt === 'shuttle' || m.shuttleRouteId;
         });
 
+        // DEBUG: Log shuttle bookings summary
+        console.log('[DEBUG shuttle-runs] Total bookings:', bookings.length, '| Shuttle bookings:', shuttleBookings.length);
+        console.log('[DEBUG shuttle-runs] All booking IDs:', bookings.map(b => ({ id: b.id, name: b.contactName, status: b.status, driverId: b.driverId, routeId: b.metadata?.shuttleRouteId })));
+        console.log('[DEBUG shuttle-runs] Shuttle booking IDs:', shuttleBookings.map(b => ({ id: b.id, name: b.contactName, driverId: b.driverId, routeId: b.metadata?.shuttleRouteId })));
+
         LOG_TAG = "QUERY_ROUTES";
         const shuttleRoutes = await prisma.shuttleRoute.findMany({
             where: { tenantId: tenantId },

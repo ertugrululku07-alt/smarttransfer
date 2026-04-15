@@ -96,6 +96,10 @@ router.get('/bookings', authMiddleware, ensureDriver, async (req, res) => {
             orderBy: { startDate: 'asc' }
         });
 
+        // DEBUG: Log all bookings for this driver
+        console.log('[DEBUG driver/bookings] Driver:', driverId, '| Total bookings:', bookings.length);
+        console.log('[DEBUG driver/bookings] All booking IDs:', bookings.map(b => ({ id: b.id, name: b.contactName, status: b.status, routeId: b.metadata?.shuttleRouteId })));
+
         // Group shuttle bookings together for the driver app
         const isShuttle = (b) => {
             const vt = String((b.metadata?.vehicleType) || '').toLowerCase();
