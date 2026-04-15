@@ -15,7 +15,7 @@ import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import 'dayjs/locale/tr';
 import dynamic from 'next/dynamic';
-import type { DriverMapData } from './HereLiveMapClient';
+import type { DriverMapData, RouteStop } from './HereLiveMapClient';
 
 dayjs.extend(relativeTime);
 dayjs.locale('tr');
@@ -84,6 +84,89 @@ const LiveMapPage = () => {
     const [routeDate, setRouteDate] = useState<string>(dayjs().format('YYYY-MM-DD'));
     const [routePoints, setRoutePoints] = useState<any[]>([]);
     const [routeLoading, setRouteLoading] = useState(false);
+
+    // Haversine helper for distance calc
+    const haversineM = (lat1: number, lng1: number, lat2: number, lng2: number): number => {
+        const R = 6371000;
+        const toRad = (d: number) => (d * Math.PI) / 180;
+        const dLat = toRad(lat2 - lat1);
+        const dLng = toRad(lng2 - lng1);
+        const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    };
+
+    // Detect stops: clusters where speed < 5 km/h for >2 consecutive minutes
+    const routeStops: RouteStop[] = useMemo(() => {
+        if (!routePoints || routePoints.length < 2) return [];
+        const MIN_STOP_MS = 2 * 60 * 1000; // 2 minutes
+        const SPEED_THRESHOLD = 5; // km/h
+        const stops: RouteStop[] = [];
+        let stopStart: any = null;
+        let stopEnd: any = null;
+
+        for (let i = 0; i < routePoints.length; i++) {
+            const p = routePoints[i];
+            if (p.speed < SPEED_THRESHOLD) {
+                if (!stopStart) stopStart = p;
+                stopEnd = p;
+            } else {
+                if (stopStart && stopEnd) {
+                    const duration = new Date(stopEnd.timestamp).getTime() - new Date(stopStart.timestamp).getTime();
+                    if (duration >= MIN_STOP_MS) {
+                        stops.push({
+                            lat: stopStart.latitude,
+                            lng: stopStart.longitude,
+                            startTime: stopStart.timestamp,
+                            endTime: stopEnd.timestamp,
+                            durationMin: Math.round(duration / 60000),
+                        });
+                    }
+                }
+                stopStart = null;
+                stopEnd = null;
+            }
+        }
+        // Handle trailing stop
+        if (stopStart && stopEnd) {
+            const duration = new Date(stopEnd.timestamp).getTime() - new Date(stopStart.timestamp).getTime();
+            if (duration >= MIN_STOP_MS) {
+                stops.push({
+                    lat: stopStart.latitude,
+                    lng: stopStart.longitude,
+                    startTime: stopStart.timestamp,
+                    endTime: stopEnd.timestamp,
+                    durationMin: Math.round(duration / 60000),
+                });
+            }
+        }
+        return stops;
+    }, [routePoints]);
+
+    // Route stats
+    const routeStats = useMemo(() => {
+        if (!routePoints || routePoints.length < 2) return null;
+        let totalDist = 0;
+        let maxSpeed = 0;
+        const violations = routePoints.filter(p => p.speed > 120);
+        for (let i = 1; i < routePoints.length; i++) {
+            const d = haversineM(routePoints[i - 1].latitude, routePoints[i - 1].longitude, routePoints[i].latitude, routePoints[i].longitude);
+            if (d < 5000) totalDist += d; // skip GPS jumps
+            if (routePoints[i].speed > maxSpeed) maxSpeed = routePoints[i].speed;
+        }
+        const firstTime = new Date(routePoints[0].timestamp);
+        const lastTime = new Date(routePoints[routePoints.length - 1].timestamp);
+        const durationMin = Math.round((lastTime.getTime() - firstTime.getTime()) / 60000);
+        return {
+            totalDistKm: (totalDist / 1000).toFixed(1),
+            maxSpeed: Math.round(maxSpeed),
+            violationCount: violations.length,
+            stopCount: routeStops.length,
+            totalStopMin: routeStops.reduce((s, st) => s + st.durationMin, 0),
+            durationMin,
+            firstTime: firstTime.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }),
+            lastTime: lastTime.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }),
+        };
+    }, [routePoints, routeStops]);
 
     const fetchRoute = useCallback(async (driverId: string, date: string) => {
         setRouteLoading(true);
@@ -281,6 +364,7 @@ const LiveMapPage = () => {
                             selectedDriver={selectedMapDriver}
                             onSelectDriver={(d) => setSelectedDriverId(d?.driverId || null)}
                             routePoints={routePoints}
+                            routeStops={routeStops}
                         />
                         {/* Map Legend */}
                         <div style={{
@@ -295,6 +379,21 @@ const LiveMapPage = () => {
                                     <span style={{ color: cfg.text, fontWeight: 600 }}>{cfg.label}</span>
                                 </div>
                             ))}
+                            {routePoints.length > 0 && (<>
+                                <div style={{ borderTop: '1px solid #e2e8f0', margin: '4px 0' }} />
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                                    <span style={{ width: 12, height: 3, background: '#6366f1', display: 'inline-block', borderRadius: 2 }} />
+                                    <span style={{ color: '#6366f1', fontWeight: 600 }}>Rota</span>
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#0891b2', display: 'inline-block' }} />
+                                    <span style={{ color: '#0891b2', fontWeight: 600 }}>Duraklama</span>
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#ef4444', display: 'inline-block' }} />
+                                    <span style={{ color: '#ef4444', fontWeight: 600 }}>Hız İhlali</span>
+                                </div>
+                            </>)}
                         </div>
                         {/* Expand/Collapse sidebar */}
                         <div
@@ -344,17 +443,76 @@ const LiveMapPage = () => {
                                             <div style={{ color: '#64748b', display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
                                                 <Spin size="small" /> Rota yükleniyor...
                                             </div>
-                                        ) : routePoints.length > 0 ? (
-                                            <div style={{ color: '#15803d', fontSize: 11, fontWeight: 500 }}>
-                                                <EnvironmentOutlined /> {routePoints.length} konum noktası bulundu.
-                                                {routePoints.filter(p => p.speed > 120).length > 0 && (
-                                                    <span style={{ color: '#dc2626', marginLeft: 4, fontWeight: 600 }}>
-                                                        ({routePoints.filter(p => p.speed > 120).length} hız ihlali)
-                                                    </span>
-                                                )}
-                                                <div style={{ color: '#64748b', marginTop: 2, fontSize: 10 }}>
-                                                    Haritada mavi çizgi olarak gösteriliyor.
+                                        ) : routePoints.length > 0 && routeStats ? (
+                                            <div>
+                                                {/* Stats Grid */}
+                                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 8 }}>
+                                                    <div style={{ background: '#eff6ff', padding: '6px 8px', borderRadius: 6, textAlign: 'center' }}>
+                                                        <div style={{ fontSize: 9, color: '#64748b', fontWeight: 600 }}>MESAFE</div>
+                                                        <div style={{ fontSize: 14, fontWeight: 800, color: '#1d4ed8' }}>{routeStats.totalDistKm} km</div>
+                                                    </div>
+                                                    <div style={{ background: '#f0fdf4', padding: '6px 8px', borderRadius: 6, textAlign: 'center' }}>
+                                                        <div style={{ fontSize: 9, color: '#64748b', fontWeight: 600 }}>SÜRE</div>
+                                                        <div style={{ fontSize: 14, fontWeight: 800, color: '#15803d' }}>
+                                                            {routeStats.durationMin >= 60 ? `${Math.floor(routeStats.durationMin / 60)}sa ${routeStats.durationMin % 60}dk` : `${routeStats.durationMin} dk`}
+                                                        </div>
+                                                    </div>
+                                                    <div style={{ background: routeStats.maxSpeed > 120 ? '#fef2f2' : '#fefce8', padding: '6px 8px', borderRadius: 6, textAlign: 'center' }}>
+                                                        <div style={{ fontSize: 9, color: '#64748b', fontWeight: 600 }}>MAX HIZ</div>
+                                                        <div style={{ fontSize: 14, fontWeight: 800, color: routeStats.maxSpeed > 120 ? '#dc2626' : '#a16207' }}>{routeStats.maxSpeed} km/s</div>
+                                                    </div>
+                                                    <div style={{ background: '#faf5ff', padding: '6px 8px', borderRadius: 6, textAlign: 'center' }}>
+                                                        <div style={{ fontSize: 9, color: '#64748b', fontWeight: 600 }}>DURAKLAMALAR</div>
+                                                        <div style={{ fontSize: 14, fontWeight: 800, color: '#7c3aed' }}>{routeStats.stopCount}</div>
+                                                    </div>
                                                 </div>
+                                                <div style={{ fontSize: 10, color: '#64748b', marginBottom: 6, display: 'flex', justifyContent: 'space-between' }}>
+                                                    <span>🟢 {routeStats.firstTime}</span>
+                                                    <span>🏁 {routeStats.lastTime}</span>
+                                                    <span>{routePoints.length} nokta</span>
+                                                </div>
+
+                                                {/* Speed Violations */}
+                                                {routeStats.violationCount > 0 && (
+                                                    <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 6, padding: '6px 8px', marginBottom: 6 }}>
+                                                        <div style={{ fontSize: 11, fontWeight: 700, color: '#dc2626', marginBottom: 4 }}>
+                                                            <WarningOutlined /> {routeStats.violationCount} Hız İhlali Noktası
+                                                        </div>
+                                                        <div style={{ fontSize: 10, color: '#991b1b' }}>
+                                                            Haritada kırmızı noktalar olarak işaretlendi.
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {/* Stops List */}
+                                                {routeStops.length > 0 && (
+                                                    <div style={{ background: '#faf5ff', border: '1px solid #e9d5ff', borderRadius: 6, padding: '6px 8px' }}>
+                                                        <div style={{ fontSize: 11, fontWeight: 700, color: '#7c3aed', marginBottom: 4 }}>
+                                                            <ClockCircleOutlined /> Duraklamalar ({routeStops.length}) — Toplam {routeStats.totalStopMin >= 60 ? `${Math.floor(routeStats.totalStopMin / 60)} sa ${routeStats.totalStopMin % 60} dk` : `${routeStats.totalStopMin} dk`}
+                                                        </div>
+                                                        <div style={{ maxHeight: 120, overflowY: 'auto' }}>
+                                                            {routeStops.map((stop, idx) => (
+                                                                <div key={idx} style={{
+                                                                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                                                                    padding: '3px 0', borderBottom: idx < routeStops.length - 1 ? '1px solid #f3e8ff' : 'none',
+                                                                    fontSize: 10
+                                                                }}>
+                                                                    <span style={{ color: '#6b21a8', fontWeight: 600 }}>
+                                                                        {new Date(stop.startTime).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })} — {new Date(stop.endTime).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
+                                                                    </span>
+                                                                    <span style={{
+                                                                        fontWeight: 700,
+                                                                        color: stop.durationMin >= 30 ? '#7c3aed' : '#2563eb',
+                                                                        background: stop.durationMin >= 30 ? '#f3e8ff' : '#eff6ff',
+                                                                        padding: '1px 6px', borderRadius: 4
+                                                                    }}>
+                                                                        {stop.durationMin >= 60 ? `${Math.floor(stop.durationMin / 60)} sa ${stop.durationMin % 60} dk` : `${stop.durationMin} dk`}
+                                                                    </span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
                                         ) : (
                                             <div style={{ color: '#94a3b8', fontSize: 11 }}>

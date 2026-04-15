@@ -19,11 +19,48 @@ export interface DriverMapData {
     speedViolations?: number;
 }
 
+export interface RouteStop {
+    lat: number;
+    lng: number;
+    startTime: string;
+    endTime: string;
+    durationMin: number;
+}
+
 interface HereLiveMapClientProps {
     drivers: DriverMapData[];
     selectedDriver: DriverMapData | null;
     onSelectDriver: (driver: DriverMapData | null) => void;
     routePoints?: { latitude: number; longitude: number; speed: number; timestamp: string }[];
+    routeStops?: RouteStop[];
+}
+
+// Haversine distance in meters between two lat/lng points
+function haversineM(lat1: number, lng1: number, lat2: number, lng2: number): number {
+    const R = 6371000;
+    const toRad = (d: number) => (d * Math.PI) / 180;
+    const dLat = toRad(lat2 - lat1);
+    const dLng = toRad(lng2 - lng1);
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+// Split route points into continuous segments, breaking at GPS jumps (>5 km between consecutive points)
+function buildSegments(points: { latitude: number; longitude: number }[]): [number, number][][] {
+    if (points.length === 0) return [];
+    const MAX_GAP = 5000; // 5 km
+    const segments: [number, number][][] = [];
+    let current: [number, number][] = [[points[0].latitude, points[0].longitude]];
+    for (let i = 1; i < points.length; i++) {
+        const dist = haversineM(points[i - 1].latitude, points[i - 1].longitude, points[i].latitude, points[i].longitude);
+        if (dist > MAX_GAP) {
+            if (current.length >= 2) segments.push(current);
+            current = [];
+        }
+        current.push([points[i].latitude, points[i].longitude]);
+    }
+    if (current.length >= 2) segments.push(current);
+    return segments;
 }
 
 const STATUS_CONFIG: Record<string, { markerColor: string; pulseColor: string; label: string }> = {
@@ -94,16 +131,30 @@ const MapController: React.FC<{ selectedDriver: DriverMapData | null; drivers: D
     return null;
 };
 
-const HereLiveMapClient: React.FC<HereLiveMapClientProps> = ({ drivers, selectedDriver, onSelectDriver, routePoints }) => {
+const HereLiveMapClient: React.FC<HereLiveMapClientProps> = ({ drivers, selectedDriver, onSelectDriver, routePoints, routeStops }) => {
     const apiKey = process.env.NEXT_PUBLIC_HERE_API_KEY || 'RH04HVBUK6By3GfYWwVlCOG4Or1IzV-rRjygQRHbIvo';
     const tileUrl = `https://maps.hereapi.com/v3/base/mc/{z}/{x}/{y}/png8?apiKey=${apiKey}&size=256&style=explore.day`;
 
     const driversWithLocation = useMemo(() => drivers.filter(d => d.lat !== 0 && d.lng !== 0), [drivers]);
 
-    // Prepare route polyline coordinates
-    const polylineCoords = useMemo(() => {
+    // Build segmented polylines (breaks at GPS jumps >5km to prevent sea-crossing lines)
+    const routeSegments = useMemo(() => {
         if (!routePoints || routePoints.length === 0) return [];
-        return routePoints.map(p => [p.latitude, p.longitude] as [number, number]);
+        return buildSegments(routePoints);
+    }, [routePoints]);
+
+    const hasRoute = routeSegments.length > 0 && routePoints && routePoints.length > 0;
+
+    // Deduplicate speed violations — keep one per ~200m cluster
+    const violationMarkers = useMemo(() => {
+        if (!routePoints) return [];
+        const raw = routePoints.filter(p => p.speed > 120);
+        const deduped: typeof raw = [];
+        for (const v of raw) {
+            const tooClose = deduped.some(d => haversineM(d.latitude, d.longitude, v.latitude, v.longitude) < 200);
+            if (!tooClose) deduped.push(v);
+        }
+        return deduped;
     }, [routePoints]);
 
     return (
@@ -119,35 +170,38 @@ const HereLiveMapClient: React.FC<HereLiveMapClientProps> = ({ drivers, selected
             />
             <MapController selectedDriver={selectedDriver} drivers={driversWithLocation} routePoints={routePoints} />
 
-            {/* Render route polyline if available */}
-            {polylineCoords.length > 0 && (
+            {/* Render segmented route polylines (no sea-crossing) */}
+            {hasRoute && (
                 <>
-                    <Polyline 
-                        positions={polylineCoords}
-                        pathOptions={{ color: '#6366f1', weight: 4, opacity: 0.7, dashArray: '10, 8' }}
-                    />
-                    
+                    {routeSegments.map((seg, idx) => (
+                        <Polyline
+                            key={`seg-${idx}`}
+                            positions={seg}
+                            pathOptions={{ color: '#6366f1', weight: 4, opacity: 0.7, dashArray: '10, 8' }}
+                        />
+                    ))}
+
                     {/* Start Marker */}
                     <CircleMarker
-                        center={polylineCoords[0]}
-                        radius={6}
-                        pathOptions={{ color: '#10b981', fillColor: '#10b981', fillOpacity: 1, weight: 2 }}
+                        center={routeSegments[0][0]}
+                        radius={8}
+                        pathOptions={{ color: '#fff', fillColor: '#10b981', fillOpacity: 1, weight: 3 }}
                     >
-                        <LTooltip direction="top" offset={[0, -5]}>
-                            <div style={{ fontWeight: 600, color: '#047857' }}>Rota Başlangıcı</div>
+                        <LTooltip direction="top" offset={[0, -5]} permanent={false}>
+                            <div style={{ fontWeight: 700, color: '#047857', fontSize: 12 }}>🟢 Rota Başlangıcı</div>
                             <div style={{ fontSize: 10, color: '#64748b' }}>{new Date(routePoints![0].timestamp).toLocaleTimeString('tr-TR')}</div>
                         </LTooltip>
                     </CircleMarker>
 
                     {/* End Marker */}
-                    {polylineCoords.length > 1 && (
+                    {routePoints!.length > 1 && (
                         <CircleMarker
-                            center={polylineCoords[polylineCoords.length - 1]}
-                            radius={6}
-                            pathOptions={{ color: '#f59e0b', fillColor: '#f59e0b', fillOpacity: 1, weight: 2 }}
+                            center={routeSegments[routeSegments.length - 1][routeSegments[routeSegments.length - 1].length - 1]}
+                            radius={8}
+                            pathOptions={{ color: '#fff', fillColor: '#f59e0b', fillOpacity: 1, weight: 3 }}
                         >
-                            <LTooltip direction="top" offset={[0, -5]}>
-                                <div style={{ fontWeight: 600, color: '#b45309' }}>Rota Bitişi</div>
+                            <LTooltip direction="top" offset={[0, -5]} permanent={false}>
+                                <div style={{ fontWeight: 700, color: '#b45309', fontSize: 12 }}>🏁 Rota Bitişi</div>
                                 <div style={{ fontSize: 10, color: '#64748b' }}>{new Date(routePoints![routePoints!.length - 1].timestamp).toLocaleTimeString('tr-TR')}</div>
                             </LTooltip>
                         </CircleMarker>
@@ -155,17 +209,42 @@ const HereLiveMapClient: React.FC<HereLiveMapClientProps> = ({ drivers, selected
                 </>
             )}
 
-            {/* Render violation markers along the route */}
-            {routePoints && routePoints.filter(p => p.speed > 120).map((vp, idx) => (
+            {/* Stop markers — where driver stood still for >2 min */}
+            {routeStops && routeStops.map((stop, idx) => (
+                <CircleMarker
+                    key={`stop-${idx}`}
+                    center={[stop.lat, stop.lng]}
+                    radius={stop.durationMin >= 30 ? 10 : stop.durationMin >= 10 ? 8 : 6}
+                    pathOptions={{
+                        color: '#fff',
+                        fillColor: stop.durationMin >= 30 ? '#7c3aed' : stop.durationMin >= 10 ? '#2563eb' : '#0891b2',
+                        fillOpacity: 0.85,
+                        weight: 2
+                    }}
+                >
+                    <LTooltip direction="top" offset={[0, -5]}>
+                        <div style={{ fontWeight: 700, color: '#1e293b', fontSize: 12 }}>⏱ Duraklama</div>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: stop.durationMin >= 30 ? '#7c3aed' : '#2563eb' }}>
+                            {stop.durationMin >= 60 ? `${Math.floor(stop.durationMin / 60)} sa ${stop.durationMin % 60} dk` : `${stop.durationMin} dakika`}
+                        </div>
+                        <div style={{ fontSize: 10, color: '#64748b', marginTop: 2 }}>
+                            {new Date(stop.startTime).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })} — {new Date(stop.endTime).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                    </LTooltip>
+                </CircleMarker>
+            ))}
+
+            {/* Speed violation markers along the route */}
+            {violationMarkers.map((vp, idx) => (
                 <CircleMarker
                     key={`violation-${idx}`}
                     center={[vp.latitude, vp.longitude]}
-                    radius={6}
-                    pathOptions={{ color: '#ef4444', fillColor: '#ef4444', fillOpacity: 0.6, weight: 1 }}
+                    radius={7}
+                    pathOptions={{ color: '#fff', fillColor: vp.speed > 150 ? '#dc2626' : '#ef4444', fillOpacity: 0.9, weight: 2 }}
                 >
                     <LTooltip direction="top" offset={[0, -5]}>
-                        <div style={{ fontWeight: 600, color: '#dc2626' }}>Hız İhlali</div>
-                        <div style={{ fontSize: 11 }}>{Math.round(vp.speed)} km/s</div>
+                        <div style={{ fontWeight: 700, color: '#dc2626', fontSize: 12 }}>⚠️ Hız İhlali</div>
+                        <div style={{ fontSize: 13, fontWeight: 800, color: vp.speed > 150 ? '#dc2626' : '#f59e0b' }}>{Math.round(vp.speed)} km/s</div>
                         <div style={{ fontSize: 10, color: '#64748b' }}>{new Date(vp.timestamp).toLocaleTimeString('tr-TR')}</div>
                     </LTooltip>
                 </CircleMarker>
