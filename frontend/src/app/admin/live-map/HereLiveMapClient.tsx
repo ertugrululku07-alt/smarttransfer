@@ -47,19 +47,30 @@ function haversineM(lat1: number, lng1: number, lat2: number, lng2: number): num
 
 // Split route points into continuous segments, breaking at GPS jumps (>5 km between consecutive points)
 function buildSegments(points: { latitude: number; longitude: number }[]): [number, number][][] {
-    if (points.length === 0) return [];
+    if (!points || points.length === 0) return [];
     const MAX_GAP = 5000; // 5 km
     const segments: [number, number][][] = [];
-    let current: [number, number][] = [[points[0].latitude, points[0].longitude]];
-    for (let i = 1; i < points.length; i++) {
-        const dist = haversineM(points[i - 1].latitude, points[i - 1].longitude, points[i].latitude, points[i].longitude);
-        if (dist > MAX_GAP) {
-            if (current.length >= 2) segments.push(current);
-            current = [];
+    let current: [number, number][] = [];
+    
+    for (let i = 0; i < points.length; i++) {
+        const p = points[i];
+        if (!p || typeof p.latitude !== 'number' || typeof p.longitude !== 'number') continue;
+        
+        if (current.length === 0) {
+            current.push([p.latitude, p.longitude]);
+        } else {
+            const last = current[current.length - 1];
+            const dist = haversineM(last[0], last[1], p.latitude, p.longitude);
+            if (dist > MAX_GAP) {
+                if (current.length >= 2) segments.push(current);
+                current = [[p.latitude, p.longitude]];
+            } else {
+                current.push([p.latitude, p.longitude]);
+            }
         }
-        current.push([points[i].latitude, points[i].longitude]);
     }
     if (current.length >= 2) segments.push(current);
+    console.log('[LiveMap] buildSegments:', points.length, 'points ->', segments.length, 'segments');
     return segments;
 }
 
@@ -137,13 +148,21 @@ const HereLiveMapClient: React.FC<HereLiveMapClientProps> = ({ drivers, selected
 
     const driversWithLocation = useMemo(() => drivers.filter(d => d.lat !== 0 && d.lng !== 0), [drivers]);
 
-    // Build segmented polylines (breaks at GPS jumps >5km to prevent sea-crossing lines)
+    // Build segmented polylines (breaks at GPS jumps >5km to prevent sea-crossing)
     const routeSegments = useMemo(() => {
         if (!routePoints || routePoints.length === 0) return [];
         return buildSegments(routePoints);
     }, [routePoints]);
 
-    const hasRoute = routeSegments.length > 0 && routePoints && routePoints.length > 0;
+    // Fallback: always have at least one segment with all valid points
+    const allValidPoints = useMemo(() => {
+        if (!routePoints) return [];
+        return routePoints
+            .filter(p => p && typeof p.latitude === 'number' && typeof p.longitude === 'number')
+            .map(p => [p.latitude, p.longitude] as [number, number]);
+    }, [routePoints]);
+
+    const hasRoute = allValidPoints.length > 0;
 
     // Deduplicate speed violations — keep one per ~200m cluster
     const violationMarkers = useMemo(() => {
@@ -170,39 +189,45 @@ const HereLiveMapClient: React.FC<HereLiveMapClientProps> = ({ drivers, selected
             />
             <MapController selectedDriver={selectedDriver} drivers={driversWithLocation} routePoints={routePoints} />
 
-            {/* Render segmented route polylines (no sea-crossing) */}
+            {/* Render route polyline - use segments if available, otherwise full line */}
             {hasRoute && (
                 <>
-                    {routeSegments.map((seg, idx) => (
+                    {/* Main route line - fallback to all points if no segments */}
+                    <Polyline
+                        positions={routeSegments.length > 0 ? routeSegments[0] : allValidPoints}
+                        pathOptions={{ color: '#6366f1', weight: 5, opacity: 0.85, lineCap: 'round', lineJoin: 'round' }}
+                    />
+                    {/* Additional segments if any */}
+                    {routeSegments.slice(1).map((seg, idx) => (
                         <Polyline
                             key={`seg-${idx}`}
                             positions={seg}
-                            pathOptions={{ color: '#6366f1', weight: 4, opacity: 0.7, dashArray: '10, 8' }}
+                            pathOptions={{ color: '#6366f1', weight: 5, opacity: 0.85, lineCap: 'round', lineJoin: 'round' }}
                         />
                     ))}
 
                     {/* Start Marker */}
                     <CircleMarker
-                        center={routeSegments[0][0]}
-                        radius={8}
+                        center={allValidPoints[0]}
+                        radius={10}
                         pathOptions={{ color: '#fff', fillColor: '#10b981', fillOpacity: 1, weight: 3 }}
                     >
                         <LTooltip direction="top" offset={[0, -5]} permanent={false}>
                             <div style={{ fontWeight: 700, color: '#047857', fontSize: 12 }}>🟢 Rota Başlangıcı</div>
-                            <div style={{ fontSize: 10, color: '#64748b' }}>{new Date(routePoints![0].timestamp).toLocaleTimeString('tr-TR')}</div>
+                            <div style={{ fontSize: 10, color: '#64748b' }}>{routePoints && routePoints[0] ? new Date(routePoints[0].timestamp).toLocaleTimeString('tr-TR') : ''}</div>
                         </LTooltip>
                     </CircleMarker>
 
                     {/* End Marker */}
-                    {routePoints!.length > 1 && (
+                    {allValidPoints.length > 1 && (
                         <CircleMarker
-                            center={routeSegments[routeSegments.length - 1][routeSegments[routeSegments.length - 1].length - 1]}
-                            radius={8}
+                            center={allValidPoints[allValidPoints.length - 1]}
+                            radius={10}
                             pathOptions={{ color: '#fff', fillColor: '#f59e0b', fillOpacity: 1, weight: 3 }}
                         >
                             <LTooltip direction="top" offset={[0, -5]} permanent={false}>
                                 <div style={{ fontWeight: 700, color: '#b45309', fontSize: 12 }}>🏁 Rota Bitişi</div>
-                                <div style={{ fontSize: 10, color: '#64748b' }}>{new Date(routePoints![routePoints!.length - 1].timestamp).toLocaleTimeString('tr-TR')}</div>
+                                <div style={{ fontSize: 10, color: '#64748b' }}>{routePoints && routePoints[routePoints.length - 1] ? new Date(routePoints[routePoints.length - 1].timestamp).toLocaleTimeString('tr-TR') : ''}</div>
                             </LTooltip>
                         </CircleMarker>
                     )}
@@ -210,29 +235,51 @@ const HereLiveMapClient: React.FC<HereLiveMapClientProps> = ({ drivers, selected
             )}
 
             {/* Stop markers — where driver stood still for >2 min */}
-            {routeStops && routeStops.map((stop, idx) => (
-                <CircleMarker
-                    key={`stop-${idx}`}
-                    center={[stop.lat, stop.lng]}
-                    radius={stop.durationMin >= 30 ? 10 : stop.durationMin >= 10 ? 8 : 6}
-                    pathOptions={{
-                        color: '#fff',
-                        fillColor: stop.durationMin >= 30 ? '#7c3aed' : stop.durationMin >= 10 ? '#2563eb' : '#0891b2',
-                        fillOpacity: 0.85,
-                        weight: 2
-                    }}
-                >
-                    <LTooltip direction="top" offset={[0, -5]}>
-                        <div style={{ fontWeight: 700, color: '#1e293b', fontSize: 12 }}>⏱ Duraklama</div>
-                        <div style={{ fontSize: 12, fontWeight: 700, color: stop.durationMin >= 30 ? '#7c3aed' : '#2563eb' }}>
-                            {stop.durationMin >= 60 ? `${Math.floor(stop.durationMin / 60)} sa ${stop.durationMin % 60} dk` : `${stop.durationMin} dakika`}
-                        </div>
-                        <div style={{ fontSize: 10, color: '#64748b', marginTop: 2 }}>
-                            {new Date(stop.startTime).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })} — {new Date(stop.endTime).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
-                        </div>
-                    </LTooltip>
-                </CircleMarker>
-            ))}
+            {routeStops && routeStops.length > 0 && (
+                <>
+                    {/* Pulsing effect for stops */}
+                    {routeStops.map((stop, idx) => (
+                        <CircleMarker
+                            key={`stop-pulse-${idx}`}
+                            center={[stop.lat, stop.lng]}
+                            radius={stop.durationMin >= 30 ? 20 : stop.durationMin >= 10 ? 16 : 12}
+                            pathOptions={{
+                                color: stop.durationMin >= 30 ? '#7c3aed' : stop.durationMin >= 10 ? '#2563eb' : '#0891b2',
+                                fillColor: stop.durationMin >= 30 ? '#7c3aed' : stop.durationMin >= 10 ? '#2563eb' : '#0891b2',
+                                fillOpacity: 0.15,
+                                weight: 1
+                            }}
+                        />
+                    ))}
+                    {/* Actual stop markers */}
+                    {routeStops.map((stop, idx) => (
+                        <CircleMarker
+                            key={`stop-${idx}`}
+                            center={[stop.lat, stop.lng]}
+                            radius={stop.durationMin >= 30 ? 12 : stop.durationMin >= 10 ? 10 : 8}
+                            pathOptions={{
+                                color: '#fff',
+                                fillColor: stop.durationMin >= 30 ? '#7c3aed' : stop.durationMin >= 10 ? '#2563eb' : '#0891b2',
+                                fillOpacity: 1,
+                                weight: 3
+                            }}
+                        >
+                            <LTooltip direction="top" offset={[0, -5]} permanent={false}>
+                                <div style={{ fontWeight: 700, color: '#1e293b', fontSize: 12 }}>⏱ Duraklama #{idx + 1}</div>
+                                <div style={{ fontSize: 12, fontWeight: 700, color: stop.durationMin >= 30 ? '#7c3aed' : '#2563eb' }}>
+                                    {stop.durationMin >= 60 ? `${Math.floor(stop.durationMin / 60)} sa ${stop.durationMin % 60} dk` : `${stop.durationMin} dakika`}
+                                </div>
+                                <div style={{ fontSize: 10, color: '#64748b', marginTop: 2 }}>
+                                    {new Date(stop.startTime).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })} — {new Date(stop.endTime).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
+                                </div>
+                                <div style={{ fontSize: 9, color: '#94a3b8', marginTop: 2 }}>
+                                    {stop.lat.toFixed(5)}, {stop.lng.toFixed(5)}
+                                </div>
+                            </LTooltip>
+                        </CircleMarker>
+                    ))}
+                </>
+            )}
 
             {/* Speed violation markers along the route */}
             {violationMarkers.map((vp, idx) => (
