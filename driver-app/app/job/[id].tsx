@@ -246,7 +246,17 @@ export default function JobDetailScreen() {
                     {(job.contactEmail || job.customer?.email) ? (
                         <InfoRow icon="mail" value={job.contactEmail || job.customer?.email} />
                     ) : null}
-                    <InfoRow icon="people" value={`${job.adults || 0} Yetişkin, ${job.children || 0} Çocuk`} />
+                    <InfoRow icon="people" value={(() => {
+                        const a = job.adults || 0;
+                        const c = job.children || 0;
+                        const inf = job.infants || 0;
+                        const total = a + c + inf;
+                        const parts: string[] = [];
+                        if (a > 0) parts.push(`${a} Yetişkin`);
+                        if (c > 0) parts.push(`${c} Çocuk`);
+                        if (inf > 0) parts.push(`${inf} Bebek`);
+                        return `${total} Yolcu${parts.length > 1 ? ` (${parts.join(', ')})` : (parts.length === 1 ? ` (${parts[0]})` : '')}`;
+                    })()} />
                     {(job.flightNumber || job.metadata?.flightNumber) && (
                         <InfoRow icon="airplane" value={job.flightNumber || job.metadata?.flightNumber} />
                     )}

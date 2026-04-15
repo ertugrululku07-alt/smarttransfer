@@ -833,6 +833,8 @@ router.get('/shuttle-runs', authMiddleware, async (req, res, next) => {
                 contactPhone: b.contactPhone,
                 contactEmail: b.contactEmail || b.customer?.email || null,
                 adults: b.adults || 0,
+                children: b.children || 0,
+                infants: b.infants || 0,
                 pickup: m.pickup || '',
                 dropoff: m.dropoff || '',
                 pickupDateTime: b.startDate,

@@ -313,7 +313,14 @@ export default function JobListScreen() {
   const CustomerRow = ({ c, onCall }: { c: any; onCall?: () => void }) => {
     const name = (c.contactName || ((c.customerFirstName || '') + ' ' + (c.customerLastName || '')).trim() || 'Misafir');
     const phone = c.customerPhone || c.contactPhone;
-    const pax = (c.adults || 0) + (c.children || 0);
+    const cAdults = c.adults || 0;
+    const cChildren = c.children || 0;
+    const cInfants = c.infants || 0;
+    const pax = cAdults + cChildren + cInfants;
+    const paxParts: string[] = [];
+    if (cAdults > 0) paxParts.push(`${cAdults}Y`);
+    if (cChildren > 0) paxParts.push(`${cChildren}Ç`);
+    if (cInfants > 0) paxParts.push(`${cInfants}B`);
     const isExpanded = expandedCustomer[c.id];
     const pickupAddr = c.pickup || c.metadata?.pickup || '';
     const dropoffAddr = c.dropoff || c.metadata?.dropoff || '';
@@ -329,7 +336,7 @@ export default function JobListScreen() {
             <View style={st.customerMeta}>
               {phone ? <Text style={st.customerPhone}>{phone}</Text> : null}
               {c.customerEmail ? <Text style={st.customerEmail}>{c.customerEmail}</Text> : null}
-              <Text style={st.paxBadge}>{pax} Pax</Text>
+              <Text style={st.paxBadge}>{pax} Pax{(cChildren > 0 || cInfants > 0) ? ` (${paxParts.join('+')})` : ''}</Text>
               {c.flightNumber ? <Text style={st.flightBadge}>{c.flightNumber}</Text> : null}
             </View>
             {hasExtras && (
@@ -366,7 +373,7 @@ export default function JobListScreen() {
     // Shuttle Group
     if (item._isShuttleGroup) {
       const expanded = expandedGroups[item.groupKey];
-      const totalPax = item.bookings.reduce((s: number, b: any) => s + (b.adults || 0) + (b.children || 0), 0);
+      const totalPax = item.bookings.reduce((s: number, b: any) => s + (b.adults || 0) + (b.children || 0) + (b.infants || 0), 0);
       const date = new Date(item.startDate);
       const time = date.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
       const dayStr = date.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' });
@@ -428,7 +435,14 @@ export default function JobListScreen() {
     const customerName = item.contactName || (item.customer?.firstName ? `${item.customer.firstName} ${item.customer.lastName || ''}`.trim() : 'Misafir');
     const phone = item.contactPhone || item.customer?.phone;
     const email = item.contactEmail || item.customer?.email;
-    const pax = (item.adults || 0) + (item.children || 0);
+    const iAdults = item.adults || 0;
+    const iChildren = item.children || 0;
+    const iInfants = item.infants || 0;
+    const pax = iAdults + iChildren + iInfants;
+    const iPaxParts: string[] = [];
+    if (iAdults > 0) iPaxParts.push(`${iAdults}Y`);
+    if (iChildren > 0) iPaxParts.push(`${iChildren}Ç`);
+    if (iInfants > 0) iPaxParts.push(`${iInfants}B`);
     const flightNo = item.flightNumber || item.metadata?.flightNumber;
     const privateExtras: any[] = item.metadata?.extraServices || [];
     const hasPrivateExtras = privateExtras.length > 0;
@@ -463,7 +477,7 @@ export default function JobListScreen() {
           <View style={st.infoRow}><Ionicons name="person" size={14} color="#64748b" /><Text style={st.infoText}>{customerName}</Text></View>
           {phone ? <View style={st.infoRow}><Ionicons name="call" size={14} color="#64748b" /><TouchableOpacity onPress={() => Linking.openURL(`tel:${phone}`)}><Text style={[st.infoText, { color: Brand.primary }]}>{phone}</Text></TouchableOpacity></View> : null}
           {email ? <View style={st.infoRow}><Ionicons name="mail" size={14} color="#64748b" /><Text style={st.infoText}>{email}</Text></View> : null}
-          <View style={st.infoRow}><Ionicons name="people" size={14} color="#64748b" /><Text style={st.infoText}>{pax} Pax</Text></View>
+          <View style={st.infoRow}><Ionicons name="people" size={14} color="#64748b" /><Text style={st.infoText}>{pax} Pax{(iChildren > 0 || iInfants > 0) ? ` (${iPaxParts.join('+')})` : ''}</Text></View>
           {flightNo ? <View style={st.infoRow}><Ionicons name="airplane" size={14} color="#64748b" /><Text style={st.infoText}>{flightNo}</Text></View> : null}
         </View>
 

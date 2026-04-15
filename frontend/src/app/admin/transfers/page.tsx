@@ -80,6 +80,8 @@ interface Booking {
     operationalStatus?: string;
     metadata?: any;
     adults?: number;
+    children?: number;
+    infants?: number;
     agencyName?: string;
     agency?: { name: string };
     partnerName?: string;
@@ -740,11 +742,11 @@ const TransfersPage: React.FC = () => {
               </Space>
           )},
         { ...makeHeader('adults'), key:'adults', width:colWidths.adults,
-          sorter:(a:Booking,b:Booking)=>((a as any).passengers||a.adults||0)-((b as any).passengers||b.adults||0),
+          sorter:(a:Booking,b:Booking)=>((a.adults||1)+(a.children||0)+(a.infants||0))-((b.adults||1)+(b.children||0)+(b.infants||0)),
           render:(_:any, r:Booking)=>{
-              const adults = r.adults || (r as any).passengers || r.metadata?.passengerDetails?.length || r.metadata?.passengersList?.length || 0;
-              const children = (r as any).children || 0;
-              const infants = (r as any).infants || 0;
+              const adults = r.adults || (r as any).passengers || r.metadata?.passengerDetails?.length || r.metadata?.passengersList?.length || 1;
+              const children = r.children || 0;
+              const infants = r.infants || 0;
               const total = adults + children + infants;
               const parts: string[] = [];
               if (adults > 0) parts.push(`${adults}Y`);
@@ -1009,6 +1011,19 @@ const TransfersPage: React.FC = () => {
                                     <Descriptions title="Yolcu Bilgileri" bordered column={2} size="small">
                                         <Descriptions.Item label="Ad Soyad"><UserOutlined/> {selectedBooking.passengerName}</Descriptions.Item>
                                         <Descriptions.Item label="Telefon"><PhoneOutlined/> {selectedBooking.passengerPhone}</Descriptions.Item>
+                                        <Descriptions.Item label="Yolcu Sayısı" span={2}>
+                                            {(()=>{
+                                                const a = selectedBooking.adults || 1;
+                                                const c = selectedBooking.children || 0;
+                                                const inf = selectedBooking.infants || 0;
+                                                const total = a + c + inf;
+                                                const parts: string[] = [];
+                                                if (a > 0) parts.push(`${a} Yetişkin`);
+                                                if (c > 0) parts.push(`${c} Çocuk`);
+                                                if (inf > 0) parts.push(`${inf} Bebek`);
+                                                return <span><strong>{total} kişi</strong>{(c > 0 || inf > 0) ? ` (${parts.join(', ')})` : ''}</span>;
+                                            })()}
+                                        </Descriptions.Item>
                                         <Descriptions.Item label="Notlar" span={2}>{selectedBooking.notes||'-'}</Descriptions.Item>
                                     </Descriptions>
                                     <div style={{textAlign:'right'}}>

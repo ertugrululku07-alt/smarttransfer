@@ -141,6 +141,7 @@ router.get('/bookings', authMiddleware, ensureDriver, async (req, res) => {
                     customerEmail: b.customer?.email || b.contactEmail,
                     adults: b.adults || 0,
                     children: b.children || 0,
+                    infants: b.infants || 0,
                     pickup: m.pickup || '',
                     dropoff: m.dropoff || '',
                     flightNumber: m.flightNumber || b.flightNumber || null,

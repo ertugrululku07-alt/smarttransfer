@@ -65,7 +65,14 @@ export default function HistoryScreen() {
         const customerName = item.customer?.firstName
             ? `${item.customer.firstName} ${item.customer.lastName || ''}`.trim()
             : item.contactName || '';
-        const pax = (item.adults || 0) + (item.children || 0);
+        const paxAdults = item.adults || 0;
+        const paxChildren = item.children || 0;
+        const paxInfants = item.infants || 0;
+        const pax = paxAdults + paxChildren + paxInfants;
+        const paxParts: string[] = [];
+        if (paxAdults > 0) paxParts.push(`${paxAdults}Y`);
+        if (paxChildren > 0) paxParts.push(`${paxChildren}Ç`);
+        if (paxInfants > 0) paxParts.push(`${paxInfants}B`);
 
         const statusCfg = StatusColors[item.status] || { bg: '#f3f4f6', text: '#6b7280', label: item.status };
 
@@ -105,7 +112,7 @@ export default function HistoryScreen() {
                     {pax > 0 && (
                         <View style={styles.detailItem}>
                             <Ionicons name="people-outline" size={13} color={Brand.textSecondary} />
-                            <Text style={styles.detailText}>{pax} Pax</Text>
+                            <Text style={styles.detailText}>{pax} Pax{(paxChildren > 0 || paxInfants > 0) ? ` (${paxParts.join('+')})` : ''}</Text>
                         </View>
                     )}
                     {vehicle ? (

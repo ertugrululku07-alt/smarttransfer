@@ -1068,6 +1068,8 @@ router.get('/bookings', authMiddleware, async (req, res) => {
             specialRequests: b.specialRequests,   // Customer notes
             internalNotes: b.metadata?.internalNotes || b.internalNotes || '', // Operations note
             adults: b.adults,
+            children: b.children || 0,
+            infants: b.infants || 0,
             flightNumber: b.metadata?.flightNumber,
             flightTime: b.metadata?.flightTime,
             pickupRegionCode: b.metadata?.pickupRegionCode || null,
