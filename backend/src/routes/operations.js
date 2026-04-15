@@ -726,13 +726,12 @@ router.get('/shuttle-runs', authMiddleware, async (req, res, next) => {
              return { fromCode, toCode, type };
         }
 
-        LOG_TAG = "QUERY_BOOKINGS";
         const bookings = await prisma.booking.findMany({
             where: {
                 tenantId: tenantId, 
                 productType: 'TRANSFER',
                 startDate: { gte: dayStart, lte: dayEnd },
-                status: { notIn: ['CANCELLED'] },
+                status: { notIn: ['CANCELLED', 'COMPLETED'] },
             },
             include: { customer: true, agency: true },
             orderBy: { startDate: 'asc' }

@@ -17,7 +17,7 @@ function auditLogMiddleware(req, res, next) {
         if (res.statusCode >= 200 && res.statusCode < 400) {
             
             // Extract tenant and user if available (from tenantMiddleware and authMiddleware)
-            const tenantId = req.tenant?.id;
+            const tenantId = req.tenant?.id || req.user?.tenantId;
             const userId = req.user?.id || null;
             const userEmail = req.user?.email || null;
             const ipAddress = req.headers['x-forwarded-for'] || req.socket?.remoteAddress;
