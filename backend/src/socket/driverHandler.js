@@ -123,12 +123,13 @@ module.exports = (io, app) => {
 
                     if (isAdmin) {
                         socket.join('admin_monitoring');
-                        console.log(`[DriverHandler] Admin ${user.email} joined admin_monitoring`);
+                        console.log(`[Socket] Admin ${user.email} (ID: ${user.id}, Role: ${user.role?.code}) has joined 'admin_monitoring' room`);
                     }
 
                     const isDriver = user.role?.type === 'DRIVER' || user.role?.type === 'PARTNER' || user.role?.code === 'DRIVER';
                     if (isDriver) {
                         socket.join('drivers');
+                        console.log(`[Socket] Driver ${user.email} joined 'drivers' room`);
 
                         // Clear any pending offline timer - driver is back online
                         if (disconnectTimers[user.id]) {

@@ -31,13 +31,30 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             return;
         }
 
-        // Initialize socket - connect to Railway (same server as driver app)
-        const rawSocketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'https://backend-production-69e7.up.railway.app';
-        const SOCKET_URL = rawSocketUrl.replace(/[\r\n]+/g, '').trim();
+        // Initialize socket - connect to the same server as the API
+        const rawApiUrl = (process.env.NEXT_PUBLIC_API_URL || 'https://backend-production-69e7.up.railway.app').replace(/[\r\n]+/g, '').trim();
+        const rawSocketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || rawApiUrl;
+        
+        // Defensive check: Railway URLs use dashes, never underscores.
+        const sanitizeUrl = (url: string) => {
+            if (url.includes('up.railway.app') && url.includes('_')) {
+                const parts = url.split('/');
+                if (parts.length >= 3) {
+                    parts[2] = parts[2].replace(/_/g, '-');
+                    return parts.join('/');
+                }
+            }
+            return url;
+        };
+
+        const SOCKET_URL = sanitizeUrl(rawSocketUrl.replace(/[\r\n]+/g, '').trim());
+        
+        console.log('Socket attempting connection to:', SOCKET_URL);
+
         const socketInstance = io(SOCKET_URL, {
-            autoConnect: false, // Wait for auth
+            autoConnect: false,
             reconnection: true,
-            transports: ['websocket', 'polling'] // Force websocket first
+            transports: ['websocket', 'polling']
         });
 
         socketInstance.on('connect', () => {
