@@ -78,9 +78,29 @@ export const CurrencyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
              if (tenantDefault) setSelectedCurrency(tenantDefault.code);
              else if (fetchedCurrencies.length > 0) setSelectedCurrency(fetchedCurrencies[0].code);
           }
+        } else {
+          // No currencies configured in tenant DB — use sensible defaults
+          const defaultCurrencies: Currency[] = [
+            { code: 'EUR', symbol: '€', rate: 1, isDefault: true },
+            { code: 'USD', symbol: '$', rate: 1.08 },
+            { code: 'TRY', symbol: '₺', rate: 37.5 },
+            { code: 'GBP', symbol: '£', rate: 0.86 },
+            { code: 'RUB', symbol: '₽', rate: 98 },
+          ];
+          setCurrencies(defaultCurrencies);
+          const autoDetected = detectCurrency();
+          setSelectedCurrency(autoDetected);
         }
       } catch (error) {
         console.error('Failed to strict-fetch currencies', error);
+        // Even on error, show defaults
+        const defaultCurrencies: Currency[] = [
+          { code: 'EUR', symbol: '€', rate: 1, isDefault: true },
+          { code: 'USD', symbol: '$', rate: 1.08 },
+          { code: 'TRY', symbol: '₺', rate: 37.5 },
+        ];
+        setCurrencies(defaultCurrencies);
+        setSelectedCurrency(detectCurrency());
       } finally {
         setLoading(false);
       }
