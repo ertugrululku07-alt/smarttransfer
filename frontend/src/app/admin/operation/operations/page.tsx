@@ -973,7 +973,7 @@ export default function OperationsPage() {
                 if (children > 0) parts.push(`${children}Ç`);
                 if (infants > 0) parts.push(`${infants}B`);
                 
-                const isEditing = editingCell === `${record.id}_pax`;
+                const isEditing = editingCell?.id === record.id && editingCell?.field === 'pax';
                 
                 if (isEditing) {
                     return (
@@ -1010,7 +1010,7 @@ export default function OperationsPage() {
                 }
                 
                 return (
-                    <div style={{ cursor: 'text' }} onDoubleClick={() => setEditingCell(`${record.id}_pax`)}>
+                    <div style={{ cursor: 'text' }} onDoubleClick={() => setEditingCell({ id: record.id, field: 'pax', value: adults })}>
                         <Text strong style={{ fontSize: 12, display: 'block' }}>{total || '-'}</Text>
                         <span style={{ fontSize: 9, color: '#94a3b8', fontWeight: 600 }}>{parts.join('+') || `${adults}Y`}</span>
                     </div>
