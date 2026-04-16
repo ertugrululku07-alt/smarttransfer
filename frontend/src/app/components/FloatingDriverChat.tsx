@@ -296,7 +296,7 @@ export default function FloatingDriverChat() {
     });
 
     return (
-        <div style={{ position: 'fixed', bottom: 28, right: 28, zIndex: 9999 }}>
+        <div style={{ position: 'fixed', bottom: 24, right: 100, zIndex: 9998 }}>
             {/* Floating Button */}
             {!open && (
                 <button
