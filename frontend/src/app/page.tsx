@@ -39,7 +39,14 @@ import {
   ThunderboltOutlined,
   TrophyOutlined,
   HeartOutlined,
-  SwapOutlined
+  SwapOutlined,
+  FacebookOutlined,
+  InstagramOutlined,
+  TwitterOutlined,
+  YoutubeOutlined,
+  LinkedinOutlined,
+  WhatsAppOutlined,
+  SendOutlined
 } from '@ant-design/icons';
 import axios from 'axios';
 import dayjs, { Dayjs } from 'dayjs';
@@ -73,6 +80,7 @@ import MapPickerModal from './components/MapPickerModal';
 import PassengerSelector from './components/PassengerSelector';
 import { useTheme } from './context/ThemeContext';
 import { useBranding } from './context/BrandingContext';
+import { useLanguage } from './context/LanguageContext';
 
 const { Content } = Layout;
 const { Title, Text, Paragraph } = Typography;
@@ -93,6 +101,7 @@ const HomePage: React.FC = () => {
   const router = useRouter();
   const { theme } = useTheme();
   const { branding, fullName } = useBranding();
+  const { t } = useLanguage();
 
   const [configLoading, setConfigLoading] = useState(true);
   const [heroImages, setHeroImages] = useState<string[]>([]);
@@ -104,6 +113,7 @@ const HomePage: React.FC = () => {
   const [faqItems, setFaqItems] = useState<{ question: string; answer: string }[]>([]);
   const [statsItems, setStatsItems] = useState<{ num: string; label: string }[]>([]);
   const [routeItems, setRouteItems] = useState<{ from: string; to: string; img: string; price: string }[]>([]);
+  const [socialMedia, setSocialMedia] = useState<Record<string, string>>({});
   const [featureItems, setFeatureItems] = useState<{ title: string; desc: string; color: string }[]>([]);
 
   // Transfer state
@@ -157,6 +167,7 @@ const HomePage: React.FC = () => {
           if (settings?.homepageStats?.length > 0) setStatsItems(settings.homepageStats);
           if (settings?.homepageRoutes?.length > 0) setRouteItems(settings.homepageRoutes);
           if (settings?.homepageFeatures?.length > 0) setFeatureItems(settings.homepageFeatures);
+          if (settings?.socialMedia) setSocialMedia(settings.socialMedia);
         }
 
         if (imagesRes.data.success && imagesRes.data.data.heroImages?.length > 0) {
@@ -192,19 +203,19 @@ const HomePage: React.FC = () => {
   };
 
   const isAirportTransfer = isAirportLocation(pickup) || isAirportLocation(dropoff);
-  const timeLabel = isAirportTransfer ? 'Uçuş Saati' : 'Alınış Saati';
+  const timeLabel = isAirportTransfer ? t('search.flightTime') : t('search.pickupTime');
 
   // For return trip, the direction is reversed: pickup becomes dropoff and vice versa
   const isReturnAirportTransfer = isAirportLocation(dropoff) || isAirportLocation(pickup);
-  const returnTimeLabel = isReturnAirportTransfer ? 'Dönüş Uçuş Saati' : 'Dönüş Alınış Saati';
+  const returnTimeLabel = isReturnAirportTransfer ? t('search.returnFlightTime') : t('search.returnPickupTime');
 
   const handleTransferSearch = () => {
     if (!pickup || !dropoff || !pickupDate) {
-      message.warning('Lütfen nereden, nereye ve tarihi doldurun.');
+      message.warning(t('search.fillRequired'));
       return;
     }
     if (tripType === 'return' && !returnDate) {
-      message.warning('Gidiş-Dönüş için dönüş tarihini seçin.');
+      message.warning(t('search.selectReturnDate'));
       return;
     }
     const timeHour = pickupTime ? pickupTime.hour().toString().padStart(2, '0') : '12';
@@ -241,7 +252,7 @@ const HomePage: React.FC = () => {
       const values = await form.validateFields();
       setBookingLoading(true);
       if (selectedTransfer) {
-        if (!pickupDate) { message.error('Alış tarihi bulunamadı.'); return; }
+        if (!pickupDate) { message.error(t('booking.missingDate')); return; }
         const tHour = pickupTime ? pickupTime.hour() : 12;
         const tMin = pickupTime ? pickupTime.minute() : 0;
         const pickupDateTime = dayjs(pickupDate).hour(tHour).minute(tMin).second(0).millisecond(0).toISOString();
@@ -260,15 +271,15 @@ const HomePage: React.FC = () => {
         };
         const res = await axios.post(`${API_BASE}/api/bookings`, payload);
         if (res.data?.success) {
-          message.success('Rezervasyon başarıyla oluşturuldu!');
+          message.success(t('booking.success'));
           setBookingModalVisible(false);
         } else {
-          message.error(res.data?.message || 'Rezervasyon sırasında bir hata oluştu.');
+          message.error(res.data?.message || t('booking.error'));
         }
       }
     } catch (err: any) {
       console.error('handleBookingSubmit error:', err);
-      message.error('Rezervasyon sırasında bir hata oluştu.');
+      message.error(t('booking.error'));
     } finally {
       setBookingLoading(false);
     }
@@ -288,11 +299,11 @@ const HomePage: React.FC = () => {
       <Row gutter={[16, 16]}>
         <Col xs={24} md={12}>
           <Text strong style={{ display: 'block', marginBottom: 8, color: theme.labelColor, fontSize: 14 }}>
-            <EnvironmentOutlined style={{ color: theme.primaryColor }} /> Nereden
+            <EnvironmentOutlined style={{ color: theme.primaryColor }} /> {t('search.from')}
           </Text>
           <HereLocationSearchInput
             size="large"
-            placeholder="Havaalanı, Adres, Otel yada Yer İsmi"
+            placeholder={t('search.fromPlaceholder')}
             value={pickup}
             onChange={setPickup}
             onSelect={(val, lat, lng) => { setPickup(val); if (lat && lng) setPickupLocation({ lat, lng }); }}
@@ -303,11 +314,11 @@ const HomePage: React.FC = () => {
         </Col>
         <Col xs={24} md={12}>
           <Text strong style={{ display: 'block', marginBottom: 8, color: theme.labelColor, fontSize: 14 }}>
-            <EnvironmentOutlined style={{ color: theme.accentColor }} /> Nereye
+            <EnvironmentOutlined style={{ color: theme.accentColor }} /> {t('search.to')}
           </Text>
           <HereLocationSearchInput
             size="large"
-            placeholder="Havaalanı, Adres, Otel yada Yer İsmi"
+            placeholder={t('search.toPlaceholder')}
             value={dropoff}
             onChange={setDropoff}
             onSelect={(val, lat, lng) => { setDropoff(val); if (lat && lng) setDropoffLocation({ lat, lng }); }}
@@ -320,13 +331,13 @@ const HomePage: React.FC = () => {
       <Row gutter={[12, 16]} style={{ marginTop: 16 }}>
         <Col xs={12} md={6}>
           <Text strong style={{ display: 'block', marginBottom: 8, color: theme.labelColor, fontSize: 14 }}>
-            <CalendarOutlined style={{ color: theme.primaryColor }} /> Tarih
+            <CalendarOutlined style={{ color: theme.primaryColor }} /> {t('search.date')}
           </Text>
           <DatePicker
             size="large"
             style={{ width: '100%', borderRadius: 12 }}
             format="DD.MM.YYYY"
-            placeholder="Tarih seçin"
+            placeholder={t('search.datePlaceholder')}
             value={pickupDate}
             onChange={(date) => setPickupDate(date)}
             disabledDate={(current) => current && current < dayjs().startOf('day')}
@@ -344,14 +355,14 @@ const HomePage: React.FC = () => {
             minuteStep={5}
             value={pickupTime}
             onChange={(time) => setPickupTime(time)}
-            placeholder="Saat seçin"
+            placeholder={t('search.timePlaceholder')}
             needConfirm={false}
             showNow={false}
           />
         </Col>
         <Col xs={12} md={5}>
           <Text strong style={{ display: 'block', marginBottom: 8, color: theme.labelColor, fontSize: 14 }}>
-            Yolcular
+            {t('search.passengers')}
           </Text>
           <PassengerSelector
             size="large"
@@ -361,11 +372,11 @@ const HomePage: React.FC = () => {
         </Col>
         <Col xs={12} md={8}>
           <Text strong style={{ display: 'block', marginBottom: 8, color: theme.labelColor, fontSize: 14 }}>
-            Transfer Tipi
+            {t('search.transferType')}
           </Text>
           <Radio.Group value={tripType} onChange={(e) => setTripType(e.target.value)} style={{ width: '100%' }} size="large">
-            <Radio.Button value="oneway" style={{ width: '50%', textAlign: 'center', borderRadius: '12px 0 0 12px' }}>Tek Yön</Radio.Button>
-            <Radio.Button value="return" style={{ width: '50%', textAlign: 'center', borderRadius: '0 12px 12px 0' }}>Gidiş-Dönüş</Radio.Button>
+            <Radio.Button value="oneway" style={{ width: '50%', textAlign: 'center', borderRadius: '12px 0 0 12px' }}>{t('search.oneWay')}</Radio.Button>
+            <Radio.Button value="return" style={{ width: '50%', textAlign: 'center', borderRadius: '0 12px 12px 0' }}>{t('search.roundTrip')}</Radio.Button>
           </Radio.Group>
         </Col>
       </Row>
@@ -373,13 +384,13 @@ const HomePage: React.FC = () => {
         <Row gutter={[12, 16]} style={{ marginTop: 16 }}>
           <Col xs={12} md={8}>
             <Text strong style={{ display: 'block', marginBottom: 8, color: theme.labelColor, fontSize: 14 }}>
-              <CalendarOutlined style={{ color: theme.accentColor }} /> Dönüş Tarihi
+              <CalendarOutlined style={{ color: theme.accentColor }} /> {t('search.returnDate')}
             </Text>
             <DatePicker
               size="large"
               style={{ width: '100%', borderRadius: 12 }}
               format="DD.MM.YYYY"
-              placeholder="Dönüş tarihi seçin"
+              placeholder={t('search.returnDatePlaceholder')}
               value={returnDate}
               onChange={(date) => setReturnDate(date)}
               disabledDate={(current) => {
@@ -400,7 +411,7 @@ const HomePage: React.FC = () => {
               minuteStep={5}
               value={returnTime}
               onChange={(time) => setReturnTime(time)}
-              placeholder="Dönüş saati seçin"
+              placeholder={t('search.returnTimePlaceholder')}
               needConfirm={false}
               showNow={false}
             />
@@ -416,7 +427,7 @@ const HomePage: React.FC = () => {
           boxShadow: theme.buttonShadow, borderRadius: 14, color: '#fff', letterSpacing: 0.5,
         }}
       >
-        Transfer Ara
+        {t('search.searchButton')}
       </Button>
     </div>
   );
@@ -463,7 +474,7 @@ const HomePage: React.FC = () => {
         onCancel={() => setMapModalVisible(false)}
         onConfirm={handleMapConfirm}
         initialAddress={mapModalType === 'pickup' ? pickup : dropoff}
-        title={mapModalType === 'pickup' ? "Nereden Alınacaksınız?" : "Nereye Gideceksiniz?"}
+        title={mapModalType === 'pickup' ? t('map.pickupTitle') : t('map.dropoffTitle')}
         country={googleMapsSettings.country || 'tr'}
         key={`map-modal-${googleMapsSettings.country || 'tr'}`}
       />
@@ -515,15 +526,15 @@ const HomePage: React.FC = () => {
                 <div key="howItWorks" style={{ background: '#fff', padding: 'clamp(48px, 8vw, 80px) 16px' }}>
                   <div style={{ maxWidth: 1100, margin: '0 auto' }}>
                     <div style={{ textAlign: 'center', marginBottom: 48 }}>
-                      <Text style={{ color: theme.sectionAccent, fontWeight: 600, fontSize: 13, textTransform: 'uppercase' as const, letterSpacing: 2 }}>Basit ve Hızlı</Text>
-                      <Title level={2} style={{ marginTop: 8, marginBottom: 8 }}>Nasıl Çalışır?</Title>
-                      <Text type="secondary" style={{ fontSize: 15 }}>3 kolay adımda transferinizi ayarlayın</Text>
+                      <Text style={{ color: theme.sectionAccent, fontWeight: 600, fontSize: 13, textTransform: 'uppercase' as const, letterSpacing: 2 }}>{t('howItWorks.badge')}</Text>
+                      <Title level={2} style={{ marginTop: 8, marginBottom: 8 }}>{t('howItWorks.title')}</Title>
+                      <Text type="secondary" style={{ fontSize: 15 }}>{t('howItWorks.subtitle')}</Text>
                     </div>
                     <Row gutter={[32, 32]}>
                       {[
-                        { icon: <SearchOutlined />, num: '01', title: 'Arama Yapın', desc: 'Alış ve bırakış noktanızı, tarih ve saatinizi girin.' },
-                        { icon: <CarOutlined />, num: '02', title: 'Aracınızı Seçin', desc: 'Size uygun araç tipini ve fiyatı seçin.' },
-                        { icon: <CheckCircleOutlined />, num: '03', title: 'Rezervasyon Yapın', desc: 'Bilgilerinizi girin ve anında onay alın.' },
+                        { icon: <SearchOutlined />, num: '01', title: t('howItWorks.step1.title'), desc: t('howItWorks.step1.desc') },
+                        { icon: <CarOutlined />, num: '02', title: t('howItWorks.step2.title'), desc: t('howItWorks.step2.desc') },
+                        { icon: <CheckCircleOutlined />, num: '03', title: t('howItWorks.step3.title'), desc: t('howItWorks.step3.desc') },
                       ].map((step, i) => (
                         <Col xs={24} sm={8} key={i}>
                           <div style={{ textAlign: 'center' }}>
@@ -547,20 +558,20 @@ const HomePage: React.FC = () => {
               );
             case 'whyUs':
               const whyUsFeatures = featureItems.length > 0 ? featureItems : [
-                { title: 'Güvenilir Hizmet', desc: 'Lisanslı şoförler, sigortalı araçlar ve güvenli yolculuk garantisi.', color: theme.primaryColor },
-                { title: '7/24 Müşteri Desteği', desc: 'Gece gündüz demeden ulaşabileceğiniz destek ekibi.', color: '#00b96b' },
-                { title: 'Anında Onay', desc: 'Rezervasyonunuz anında onaylanır, bekleme yok.', color: '#faad14' },
-                { title: 'Premium Araçlar', desc: 'Konforlu, bakımlı ve lüks araç filosu.', color: theme.accentColor },
-                { title: 'Geniş Kapsama Alanı', desc: 'Havalimanı, otel ve şehirler arası geniş hizmet ağı.', color: '#13c2c2' },
-                { title: 'Müşteri Memnuniyeti', desc: 'Yüksek müşteri memnuniyeti ile kaliteli hizmet.', color: '#eb2f96' },
+                { title: t('whyUs.feature1.title'), desc: t('whyUs.feature1.desc'), color: theme.primaryColor },
+                { title: t('whyUs.feature2.title'), desc: t('whyUs.feature2.desc'), color: '#00b96b' },
+                { title: t('whyUs.feature3.title'), desc: t('whyUs.feature3.desc'), color: '#faad14' },
+                { title: t('whyUs.feature4.title'), desc: t('whyUs.feature4.desc'), color: theme.accentColor },
+                { title: t('whyUs.feature5.title'), desc: t('whyUs.feature5.desc'), color: '#13c2c2' },
+                { title: t('whyUs.feature6.title'), desc: t('whyUs.feature6.desc'), color: '#eb2f96' },
               ];
               return (
                 <div key="whyUs" style={{ background: theme.featureBg, padding: 'clamp(48px, 8vw, 80px) 16px' }}>
                   <div style={{ maxWidth: 1100, margin: '0 auto' }}>
                     <div style={{ textAlign: 'center', marginBottom: 48 }}>
-                      <Text style={{ color: theme.sectionAccent, fontWeight: 600, fontSize: 13, textTransform: 'uppercase' as const, letterSpacing: 2 }}>Avantajlarımız</Text>
-                      <Title level={2} style={{ marginTop: 8, marginBottom: 8 }}>Neden {fullName}?</Title>
-                      <Text type="secondary" style={{ fontSize: 15 }}>Binlerce müşterinin güvenle tercih ettiği platform</Text>
+                      <Text style={{ color: theme.sectionAccent, fontWeight: 600, fontSize: 13, textTransform: 'uppercase' as const, letterSpacing: 2 }}>{t('whyUs.badge')}</Text>
+                      <Title level={2} style={{ marginTop: 8, marginBottom: 8 }}>{t('whyUs.title', { name: fullName })}</Title>
+                      <Text type="secondary" style={{ fontSize: 15 }}>{t('whyUs.subtitle')}</Text>
                     </div>
                     <Row gutter={[20, 20]}>
                       {whyUsFeatures.map((item, i) => (
@@ -580,10 +591,10 @@ const HomePage: React.FC = () => {
               );
             case 'stats':
               const statsData = statsItems.length > 0 ? statsItems : [
-                { num: '50,000+', label: 'Mutlu Yolcu' },
-                { num: '200+', label: 'Profesyonel Şoför' },
-                { num: '50+', label: 'Hizmet Bölgesi' },
-                { num: '4.9/5', label: 'Müşteri Puanı' },
+                { num: '50,000+', label: t('stats.passengers') },
+                { num: '200+', label: t('stats.drivers') },
+                { num: '50+', label: t('stats.zones') },
+                { num: '4.9/5', label: t('stats.rating') },
               ];
               return (
                 <div key="stats" style={{ background: theme.statsGradient, padding: 'clamp(40px, 6vw, 64px) 16px' }}>
@@ -610,9 +621,9 @@ const HomePage: React.FC = () => {
                 <div key="popularRoutes" style={{ background: '#fff', padding: 'clamp(48px, 8vw, 80px) 16px' }}>
                   <div style={{ maxWidth: 1100, margin: '0 auto' }}>
                     <div style={{ textAlign: 'center', marginBottom: 48 }}>
-                      <Text style={{ color: theme.sectionAccent, fontWeight: 600, fontSize: 13, textTransform: 'uppercase' as const, letterSpacing: 2 }}>En Çok Tercih Edilen</Text>
-                      <Title level={2} style={{ marginTop: 8, marginBottom: 8 }}>Popüler Rotalar</Title>
-                      <Text type="secondary" style={{ fontSize: 15 }}>Müşterilerimizin en çok tercih ettiği transfer güzergahları</Text>
+                      <Text style={{ color: theme.sectionAccent, fontWeight: 600, fontSize: 13, textTransform: 'uppercase' as const, letterSpacing: 2 }}>{t('routes.badge')}</Text>
+                      <Title level={2} style={{ marginTop: 8, marginBottom: 8 }}>{t('routes.title')}</Title>
+                      <Text type="secondary" style={{ fontSize: 15 }}>{t('routes.subtitle')}</Text>
                     </div>
                     <Row gutter={[16, 16]}>
                       {routesData.map((route, i) => (
@@ -621,7 +632,7 @@ const HomePage: React.FC = () => {
                             cover={
                               <div style={{ height: 'clamp(120px, 18vw, 160px)', backgroundImage: `url(${route.img})`, backgroundSize: 'cover', backgroundPosition: 'center', position: 'relative' }}>
                                 <div style={{ position: 'absolute', bottom: 10, right: 10, background: 'rgba(0,0,0,0.7)', color: '#fff', padding: '3px 10px', borderRadius: 16, fontSize: 12, fontWeight: 600 }}>
-                                  {route.price} EUR&apos;dan
+                                  {route.price} EUR {t('routes.from')}
                                 </div>
                               </div>
                             }
@@ -646,14 +657,14 @@ const HomePage: React.FC = () => {
                 <div key="testimonials" style={{ background: theme.testimonialBg, padding: 'clamp(48px, 8vw, 80px) 16px' }}>
                   <div style={{ maxWidth: 1000, margin: '0 auto' }}>
                     <div style={{ textAlign: 'center', marginBottom: 48 }}>
-                      <Text style={{ color: theme.sectionAccent, fontWeight: 600, fontSize: 13, textTransform: 'uppercase' as const, letterSpacing: 2 }}>Yorumlar</Text>
-                      <Title level={2} style={{ marginTop: 8, marginBottom: 8 }}>Müşterilerimiz Ne Diyor?</Title>
+                      <Text style={{ color: theme.sectionAccent, fontWeight: 600, fontSize: 13, textTransform: 'uppercase' as const, letterSpacing: 2 }}>{t('testimonials.badge')}</Text>
+                      <Title level={2} style={{ marginTop: 8, marginBottom: 8 }}>{t('testimonials.title')}</Title>
                     </div>
                     <Row gutter={[20, 20]}>
                       {[
-                        { name: 'Ahmet Y.', text: 'Antalya havalimanından otelimize çok rahat bir yolculuk yaptık. Şoför çok nazik ve profesyoneldi.', rating: 5, city: 'İstanbul' },
-                        { name: 'Maria S.', text: 'Very professional service! The car was clean and driver was on time. Highly recommended.', rating: 5, city: 'Berlin' },
-                        { name: 'Fatma K.', text: `Ailecek transfer hizmetini kullandık, bebek koltuğu bile hazırdı. Teşekkürler ${fullName}!`, rating: 5, city: 'Ankara' },
+                        { name: 'Ahmet Y.', text: t('testimonials.review1'), rating: 5, city: 'İstanbul' },
+                        { name: 'Maria S.', text: t('testimonials.review2'), rating: 5, city: 'Berlin' },
+                        { name: 'Fatma K.', text: t('testimonials.review3', { name: fullName }), rating: 5, city: 'Ankara' },
                       ].map((review, i) => (
                         <Col xs={24} md={8} key={i}>
                           <Card style={{ height: '100%', borderRadius: 16, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }} styles={{ body: { padding: 24 } }}>
@@ -683,18 +694,18 @@ const HomePage: React.FC = () => {
               );
             case 'faq':
               const faqData = faqItems.length > 0 ? faqItems : [
-                { question: 'Rezervasyonumu nasıl iptal edebilirim?', answer: 'Rezervasyonunuzu transfer saatinizden 24 saat öncesine kadar ücretsiz olarak iptal edebilirsiniz.' },
-                { question: 'Ödeme nasıl yapılır?', answer: 'Kredi kartı, banka kartı veya nakit ödeme seçeneklerimiz mevcuttur.' },
-                { question: 'Bebek koltuğu temin edebilir misiniz?', answer: 'Evet, rezervasyon sırasında bebek koltuğu talebinizi belirtmeniz yeterlidir.' },
-                { question: 'Uçuşum gecikirse ne olur?', answer: 'Uçuş bilgilerinizi takip ediyoruz. Gecikme durumunda şoförünüz sizi bekler.' },
-                { question: 'Havalimanında beni nasıl bulacaklar?', answer: 'Şoförünüz isminizin yazılı olduğu tabela ile çıkış kapısında sizi karşılayacaktır.' },
+                { question: t('faq.q1'), answer: t('faq.a1') },
+                { question: t('faq.q2'), answer: t('faq.a2') },
+                { question: t('faq.q3'), answer: t('faq.a3') },
+                { question: t('faq.q4'), answer: t('faq.a4') },
+                { question: t('faq.q5'), answer: t('faq.a5') },
               ];
               return (
                 <div key="faq" style={{ background: '#fff', padding: 'clamp(48px, 8vw, 80px) 16px' }}>
                   <div style={{ maxWidth: 750, margin: '0 auto' }}>
                     <div style={{ textAlign: 'center', marginBottom: 48 }}>
-                      <Text style={{ color: theme.sectionAccent, fontWeight: 600, fontSize: 13, textTransform: 'uppercase' as const, letterSpacing: 2 }}>SSS</Text>
-                      <Title level={2} style={{ marginTop: 8, marginBottom: 8 }}>Sıkça Sorulan Sorular</Title>
+                      <Text style={{ color: theme.sectionAccent, fontWeight: 600, fontSize: 13, textTransform: 'uppercase' as const, letterSpacing: 2 }}>{t('faq.badge')}</Text>
+                      <Title level={2} style={{ marginTop: 8, marginBottom: 8 }}>{t('faq.title')}</Title>
                     </div>
                     <Collapse accordion expandIconPlacement="end" style={{ background: 'transparent', border: 'none' }}
                       items={faqData.map((faq, idx) => ({
@@ -710,13 +721,13 @@ const HomePage: React.FC = () => {
               return (
                 <div key="cta" style={{ background: theme.ctaGradient, padding: 'clamp(40px, 6vw, 64px) 16px', textAlign: 'center' }}>
                   <div style={{ maxWidth: 650, margin: '0 auto' }}>
-                    <Title level={2} style={{ color: '#fff', marginBottom: 10 }}>Hemen Rezervasyon Yapın</Title>
+                    <Title level={2} style={{ color: '#fff', marginBottom: 10 }}>{t('cta.title')}</Title>
                     <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 15, display: 'block', marginBottom: 28 }}>
-                      Güvenli, konforlu ve uygun fiyatlı transfer hizmeti için hemen arama yapın.
+                      {t('cta.subtitle')}
                     </Text>
                     <Button size="large" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
                       style={{ height: 50, padding: '0 36px', fontSize: 15, fontWeight: 600, borderRadius: 12, background: '#fff', color: theme.primaryColor, border: 'none', boxShadow: '0 4px 16px rgba(0,0,0,0.15)' }}>
-                      Transfer Ara <ArrowRightOutlined />
+                      {t('cta.button')} <ArrowRightOutlined />
                     </Button>
                   </div>
                 </div>
@@ -727,20 +738,20 @@ const HomePage: React.FC = () => {
         })}
 
         {/* ─── MODALS ─── */}
-        <Modal title="Bebek Koltuğu Gerekli mi?" open={babySeatModalVisible}
-          onOk={() => { setBabySeatRequired(true); setBabySeatModalVisible(false); message.success('Bebek koltuğu eklendi.'); }}
+        <Modal title={t('babySeat.title')} open={babySeatModalVisible}
+          onOk={() => { setBabySeatRequired(true); setBabySeatModalVisible(false); message.success(t('babySeat.added')); }}
           onCancel={() => { setBabySeatRequired(false); setBabySeatModalVisible(false); }}
-          okText="Evet, Gerekli" cancelText="Hayır">
-          <Text>0-2 yaş arası çocuğunuz için bebek koltuğu eklemek ister misiniz?</Text>
+          okText={t('babySeat.yes')} cancelText={t('babySeat.no')}>
+          <Text>{t('babySeat.message')}</Text>
         </Modal>
 
         <Modal
-          title={<div style={{ display: 'flex', alignItems: 'center', gap: 12 }}><CheckCircleOutlined style={{ fontSize: 24, color: theme.primaryColor }} /><span>Rezervasyon Bilgileri</span></div>}
+          title={<div style={{ display: 'flex', alignItems: 'center', gap: 12 }}><CheckCircleOutlined style={{ fontSize: 24, color: theme.primaryColor }} /><span>{t('booking.title')}</span></div>}
           open={bookingModalVisible} onOk={handleBookingSubmit} confirmLoading={bookingLoading}
-          onCancel={() => setBookingModalVisible(false)} okText="Rezervasyonu Tamamla" cancelText="İptal" width={600}>
+          onCancel={() => setBookingModalVisible(false)} okText={t('booking.submit')} cancelText={t('booking.cancel')} width={600}>
           {selectedTransfer && (
             <div style={{ marginBottom: 24, padding: 16, background: '#f8fafc', borderRadius: 12 }}>
-              <Text strong style={{ display: 'block', marginBottom: 8 }}>Seçilen Araç:</Text>
+              <Text strong style={{ display: 'block', marginBottom: 8 }}>{t('booking.selectedVehicle')}</Text>
               <Space>
                 <CarOutlined style={{ color: theme.primaryColor }} />
                 <Text>{selectedTransfer.vehicleType} - {selectedTransfer.vendor}</Text>
@@ -749,22 +760,22 @@ const HomePage: React.FC = () => {
             </div>
           )}
           <Form layout="vertical" form={form}>
-            <Form.Item label="Ad Soyad" name="fullName" rules={[{ required: true, message: 'Lütfen ad soyad girin' }]}>
-              <Input size="large" placeholder="Ad Soyad" />
+            <Form.Item label={t('booking.fullName')} name="fullName" rules={[{ required: true, message: t('booking.fullNameRequired') }]}>
+              <Input size="large" placeholder={t('booking.fullNamePlaceholder')} />
             </Form.Item>
-            <Form.Item label="E-posta" name="email" rules={[{ required: true, message: 'Lütfen e-posta girin' }, { type: 'email', message: 'Geçerli bir e-posta girin' }]}>
-              <Input size="large" placeholder="ornek@mail.com" />
+            <Form.Item label={t('booking.email')} name="email" rules={[{ required: true, message: t('booking.emailRequired') }, { type: 'email', message: t('booking.emailInvalid') }]}>
+              <Input size="large" placeholder={t('booking.emailPlaceholder')} />
             </Form.Item>
-            <Form.Item label="Telefon" name="phone" rules={[{ required: true, message: 'Lütfen telefon numarası girin' }]}>
-              <Input size="large" placeholder="+90..." />
+            <Form.Item label={t('booking.phone')} name="phone" rules={[{ required: true, message: t('booking.phoneRequired') }]}>
+              <Input size="large" placeholder={t('booking.phonePlaceholder')} />
             </Form.Item>
             {selectedTransfer && (
               <>
-                <Form.Item label="Uçuş Numarası" name="flightNumber"><Input size="large" placeholder="Örn: TK1234" /></Form.Item>
-                <Form.Item name="meetAndGreet" valuePropName="checked"><Checkbox>Karşılama hizmeti (Meet &amp; Greet) istiyorum</Checkbox></Form.Item>
+                <Form.Item label={t('booking.flightNumber')} name="flightNumber"><Input size="large" placeholder={t('booking.flightNumberPlaceholder')} /></Form.Item>
+                <Form.Item name="meetAndGreet" valuePropName="checked"><Checkbox>{t('booking.meetAndGreet')}</Checkbox></Form.Item>
               </>
             )}
-            <Form.Item label="Notlar" name="notes"><Input.TextArea rows={3} placeholder="İletmek istediğiniz ek notlar" /></Form.Item>
+            <Form.Item label={t('booking.notes')} name="notes"><Input.TextArea rows={3} placeholder={t('booking.notesPlaceholder')} /></Form.Item>
           </Form>
         </Modal>
       </Content>
@@ -785,7 +796,7 @@ const HomePage: React.FC = () => {
                 )}
               </div>
               <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 13, lineHeight: 1.7, display: 'block', marginBottom: 16 }}>
-                {branding.slogan}. 7/24 hizmetinizdeyiz.
+                {branding.slogan}. {t('footer.available')}
               </Text>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <Space size="small"><PhoneOutlined style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14 }} /><Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 13 }}>{branding.phone}</Text></Space>
@@ -793,38 +804,49 @@ const HomePage: React.FC = () => {
               </div>
             </Col>
             <Col xs={12} md={5}>
-              <Title level={5} style={{ color: '#fff', marginBottom: 16, fontSize: 14 }}>Hızlı Linkler</Title>
+              <Title level={5} style={{ color: '#fff', marginBottom: 16, fontSize: 14 }}>{t('footer.quickLinks')}</Title>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <a href="/" style={{ color: 'rgba(255,255,255,0.55)', textDecoration: 'none', fontSize: 13 }}>Ana Sayfa</a>
-                <a href="/sayfa/hakkimizda" style={{ color: 'rgba(255,255,255,0.55)', textDecoration: 'none', fontSize: 13 }}>Hakkımızda</a>
-                <a href="/sayfa/iletisim" style={{ color: 'rgba(255,255,255,0.55)', textDecoration: 'none', fontSize: 13 }}>Bize Ulaşın</a>
-                <a href="/sayfa/seyahat-rehberi" style={{ color: 'rgba(255,255,255,0.55)', textDecoration: 'none', fontSize: 13 }}>Seyahat Rehberi</a>
+                <a href="/" style={{ color: 'rgba(255,255,255,0.55)', textDecoration: 'none', fontSize: 13 }}>{t('footer.home')}</a>
+                <a href="/sayfa/hakkimizda" style={{ color: 'rgba(255,255,255,0.55)', textDecoration: 'none', fontSize: 13 }}>{t('footer.about')}</a>
+                <a href="/sayfa/iletisim" style={{ color: 'rgba(255,255,255,0.55)', textDecoration: 'none', fontSize: 13 }}>{t('footer.contact')}</a>
+                <a href="/sayfa/seyahat-rehberi" style={{ color: 'rgba(255,255,255,0.55)', textDecoration: 'none', fontSize: 13 }}>{t('footer.travelGuide')}</a>
               </div>
             </Col>
             <Col xs={12} md={5}>
-              <Title level={5} style={{ color: '#fff', marginBottom: 16, fontSize: 14 }}>Yasal</Title>
+              <Title level={5} style={{ color: '#fff', marginBottom: 16, fontSize: 14 }}>{t('footer.legal')}</Title>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <a href="/sayfa/gizlilik-politikasi" style={{ color: 'rgba(255,255,255,0.55)', textDecoration: 'none', fontSize: 13 }}>Gizlilik Politikası</a>
-                <a href="/sayfa/kullanim-kosullari" style={{ color: 'rgba(255,255,255,0.55)', textDecoration: 'none', fontSize: 13 }}>Kullanım Koşulları</a>
-                <a href="/sayfa/iptal-iade-politikasi" style={{ color: 'rgba(255,255,255,0.55)', textDecoration: 'none', fontSize: 13 }}>İptal ve İade</a>
+                <a href="/sayfa/gizlilik-politikasi" style={{ color: 'rgba(255,255,255,0.55)', textDecoration: 'none', fontSize: 13 }}>{t('footer.privacy')}</a>
+                <a href="/sayfa/kullanim-kosullari" style={{ color: 'rgba(255,255,255,0.55)', textDecoration: 'none', fontSize: 13 }}>{t('footer.terms')}</a>
+                <a href="/sayfa/iptal-iade-politikasi" style={{ color: 'rgba(255,255,255,0.55)', textDecoration: 'none', fontSize: 13 }}>{t('footer.refund')}</a>
               </div>
             </Col>
             <Col xs={24} md={6}>
-              <Title level={5} style={{ color: '#fff', marginBottom: 16, fontSize: 14 }}>Hizmetlerimiz</Title>
+              <Title level={5} style={{ color: '#fff', marginBottom: 16, fontSize: 14 }}>{t('footer.services')}</Title>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <span style={{ color: 'rgba(255,255,255,0.55)', fontSize: 13 }}>VIP Transfer</span>
-                <span style={{ color: 'rgba(255,255,255,0.55)', fontSize: 13 }}>Havalimanı Transferi</span>
-                <span style={{ color: 'rgba(255,255,255,0.55)', fontSize: 13 }}>Şehirler Arası Transfer</span>
-                <span style={{ color: 'rgba(255,255,255,0.55)', fontSize: 13 }}>Grup Transferi</span>
+                <span style={{ color: 'rgba(255,255,255,0.55)', fontSize: 13 }}>{t('footer.vipTransfer')}</span>
+                <span style={{ color: 'rgba(255,255,255,0.55)', fontSize: 13 }}>{t('footer.airportTransfer')}</span>
+                <span style={{ color: 'rgba(255,255,255,0.55)', fontSize: 13 }}>{t('footer.intercityTransfer')}</span>
+                <span style={{ color: 'rgba(255,255,255,0.55)', fontSize: 13 }}>{t('footer.groupTransfer')}</span>
               </div>
             </Col>
           </Row>
           <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', marginTop: 36, paddingTop: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-            <Text style={{ color: 'rgba(255,255,255,0.35)', fontSize: 12 }}>&copy; {new Date().getFullYear()} {branding.companyName}. Tüm hakları saklıdır.</Text>
-            <Space size="middle">
-              <a href="#" style={{ color: 'rgba(255,255,255,0.35)', fontSize: 12 }}>Facebook</a>
-              <a href="#" style={{ color: 'rgba(255,255,255,0.35)', fontSize: 12 }}>Instagram</a>
-              <a href="#" style={{ color: 'rgba(255,255,255,0.35)', fontSize: 12 }}>Twitter</a>
+            <Text style={{ color: 'rgba(255,255,255,0.35)', fontSize: 12 }}>&copy; {new Date().getFullYear()} {branding.companyName}. {t('footer.rights')}</Text>
+            <Space size={12}>
+              {socialMedia.facebook && <a href={socialMedia.facebook} target="_blank" rel="noopener noreferrer" style={{ color: 'rgba(255,255,255,0.5)', fontSize: 18, transition: 'color 0.2s' }}><FacebookOutlined /></a>}
+              {socialMedia.instagram && <a href={socialMedia.instagram} target="_blank" rel="noopener noreferrer" style={{ color: 'rgba(255,255,255,0.5)', fontSize: 18, transition: 'color 0.2s' }}><InstagramOutlined /></a>}
+              {socialMedia.twitter && <a href={socialMedia.twitter} target="_blank" rel="noopener noreferrer" style={{ color: 'rgba(255,255,255,0.5)', fontSize: 18, transition: 'color 0.2s' }}><TwitterOutlined /></a>}
+              {socialMedia.youtube && <a href={socialMedia.youtube} target="_blank" rel="noopener noreferrer" style={{ color: 'rgba(255,255,255,0.5)', fontSize: 18, transition: 'color 0.2s' }}><YoutubeOutlined /></a>}
+              {socialMedia.linkedin && <a href={socialMedia.linkedin} target="_blank" rel="noopener noreferrer" style={{ color: 'rgba(255,255,255,0.5)', fontSize: 18, transition: 'color 0.2s' }}><LinkedinOutlined /></a>}
+              {socialMedia.whatsapp && <a href={socialMedia.whatsapp} target="_blank" rel="noopener noreferrer" style={{ color: 'rgba(255,255,255,0.5)', fontSize: 18, transition: 'color 0.2s' }}><WhatsAppOutlined /></a>}
+              {socialMedia.telegram && <a href={socialMedia.telegram} target="_blank" rel="noopener noreferrer" style={{ color: 'rgba(255,255,255,0.5)', fontSize: 18, transition: 'color 0.2s' }}><SendOutlined /></a>}
+              {!Object.values(socialMedia).some(v => v) && (
+                <>
+                  <a href="#" style={{ color: 'rgba(255,255,255,0.35)', fontSize: 18 }}><FacebookOutlined /></a>
+                  <a href="#" style={{ color: 'rgba(255,255,255,0.35)', fontSize: 18 }}><InstagramOutlined /></a>
+                  <a href="#" style={{ color: 'rgba(255,255,255,0.35)', fontSize: 18 }}><TwitterOutlined /></a>
+                </>
+              )}
             </Space>
           </div>
         </div>

@@ -6,6 +6,7 @@ import { SocketProvider } from "./context/SocketContext";
 import { CurrencyProvider } from "./context/CurrencyContext";
 import { ThemeProvider } from "./context/ThemeContext";
 import { BrandingProvider } from "./context/BrandingContext";
+import { LanguageProvider } from "./context/LanguageContext";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -187,7 +188,9 @@ export default function RootLayout({
             <CurrencyProvider>
               <ThemeProvider>
                 <BrandingProvider>
-                  {children}
+                  <LanguageProvider>
+                    {children}
+                  </LanguageProvider>
                 </BrandingProvider>
               </ThemeProvider>
             </CurrencyProvider>

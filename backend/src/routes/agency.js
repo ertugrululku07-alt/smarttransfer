@@ -386,6 +386,30 @@ router.post('/bookings', authMiddleware, agencyMiddleware, async (req, res) => {
             io.to('admin_monitoring').emit('new_booking', booking);
         }
 
+        // Send voucher email (async, don't block response)
+        if (booking.contactEmail) {
+            try {
+                const { sendBookingVoucher } = require('../lib/emailService');
+                sendBookingVoucher(req.tenant.id, booking).catch(err => {
+                    console.error('[EMAIL] Agency voucher send failed (background):', err.message);
+                });
+            } catch (emailErr) {
+                console.error('[EMAIL] Agency voucher setup failed:', emailErr.message);
+            }
+        }
+
+        // Send WhatsApp voucher (async, don't block response)
+        if (booking.contactPhone) {
+            try {
+                const { sendBookingWhatsApp } = require('../lib/whatsappService');
+                sendBookingWhatsApp(req.tenant.id, booking).catch(err => {
+                    console.error('[WHATSAPP] Agency voucher send failed (background):', err.message);
+                });
+            } catch (waErr) {
+                console.error('[WHATSAPP] Agency voucher setup failed:', waErr.message);
+            }
+        }
+
         res.json({ success: true, data: booking });
     } catch (error) {
         console.error('Agency booking error:', error);

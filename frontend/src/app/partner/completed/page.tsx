@@ -9,22 +9,10 @@ import {
     ClockCircleOutlined,
     ExclamationCircleOutlined,
     SearchOutlined,
-    CalendarOutlined,
-    CarOutlined
+    RightOutlined,
+    InboxOutlined
 } from '@ant-design/icons';
-import {
-    Table,
-    Tag,
-    Input,
-    Spin,
-    Card,
-    Typography,
-    Tabs,
-    Button,
-    Empty
-} from 'antd';
-
-const { Title, Text } = Typography;
+import { Spin, Input } from 'antd';
 
 export default function CompletedReservationsPage() {
     const router = useRouter();
@@ -33,27 +21,17 @@ export default function CompletedReservationsPage() {
     const [searchText, setSearchText] = useState('');
     const [activeTab, setActiveTab] = useState('ALL');
 
-    // Fetch Completed Bookings
     useEffect(() => {
         const fetchBookings = async () => {
             try {
                 const token = localStorage.getItem('token');
-                if (!token) {
-                    router.push('/login');
-                    return;
-                }
-
+                if (!token) { router.push('/login'); return; }
                 const response = await fetch(`${(process.env.NEXT_PUBLIC_API_URL || 'https://backend-production-69e7.up.railway.app').replace(/[\r\n]+/g, '').trim()}/api/transfer/partner/completed-bookings`, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
+                    headers: { 'Authorization': `Bearer ${token}` }
                 });
-
                 if (response.ok) {
                     const resData = await response.json();
-                    if (resData.success) {
-                        setBookings(resData.data);
-                    }
+                    if (resData.success) setBookings(resData.data);
                 }
             } catch (error) {
                 console.error('Fetch error:', error);
@@ -61,192 +39,166 @@ export default function CompletedReservationsPage() {
                 setLoading(false);
             }
         };
-
         fetchBookings();
     }, [router]);
 
-    // Filter Logic
     const getFilteredBookings = () => {
         let filtered = bookings;
-
-        // 1. Tab Filter
-        if (activeTab !== 'ALL') {
-            filtered = filtered.filter(b => b.paymentStatus === activeTab);
-        }
-
-        // 2. Search Filter
+        if (activeTab !== 'ALL') filtered = filtered.filter(b => b.paymentStatus === activeTab);
         if (searchText) {
-            const lowerSearch = searchText.toLowerCase();
+            const s = searchText.toLowerCase();
             filtered = filtered.filter(b =>
-                b.bookingNumber?.toLowerCase().includes(lowerSearch) ||
-                b.customer?.name?.toLowerCase().includes(lowerSearch) ||
-                b.pickup?.location?.toLowerCase().includes(lowerSearch)
+                b.bookingNumber?.toLowerCase().includes(s) ||
+                b.customer?.name?.toLowerCase().includes(s) ||
+                b.pickup?.location?.toLowerCase().includes(s)
             );
         }
-
         return filtered;
     };
 
-    // Columns
-    const columns = [
-        {
-            title: 'Rezervasyon',
-            dataIndex: 'bookingNumber',
-            key: 'bookingNumber',
-            render: (text: string, record: any) => (
-                <div>
-                    <div style={{ fontWeight: 600, color: '#1890ff' }}>{text}</div>
-                    <div style={{ fontSize: '12px', color: '#999' }}>
-                        {new Date(record.completedAt).toLocaleDateString('tr-TR')}
-                    </div>
-                </div>
-            )
-        },
-        {
-            title: 'Müşteri',
-            dataIndex: ['customer', 'name'],
-            key: 'customer',
-            render: (text: string, record: any) => (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <div style={{
-                        width: '32px', height: '32px', borderRadius: '50%', background: '#f0f2f5',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: '12px', fontWeight: 600, color: '#667eea'
-                    }}>
-                        {record.customer.avatar}
-                    </div>
-                    <div>
-                        <div style={{ fontWeight: 500 }}>{text}</div>
-                        <div style={{ fontSize: '11px', color: '#999' }}>{record.customer.phone}</div>
-                    </div>
-                </div>
-            )
-        },
-        {
-            title: 'Güzergah',
-            key: 'route',
-            render: (_: any, record: any) => (
-                <div style={{ maxWidth: '250px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
-                        <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#52c41a' }} />
-                        <Text ellipsis={{ tooltip: record.pickup.location }} style={{ fontSize: '13px' }}>
-                            {record.pickup.location}
-                        </Text>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#f5222d' }} />
-                        <Text ellipsis={{ tooltip: record.dropoff.location }} style={{ fontSize: '13px' }}>
-                            {record.dropoff.location}
-                        </Text>
-                    </div>
-                </div>
-            )
-        },
-        {
-            title: 'Tutar',
-            key: 'price',
-            render: (_: any, record: any) => (
-                <div style={{ fontWeight: 600, fontSize: '15px' }}>
-                    {record.price.amount} {record.price.currency}
-                </div>
-            )
-        },
-        {
-            title: 'Ödeme Durumu',
-            dataIndex: 'paymentStatus',
-            key: 'paymentStatus',
-            render: (status: string) => {
-                let color = 'gold';
-                let text = 'Beklemede';
-                let icon = <ClockCircleOutlined />;
+    const getPaymentBadge = (status: string) => {
+        if (status === 'PAID') return { bg: '#d1fae5', color: '#065f46', text: 'Ödendi', icon: <CheckCircleOutlined /> };
+        if (status === 'DISPUTED') return { bg: '#fee2e2', color: '#991b1b', text: 'İtiraz', icon: <ExclamationCircleOutlined /> };
+        return { bg: '#fef3c7', color: '#92400e', text: 'Beklemede', icon: <ClockCircleOutlined /> };
+    };
 
-                if (status === 'PAID') {
-                    color = 'success';
-                    text = 'Ödendi';
-                    icon = <CheckCircleOutlined />;
-                } else if (status === 'DISPUTED') {
-                    color = 'error';
-                    text = 'İtiraz Edildi';
-                    icon = <ExclamationCircleOutlined />;
-                } else if (status === 'PENDING') {
-                    color = 'warning';
-                    text = 'Beklemede';
-                    icon = <ClockCircleOutlined />;
-                } else if (status === 'FAILED') {
-                    color = 'red';
-                    text = 'Başarısız';
-                    icon = <ExclamationCircleOutlined />;
-                }
-
-                return (
-                    <Tag icon={icon} color={color} style={{ margin: 0 }}>
-                        {text}
-                    </Tag>
-                );
-            }
-        },
-        {
-            title: 'İşlem',
-            key: 'action',
-            render: (_: any, record: any) => (
-                <Button type="link" size="small" onClick={() => router.push(`/partner/booking/${record.id}`)}>
-                    Detay
-                </Button>
-            )
-        }
+    const tabs = [
+        { key: 'ALL', label: 'Tümü', count: bookings.length },
+        { key: 'PAID', label: 'Ödendi', count: bookings.filter(b => b.paymentStatus === 'PAID').length },
+        { key: 'PENDING', label: 'Beklemede', count: bookings.filter(b => b.paymentStatus === 'PENDING').length },
+        { key: 'DISPUTED', label: 'İtiraz', count: bookings.filter(b => b.paymentStatus === 'DISPUTED').length },
     ];
 
-    const tabItems = [
-        { key: 'ALL', label: 'Tümü' },
-        { key: 'PAID', label: 'Ödendi' },
-        { key: 'PENDING', label: 'Beklemede' },
-        { key: 'DISPUTED', label: 'İtiraz Edildi' }
-    ];
+    const filtered = getFilteredBookings();
 
     return (
         <PartnerGuard>
             <PartnerLayout>
-                <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
+                <style jsx global>{`
+                    .completed-container { max-width: 1200px; margin: 0 auto; }
+                    .completed-list { display: flex; flex-direction: column; gap: 12px; }
+                    @media (max-width: 768px) {
+                        .completed-container { padding-top: 68px; }
+                        .completed-search { width: 100% !important; }
+                    }
+                `}</style>
 
+                <div className="completed-container">
                     {/* Header */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-                        <div>
-                            <Title level={4} style={{ margin: 0 }}>Tamamlanmış Rezervasyonlar</Title>
-                            <Text type="secondary">Geçmiş transferlerinizi ve ödeme durumlarını görüntüleyin</Text>
-                        </div>
+                    <div style={{ marginBottom: 20 }}>
+                        <h1 style={{ fontSize: 24, fontWeight: 800, color: '#0f172a', margin: 0 }}>✅ Tamamlanmış Rezervasyonlar</h1>
+                        <p style={{ fontSize: 14, color: '#64748b', margin: '4px 0 0' }}>Geçmiş transferlerinizi ve ödeme durumlarını görüntüleyin</p>
                     </div>
 
                     {/* Filters */}
-                    <Card style={{ marginBottom: '24px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }} bodyStyle={{ padding: '12px 24px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
-                            <Tabs
-                                activeKey={activeTab}
-                                onChange={setActiveTab}
-                                items={tabItems}
-                                style={{ marginBottom: -16 }}
-                            />
+                    <div style={{
+                        background: '#fff', borderRadius: 16, padding: '16px 20px', marginBottom: 20,
+                        boxShadow: '0 2px 12px rgba(0,0,0,0.04)', border: '1px solid #f1f5f9',
+                    }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+                            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                                {tabs.map(t => (
+                                    <button key={t.key} onClick={() => setActiveTab(t.key)} style={{
+                                        padding: '7px 16px', border: 'none', borderRadius: 10,
+                                        background: activeTab === t.key ? '#0f172a' : '#f1f5f9',
+                                        color: activeTab === t.key ? '#fff' : '#64748b',
+                                        fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                                        transition: 'all 0.2s ease',
+                                    }}>
+                                        {t.label} {t.count > 0 && <span style={{ opacity: 0.7, marginLeft: 4 }}>({t.count})</span>}
+                                    </button>
+                                ))}
+                            </div>
                             <Input
-                                prefix={<SearchOutlined style={{ color: '#bfbfbf' }} />}
-                                placeholder="Rezervasyon no, müşteri veya konum ara..."
+                                className="completed-search"
+                                prefix={<SearchOutlined style={{ color: '#94a3b8' }} />}
+                                placeholder="Ara..."
                                 value={searchText}
                                 onChange={e => setSearchText(e.target.value)}
-                                style={{ width: '300px', borderRadius: '6px' }}
+                                style={{ width: 260, borderRadius: 10, height: 38 }}
                             />
                         </div>
-                    </Card>
+                    </div>
 
-                    {/* Table */}
-                    <Card style={{ borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', overflow: 'hidden' }} bodyStyle={{ padding: 0 }}>
-                        <Table
-                            columns={columns}
-                            dataSource={getFilteredBookings()}
-                            rowKey="id"
-                            loading={loading}
-                            pagination={{ pageSize: 10 }}
-                            locale={{ emptyText: <Empty description="Kayıt bulunamadı" /> }}
-                        />
-                    </Card>
+                    {/* List */}
+                    {loading ? (
+                        <div style={{ textAlign: 'center', padding: 60 }}>
+                            <Spin size="large" />
+                            <p style={{ color: '#94a3b8', marginTop: 12 }}>Yükleniyor...</p>
+                        </div>
+                    ) : filtered.length === 0 ? (
+                        <div style={{
+                            background: '#fff', borderRadius: 20, padding: '60px 24px', textAlign: 'center',
+                            boxShadow: '0 2px 12px rgba(0,0,0,0.04)', border: '1px solid #f1f5f9',
+                        }}>
+                            <InboxOutlined style={{ fontSize: 48, color: '#cbd5e1' }} />
+                            <h3 style={{ color: '#475569', fontWeight: 600, margin: '16px 0 8px' }}>Kayıt bulunamadı</h3>
+                            <p style={{ color: '#94a3b8', fontSize: 14, margin: 0 }}>Tamamlanmış transferleriniz burada görünecek</p>
+                        </div>
+                    ) : (
+                        <div className="completed-list">
+                            {filtered.map((b: any) => {
+                                const badge = getPaymentBadge(b.paymentStatus);
+                                return (
+                                    <div key={b.id} onClick={() => router.push(`/partner/booking/${b.id}`)} style={{
+                                        background: '#fff', borderRadius: 16, padding: '16px 20px',
+                                        boxShadow: '0 2px 12px rgba(0,0,0,0.04)', border: '1px solid #f1f5f9',
+                                        cursor: 'pointer', transition: 'all 0.2s ease',
+                                        display: 'flex', alignItems: 'center', gap: 16,
+                                    }}>
+                                        {/* Avatar */}
+                                        <div style={{
+                                            width: 46, height: 46, borderRadius: 14, flexShrink: 0,
+                                            background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            color: '#fff', fontWeight: 700, fontSize: 14,
+                                        }}>
+                                            {b.customer?.avatar || '?'}
+                                        </div>
 
+                                        {/* Info */}
+                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                                                <span style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>{b.bookingNumber}</span>
+                                                <span style={{
+                                                    padding: '2px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700,
+                                                    background: badge.bg, color: badge.color,
+                                                    display: 'inline-flex', alignItems: 'center', gap: 4,
+                                                }}>
+                                                    {badge.icon} {badge.text}
+                                                </span>
+                                            </div>
+                                            <div style={{ fontSize: 13, color: '#475569', fontWeight: 500, marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                {b.customer?.name}
+                                            </div>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#94a3b8' }}>
+                                                    <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#10b981' }} />
+                                                    <span style={{ maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.pickup?.location}</span>
+                                                </div>
+                                                <span style={{ color: '#cbd5e1' }}>→</span>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#94a3b8' }}>
+                                                    <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#ef4444' }} />
+                                                    <span style={{ maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.dropoff?.location}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Price + Arrow */}
+                                        <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                                            <div style={{ fontSize: 16, fontWeight: 800, color: '#0f172a' }}>
+                                                {b.price?.amount} <span style={{ fontSize: 12, fontWeight: 600, color: '#94a3b8' }}>{b.price?.currency}</span>
+                                            </div>
+                                            <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+                                                {b.completedAt ? new Date(b.completedAt).toLocaleDateString('tr-TR') : ''}
+                                            </div>
+                                        </div>
+                                        <RightOutlined style={{ color: '#cbd5e1', fontSize: 14, flexShrink: 0 }} />
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
                 </div>
             </PartnerLayout>
         </PartnerGuard>

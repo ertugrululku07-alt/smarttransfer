@@ -94,7 +94,7 @@ router.get('/settings', async (req, res) => {
  */
 router.put('/settings', authMiddleware, async (req, res) => {
     try {
-        const { googleMaps, heroBackground, definitions, salaryPaymentDay, hubs, siteTheme, branding, homepageSections, homepageFaq, homepageStats, homepageRoutes, homepageFeatures, customTheme, timeDefinitions } = req.body;
+        const { googleMaps, heroBackground, definitions, salaryPaymentDay, hubs, siteTheme, branding, homepageSections, homepageFaq, homepageStats, homepageRoutes, homepageFeatures, customTheme, timeDefinitions, socialMedia, emailSettings, emailTemplate, whatsappSettings } = req.body;
 
         // Check permission
         if (req.user.roleType !== 'TENANT_ADMIN' && req.user.roleType !== 'SUPER_ADMIN') {
@@ -143,7 +143,20 @@ router.put('/settings', authMiddleware, async (req, res) => {
             homepageFeatures: homepageFeatures !== undefined ? homepageFeatures : currentSettings.homepageFeatures,
             customTheme: customTheme !== undefined ? customTheme : currentSettings.customTheme,
             partnerCommissionRate: req.body.partnerCommissionRate !== undefined ? req.body.partnerCommissionRate : currentSettings.partnerCommissionRate,
-            timeDefinitions: timeDefinitions !== undefined ? timeDefinitions : currentSettings.timeDefinitions
+            timeDefinitions: timeDefinitions !== undefined ? timeDefinitions : currentSettings.timeDefinitions,
+            socialMedia: socialMedia !== undefined ? socialMedia : currentSettings.socialMedia,
+            emailSettings: emailSettings ? {
+                ...currentSettings.emailSettings,
+                ...emailSettings
+            } : currentSettings.emailSettings,
+            emailTemplate: emailTemplate ? {
+                ...currentSettings.emailTemplate,
+                ...emailTemplate
+            } : currentSettings.emailTemplate,
+            whatsappSettings: whatsappSettings ? {
+                ...currentSettings.whatsappSettings,
+                ...whatsappSettings
+            } : currentSettings.whatsappSettings
         };
 
         const updatedTenant = await prisma.tenant.update({
@@ -168,7 +181,57 @@ router.put('/settings', authMiddleware, async (req, res) => {
     }
 });
 
-// ... (rest of the file)
+/**
+ * POST /api/tenant/test-whatsapp
+ * Send test WhatsApp to verify settings
+ */
+router.post('/test-whatsapp', authMiddleware, async (req, res) => {
+    try {
+        if (req.user.roleType !== 'TENANT_ADMIN' && req.user.roleType !== 'SUPER_ADMIN') {
+            return res.status(403).json({ success: false, error: 'Permission denied' });
+        }
+        const { toPhone } = req.body;
+        if (!toPhone) {
+            return res.status(400).json({ success: false, error: 'toPhone gerekli' });
+        }
+        const { sendTestWhatsApp } = require('../lib/whatsappService');
+        const result = await sendTestWhatsApp(req.user.tenantId, toPhone);
+        if (result.success) {
+            res.json({ success: true, message: 'Test WhatsApp mesajı gönderildi' });
+        } else {
+            res.status(400).json({ success: false, error: result.error });
+        }
+    } catch (error) {
+        console.error('Test WhatsApp error:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+/**
+ * POST /api/tenant/test-email
+ * Send test email to verify SMTP settings
+ */
+router.post('/test-email', authMiddleware, async (req, res) => {
+    try {
+        if (req.user.roleType !== 'TENANT_ADMIN' && req.user.roleType !== 'SUPER_ADMIN') {
+            return res.status(403).json({ success: false, error: 'Permission denied' });
+        }
+        const { toEmail } = req.body;
+        if (!toEmail) {
+            return res.status(400).json({ success: false, error: 'toEmail gerekli' });
+        }
+        const { sendTestEmail } = require('../lib/emailService');
+        const result = await sendTestEmail(req.user.tenantId, toEmail);
+        if (result.success) {
+            res.json({ success: true, message: 'Test e-postası gönderildi' });
+        } else {
+            res.status(400).json({ success: false, error: result.error });
+        }
+    } catch (error) {
+        console.error('Test email error:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
 
 /**
  * GET /api/tenant/modules

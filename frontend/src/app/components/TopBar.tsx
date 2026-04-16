@@ -8,6 +8,8 @@ import { useAuth } from '../context/AuthContext';
 import { useCurrency } from '../context/CurrencyContext';
 import { useBranding } from '../context/BrandingContext';
 import { useTheme } from '../context/ThemeContext';
+import { useLanguage } from '../context/LanguageContext';
+import { localeLabels, supportedLocales, SupportedLocale } from '../locales';
 import axios from 'axios';
 
 const { Text } = Typography;
@@ -27,6 +29,7 @@ const TopBar: React.FC = () => {
   const { currencies, selectedCurrency, setCurrency, loading: currencyLoading } = useCurrency();
   const { branding, fullName } = useBranding();
   const { theme } = useTheme();
+  const { locale, setLocale, t } = useLanguage();
   const router = useRouter();
   const [scrolled, setScrolled] = useState(false);
   const [menuPages, setMenuPages] = useState<NavPage[]>([]);
@@ -152,7 +155,7 @@ const TopBar: React.FC = () => {
         }}
           className="topbar-nav-desktop"
         >
-          <a href="/" style={navLinkStyle}>Ana Sayfa</a>
+          <a href="/" style={navLinkStyle}>{t('nav.home')}</a>
           {menuPages.map(page => (
             <a
               key={page.slug}
@@ -168,6 +171,30 @@ const TopBar: React.FC = () => {
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           {(!authLoading && !currencyLoading) && (
             <>
+              {/* Language Selector */}
+              <Select
+                value={locale}
+                onChange={(val: SupportedLocale) => setLocale(val)}
+                style={{ width: 80, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: '6px' }}
+                size="small"
+                variant="borderless"
+                styles={{ popup: { root: { zIndex: 9999, minWidth: 120 } } }}
+                optionLabelProp="label"
+              >
+                {supportedLocales.map(lc => (
+                  <Option
+                    key={lc}
+                    value={lc}
+                    label={<span style={{ color: 'white', fontWeight: 600, fontSize: 13 }}>{localeLabels[lc].flag} {lc.toUpperCase()}</span>}
+                  >
+                    <Space>
+                      <span>{localeLabels[lc].flag}</span>
+                      <span>{localeLabels[lc].label}</span>
+                    </Space>
+                  </Option>
+                ))}
+              </Select>
+
               {currencies.length > 0 && (
                 <Select
                   value={selectedCurrency}
@@ -214,7 +241,7 @@ const TopBar: React.FC = () => {
                     onClick={handleLogoutClick}
                     style={{ fontSize: 12 }}
                   >
-                    Çıkış
+                    {t('nav.logout')}
                   </Button>
                 </Space>
               ) : (
@@ -232,7 +259,7 @@ const TopBar: React.FC = () => {
                       padding: '0 14px',
                     }}
                   >
-                    Kayıt Ol
+                    {t('nav.register')}
                   </Button>
                   <Button
                     size="small"
@@ -247,7 +274,7 @@ const TopBar: React.FC = () => {
                       padding: '0 16px',
                     }}
                   >
-                    Giriş Yap
+                    {t('nav.login')}
                   </Button>
                 </Space>
               )}
@@ -274,7 +301,7 @@ const TopBar: React.FC = () => {
         size="default"
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <a href="/" style={{ padding: '10px 0', color: '#333', fontWeight: 500, borderBottom: '1px solid #f0f0f0' }}>Ana Sayfa</a>
+          <a href="/" style={{ padding: '10px 0', color: '#333', fontWeight: 500, borderBottom: '1px solid #f0f0f0' }}>{t('nav.home')}</a>
           {menuPages.map(page => (
             <a
               key={page.slug}
@@ -285,6 +312,25 @@ const TopBar: React.FC = () => {
             </a>
           ))}
 
+          {/* Mobile Language Selector */}
+          <div style={{ padding: '10px 0', borderBottom: '1px solid #f0f0f0' }}>
+            <Select
+              value={locale}
+              onChange={(val: SupportedLocale) => setLocale(val)}
+              style={{ width: '100%' }}
+              size="large"
+            >
+              {supportedLocales.map(lc => (
+                <Option key={lc} value={lc}>
+                  <Space>
+                    <span>{localeLabels[lc].flag}</span>
+                    <span>{localeLabels[lc].label}</span>
+                  </Space>
+                </Option>
+              ))}
+            </Select>
+          </div>
+
           {/* Mobile auth actions */}
           {!authLoading && !user && (
             <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -293,7 +339,7 @@ const TopBar: React.FC = () => {
                 onClick={() => { setMobileMenuOpen(false); router.push('/register'); }}
                 style={{ height: 44, borderRadius: 10, fontWeight: 600 }}
               >
-                Kayıt Ol
+                {t('nav.register')}
               </Button>
               <Button
                 type="primary"
@@ -305,7 +351,7 @@ const TopBar: React.FC = () => {
                   border: 'none',
                 }}
               >
-                Giriş Yap
+                {t('nav.login')}
               </Button>
             </div>
           )}
@@ -317,7 +363,7 @@ const TopBar: React.FC = () => {
                 onClick={() => { setMobileMenuOpen(false); router.push(panelRoute); }}
                 style={{ height: 44, borderRadius: 10, fontWeight: 600 }}
               >
-                Panele Git
+                {t('nav.goToPanel')}
               </Button>
               <Button
                 danger
@@ -325,7 +371,7 @@ const TopBar: React.FC = () => {
                 onClick={() => { setMobileMenuOpen(false); handleLogoutClick(); }}
                 style={{ height: 44, borderRadius: 10, fontWeight: 600 }}
               >
-                Çıkış Yap
+                {t('nav.logout')}
               </Button>
             </div>
           )}

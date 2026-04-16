@@ -18,7 +18,11 @@ import {
     InputNumber,
     Tabs,
     Row,
-    Col
+    Col,
+    Tooltip,
+    Divider,
+    Badge,
+    Empty
 } from 'antd';
 import {
     PlusOutlined,
@@ -28,7 +32,19 @@ import {
     FileTextOutlined,
     GlobalOutlined,
     MenuOutlined,
-    SaveOutlined
+    SaveOutlined,
+    CheckCircleOutlined,
+    ClockCircleOutlined,
+    ShareAltOutlined,
+    LinkOutlined,
+    CopyOutlined,
+    FacebookOutlined,
+    InstagramOutlined,
+    TwitterOutlined,
+    YoutubeOutlined,
+    LinkedinOutlined,
+    WhatsAppOutlined,
+    SendOutlined
 } from '@ant-design/icons';
 import AdminGuard from '../AdminGuard';
 import AdminLayout from '../AdminLayout';
@@ -37,6 +53,29 @@ import RichTextEditor from '../../components/RichTextEditor';
 
 const { Title, Text, Paragraph } = Typography;
 const { TextArea } = Input;
+
+// ─── Social Media Platform Definitions ───
+interface SocialPlatform {
+    key: string;
+    label: string;
+    icon: React.ReactNode;
+    color: string;
+    placeholder: string;
+    prefix: string;
+}
+
+const SOCIAL_PLATFORMS: SocialPlatform[] = [
+    { key: 'facebook', label: 'Facebook', icon: <FacebookOutlined />, color: '#1877F2', placeholder: 'https://facebook.com/isletmeniz', prefix: 'facebook.com/' },
+    { key: 'instagram', label: 'Instagram', icon: <InstagramOutlined />, color: '#E4405F', placeholder: 'https://instagram.com/isletmeniz', prefix: 'instagram.com/' },
+    { key: 'twitter', label: 'X (Twitter)', icon: <TwitterOutlined />, color: '#000000', placeholder: 'https://x.com/isletmeniz', prefix: 'x.com/' },
+    { key: 'youtube', label: 'YouTube', icon: <YoutubeOutlined />, color: '#FF0000', placeholder: 'https://youtube.com/@isletmeniz', prefix: 'youtube.com/' },
+    { key: 'linkedin', label: 'LinkedIn', icon: <LinkedinOutlined />, color: '#0A66C2', placeholder: 'https://linkedin.com/company/isletmeniz', prefix: 'linkedin.com/' },
+    { key: 'whatsapp', label: 'WhatsApp', icon: <WhatsAppOutlined />, color: '#25D366', placeholder: 'https://wa.me/905XXXXXXXXX', prefix: 'wa.me/' },
+    { key: 'telegram', label: 'Telegram', icon: <SendOutlined />, color: '#229ED9', placeholder: 'https://t.me/isletmeniz', prefix: 't.me/' },
+    { key: 'tiktok', label: 'TikTok', icon: <span style={{ fontWeight: 700, fontSize: 14 }}>♪</span>, color: '#000000', placeholder: 'https://tiktok.com/@isletmeniz', prefix: 'tiktok.com/' },
+    { key: 'pinterest', label: 'Pinterest', icon: <span style={{ fontWeight: 700, fontSize: 14 }}>P</span>, color: '#BD081C', placeholder: 'https://pinterest.com/isletmeniz', prefix: 'pinterest.com/' },
+    { key: 'tripadvisor', label: 'TripAdvisor', icon: <span style={{ fontWeight: 700, fontSize: 13 }}>TA</span>, color: '#34E0A1', placeholder: 'https://tripadvisor.com/...', prefix: 'tripadvisor.com/' },
+];
 
 interface PageItem {
     id: string;
@@ -93,9 +132,50 @@ const PagesManagement: React.FC = () => {
     const [form] = Form.useForm();
     const [activeTab, setActiveTab] = useState('list');
 
+    // Social Media
+    const [socialMedia, setSocialMedia] = useState<Record<string, string>>({});
+    const [socialLoading, setSocialLoading] = useState(false);
+    const [socialSaving, setSocialSaving] = useState(false);
+
     useEffect(() => {
         fetchPages();
+        fetchSocialMedia();
     }, []);
+
+    const fetchSocialMedia = async () => {
+        try {
+            setSocialLoading(true);
+            const res = await apiClient.get('/api/tenant/settings');
+            if (res.data.success) {
+                const sm = res.data.data?.settings?.socialMedia || {};
+                setSocialMedia(sm);
+            }
+        } catch (error) {
+            console.error('Fetch social media error:', error);
+        } finally {
+            setSocialLoading(false);
+        }
+    };
+
+    const handleSaveSocialMedia = async () => {
+        try {
+            setSocialSaving(true);
+            // Filter out empty values
+            const cleaned: Record<string, string> = {};
+            Object.entries(socialMedia).forEach(([k, v]) => {
+                if (v && v.trim()) cleaned[k] = v.trim();
+            });
+            const res = await apiClient.put('/api/tenant/settings', { socialMedia: cleaned });
+            if (res.data.success) {
+                message.success('Sosyal medya hesapları kaydedildi');
+                setSocialMedia(cleaned);
+            }
+        } catch (error) {
+            message.error('Kaydetme sırasında hata oluştu');
+        } finally {
+            setSocialSaving(false);
+        }
+    };
 
     const fetchPages = async () => {
         try {
@@ -342,10 +422,19 @@ const PagesManagement: React.FC = () => {
             dataIndex: 'title',
             key: 'title',
             render: (title: string, record: PageItem) => (
-                <div>
-                    <Text strong>{title}</Text>
-                    <br />
-                    <Text type="secondary" style={{ fontSize: 12 }}>/{record.slug}</Text>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div style={{
+                        width: 40, height: 40, borderRadius: 10,
+                        background: `${CATEGORY_COLORS[record.category] === 'blue' ? '#e6f4ff' : CATEGORY_COLORS[record.category] === 'green' ? '#f6ffed' : CATEGORY_COLORS[record.category] === 'red' ? '#fff2f0' : CATEGORY_COLORS[record.category] === 'purple' ? '#f9f0ff' : CATEGORY_COLORS[record.category] === 'orange' ? '#fff7e6' : '#f5f5f5'}`,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 18, color: CATEGORY_COLORS[record.category] === 'blue' ? '#1677ff' : CATEGORY_COLORS[record.category] === 'green' ? '#52c41a' : CATEGORY_COLORS[record.category] === 'red' ? '#ff4d4f' : CATEGORY_COLORS[record.category] === 'purple' ? '#722ed1' : CATEGORY_COLORS[record.category] === 'orange' ? '#fa8c16' : '#8c8c8c',
+                    }}>
+                        <FileTextOutlined />
+                    </div>
+                    <div>
+                        <Text strong style={{ fontSize: 14, display: 'block' }}>{title}</Text>
+                        <Text type="secondary" style={{ fontSize: 12 }}>/sayfa/{record.slug}</Text>
+                    </div>
                 </div>
             )
         },
@@ -353,8 +442,9 @@ const PagesManagement: React.FC = () => {
             title: 'Kategori',
             dataIndex: 'category',
             key: 'category',
+            width: 120,
             render: (cat: string) => (
-                <Tag color={CATEGORY_COLORS[cat] || 'default'}>
+                <Tag color={CATEGORY_COLORS[cat] || 'default'} style={{ borderRadius: 6, fontWeight: 500 }}>
                     {CATEGORY_OPTIONS.find(c => c.value === cat)?.label || cat}
                 </Tag>
             )
@@ -363,19 +453,26 @@ const PagesManagement: React.FC = () => {
             title: 'Durum',
             dataIndex: 'isPublished',
             key: 'isPublished',
+            width: 100,
             render: (published: boolean) => (
-                <Tag color={published ? 'green' : 'orange'}>
+                <Tag
+                    icon={published ? <CheckCircleOutlined /> : <ClockCircleOutlined />}
+                    color={published ? 'success' : 'warning'}
+                    style={{ borderRadius: 6, fontWeight: 500 }}
+                >
                     {published ? 'Yayında' : 'Taslak'}
                 </Tag>
             )
         },
         {
-            title: 'Menü',
+            title: 'Görünürlük',
             key: 'menu',
+            width: 160,
             render: (_: any, record: PageItem) => (
-                <Space>
-                    {record.showInMenu && <Tag color="blue">Üst Menü</Tag>}
-                    {record.showInFooter && <Tag color="cyan">Footer</Tag>}
+                <Space size={4}>
+                    {record.showInMenu && <Tag color="blue" style={{ borderRadius: 6, fontSize: 11 }}>Üst Menü</Tag>}
+                    {record.showInFooter && <Tag color="cyan" style={{ borderRadius: 6, fontSize: 11 }}>Footer</Tag>}
+                    {!record.showInMenu && !record.showInFooter && <Text type="secondary" style={{ fontSize: 12 }}>—</Text>}
                 </Space>
             )
         },
@@ -384,50 +481,57 @@ const PagesManagement: React.FC = () => {
             dataIndex: 'menuOrder',
             key: 'menuOrder',
             width: 60,
+            align: 'center' as const,
             sorter: (a: PageItem, b: PageItem) => a.menuOrder - b.menuOrder,
+            render: (order: number) => <Badge count={order} showZero style={{ backgroundColor: '#f0f0f0', color: '#595959', fontWeight: 600 }} />
         },
         {
             title: 'İşlemler',
             key: 'actions',
-            width: 200,
+            width: 160,
             render: (_: any, record: PageItem) => (
-                <Space>
-                    <Button
-                        type="link"
-                        icon={<EyeOutlined />}
-                        onClick={() => window.open(`/sayfa/${record.slug}`, '_blank')}
-                    >
-                        Önizle
-                    </Button>
-                    <Button
-                        type="link"
-                        icon={<EditOutlined />}
-                        onClick={() => handleEdit(record)}
-                    >
-                        Düzenle
-                    </Button>
+                <Space size={0}>
+                    <Tooltip title="Önizle">
+                        <Button type="text" icon={<EyeOutlined />} onClick={() => window.open(`/sayfa/${record.slug}`, '_blank')} />
+                    </Tooltip>
+                    <Tooltip title="Düzenle">
+                        <Button type="text" icon={<EditOutlined style={{ color: '#1677ff' }} />} onClick={() => handleEdit(record)} />
+                    </Tooltip>
                     <Popconfirm
                         title="Bu sayfayı silmek istediğinize emin misiniz?"
                         onConfirm={() => handleDelete(record.id)}
                         okText="Evet"
                         cancelText="Hayır"
                     >
-                        <Button type="link" danger icon={<DeleteOutlined />}>Sil</Button>
+                        <Tooltip title="Sil">
+                            <Button type="text" danger icon={<DeleteOutlined />} />
+                        </Tooltip>
                     </Popconfirm>
                 </Space>
             )
         }
     ];
 
+    const filledSocialCount = Object.values(socialMedia).filter(v => v && v.trim()).length;
+
     const tabItems = [
         {
             key: 'list',
-            label: <span><FileTextOutlined /> Sayfalarım</span>,
+            label: <span><FileTextOutlined style={{ marginRight: 6 }} />Sayfalarım</span>,
             children: (
                 <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-                        <Text type="secondary">{pages.length} sayfa bulundu</Text>
-                        <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                        <div>
+                            <Text type="secondary" style={{ fontSize: 13 }}>
+                                Toplam <Text strong>{pages.length}</Text> sayfa
+                            </Text>
+                        </div>
+                        <Button
+                            type="primary"
+                            icon={<PlusOutlined />}
+                            onClick={handleCreate}
+                            style={{ borderRadius: 8, fontWeight: 600, height: 40, boxShadow: '0 2px 8px rgba(22,119,255,0.2)' }}
+                        >
                             Yeni Sayfa Oluştur
                         </Button>
                     </div>
@@ -436,19 +540,39 @@ const PagesManagement: React.FC = () => {
                         dataSource={pages}
                         rowKey="id"
                         loading={loading}
-                        pagination={{ pageSize: 10 }}
+                        pagination={{ pageSize: 10, showSizeChanger: false }}
+                        style={{ borderRadius: 12, overflow: 'hidden' }}
+                        locale={{
+                            emptyText: (
+                                <Empty
+                                    image={Empty.PRESENTED_IMAGE_SIMPLE}
+                                    description={<Text type="secondary">Henüz sayfa oluşturulmamış</Text>}
+                                >
+                                    <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>
+                                        İlk Sayfanızı Oluşturun
+                                    </Button>
+                                </Empty>
+                            )
+                        }}
                     />
                 </div>
             )
         },
         {
             key: 'templates',
-            label: <span><GlobalOutlined /> Hazır Şablonlar</span>,
+            label: <span><GlobalOutlined style={{ marginRight: 6 }} />Hazır Şablonlar</span>,
             children: (
                 <div>
-                    <Text type="secondary" style={{ display: 'block', marginBottom: 16 }}>
-                        Bir transfer sitesinde olması gereken standart sayfaları hızlıca oluşturun.
-                    </Text>
+                    <div style={{
+                        background: 'linear-gradient(135deg, #667eea15, #764ba215)',
+                        borderRadius: 12, padding: '16px 20px', marginBottom: 24,
+                        border: '1px solid #667eea20'
+                    }}>
+                        <Text style={{ fontSize: 14 }}>
+                            Bir transfer sitesinde olması gereken standart sayfaları tek tıkla oluşturun.
+                            İçerikler hazır gelir, dilediğiniz gibi düzenleyebilirsiniz.
+                        </Text>
+                    </div>
                     <Row gutter={[16, 16]}>
                         {PAGE_TEMPLATES.map(tpl => {
                             const exists = pages.some(p => p.slug === tpl.slug);
@@ -457,21 +581,29 @@ const PagesManagement: React.FC = () => {
                                     <Card
                                         hoverable={!exists}
                                         style={{
-                                            height: '100%',
-                                            opacity: exists ? 0.6 : 1,
-                                            borderColor: exists ? '#52c41a' : undefined
+                                            height: '100%', borderRadius: 14,
+                                            opacity: exists ? 0.65 : 1,
+                                            borderColor: exists ? '#52c41a' : '#f0f0f0',
+                                            transition: 'all 0.2s',
                                         }}
+                                        styles={{ body: { padding: '20px 16px', textAlign: 'center' } }}
                                     >
-                                        <div style={{ textAlign: 'center', marginBottom: 12 }}>
-                                            <FileTextOutlined style={{ fontSize: 32, color: '#667eea' }} />
+                                        <div style={{
+                                            width: 52, height: 52, borderRadius: 14,
+                                            background: exists ? '#f6ffed' : 'linear-gradient(135deg, #667eea15, #764ba215)',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            margin: '0 auto 14px', fontSize: 24,
+                                            color: exists ? '#52c41a' : '#667eea',
+                                        }}>
+                                            {exists ? <CheckCircleOutlined /> : <FileTextOutlined />}
                                         </div>
-                                        <Title level={5} style={{ textAlign: 'center', marginBottom: 4 }}>
+                                        <Title level={5} style={{ marginBottom: 4, fontSize: 14 }}>
                                             {tpl.title}
                                         </Title>
-                                        <Text type="secondary" style={{ display: 'block', textAlign: 'center', fontSize: 12, marginBottom: 12 }}>
+                                        <Text type="secondary" style={{ display: 'block', fontSize: 12, marginBottom: 14, lineHeight: 1.5 }}>
                                             {tpl.excerpt}
                                         </Text>
-                                        <Tag color={CATEGORY_COLORS[tpl.category]} style={{ display: 'block', textAlign: 'center', margin: '0 auto 12px' }}>
+                                        <Tag color={CATEGORY_COLORS[tpl.category]} style={{ borderRadius: 6, marginBottom: 14 }}>
                                             {CATEGORY_OPTIONS.find(c => c.value === tpl.category)?.label}
                                         </Tag>
                                         <Button
@@ -479,8 +611,9 @@ const PagesManagement: React.FC = () => {
                                             block
                                             disabled={exists}
                                             onClick={() => handleTemplateCreate(tpl)}
+                                            style={{ borderRadius: 8, fontWeight: 500, height: 36 }}
                                         >
-                                            {exists ? 'Zaten Mevcut' : 'Oluştur'}
+                                            {exists ? '✓ Mevcut' : 'Oluştur'}
                                         </Button>
                                     </Card>
                                 </Col>
@@ -489,29 +622,201 @@ const PagesManagement: React.FC = () => {
                     </Row>
                 </div>
             )
+        },
+        {
+            key: 'social',
+            label: (
+                <span>
+                    <ShareAltOutlined style={{ marginRight: 6 }} />
+                    Sosyal Medya
+                    {filledSocialCount > 0 && (
+                        <Badge count={filledSocialCount} size="small" style={{ marginLeft: 8, backgroundColor: '#52c41a' }} />
+                    )}
+                </span>
+            ),
+            children: (
+                <div>
+                    <div style={{
+                        background: 'linear-gradient(135deg, #667eea10, #764ba210)',
+                        borderRadius: 12, padding: '20px 24px', marginBottom: 28,
+                        border: '1px solid #667eea15'
+                    }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 6 }}>
+                            <ShareAltOutlined style={{ fontSize: 20, color: '#667eea' }} />
+                            <Text strong style={{ fontSize: 16 }}>Sosyal Medya Hesapları</Text>
+                        </div>
+                        <Text type="secondary" style={{ fontSize: 13 }}>
+                            İşletmenizin sosyal medya hesaplarını ekleyin. Bu hesaplar web sitenizin footer bölümünde ikon olarak görünecektir.
+                        </Text>
+                    </div>
+
+                    <Row gutter={[20, 16]}>
+                        {SOCIAL_PLATFORMS.map(platform => {
+                            const hasValue = !!(socialMedia[platform.key] && socialMedia[platform.key].trim());
+                            return (
+                                <Col xs={24} sm={12} key={platform.key}>
+                                    <div style={{
+                                        display: 'flex', alignItems: 'center', gap: 14,
+                                        background: hasValue ? '#fafafa' : '#fff',
+                                        border: `1px solid ${hasValue ? platform.color + '30' : '#f0f0f0'}`,
+                                        borderRadius: 12, padding: '14px 18px',
+                                        transition: 'all 0.2s',
+                                    }}>
+                                        <div style={{
+                                            width: 44, height: 44, borderRadius: 12,
+                                            background: hasValue ? platform.color : '#f5f5f5',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            color: hasValue ? '#fff' : '#bfbfbf',
+                                            fontSize: 20, flexShrink: 0,
+                                            transition: 'all 0.2s',
+                                            boxShadow: hasValue ? `0 4px 12px ${platform.color}30` : 'none',
+                                        }}>
+                                            {platform.icon}
+                                        </div>
+                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                            <Text strong style={{ display: 'block', fontSize: 13, marginBottom: 4, color: hasValue ? '#262626' : '#8c8c8c' }}>
+                                                {platform.label}
+                                            </Text>
+                                            <Input
+                                                placeholder={platform.placeholder}
+                                                value={socialMedia[platform.key] || ''}
+                                                onChange={(e) => setSocialMedia(prev => ({ ...prev, [platform.key]: e.target.value }))}
+                                                variant="borderless"
+                                                style={{
+                                                    padding: 0, fontSize: 13, height: 24,
+                                                    color: hasValue ? '#1677ff' : undefined,
+                                                }}
+                                                suffix={
+                                                    hasValue ? (
+                                                        <Tooltip title="Bağlantıyı aç">
+                                                            <LinkOutlined
+                                                                style={{ color: '#1677ff', cursor: 'pointer' }}
+                                                                onClick={() => window.open(socialMedia[platform.key], '_blank')}
+                                                            />
+                                                        </Tooltip>
+                                                    ) : null
+                                                }
+                                            />
+                                        </div>
+                                        {hasValue && (
+                                            <CheckCircleOutlined style={{ color: '#52c41a', fontSize: 16, flexShrink: 0 }} />
+                                        )}
+                                    </div>
+                                </Col>
+                            );
+                        })}
+                    </Row>
+
+                    <Divider />
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Text type="secondary" style={{ fontSize: 13 }}>
+                            {filledSocialCount} / {SOCIAL_PLATFORMS.length} platform bağlı
+                        </Text>
+                        <Button
+                            type="primary"
+                            icon={<SaveOutlined />}
+                            onClick={handleSaveSocialMedia}
+                            loading={socialSaving}
+                            style={{ borderRadius: 8, fontWeight: 600, height: 42, paddingInline: 32, boxShadow: '0 2px 8px rgba(22,119,255,0.2)' }}
+                        >
+                            Kaydet
+                        </Button>
+                    </div>
+                </div>
+            )
         }
     ];
 
     return (
         <AdminGuard>
             <AdminLayout selectedKey="pages">
-                <div style={{ marginBottom: 24 }}>
-                    <Title level={2}><FileTextOutlined /> Sayfa Yönetimi</Title>
-                    <Text type="secondary">
-                        Web sitenizdeki sayfaları oluşturun ve yönetin. Sayfalar üst menüde ve footerda otomatik görünür.
-                    </Text>
+                {/* ─── Page Header ─── */}
+                <div style={{
+                    background: 'linear-gradient(135deg, #667eea, #764ba2)',
+                    borderRadius: 16, padding: 'clamp(20px, 3vw, 32px)',
+                    marginBottom: 28, position: 'relative', overflow: 'hidden',
+                }}>
+                    <div style={{ position: 'absolute', top: -30, right: -30, width: 140, height: 140, borderRadius: '50%', background: 'rgba(255,255,255,0.08)' }} />
+                    <div style={{ position: 'absolute', bottom: -40, right: 60, width: 100, height: 100, borderRadius: '50%', background: 'rgba(255,255,255,0.05)' }} />
+                    <div style={{ position: 'relative', zIndex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 8 }}>
+                            <div style={{
+                                width: 48, height: 48, borderRadius: 14,
+                                background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(10px)',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            }}>
+                                <FileTextOutlined style={{ fontSize: 24, color: '#fff' }} />
+                            </div>
+                            <div>
+                                <Title level={3} style={{ color: '#fff', margin: 0, fontWeight: 700 }}>
+                                    Sayfa Yönetimi
+                                </Title>
+                                <Text style={{ color: 'rgba(255,255,255,0.75)', fontSize: 13 }}>
+                                    Web sitenizin sayfalarını, şablonlarını ve sosyal medya hesaplarını yönetin
+                                </Text>
+                            </div>
+                        </div>
+                        {/* Quick Stats */}
+                        <Row gutter={24} style={{ marginTop: 20 }}>
+                            {[
+                                { label: 'Toplam Sayfa', value: pages.length, icon: <FileTextOutlined /> },
+                                { label: 'Yayında', value: pages.filter(p => p.isPublished).length, icon: <CheckCircleOutlined /> },
+                                { label: 'Menüde', value: pages.filter(p => p.showInMenu).length, icon: <MenuOutlined /> },
+                                { label: 'Sosyal Medya', value: filledSocialCount, icon: <ShareAltOutlined /> },
+                            ].map((stat, i) => (
+                                <Col xs={12} sm={6} key={i}>
+                                    <div style={{
+                                        background: 'rgba(255,255,255,0.12)', backdropFilter: 'blur(10px)',
+                                        borderRadius: 12, padding: '12px 16px',
+                                        border: '1px solid rgba(255,255,255,0.1)',
+                                    }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                            <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 16 }}>{stat.icon}</span>
+                                            <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12 }}>{stat.label}</Text>
+                                        </div>
+                                        <Title level={3} style={{ color: '#fff', margin: '4px 0 0', fontWeight: 800 }}>
+                                            {stat.value}
+                                        </Title>
+                                    </div>
+                                </Col>
+                            ))}
+                        </Row>
+                    </div>
                 </div>
 
-                <Tabs activeKey={activeTab} onChange={setActiveTab} items={tabItems} />
+                {/* ─── Tabs ─── */}
+                <Card style={{ borderRadius: 14, boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }} styles={{ body: { padding: '8px 24px 24px' } }}>
+                    <Tabs
+                        activeKey={activeTab}
+                        onChange={setActiveTab}
+                        items={tabItems}
+                        style={{ marginBottom: 0 }}
+                    />
+                </Card>
 
                 <Modal
-                    title={editingPage ? 'Sayfayı Düzenle' : 'Yeni Sayfa Oluştur'}
+                    title={
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <div style={{
+                                width: 36, height: 36, borderRadius: 10,
+                                background: editingPage ? '#e6f4ff' : 'linear-gradient(135deg, #667eea15, #764ba215)',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                color: editingPage ? '#1677ff' : '#667eea',
+                            }}>
+                                {editingPage ? <EditOutlined /> : <PlusOutlined />}
+                            </div>
+                            <span>{editingPage ? 'Sayfayı Düzenle' : 'Yeni Sayfa Oluştur'}</span>
+                        </div>
+                    }
                     open={modalVisible}
                     onOk={handleSubmit}
                     onCancel={() => setModalVisible(false)}
                     width={800}
                     okText={editingPage ? 'Güncelle' : 'Oluştur'}
                     cancelText="İptal"
+                    okButtonProps={{ style: { borderRadius: 8, fontWeight: 600, height: 38 } }}
+                    cancelButtonProps={{ style: { borderRadius: 8, height: 38 } }}
                 >
                     <Form form={form} layout="vertical">
                         <Row gutter={16}>
@@ -589,7 +894,7 @@ const PagesManagement: React.FC = () => {
                             </Col>
                         </Row>
 
-                        <Card size="small" title="SEO Ayarları" style={{ marginTop: 8 }}>
+                        <Card size="small" title={<span><GlobalOutlined style={{ marginRight: 6 }} />SEO Ayarları</span>} style={{ marginTop: 8, borderRadius: 10, border: '1px solid #f0f0f0' }}>
                             <Form.Item label="Meta Başlık" name="metaTitle">
                                 <Input placeholder="SEO başlığı (boş bırakılırsa sayfa başlığı kullanılır)" />
                             </Form.Item>

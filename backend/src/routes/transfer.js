@@ -1851,6 +1851,30 @@ router.post('/bookings/admin', authMiddleware, async (req, res) => {
             io.to('admin_monitoring').emit('new_booking', booking);
         }
 
+        // Send voucher email (async, don't block response)
+        if (booking.contactEmail) {
+            try {
+                const { sendBookingVoucher } = require('../lib/emailService');
+                sendBookingVoucher(tenantId, booking).catch(err => {
+                    console.error('[EMAIL] Voucher send failed (background):', err.message);
+                });
+            } catch (emailErr) {
+                console.error('[EMAIL] Voucher setup failed:', emailErr.message);
+            }
+        }
+
+        // Send WhatsApp voucher (async, don't block response)
+        if (booking.contactPhone) {
+            try {
+                const { sendBookingWhatsApp } = require('../lib/whatsappService');
+                sendBookingWhatsApp(tenantId, booking).catch(err => {
+                    console.error('[WHATSAPP] Voucher send failed (background):', err.message);
+                });
+            } catch (waErr) {
+                console.error('[WHATSAPP] Voucher setup failed:', waErr.message);
+            }
+        }
+
         res.json({ success: true, data: booking });
     } catch (error) {
         console.error('Create booking admin error:', error);

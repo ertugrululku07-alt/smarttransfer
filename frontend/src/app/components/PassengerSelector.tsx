@@ -1,6 +1,9 @@
+'use client';
+
 import React, { useState, useEffect } from 'react';
 import { Popover, Button, Input, Space, Typography, Row, Col } from 'antd';
 import { UserOutlined, PlusOutlined, MinusOutlined, DownOutlined } from '@ant-design/icons';
+import { useLanguage } from '../context/LanguageContext';
 
 const { Text } = Typography;
 
@@ -21,6 +24,7 @@ const PassengerSelector: React.FC<PassengerSelectorProps> = ({
     onChange,
     size = 'middle'
 }) => {
+    const { t } = useLanguage();
     const [open, setOpen] = useState(false);
     const [counts, setCounts] = useState<PassengerCounts>(value);
 
@@ -47,8 +51,8 @@ const PassengerSelector: React.FC<PassengerSelectorProps> = ({
             <div style={{ padding: '12px 0', borderBottom: '1px solid #f0f0f0' }}>
                 <Row align="middle" justify="space-between">
                     <Col>
-                        <Text strong>Yetişkin</Text>
-                        <div style={{ fontSize: 12, color: '#888' }}>13+ yaş</div>
+                        <Text strong>{t('pax.adults')}</Text>
+                        <div style={{ fontSize: 12, color: '#888' }}>13+</div>
                     </Col>
                     <Col>
                         <Space>
@@ -76,8 +80,8 @@ const PassengerSelector: React.FC<PassengerSelectorProps> = ({
             <div style={{ padding: '12px 0', borderBottom: '1px solid #f0f0f0' }}>
                 <Row align="middle" justify="space-between">
                     <Col>
-                        <Text strong>Çocuk</Text>
-                        <div style={{ fontSize: 12, color: '#888' }}>3-12 yaş</div>
+                        <Text strong>{t('pax.children')}</Text>
+                        <div style={{ fontSize: 12, color: '#888' }}>3-12</div>
                     </Col>
                     <Col>
                         <Space>
@@ -105,8 +109,8 @@ const PassengerSelector: React.FC<PassengerSelectorProps> = ({
             <div style={{ padding: '12px 0', borderBottom: '1px solid #f0f0f0' }}>
                 <Row align="middle" justify="space-between">
                     <Col>
-                        <Text strong>Bebek</Text>
-                        <div style={{ fontSize: 12, color: '#888' }}>0-2 yaş</div>
+                        <Text strong>{t('pax.babies')}</Text>
+                        <div style={{ fontSize: 12, color: '#888' }}>0-2</div>
                     </Col>
                     <Col>
                         <Space>
@@ -133,19 +137,19 @@ const PassengerSelector: React.FC<PassengerSelectorProps> = ({
 
             <div style={{ marginTop: 16, textAlign: 'right' }}>
                 <Button type="primary" onClick={() => setOpen(false)} style={{ width: '100%' }}>
-                    Tamam
+                    OK
                 </Button>
             </div>
         </div>
     );
 
-    const summaryText = `${counts.adults} Yetişkin${counts.children > 0 ? `, ${counts.children} Çocuk` : ''}${counts.babies > 0 ? `, ${counts.babies} Bebek` : ''}`;
+    const summaryText = `${counts.adults} ${t('pax.adults')}${counts.children > 0 ? `, ${counts.children} ${t('pax.children')}` : ''}${counts.babies > 0 ? `, ${counts.babies} ${t('pax.babies')}` : ''}`;
     const valueText = `${counts.adults} / ${counts.children} / ${counts.babies}`;
 
     return (
         <Popover
             content={content}
-            title="Yolcu Seçimi"
+            title={t('search.passengers')}
             trigger="click"
             open={open}
             onOpenChange={setOpen}
