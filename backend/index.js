@@ -507,6 +507,15 @@ server.listen(PORT, () => {
   // ==========================================================================
   require('./src/cron/salaryCron')();
 
+  // Initialize Daily DB Cleanup (Runs at 03:00 AM every day)
+  const cron = require('node-cron');
+  const { runCleanup } = require('./db_cleanup');
+  cron.schedule('0 3 * * *', () => {
+    console.log('[Cron] Starting daily database maintenance...');
+    runCleanup(30); // Keep last 30 days
+  });
+  console.log('⏰ Database cleanup job scheduled (Daily at 03:00 AM)');
+
   // ==========================================================================
   // 1-MINUTE SILENT PUSH JOB
   // Wakes up driver apps even when force-closed (like WhatsApp / tracking apps)
