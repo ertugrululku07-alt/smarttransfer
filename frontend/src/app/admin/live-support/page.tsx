@@ -92,9 +92,10 @@ export default function AdminLiveSupportPage() {
         socket.on('chat:request_human', (data) => {
             notification.warning({
                 message: 'Canlı Destek Talebi',
+                title: 'Canlı Destek Talebi',
                 description: 'Bir müşteri temsilciye bağlanmak istiyor.',
                 placement: 'bottomRight'
-            });
+            } as any);
             fetchSessions();
         });
 
@@ -135,7 +136,10 @@ export default function AdminLiveSupportPage() {
     const handleCloseChat = () => {
         if (!activeSessionId || !socket) return;
         socket.emit('admin:close_chat', { sessionId: activeSessionId });
-        notification.success({ message: 'Sohbet kapatıldı' });
+        notification.success({ 
+            message: 'Sohbet kapatıldı',
+            title: 'Sohbet kapatıldı'
+        } as any);
         setActiveSessionId(null);
         fetchSessions();
     };
