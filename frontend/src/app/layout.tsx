@@ -7,6 +7,7 @@ import { CurrencyProvider } from "./context/CurrencyContext";
 import { ThemeProvider } from "./context/ThemeContext";
 import { BrandingProvider } from "./context/BrandingContext";
 import { LanguageProvider } from "./context/LanguageContext";
+import LiveChatWidget from "./components/LiveChatWidget";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -190,6 +191,7 @@ export default function RootLayout({
                 <BrandingProvider>
                   <LanguageProvider>
                     {children}
+                    <LiveChatWidget />
                   </LanguageProvider>
                 </BrandingProvider>
               </ThemeProvider>

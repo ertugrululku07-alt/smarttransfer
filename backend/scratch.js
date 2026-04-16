@@ -1,21 +1,51 @@
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const fs = require('fs');
+const txt = `
+// ============================================================================
+// LIVE SUPPORT (N8N CHAT)
+// ============================================================================
 
-async function main() {
-    const vehicles = await prisma.vehicle.findMany({ select: { id: true, plateNumber: true, metadata: true } });
-    console.log("--- Vehicles ---");
-    for (const v of vehicles) {
-        if (v.metadata?.driverId) {
-            console.log(`Vehicle ${v.plateNumber}: driverId='${v.metadata.driverId}'`);
-        }
-    }
-    
-    const personnel = await prisma.personnel.findMany({ select: { id: true, firstName: true, lastName: true, userId: true } });
-    console.log("\n--- Personnel ---");
-    for (const p of personnel) {
-        if (p.firstName === 'Ali' || p.firstName === 'ali') {
-            console.log(`Personnel ${p.firstName} ${p.lastName}: id='${p.id}', userId='${p.userId}'`);
-        }
-    }
+model ChatSession {
+  id         String   @id @default(uuid())
+  tenantId   String
+  status     ChatStatus @default(BOT)
+  
+  customerId String?
+  customer   User?     @relation("CustomerChats", fields: [customerId], references: [id])
+  
+  agentId    String?
+  agent      User?     @relation("AgentChats", fields: [agentId], references: [id])
+  
+  messages   ChatMessage[]
+  metadata   Json?
+  
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  
+  @@index([tenantId, status])
 }
-main().finally(() => prisma.$disconnect());
+
+model ChatMessage {
+  id         String   @id @default(uuid())
+  sessionId  String
+  session    ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  
+  sender     ChatSender
+  content    String   @db.Text
+  
+  createdAt  DateTime @default(now())
+}
+
+enum ChatStatus {
+  BOT
+  HUMAN
+  CLOSED
+}
+
+enum ChatSender {
+  USER
+  BOT
+  ADMIN
+}
+`;
+fs.appendFileSync('prisma/schema.prisma', txt, 'utf8');
+console.log('Appended successfully');

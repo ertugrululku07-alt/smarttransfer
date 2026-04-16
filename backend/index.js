@@ -217,6 +217,9 @@ app.use('/api/users', tenantMiddleware, userRoutes);
 // Audit / Activity Logs route
 app.use('/api/admin/logs', tenantMiddleware, require('./src/routes/logs'));
 
+// Live Chat Webhook route (from n8n)
+app.use('/api/live-chat', require('./src/routes/live-chat'));
+
 // ============================================================================
 // V1 LEGACY ROUTES (Backward Compatibility)
 // ============================================================================
@@ -388,8 +391,10 @@ const io = new Server(server, {
 
 // Import socket handler
 require('./src/socket/driverHandler')(io, app);
+require('./src/socket/chatHandler')(io, app);
 
 // Make io accessible to our router
+global.io = io; // Added for webhook access
 app.set('io', io);
 
 // ── Raw WebSocket endpoint for native Android service ─────────────────────

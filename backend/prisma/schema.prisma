@@ -69,13 +69,13 @@ model Tenant {
   settings Json? // Additional settings
 
   // Relations
-  users     User[]
-  personnel Personnel[]
-  products  Product[]
-  bookings  Booking[]
-  payments  Payment[]
-  themes    Theme[]
-  roles     Role[]
+  users             User[]
+  personnel         Personnel[]
+  products          Product[]
+  bookings          Booking[]
+  payments          Payment[]
+  themes            Theme[]
+  roles             Role[]
   driverCollections DriverCollection[]
 
   // Metadata
@@ -83,9 +83,6 @@ model Tenant {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime? // Soft delete
-
-  @@index([status])
-  @@index([slug])
 
   // Injected Relations
   accounts        Account[]
@@ -98,6 +95,9 @@ model Tenant {
   zones           Zone[]
   activityLogs    ActivityLog[]
   speedViolations SpeedViolation[]
+
+  @@index([status])
+  @@index([slug])
 }
 
 enum TenantStatus {
@@ -163,37 +163,39 @@ model User {
   sessions      Session[]
 
   // Activity
-  lastLoginAt      DateTime?
-  lastLoginIp      String?
-  loginCount       Int       @default(0)
-  lastSeenAt       DateTime? // Updated on every background sync ping
-  lastLocationLat  Float?    // Last known GPS latitude
-  lastLocationLng  Float?    // Last known GPS longitude
-  lastLocationSpeed Float?   // Last known speed km/h
-  pushToken        String?   // Expo push token for FCM silent push
+  lastLoginAt       DateTime?
+  lastLoginIp       String?
+  loginCount        Int       @default(0)
+  lastSeenAt        DateTime? // Updated on every background sync ping
+  lastLocationLat   Float? // Last known GPS latitude
+  lastLocationLng   Float? // Last known GPS longitude
+  lastLocationSpeed Float? // Last known speed km/h
+  pushToken         String? // Expo push token for FCM silent push
 
   // Agency
   agencyId             String?
-  agency               Agency?   @relation(fields: [agencyId], references: [id])
-  agencyCommissionRate Decimal?  @db.Decimal(5, 2)
+  agency               Agency?  @relation(fields: [agencyId], references: [id])
+  agencyCommissionRate Decimal? @db.Decimal(5, 2)
 
   // Relations
-  bookingsAsCustomer Booking[]  @relation("CustomerBookings")
-  bookingsAsAgent    Booking[]  @relation("AgentBookings")
-  bookingsAsDriver   Booking[]  @relation("DriverBookings")
-  sentMessages       Message[]  @relation("SentMessages")
-  receivedMessages   Message[]  @relation("ReceivedMessages")
-  vehicles           Vehicle[]
-  payments           Payment[]
-  personnel          Personnel?
-  approvedAgencyDeposits AgencyDeposit[] @relation("ApprovedDeposits")
-  driverCollections  DriverCollection[] @relation("DriverCollections")
-  handoversReceived DriverCollection[] @relation("HandoverRecipient")
-  locationHistory   DriverLocationHistory[] @relation("DriverLocations")
+  bookingsAsCustomer     Booking[]               @relation("CustomerBookings")
+  bookingsAsAgent        Booking[]               @relation("AgentBookings")
+  bookingsAsDriver       Booking[]               @relation("DriverBookings")
+  sentMessages           Message[]               @relation("SentMessages")
+  receivedMessages       Message[]               @relation("ReceivedMessages")
+  vehicles               Vehicle[]
+  payments               Payment[]
+  personnel              Personnel?
+  approvedAgencyDeposits AgencyDeposit[]         @relation("ApprovedDeposits")
+  driverCollections      DriverCollection[]      @relation("DriverCollections")
+  handoversReceived      DriverCollection[]      @relation("HandoverRecipient")
+  locationHistory        DriverLocationHistory[] @relation("DriverLocations")
+  customerChats          ChatSession[]           @relation("CustomerChats")
+  agentChats             ChatSession[]           @relation("AgentChats")
   // Financial Snapshot
-  balance Decimal @default(0) @db.Decimal(15, 2)
-  debit   Decimal @default(0) @db.Decimal(15, 2)
-  credit  Decimal @default(0) @db.Decimal(15, 2)
+  balance                Decimal                 @default(0) @db.Decimal(15, 2)
+  debit                  Decimal                 @default(0) @db.Decimal(15, 2)
+  credit                 Decimal                 @default(0) @db.Decimal(15, 2)
 
   // Metadata
   metadata  Json?
@@ -247,7 +249,7 @@ enum RoleType {
   TENANT_STAFF // Regular employee
   CUSTOMER // End user
   PARTNER // External partner
-  DRIVER  // Driver App User
+  DRIVER // Driver App User
   AGENCY_ADMIN // Sub-agency owner/admin
   AGENCY_STAFF // Sub-agency staff
 }
@@ -507,7 +509,7 @@ model VehicleType {
 
   // Media
   image String?
-  
+
   order Int @default(0)
 
   // Pricing & Settings
@@ -834,7 +836,7 @@ model Booking {
   confirmationType ConfirmationType @default(MANUAL)
 
   // Messages
-  messages         Message[]
+  messages Message[]
 
   // Confirmation
   confirmedAt DateTime?
@@ -859,7 +861,7 @@ model Booking {
   items BookingItem[]
 
   // Payments
-  payments Payment[]
+  payments          Payment[]
   driverCollections DriverCollection[]
 
   // Pickup/Dropoff Tracking (Actual times recorded by driver)
@@ -1047,28 +1049,28 @@ enum ReviewStatus {
 // ============================================================================
 
 model Message {
-  id        String   @id @default(uuid())
-  tenantId  String
-  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  
-  senderId    String
-  sender      User     @relation("SentMessages", fields: [senderId], references: [id])
-  
-  receiverId  String
-  receiver    User     @relation("ReceivedMessages", fields: [receiverId], references: [id])
-  
-  bookingId   String?
-  booking     Booking? @relation(fields: [bookingId], references: [id])
-  
-  content     String
-  format      MessageFormat @default(TEXT)
-  
-  isRead      Boolean  @default(false)
-  readAt      DateTime?
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  senderId String
+  sender   User   @relation("SentMessages", fields: [senderId], references: [id])
+
+  receiverId String
+  receiver   User   @relation("ReceivedMessages", fields: [receiverId], references: [id])
+
+  bookingId String?
+  booking   Booking? @relation(fields: [bookingId], references: [id])
+
+  content String
+  format  MessageFormat @default(TEXT)
+
+  isRead Boolean   @default(false)
+  readAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@index([senderId])
   @@index([receiverId])
   @@index([bookingId])
@@ -1233,12 +1235,12 @@ model ShuttleRoute {
   isActive Boolean @default(true)
 
   // Pickup Details
-  pickupLocation  String?
-  pickupRadius    Float?
-  pickupPolygon   Json?
+  pickupLocation String?
+  pickupRadius   Float?
+  pickupPolygon  Json?
 
   // Metadata (zone/hub references etc.)
-  metadata  Json?
+  metadata Json?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1319,31 +1321,31 @@ model Personnel {
 // ============================================================================
 
 model Account {
-  id          String    @id @default(uuid())
-  tenantId    String
-  tenant      Tenant    @relation(fields: [tenantId], references: [id])
-  
-  code        String
-  name        String
-  name2       String?
-  type        AccountType
-  
-  taxNumber   String?
-  taxOffice   String?
-  address     String?
-  phone       String?
-  email       String?
-  
-  currency    String    @default("TRY")
-  
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+
+  code  String
+  name  String
+  name2 String?
+  type  AccountType
+
+  taxNumber String?
+  taxOffice String?
+  address   String?
+  phone     String?
+  email     String?
+
+  currency String @default("TRY")
+
   // Financial Snapshot
-  balance     Decimal   @default(0) @db.Decimal(15, 2)
-  debit       Decimal   @default(0) @db.Decimal(15, 2)
-  credit      Decimal   @default(0) @db.Decimal(15, 2)
-  
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  
+  balance Decimal @default(0) @db.Decimal(15, 2)
+  debit   Decimal @default(0) @db.Decimal(15, 2)
+  credit  Decimal @default(0) @db.Decimal(15, 2)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@unique([tenantId, code])
   @@index([tenantId])
   @@index([type])
@@ -1362,40 +1364,40 @@ enum AccountType {
 // ============================================================================
 
 model Bank {
-  id        String   @id @default(uuid())
-  tenantId  String
-  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  
-  name      String
-  code      String?
-  logo      String?
-  website   String?
-  status    Boolean  @default(true)
-  
-  accounts  BankAccount[]
-  
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  name    String
+  code    String?
+  logo    String?
+  website String?
+  status  Boolean @default(true)
+
+  accounts BankAccount[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
+
   @@unique([tenantId, name])
 }
 
 model BankAccount {
-  id            String   @id @default(uuid())
-  bankId        String
-  bank          Bank     @relation(fields: [bankId], references: [id], onDelete: Cascade)
-  
+  id     String @id @default(uuid())
+  bankId String
+  bank   Bank   @relation(fields: [bankId], references: [id], onDelete: Cascade)
+
   accountName   String
   accountNumber String
   iban          String
   branchName    String?
   branchCode    String?
-  currency      String   @default("TRY")
-  
+  currency      String  @default("TRY")
+
   agencyDeposits AgencyDeposit[]
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // ============================================================================
@@ -1403,50 +1405,50 @@ model BankAccount {
 // ============================================================================
 
 model Agency {
-  id              String   @id @default(uuid())
-  tenantId        String
-  tenant          Tenant   @relation(fields: [tenantId], references: [id])
-  
-  name            String
-  contactName     String
-  email           String   @unique
-  phone           String
-  
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+
+  name        String
+  contactName String
+  email       String @unique
+  phone       String
+
   // Company Info & Branding
-  logo            String?
-  
+  logo String?
+
   // Detailed Company/Billing Info
-  companyName     String?
-  address         String?
-  taxOffice       String?
-  taxNumber       String?
-  contactPhone    String?
-  contactEmail    String?
-  website         String?
-  
+  companyName  String?
+  address      String?
+  taxOffice    String?
+  taxNumber    String?
+  contactPhone String?
+  contactEmail String?
+  website      String?
+
   // Commission from Tenant to this Agency
-  commissionRate  Decimal  @default(0) @db.Decimal(5, 2)
-  
+  commissionRate Decimal @default(0) @db.Decimal(5, 2)
+
   // Agency's own profit margin (Markup applied to B2B prices for their customers)
-  markup          Decimal  @default(0) @db.Decimal(5, 2)
-  
+  markup Decimal @default(0) @db.Decimal(5, 2)
+
   // Current Account Balance
-  balance         Decimal  @default(0) @db.Decimal(15, 2)
-  debit           Decimal  @default(0) @db.Decimal(15, 2)
-  credit          Decimal  @default(0) @db.Decimal(15, 2)
-  
-  status          AgencyStatus @default(ACTIVE)
-  
+  balance Decimal @default(0) @db.Decimal(15, 2)
+  debit   Decimal @default(0) @db.Decimal(15, 2)
+  credit  Decimal @default(0) @db.Decimal(15, 2)
+
+  status AgencyStatus @default(ACTIVE)
+
   // Relations
-  users           User[]
-  products        Product[] 
-  bookings        Booking[] 
-  deposits        AgencyDeposit[]
-  contractPrices  AgencyContractPrice[]
-  contractMeta    AgencyContractMeta[]
-  
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  users          User[]
+  products       Product[]
+  bookings       Booking[]
+  deposits       AgencyDeposit[]
+  contractPrices AgencyContractPrice[]
+  contractMeta   AgencyContractMeta[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([tenantId, status])
 }
@@ -1458,36 +1460,36 @@ enum AgencyStatus {
 }
 
 model AgencyDeposit {
-  id              String   @id @default(uuid())
-  tenantId        String
-  tenant          Tenant   @relation(fields: [tenantId], references: [id])
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
 
-  agencyId        String
-  agency          Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  agencyId String
+  agency   Agency @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   // Payment Details
-  amount          Decimal  @db.Decimal(15, 2)
-  currency        String   @default("TRY")
-  method          PaymentMethod // Credit Card, Bank Transfer, etc
-  
+  amount   Decimal       @db.Decimal(15, 2)
+  currency String        @default("TRY")
+  method   PaymentMethod // Credit Card, Bank Transfer, etc
+
   // For Bank Transfer
-  bankAccountId   String?
-  bankAccount     BankAccount? @relation(fields: [bankAccountId], references: [id])
-  
+  bankAccountId String?
+  bankAccount   BankAccount? @relation(fields: [bankAccountId], references: [id])
+
   // Reference / Receipt
-  transactionRef  String   @unique
+  transactionRef  String  @unique
   receiptDocument String?
   notes           String?
 
-  status          DepositStatus @default(PENDING)
+  status DepositStatus @default(PENDING)
 
   // Approval
-  approvedById    String?
-  approvedBy      User?    @relation("ApprovedDeposits", fields: [approvedById], references: [id])
-  approvedAt      DateTime?
+  approvedById String?
+  approvedBy   User?     @relation("ApprovedDeposits", fields: [approvedById], references: [id])
+  approvedAt   DateTime?
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([tenantId, agencyId, status])
 }
@@ -1503,20 +1505,20 @@ enum DepositStatus {
 // ============================================================================
 
 model ExtraService {
-  id                 String   @id @default(uuid())
-  tenantId           String
-  tenant             Tenant   @relation(fields: [tenantId], references: [id])
-  
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+
   name               String
-  price              Float    @default(0)
-  currency           String   @default("EUR")
-  isPerPerson        Boolean  @default(false)
+  price              Float   @default(0)
+  currency           String  @default("EUR")
+  isPerPerson        Boolean @default(false)
   image              String?
-  order              Int      @default(0)
-  excludeFromShuttle Boolean  @default(true)
-  
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  order              Int     @default(0)
+  excludeFromShuttle Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([tenantId, order])
 }
@@ -1526,39 +1528,39 @@ model ExtraService {
 // ============================================================================
 
 model Transaction {
-  id          String   @id @default(uuid())
-  tenantId    String
-  tenant      Tenant   @relation(fields: [tenantId], references: [id])
-  
-  accountId   String   // e.g., "agency-123", "partner-456", "personnel-789", "uuid"
-  
-  type        TransactionType
-  amount      Decimal  @db.Decimal(15, 2)
-  currency    String   @default("TRY")
-  isCredit    Boolean  // true = Alacak (Credit/Deposit), false = Borç (Debit/Withdrawal)
-  
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+
+  accountId String // e.g., "agency-123", "partner-456", "personnel-789", "uuid"
+
+  type     TransactionType
+  amount   Decimal         @db.Decimal(15, 2)
+  currency String          @default("TRY")
+  isCredit Boolean // true = Alacak (Credit/Deposit), false = Borç (Debit/Withdrawal)
+
   description String?
   date        DateTime @default(now())
-  
+
   // Optional References for automated transactions
-  referenceId String?  // Invoice ID, Payment ID, Deposit ID etc
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  referenceId String? // Invoice ID, Payment ID, Deposit ID etc
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([tenantId, accountId])
   @@index([date])
 }
 
 enum TransactionType {
-  MANUAL_IN          // Cari Giriş
-  MANUAL_OUT         // Cari Çıkış
-  SALES_INVOICE      // Satış Faturası
-  PURCHASE_INVOICE   // Alış Faturası
-  PAYMENT_RECEIVED   // Tahsilat (Müşteri Ödemesi)
-  PAYMENT_SENT       // Tediye (Bizim Ödememiz)
-  DEPOSIT            // Depozito
-  SALARY             // Maaş / Hakediş
+  MANUAL_IN // Cari Giriş
+  MANUAL_OUT // Cari Çıkış
+  SALES_INVOICE // Satış Faturası
+  PURCHASE_INVOICE // Alış Faturası
+  PAYMENT_RECEIVED // Tahsilat (Müşteri Ödemesi)
+  PAYMENT_SENT // Tediye (Bizim Ödememiz)
+  DEPOSIT // Depozito
+  SALARY // Maaş / Hakediş
 }
 
 // ============================================================================
@@ -1572,7 +1574,7 @@ model Zone {
 
   name    String
   color   String? @default("#3388ff") // For map drawing
-  polygon Json    // Array of LatLng [{lat, lng}, ...]
+  polygon Json // Array of LatLng [{lat, lng}, ...]
 
   vehicleTypePrices VehicleTypeZonePrice[]
   contractPrices    AgencyContractPrice[]
@@ -1612,31 +1614,31 @@ model VehicleTypeZonePrice {
 // ============================================================================
 
 model AgencyContractPrice {
-  id            String      @id @default(uuid())
-  tenantId      String
+  id       String @id @default(uuid())
+  tenantId String
 
-  agencyId      String
-  agency        Agency      @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  agencyId String
+  agency   Agency @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   vehicleTypeId String
   vehicleType   VehicleType @relation(fields: [vehicleTypeId], references: [id], onDelete: Cascade)
 
   // Zone-based (mirrors VehicleTypeZonePrice)
-  zoneId        String
-  zone          Zone        @relation(fields: [zoneId], references: [id], onDelete: Cascade)
-  baseLocation  String      @default("AYT")
+  zoneId       String
+  zone         Zone   @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+  baseLocation String @default("AYT")
 
   // Contract Prices
-  price         Decimal  @db.Decimal(10, 2)   // Adult per-person price
-  childPrice    Decimal? @db.Decimal(10, 2)
-  babyPrice     Decimal? @db.Decimal(10, 2)
-  fixedPrice    Decimal? @db.Decimal(10, 2)   // Fixed total price (overrides per-pax)
-  extraKmPrice  Decimal? @db.Decimal(10, 2)   // Overage km price
+  price        Decimal  @db.Decimal(10, 2) // Adult per-person price
+  childPrice   Decimal? @db.Decimal(10, 2)
+  babyPrice    Decimal? @db.Decimal(10, 2)
+  fixedPrice   Decimal? @db.Decimal(10, 2) // Fixed total price (overrides per-pax)
+  extraKmPrice Decimal? @db.Decimal(10, 2) // Overage km price
 
-  isActive      Boolean  @default(true)
+  isActive Boolean @default(true)
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([agencyId, vehicleTypeId, zoneId, baseLocation])
   @@index([tenantId, agencyId])
@@ -1644,11 +1646,11 @@ model AgencyContractPrice {
 
 // General / fallback pricing per agency + vehicleType (when no zone matches)
 model AgencyContractMeta {
-  id            String      @id @default(uuid())
-  tenantId      String
+  id       String @id @default(uuid())
+  tenantId String
 
-  agencyId      String
-  agency        Agency      @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  agencyId String
+  agency   Agency @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   vehicleTypeId String
   vehicleType   VehicleType @relation(fields: [vehicleTypeId], references: [id], onDelete: Cascade)
@@ -1671,20 +1673,20 @@ model AgencyContractMeta {
 // ============================================================================
 
 model SpeedViolation {
-  id          String   @id @default(uuid())
-  tenantId    String
-  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  driverId    String   // Personnel/User ID of the driver
-  driverName  String
-  speed       Float    // Recorded speed in km/h
-  speedLimit  Float    @default(120) // Limit that was exceeded
-  lat         Float
-  lng         Float
-  bookingId   String?  // If driver was on a job at the time
+  driverId     String // Personnel/User ID of the driver
+  driverName   String
+  speed        Float // Recorded speed in km/h
+  speedLimit   Float   @default(120) // Limit that was exceeded
+  lat          Float
+  lng          Float
+  bookingId    String? // If driver was on a job at the time
   vehiclePlate String? // Vehicle plate if known
 
-  createdAt   DateTime @default(now())
+  createdAt DateTime @default(now())
 
   @@index([tenantId, driverId])
   @@index([tenantId, createdAt])
@@ -1696,21 +1698,21 @@ model SpeedViolation {
 // ============================================================================
 
 model ActivityLog {
-  id          String   @id @default(uuid())
-  tenantId    String
-  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  
-  userId      String?
-  userEmail   String?
-  
-  action      String   // e.g., CREATE_BOOKING, DELETE_USER, UPDATE_PRICING
-  entityType  String?  // e.g., Booking, Vehicle, User
-  entityId    String?  // ID of the affected record
-  
-  details     Json?    // Detailed payload, before/after changes, or soft-delete snapshot
-  ipAddress   String?  // IP address of the request
-  
-  createdAt   DateTime @default(now())
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  userId    String?
+  userEmail String?
+
+  action     String // e.g., CREATE_BOOKING, DELETE_USER, UPDATE_PRICING
+  entityType String? // e.g., Booking, Vehicle, User
+  entityId   String? // ID of the affected record
+
+  details   Json? // Detailed payload, before/after changes, or soft-delete snapshot
+  ipAddress String? // IP address of the request
+
+  createdAt DateTime @default(now())
 
   @@index([tenantId, action])
   @@index([tenantId, entityType])
@@ -1723,35 +1725,35 @@ model ActivityLog {
 // ============================================================================
 
 model DriverCollection {
-  id          String   @id @default(uuid())
-  tenantId    String
-  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
 
-  driverId    String
-  driver      User     @relation("DriverCollections", fields: [driverId], references: [id])
+  driverId String
+  driver   User   @relation("DriverCollections", fields: [driverId], references: [id])
 
   // Collection details
-  amount      Decimal  @db.Decimal(15, 2)
-  currency    String   @default("TRY")
-  bookingId   String?  // Optional link to booking
-  booking     Booking? @relation(fields: [bookingId], references: [id])
+  amount    Decimal  @db.Decimal(15, 2)
+  currency  String   @default("TRY")
+  bookingId String? // Optional link to booking
+  booking   Booking? @relation(fields: [bookingId], references: [id])
 
   // Collection source info
-  customerName    String?
-  bookingNumber   String?
-  paymentMethod   String   @default("CASH") // CASH, CREDIT_CARD, etc.
+  customerName  String?
+  bookingNumber String?
+  paymentMethod String  @default("CASH") // CASH, CREDIT_CARD, etc.
 
   // Handover status
-  status      CollectionStatus @default(PENDING)
+  status CollectionStatus @default(PENDING)
 
   // Handover details (when status is HANDED_OVER)
-  handedOverAt    DateTime?
-  handedOverTo    String?     // User ID of accounting personnel
-  handedOverToUser User?       @relation("HandoverRecipient", fields: [handedOverTo], references: [id])
-  handoverNotes   String?
+  handedOverAt     DateTime?
+  handedOverTo     String? // User ID of accounting personnel
+  handedOverToUser User?     @relation("HandoverRecipient", fields: [handedOverTo], references: [id])
+  handoverNotes    String?
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([tenantId, driverId])
   @@index([tenantId, status])
@@ -1760,9 +1762,9 @@ model DriverCollection {
 }
 
 enum CollectionStatus {
-  PENDING       // Bekliyor - Driver has collected, not yet handed over
-  HANDED_OVER   // Teslim Edildi - Handed to accounting
-  CONFIRMED     // Onaylandı - Accounting confirmed receipt
+  PENDING // Bekliyor - Driver has collected, not yet handed over
+  HANDED_OVER // Teslim Edildi - Handed to accounting
+  CONFIRMED // Onaylandı - Accounting confirmed receipt
 }
 
 model DriverLocationHistory {
@@ -1779,3 +1781,49 @@ model DriverLocationHistory {
   @@index([driverId, timestamp])
 }
 
+// ============================================================================
+// LIVE SUPPORT (N8N CHAT)
+// ============================================================================
+
+model ChatSession {
+  id       String     @id @default(uuid())
+  tenantId String
+  status   ChatStatus @default(BOT)
+
+  customerId String?
+  customer   User?   @relation("CustomerChats", fields: [customerId], references: [id])
+
+  agentId String?
+  agent   User?   @relation("AgentChats", fields: [agentId], references: [id])
+
+  messages ChatMessage[]
+  metadata Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId, status])
+}
+
+model ChatMessage {
+  id        String      @id @default(uuid())
+  sessionId String
+  session   ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  sender  ChatSender
+  content String     @db.Text
+
+  createdAt DateTime @default(now())
+}
+
+enum ChatStatus {
+  BOT
+  HUMAN
+  CLOSED
+}
+
+enum ChatSender {
+  USER
+  BOT
+  ADMIN
+}

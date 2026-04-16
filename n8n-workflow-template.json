@@ -1,0 +1,133 @@
+{
+  "name": "SmartTravel Live Support AI",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "live-chat",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "live-chat"
+    },
+    {
+      "parameters": {
+        "model": "gpt-4o-mini",
+        "prompt": "Sen SmartTravel adında bir turizm ve transfer firmasının asistanısın. Kısa, kibar ve profesyonel ol. Gelen soru: {{$json['body']['message']}} \nEğer kullanıcı müşteri temsilcisine bağlanmak istiyorsa sadece 'HANDOFF' yaz.",
+        "options": {}
+      },
+      "id": "openai-node",
+      "name": "OpenAI",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [500, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json['choices'][0]['message']['content']}}",
+              "operation": "contains",
+              "value2": "HANDOFF"
+            }
+          ]
+        }
+      },
+      "id": "if-node",
+      "name": "Check Handoff",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [750, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://backend-production-69e7.up.railway.app/api/live-chat/n8n-response",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "sessionId", "value": "={{ $('Webhook').item.json['body']['sessionId'] }}" },
+            { "name": "message", "value": "Sizi hemen bir müşteri temsilcimize aktarıyorum. Lütfen bekleyin..." },
+            { "name": "handoff", "value": "true" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "send-handoff",
+      "name": "Send Handoff to App",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1000, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://backend-production-69e7.up.railway.app/api/live-chat/n8n-response",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "sessionId", "value": "={{ $('Webhook').item.json['body']['sessionId'] }}" },
+            { "name": "message", "value": "={{ $('OpenAI').item.json['choices'][0]['message']['content'] }}" },
+            { "name": "handoff", "value": "false" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "send-ai-response",
+      "name": "Send AI Response",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1000, 400]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "OpenAI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI": {
+      "main": [
+        [
+          {
+            "node": "Check Handoff",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Handoff": {
+      "main": [
+        [
+          {
+            "node": "Send Handoff to App",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send AI Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {}
+}
