@@ -159,14 +159,27 @@ const TransferBookingContent: React.FC = () => {
         }
     }, [vehicleId, returnVehicleId]);
 
-    // Initialize passenger list form
+    // Initialize passenger list form with correct types
     useEffect(() => {
         if (passengers) {
-            const count = Math.max(0, (Number(passengers) || 1) - 1); // Subtract 1 for main contact
-            const list = Array(count).fill({ firstName: '', lastName: '', nationality: undefined });
+            const totalAdults = Number(adultsParam) || Number(passengers) || 1;
+            const totalChildren = Number(childrenParam) || 0;
+            const totalInfants = Number(babiesParam) || 0;
+            const remainingAdults = Math.max(0, totalAdults - 1); // -1 for main contact
+            const count = remainingAdults + totalChildren + totalInfants;
+            const list = [];
+            for (let i = 0; i < remainingAdults; i++) {
+                list.push({ firstName: '', lastName: '', nationality: undefined, type: 'adult' });
+            }
+            for (let i = 0; i < totalChildren; i++) {
+                list.push({ firstName: '', lastName: '', nationality: undefined, type: 'child' });
+            }
+            for (let i = 0; i < totalInfants; i++) {
+                list.push({ firstName: '', lastName: '', nationality: undefined, type: 'infant' });
+            }
             form.setFieldsValue({ passengerList: list });
         }
-    }, [passengers, form]);
+    }, [passengers, adultsParam, childrenParam, babiesParam, form]);
 
     const fetchVehicleDetails = async () => {
         try {
@@ -410,9 +423,14 @@ const TransferBookingContent: React.FC = () => {
                     {
                         firstName: values.fullName.split(' ')[0],
                         lastName: values.fullName.split(' ').slice(1).join(' ') || '',
-                        nationality: null
+                        nationality: null,
+                        type: 'adult'
                     },
-                    ...(values.passengerList || [])
+                    ...(values.passengerList || []).map((p: any) => ({
+                        ...p,
+                        name: `${p.firstName || ''} ${p.lastName || ''}`.trim(),
+                        type: p.type || 'adult'
+                    }))
                 ],
                 extraServices: selectedServicesList,
                 billingDetails: wantInvoice ? {
@@ -454,9 +472,14 @@ const TransferBookingContent: React.FC = () => {
                     {
                         firstName: values.fullName.split(' ')[0],
                         lastName: values.fullName.split(' ').slice(1).join(' ') || '',
-                        nationality: null
+                        nationality: null,
+                        type: 'adult'
                     },
-                    ...(values.passengerList || [])
+                    ...(values.passengerList || []).map((p: any) => ({
+                        ...p,
+                        name: `${p.firstName || ''} ${p.lastName || ''}`.trim(),
+                        type: p.type || 'adult'
+                    }))
                 ],
                 extraServices: addServicesToReturn ? selectedServicesList : [],
                 billingDetails: undefined, // Billing handled by outbound
@@ -691,14 +714,31 @@ const TransferBookingContent: React.FC = () => {
                                         <Form.List name="passengerList">
                                             {(fields) => (
                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                                                    {fields.map((field, index) => (
+                                                    {fields.map((field, index) => {
+                                                        const pType = form.getFieldValue(['passengerList', field.name, 'type']);
+                                                        const typeLabels: Record<string, { label: string; color: string }> = {
+                                                            adult: { label: 'Yetişkin', color: '#10b981' },
+                                                            child: { label: 'Çocuk (3-12 yaş)', color: '#f59e0b' },
+                                                            infant: { label: 'Bebek (0-2 yaş)', color: '#ef4444' },
+                                                        };
+                                                        const tInfo = typeLabels[pType] || typeLabels.adult;
+                                                        return (
                                                         <Card
                                                             key={field.key}
                                                             size="small"
-                                                            title={`${index + 2}. Yolcu`}
+                                                            title={
+                                                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                                    <span>{index + 2}. Yolcu</span>
+                                                                    <span style={{
+                                                                        fontSize: 11, fontWeight: 600, padding: '1px 8px', borderRadius: 10,
+                                                                        background: `${tInfo.color}18`, color: tInfo.color, border: `1px solid ${tInfo.color}40`
+                                                                    }}>{tInfo.label}</span>
+                                                                </div>
+                                                            }
                                                             type="inner"
                                                             styles={{ body: { padding: '16px 16px 0 16px' } }}
                                                         >
+                                                            <Form.Item name={[field.name, 'type']} hidden><Input /></Form.Item>
                                                             <Row gutter={16}>
                                                                 <Col xs={24} md={8}>
                                                                     <Form.Item
@@ -744,7 +784,7 @@ const TransferBookingContent: React.FC = () => {
                                                                 </Col>
                                                             </Row>
                                                         </Card>
-                                                    ))}
+                                                    );})}
                                                 </div>
                                             )}
                                         </Form.List>

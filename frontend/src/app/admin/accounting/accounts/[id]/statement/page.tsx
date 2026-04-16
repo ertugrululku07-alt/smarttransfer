@@ -546,7 +546,7 @@ export default function AccountStatementPage() {
                                 )}
                             </div>
 
-                            <Space direction="vertical" align="end">
+                            <Space orientation="vertical" align="end">
                                 <Space>
                                     <Button
                                         icon={<ReloadOutlined />}

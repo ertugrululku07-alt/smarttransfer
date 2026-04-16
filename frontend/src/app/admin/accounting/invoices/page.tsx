@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useRef, useCallback, Suspense } from 'react';
+import { useDefinitions } from '@/app/hooks/useDefinitions';
 import {
     Tabs, Table, Card, Button, Modal, Form, Input, InputNumber, Select,
     DatePicker, Space, message, Popconfirm, Typography, Row, Col,
@@ -65,9 +66,7 @@ interface Invoice {
 /* ──────────────────────────────────────────────────────
    Constants
 ────────────────────────────────────────────────────── */
-const VAT_RATES = [0, 1, 8, 10, 18, 20];
 const UNITS = ['Adet', 'Saat', 'Gün', 'Km', 'Hizmet', 'Paket'];
-const CURRENCIES = ['TRY', 'EUR', 'USD', 'GBP'];
 const PAYMENT_METHODS = [
     { value: 'BANK_TRANSFER', label: 'Banka Havalesi/EFT' },
     { value: 'CREDIT_CARD', label: 'Kredi Kartı' },
@@ -304,8 +303,9 @@ function InvoicesPageContent() {
     const [editing, setEditing] = useState<Invoice | null>(null);
     const [printInv, setPrintInv] = useState<Invoice | null>(null);
     const [submitting, setSubmitting] = useState(false);
+    const { currencies: defCurrencies, defaultCurrency: defDefaultCurrency, vatRates: defVatRates, defaultVatRate: defDefaultVatRate } = useDefinitions();
     const [lines, setLines] = useState<InvoiceLine[]>([newLine()]);
-    const [currency, setCurrency] = useState('TRY');
+    const [currency, setCurrency] = useState('');
     const [discount, setDiscount] = useState(0);
     const [form] = Form.useForm();
 
@@ -313,6 +313,8 @@ function InvoicesPageContent() {
     const [cariList, setCariList] = useState<any[]>([]);
     const [cariSearch, setCariSearch] = useState('');
     const [dynamicVatRates, setDynamicVatRates] = useState<{rate: number, isDefault?: boolean}[]>([]);
+    // Use hook-based vat rates if available (loaded earlier), fall back to locally fetched
+    const activeVatRates = defVatRates.length > 0 ? defVatRates : dynamicVatRates;
 
     const fetchInvoices = async () => {
         setLoading(true);
@@ -329,6 +331,10 @@ function InvoicesPageContent() {
                 const defs = tenantRes.data.data?.tenant?.settings?.definitions;
                 if (defs?.vatRates && defs.vatRates.length > 0) {
                     setDynamicVatRates(defs.vatRates);
+                }
+                if (defs?.currencies && defs.currencies.length > 0) {
+                    const defCur = defs.currencies.find((c: any) => c.isDefault);
+                    if (!currency) setCurrency(defCur?.code || defs.currencies[0]?.code || 'TRY');
                 }
             }
         } catch { message.error('Veriler yüklenirken bir hata oluştu'); }
@@ -373,10 +379,10 @@ function InvoicesPageContent() {
 
             setActiveTab(tab);
             setEditing(null);
-            const defaultVat = dynamicVatRates.find(r => r.isDefault)?.rate ?? dynamicVatRates[0]?.rate ?? 20;
+            const defaultVat = activeVatRates.find(r => r.isDefault)?.rate ?? activeVatRates[0]?.rate ?? 20;
             setLines([newLine(defaultVat)]);
             setDiscount(0);
-            setCurrency('TRY');
+            setCurrency(defDefaultCurrency?.code || 'TRY');
 
             const partyInfo = {
                 companyName: name,
@@ -421,7 +427,7 @@ function InvoicesPageContent() {
     };
 
     const addLine = () => {
-        const defaultVat = dynamicVatRates.find(r => r.isDefault)?.rate ?? dynamicVatRates[0]?.rate ?? 20;
+        const defaultVat = activeVatRates.find(r => r.isDefault)?.rate ?? activeVatRates[0]?.rate ?? 20;
         setLines(p => [...p, newLine(defaultVat)]);
     };
     const removeLine = (idx: number) => setLines(p => p.filter((_, i) => i !== idx));
@@ -432,10 +438,10 @@ function InvoicesPageContent() {
 
     const openNew = async () => {
         setEditing(null);
-        const defaultVat = dynamicVatRates.find(r => r.isDefault)?.rate ?? dynamicVatRates[0]?.rate ?? 20;
+        const defaultVat = activeVatRates.find(r => r.isDefault)?.rate ?? activeVatRates[0]?.rate ?? 20;
         setLines([newLine(defaultVat)]);
         setDiscount(0);
-        setCurrency('TRY');
+        setCurrency(defDefaultCurrency?.code || 'TRY');
         form.resetFields();
         try {
             const res = await apiClient.get(`/api/invoices/next-no/${activeTab}`);
@@ -448,7 +454,7 @@ function InvoicesPageContent() {
             dueDate: dayjs().add(30, 'day'),
             paymentMethod: 'BANK_TRANSFER',
             eInvoiceScenario: 'COMMERCIAL',
-            currency: 'TRY',
+            currency: defDefaultCurrency?.code || 'TRY',
         });
         setModalOpen(true);
     };
@@ -457,7 +463,7 @@ function InvoicesPageContent() {
         setEditing(inv);
         setLines(inv.lines?.map(l => calcLine(l)) || [newLine()]);
         setDiscount(inv.discount || 0);
-        setCurrency(inv.currency || 'TRY');
+        setCurrency(inv.currency || defDefaultCurrency?.code || 'TRY');
         form.setFieldsValue({
             ...inv,
             invoiceDate: dayjs(inv.invoiceDate),
@@ -792,8 +798,8 @@ function InvoicesPageContent() {
                                             </Col>
                                             <Col span={6}>
                                                 <Form.Item label="Para Birimi">
-                                                    <Select value={currency} onChange={setCurrency}>
-                                                        {CURRENCIES.map(c => <Select.Option key={c} value={c}>{c}</Select.Option>)}
+                                                    <Select value={currency} onChange={setCurrency} loading={!defCurrencies.length} notFoundContent={!defCurrencies.length ? 'Yükleniyor...' : 'Para birimi tanımlanmamış'}>
+                                                        {defCurrencies.map(c => <Select.Option key={c.code} value={c.code}>{c.symbol} {c.code}</Select.Option>)}
                                                     </Select>
                                                 </Form.Item>
                                             </Col>
@@ -900,7 +906,7 @@ function InvoicesPageContent() {
                                                                 <td style={{ padding: '6px 12px' }}><Select size="small" value={l.unit} onChange={v => updateLine(i, 'unit', v)} style={{ width: '100%' }}>{UNITS.map(u => <Select.Option key={u} value={u}>{u}</Select.Option>)}</Select></td>
                                                                 <td style={{ padding: '6px 12px' }}><InputNumber size="small" value={l.quantity} onChange={v => updateLine(i, 'quantity', v || 1)} style={{ width: '100%' }} /></td>
                                                                 <td style={{ padding: '6px 12px' }}><InputNumber size="small" value={l.unitPrice} onChange={v => updateLine(i, 'unitPrice', v || 0)} style={{ width: '100%' }} /></td>
-                                                                <td style={{ padding: '6px 12px' }}><Select size="small" value={l.vatRate} onChange={v => updateLine(i, 'vatRate', v)} style={{ width: '100%' }}>{dynamicVatRates.map(v => <Select.Option key={v.rate} value={v.rate}>%{v.rate}</Select.Option>)}</Select></td>
+                                                                <td style={{ padding: '6px 12px' }}><Select size="small" value={l.vatRate} onChange={v => updateLine(i, 'vatRate', v)} style={{ width: '100%' }}>{activeVatRates.map(v => <Select.Option key={v.rate} value={v.rate}>%{v.rate}</Select.Option>)}</Select></td>
                                                                 <td style={{ padding: '6px 12px', textAlign: 'right', fontWeight: 600 }}>{fmtTRY(l.lineTotal + l.vatAmount, currency)}</td>
                                                                 <td style={{ padding: '6px 12px', textAlign: 'center' }}>
                                                                     <Button size="small" type="text" danger icon={<DeleteOutlined />} onClick={() => removeLine(i)} disabled={lines.length === 1} />

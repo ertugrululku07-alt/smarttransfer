@@ -45,6 +45,28 @@ const windowsOverlap = (a, b) => {
 };
 
 // ---------------------------------------------------------------------------
+// Helper: determine trip type based on pickup/dropoff
+// Returns 'DEP' | 'ARV' | 'ARA'
+// ---------------------------------------------------------------------------
+const getTripType = (pickup, dropoff) => {
+    const pickupStr = String(pickup || '').toLowerCase();
+    const dropoffStr = String(dropoff || '').toLowerCase();
+    
+    const airportKeywords = ['havalimanı', 'havalimani', 'airport', 'havaalanı', 'havaalani', 'ayt', 'ist', 'sa', 'esenboğa'];
+    
+    const isPickupAirport = airportKeywords.some(kw => pickupStr.includes(kw));
+    const isDropoffAirport = airportKeywords.some(kw => dropoffStr.includes(kw));
+    
+    if (isPickupAirport && !isDropoffAirport) {
+        return 'ARV'; // Arrival: Airport to Hotel
+    } else if (!isPickupAirport && isDropoffAirport) {
+        return 'DEP'; // Departure: Hotel to Airport
+    } else {
+        return 'ARA'; // Ara Transfer: Between hotels or other
+    }
+};
+
+// ---------------------------------------------------------------------------
 // GET /api/operations/driver-schedule?driverId=&date=YYYY-MM-DD
 // Returns all bookings assigned to a driver on a given date
 // ---------------------------------------------------------------------------
@@ -810,12 +832,22 @@ router.get('/shuttle-runs', authMiddleware, async (req, res, next) => {
             }
 
             if (!runsMap[key]) {
+                // Determine trip type: use metadata if available, otherwise detect from booking pickup/dropoff
+                let tripType;
+                if (m.tripType) {
+                    tripType = m.tripType; // Use saved trip type from booking
+                } else {
+                    // Detect from actual pickup/dropoff locations
+                    tripType = getTripType(m.pickup, m.dropoff);
+                }
+                
                 runsMap[key] = {
                     runKey: key,
                     shuttleRouteId: routeId || null,
                     routeName: routeNameForGrouping,
                     fromName: fromNameForGrouping,
                     toName:   toNameForGrouping,
+                    tripType: tripType,
                     departureTime: masterTime || null,
                     _originalMasterTime: masterTime || null,
                     date: datePart,
@@ -857,6 +889,7 @@ router.get('/shuttle-runs', authMiddleware, async (req, res, next) => {
                 extraServices: m.extraServices || null,
                 acknowledgedAt: m.acknowledgedAt || null,
                 notes: b.specialRequests || m.notes || null,
+                tripType: m.tripType || null,
                 metadata: m,
             });
         });
@@ -1038,6 +1071,35 @@ router.post('/shuttle-runs/move', authMiddleware, async (req, res) => {
             return res.status(400).json({ success: false, error: 'bookingIds array zorunlu' });
         }
 
+        // ── Trip Type Compatibility Check ──
+        // If moving to an existing run with passengers, ensure trip types match
+        if (sampleBookingId) {
+            const sample = await prisma.booking.findUnique({ where: { id: sampleBookingId } });
+            if (sample && sample.metadata?.tripType) {
+                const targetTripType = sample.metadata.tripType;
+                
+                // Check all bookings being moved have compatible trip types
+                for (const bookingId of bookingIds) {
+                    const booking = await prisma.booking.findUnique({ where: { id: bookingId } });
+                    if (!booking) continue;
+                    
+                    const bookingTripType = booking.metadata?.tripType;
+                    // Allow move if no tripType defined yet, or if types match
+                    if (bookingTripType && bookingTripType !== targetTripType) {
+                        return res.status(400).json({ 
+                            success: false, 
+                            error: 'TRIP_TYPE_MISMATCH',
+                            message: `Bu rezervasyon ${bookingTripType} tipinde, hedef sefer ise ${targetTripType} tipinde. Farklı yönlerdeki rezervasyonlar aynı sefere eklenemez.`,
+                            bookingTripType,
+                            targetTripType,
+                            bookingId: booking.id,
+                            bookingName: booking.contactName
+                        });
+                    }
+                }
+            }
+        }
+
         let metaToApply = {
             shuttleRouteId: targetRun?.shuttleRouteId || null,
             shuttleMasterTime: targetRun?.shuttleMasterTime || null,
@@ -1171,12 +1233,12 @@ router.post('/shuttle-runs/sort', authMiddleware, async (req, res) => {
 
 // ---------------------------------------------------------------------------
 // PATCH /api/operations/shuttle-runs/update
-// Body: { runKey: string, departureTime: string, routeName: string, bookingIds: string[] }
-// Updates shuttleMasterTime and/or manualRunName for all bookings in a run
+// Body: { runKey: string, departureTime: string, routeName: string, tripType: string, bookingIds: string[] }
+// Updates shuttleMasterTime and/or manualRunName and/or tripType for all bookings in a run
 // ---------------------------------------------------------------------------
 router.patch('/shuttle-runs/update', authMiddleware, async (req, res) => {
     try {
-        const { runKey, departureTime, routeName, bookingIds } = req.body;
+        const { runKey, departureTime, routeName, tripType, bookingIds } = req.body;
         
         if (!bookingIds || !Array.isArray(bookingIds) || bookingIds.length === 0) {
             return res.status(400).json({ success: false, error: 'bookingIds dizisi zorunlu' });
@@ -1198,6 +1260,11 @@ router.patch('/shuttle-runs/update', authMiddleware, async (req, res) => {
             // Update route name for manual runs
             if (routeName !== undefined && meta.manualRunId) {
                 updatedMeta.manualRunName = routeName;
+            }
+
+            // Update trip type
+            if (tripType !== undefined && ['DEP', 'ARV', 'ARA'].includes(tripType)) {
+                updatedMeta.tripType = tripType;
             }
 
             await prisma.booking.update({

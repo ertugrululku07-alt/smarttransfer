@@ -3,13 +3,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { MessageOutlined, CloseOutlined, SendOutlined, WifiOutlined, UserOutlined } from '@ant-design/icons';
 import { useAuth } from '../context/AuthContext';
-import { io as socketIO, Socket } from 'socket.io-client';
+import { useSocket } from '../context/SocketContext';
+import { Socket } from 'socket.io-client';
 
 const RAILWAY_URL = 'https://backend-production-69e7.up.railway.app';
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || RAILWAY_URL;
+const BASE_URL = (process.env.NEXT_PUBLIC_API_URL || RAILWAY_URL).replace(/[\r\n]+/g, '').trim();
 const API_URL = BASE_URL.endsWith('/api') ? BASE_URL : `${BASE_URL}/api`;
-const rawSocketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || RAILWAY_URL;
-const SOCKET_URL = rawSocketUrl.replace(/[\r\n]+/g, '').trim();
 const TENANT_SLUG = process.env.NEXT_PUBLIC_TENANT_SLUG || 'smarttravel-demo';
 
 interface Driver {
@@ -88,33 +87,24 @@ export default function FloatingDriverChat() {
         return res;
     };
 
-    // Connect socket for real-time driver online/offline events
+    // Use shared socket from SocketContext (no duplicate connections)
+    const { socket: contextSocket } = useSocket();
+
+    // Bind socket event listeners
     useEffect(() => {
-        if (!token) return;
+        if (!token || !contextSocket) return;
 
-        const socket = socketIO(SOCKET_URL, { transports: ['websocket'] });
-        socketRef.current = socket;
+        socketRef.current = contextSocket;
 
-        socket.on('connect', () => {
-            socket.emit('authenticate', token);
-        });
-
-        // Socket events are bonuses — they work when driver and admin are on the same server
-        socket.on('driver_online', (data: any) => {
+        const onDriverOnline = (data: any) => {
             setOnlineDrivers(prev => {
                 const exists = prev.find(d => d.id === data.driverId);
                 if (exists) return prev;
                 return [...prev, { id: data.driverId, fullName: data.driverName, firstName: '', lastName: '', location: null, connectedAt: new Date().toISOString(), avatar: data.avatar || null }];
             });
-        });
+        };
 
-        // *** DO NOT listen to driver_offline socket events ***
-        // The DB poll (every 30s) is the source of truth for who is online.
-        // A socket driver_offline event can arrive even when the driver's background task
-        // is still alive and sending HTTP pings — because the socket connection itself can
-        // drop without the background task stopping.
-
-        socket.on('driver_location', (data: any) => {
+        const onDriverLocation = (data: any) => {
             setOnlineDrivers(prev => {
                 const exists = prev.find(d => d.id === data.driverId);
                 if (exists) {
@@ -131,9 +121,9 @@ export default function FloatingDriverChat() {
                     connectedAt: new Date().toISOString(), avatar: data.avatar || null
                 }];
             });
-        });
+        };
 
-        socket.on('new_message', (msg: any) => {
+        const onNewMessage = (msg: any) => {
             if (processedMessages.current.has(msg.id)) return;
             processedMessages.current.add(msg.id);
             if (processedMessages.current.size > 200) {
@@ -151,32 +141,38 @@ export default function FloatingDriverChat() {
             }));
 
             if (driverId === otherPartyId) {
-                // Chat is actively open with this driver
                 setMessages(prev => {
                     if (prev.find(m => m.id === msg.id)) return prev;
                     return [...prev, msg];
                 });
                 setTimeout(scrollToBottom, 100);
             } else if (!isMe) {
-                // Message from someone else while chat is not active
                 setUnreadCounts(prev => ({
                     ...prev,
                     [msg.senderId]: (prev[msg.senderId] || 0) + 1
                 }));
-                // Try to play notification tone
                 playNotificationSound();
             }
-        });
+        };
+
+        // Socket events are bonuses — they work when driver and admin are on the same server
+        contextSocket.on('driver_online', onDriverOnline);
+        // *** DO NOT listen to driver_offline socket events ***
+        // The DB poll (every 30s) is the source of truth for who is online.
+        contextSocket.on('driver_location', onDriverLocation);
+        contextSocket.on('new_message', onNewMessage);
 
         // Initial load + poll every 30 seconds (DB is source of truth)
         fetchOnlineDrivers();
         const pollInterval = setInterval(fetchOnlineDrivers, 30000);
 
         return () => {
+            contextSocket.off('driver_online', onDriverOnline);
+            contextSocket.off('driver_location', onDriverLocation);
+            contextSocket.off('new_message', onNewMessage);
             clearInterval(pollInterval);
-            socket.disconnect();
         };
-    }, [token]);
+    }, [token, contextSocket]);
 
     useEffect(() => {
         if (view === 'chat' && selectedDriver) {

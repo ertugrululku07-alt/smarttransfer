@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useDefinitions } from '@/app/hooks/useDefinitions';
 import { Card, Button, Form, Input, Typography, message, DatePicker, InputNumber, Row, Col, Spin, Alert, Tag, Space, Divider, Radio, Select, TimePicker, Checkbox, Collapse, Modal, Tooltip } from 'antd';
 import { SearchOutlined, ArrowRightOutlined, ArrowLeftOutlined, CarOutlined, UserOutlined, SafetyCertificateOutlined, WifiOutlined, CheckCircleOutlined, ClockCircleOutlined, SendOutlined } from '@ant-design/icons';
 import dayjs, { Dayjs } from 'dayjs';
@@ -34,6 +35,12 @@ interface TransferResult {
 }
 
 const AgencyNewTransferPage = () => {
+    const { currencies: defCurrencies } = useDefinitions();
+    const getCurrencySymbol = (code: string) => {
+        const c = defCurrencies.find(cur => cur.code === code);
+        return c?.symbol || code + ' ';
+    };
+
     // Top level state
     const [currentStep, setCurrentStep] = useState<'search' | 'results' | 'details' | 'success'>('search');
     const [loading, setLoading] = useState(false);
@@ -389,7 +396,7 @@ const AgencyNewTransferPage = () => {
                 try {
                     const paymentRes = await apiClient.post('/api/payment/init', {
                         amount: values.amount,
-                        currency: selectedVehicle.currency || 'TRY',
+                        currency: selectedVehicle.currency,
                         orderId: booking.bookingNumber,
                         user: {
                             email: values.contactEmail || 'guest@example.com',
@@ -762,11 +769,11 @@ const AgencyNewTransferPage = () => {
                                     background: 'linear-gradient(135deg, #623ce4, #8b5cf6)',
                                     WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent'
                                 }}>
-                                    {result.currency === 'EUR' ? '€' : '₺'}{result.price}
+                                    {getCurrencySymbol(result.currency)}{result.price}
                                 </div>
                                 {(result.basePrice && result.basePrice !== result.price) && (
                                     <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 4 }}>
-                                        B2B Net: {result.currency === 'EUR' ? '€' : '₺'}{result.basePrice}
+                                        B2B Net: {getCurrencySymbol(result.currency)}{result.basePrice}
                                     </div>
                                 )}
                                 <button

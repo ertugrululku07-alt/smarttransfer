@@ -65,6 +65,22 @@
                                                     </div>
                                                 </div>
 
+                                                {(() => {
+                                                    const tripColors: Record<string, string> = {
+                                                        DEP: '#059669',
+                                                        ARV: '#2563eb',
+                                                        ARA: '#d97706'
+                                                    };
+                                                    const tripType = run.tripType || 'DEP';
+                                                    const color = tripColors[tripType] || '#059669';
+                                                    return (
+                                                        <div style={{ textAlign: 'center', flexShrink: 0, background: '#fff', borderRadius: 8, padding: '4px 10px', boxShadow: '0 1px 4px rgba(0,0,0,0.08)' }}>
+                                                            <div style={{ fontWeight: 800, fontSize: 18, color, lineHeight: 1 }}>{tripType}</div>
+                                                            <div style={{ fontSize: 9, color: '#94a3b8', fontWeight: 600, marginTop: 2 }}>TIP</div>
+                                                        </div>
+                                                    );
+                                                })()}
+
                                                 <div style={{ textAlign: 'center', flexShrink: 0 }}>
                                                     <div style={{ fontWeight: 800, fontSize: 20, color: fillColor, lineHeight: 1 }}>{totalPax}</div>
                                                     <div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600, marginTop: 2 }}>/{capacity} PAX</div>

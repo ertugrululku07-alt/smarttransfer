@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Table, Tag, Button, Space, Typography, message, Input, Select, Tooltip, Popover, ColorPicker } from 'antd';
-import { CarOutlined, EnvironmentOutlined, MessageOutlined, SearchOutlined, FilterFilled, SortAscendingOutlined, SortDescendingOutlined, BgColorsOutlined, HolderOutlined } from '@ant-design/icons';
+import { CarOutlined, EnvironmentOutlined, MessageOutlined, SearchOutlined, FilterFilled, SortAscendingOutlined, SortDescendingOutlined, BgColorsOutlined, HolderOutlined, DownOutlined, RightOutlined, UserOutlined, PhoneOutlined, IdcardOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { Resizable } from 'react-resizable';
 import 'react-resizable/css/styles.css';
@@ -144,6 +144,7 @@ interface OperationsTableProps {
     onRowOrderChange?: (newOrder: string[]) => void;
     onAirportColorChange?: (airportCode: string, color: string) => void;
     onOpenLocationModal?: (location: string, name: string) => void;
+    onPoolTransfer?: (booking: any) => void;
 }
 
 const DEFAULT_STATUS_COLORS: Record<string, string> = {
@@ -176,8 +177,10 @@ export default function OperationsTable({
     onRowOrderChange,
     onAirportColorChange,
     onOpenLocationModal,
+    onPoolTransfer,
 }: OperationsTableProps) {
     const [editingCell, setEditingCell] = useState<{ id: string; field: string; value: any } | null>(null);
+    const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
     const [editingHeader, setEditingHeader] = useState<{ key: string; value: string } | null>(null);
     const [columnFilters, setColumnFilters] = useState<Record<string, string>>({});
     const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
@@ -889,8 +892,12 @@ export default function OperationsTable({
                             defaultValue={status}
                             style={{ width: 130, fontSize: 11 }}
                             onChange={(val) => {
-                                onStatusChange?.(record.id, val);
                                 setEditingCell(null);
+                                if (val === 'POOL') {
+                                    onPoolTransfer?.(record);
+                                } else {
+                                    onStatusChange?.(record.id, val);
+                                }
                             }}
                             onBlur={() => setEditingCell(null)}
                             options={[
@@ -898,6 +905,7 @@ export default function OperationsTable({
                                 { value: 'CONFIRMED', label: '✓ Onaylandı' },
                                 { value: 'IN_OPERATION', label: '🔄 Operasyonda' },
                                 { value: 'CANCELLED', label: '✗ İptal' },
+                                { value: 'POOL', label: '📦 Havuza Gönder' },
                             ]}
                         />
                     );
@@ -1105,14 +1113,34 @@ export default function OperationsTable({
                 if (adults > 0) parts.push(`${adults}Y`);
                 if (children > 0) parts.push(`${children}Ç`);
                 if (infants > 0) parts.push(`${infants}B`);
+                const hasPassengers = total > 1 || (record.metadata?.passengerDetails?.length > 0);
+                const isExpanded = expandedRows.has(record.id);
                 return (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 1, lineHeight: 1.3 }}>
-                        <span style={{
-                            fontSize: 12, fontWeight: 800, color: '#1e293b',
-                            fontFamily: 'monospace'
-                        }}>
-                            {total}
-                        </span>
+                    <div 
+                        style={{ display: 'flex', flexDirection: 'column', gap: 1, lineHeight: 1.3, cursor: hasPassengers ? 'pointer' : 'default' }}
+                        onClick={() => {
+                            if (!hasPassengers) return;
+                            setExpandedRows(prev => {
+                                const next = new Set(prev);
+                                if (next.has(record.id)) next.delete(record.id); else next.add(record.id);
+                                return next;
+                            });
+                        }}
+                        title={hasPassengers ? (isExpanded ? 'Yolcu listesini kapat' : 'Yolcu listesini aç') : undefined}
+                    >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                            {hasPassengers && (
+                                <span style={{ fontSize: 8, color: '#6366f1', transition: 'transform 0.2s' }}>
+                                    {isExpanded ? <DownOutlined /> : <RightOutlined />}
+                                </span>
+                            )}
+                            <span style={{
+                                fontSize: 12, fontWeight: 800, color: hasPassengers ? '#6366f1' : '#1e293b',
+                                fontFamily: 'monospace'
+                            }}>
+                                {total}
+                            </span>
+                        </div>
                         {(children > 0 || infants > 0) && (
                             <span style={{ fontSize: 9, color: '#94a3b8', fontWeight: 600 }}>
                                 {parts.join('+')}
@@ -1405,6 +1433,12 @@ export default function OperationsTable({
 
                 /* ── PAGINATION ── */
                 .ops-table .ant-pagination { margin: 8px 16px !important; }
+
+                /* ── EXPANDED ROW ── */
+                .ops-table .ant-table-expanded-row > td { padding: 4px 8px !important; background: #f8fafc !important; }
+                .ops-table .ant-table-expanded-row:hover > td { background: #eef2ff !important; }
+                .ops-table .ant-table-row-expand-icon-cell { display: none !important; width: 0 !important; padding: 0 !important; }
+                .ops-table th.ant-table-row-expand-icon-cell { display: none !important; width: 0 !important; padding: 0 !important; }
             `}</style>
             
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleUnifiedDragEnd}>
@@ -1426,6 +1460,99 @@ export default function OperationsTable({
                             }}
                             dataSource={filteredBookings}
                             loading={loading}
+                            expandable={{
+                                expandedRowKeys: Array.from(expandedRows),
+                                expandIcon: () => null,
+                                showExpandColumn: false,
+                                expandedRowRender: (record: any) => {
+                                    const passengers = record.metadata?.passengerDetails || [];
+                                    const adults = record.adults || 0;
+                                    const children = record.children || 0;
+                                    const infants = record.infants || 0;
+                                    const total = adults + children + infants;
+                                    
+                                    // Build all passengers
+                                    const list: { num: number; name: string; phone?: string; nationality?: string; type: string; isMain?: boolean }[] = [];
+                                    list.push({
+                                        num: 1,
+                                        name: record.contactName || record.customerName || 'İsimsiz',
+                                        phone: record.contactPhone || '',
+                                        nationality: record.metadata?.nationality || record.nationality || '',
+                                        type: 'adult',
+                                        isMain: true
+                                    });
+                                    
+                                    // Determine type for passenger by slot index (0-based, excluding main contact)
+                                    const getTypeForSlot = (slotIndex: number): string => {
+                                        // Main contact (slot -1) is always adult, so remaining adults = adults - 1
+                                        const remainingAdults = Math.max(0, adults - 1);
+                                        if (slotIndex < remainingAdults) return 'adult';
+                                        if (slotIndex < remainingAdults + children) return 'child';
+                                        return 'infant';
+                                    };
+                                    
+                                    if (passengers.length > 0) {
+                                        passengers.forEach((p: any, i: number) => {
+                                            // Use explicit type if available, otherwise derive from slot position
+                                            const pType = (p.type && p.type !== 'adult' && p.type !== 'unknown') ? p.type : getTypeForSlot(i);
+                                            list.push({
+                                                num: i + 2,
+                                                name: p.name || p.fullName || (p.firstName ? `${p.firstName || ''} ${p.lastName || ''}`.trim() : ''),
+                                                phone: p.phone || p.telephone || '',
+                                                nationality: p.nationality || p.country || '',
+                                                type: pType,
+                                            });
+                                        });
+                                    } else if (total > 1) {
+                                        for (let i = 0; i < total - 1; i++) {
+                                            list.push({
+                                                num: i + 2,
+                                                name: '',
+                                                type: getTypeForSlot(i),
+                                            });
+                                        }
+                                    }
+                                    
+                                    const typeLabel = (t: string) => t === 'child' ? 'Çocuk' : t === 'infant' ? 'Bebek' : 'Yetişkin';
+                                    const typeColor = (t: string) => t === 'child' ? '#f59e0b' : t === 'infant' ? '#ef4444' : '#10b981';
+                                    
+                                    return (
+                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, padding: '4px 0 4px 45px' }}>
+                                            {list.map((p) => (
+                                                <div key={p.num} style={{
+                                                    display: 'flex', alignItems: 'center', gap: 6,
+                                                    background: '#fff', border: '1px solid #e2e8f0', borderRadius: 6,
+                                                    padding: '4px 10px', minWidth: 140,
+                                                    borderLeft: `3px solid ${p.isMain ? '#6366f1' : typeColor(p.type)}`
+                                                }}>
+                                                    <span style={{
+                                                        width: 18, height: 18, borderRadius: '50%', display: 'inline-flex',
+                                                        alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 800,
+                                                        background: p.isMain ? '#6366f1' : typeColor(p.type), color: '#fff', flexShrink: 0
+                                                    }}>{p.num}</span>
+                                                    <div style={{ minWidth: 0 }}>
+                                                        <div style={{ fontSize: 11, fontWeight: 600, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                            {p.name || <span style={{ color: '#cbd5e1', fontStyle: 'italic', fontWeight: 400 }}>Bilgi yok</span>}
+                                                        </div>
+                                                        <div style={{ fontSize: 9, color: '#94a3b8', display: 'flex', gap: 6, alignItems: 'center' }}>
+                                                            <span style={{ 
+                                                                color: typeColor(p.type), fontWeight: 600,
+                                                                background: `${typeColor(p.type)}18`, padding: '0 4px', borderRadius: 3
+                                                            }}>{typeLabel(p.type)}</span>
+                                                            {p.phone && <span>📞 {p.phone}</span>}
+                                                            {p.nationality && <span>🌍 {p.nationality}</span>}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    );
+                                },
+                                rowExpandable: (record: any) => {
+                                    const total = (record.adults || 0) + (record.children || 0) + (record.infants || 0);
+                                    return total > 1 || (record.metadata?.passengerDetails?.length > 0);
+                                },
+                            }}
                             rowClassName={(record) => {
                                 const status = record.operationalStatus || record.status || 'PENDING';
                                 return `status-row-${status.toLowerCase().replace(/_/g, '-')}`;

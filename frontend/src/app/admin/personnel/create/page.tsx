@@ -14,7 +14,8 @@ import {
     message,
     InputNumber,
     Switch,
-    Divider
+    Divider,
+    Modal
 } from 'antd';
 import {
     SaveOutlined,
@@ -22,7 +23,9 @@ import {
     UploadOutlined,
     UserOutlined,
     IdcardOutlined,
-    LockOutlined
+    LockOutlined,
+    WarningOutlined,
+    ExclamationCircleOutlined
 } from '@ant-design/icons';
 import { useRouter } from 'next/navigation';
 import apiClient from '../../../../lib/api-client';
@@ -37,6 +40,9 @@ const PersonnelCreatePage = () => {
     const [loading, setLoading] = useState(false);
     const router = useRouter();
     const [form] = Form.useForm();
+    const [blacklistModal, setBlacklistModal] = useState(false);
+    const [blacklistInfo, setBlacklistInfo] = useState<any>(null);
+    const [pendingValues, setPendingValues] = useState<any>(null);
 
     const normFile = (e: any) => {
         if (Array.isArray(e)) {
@@ -45,30 +51,55 @@ const PersonnelCreatePage = () => {
         return e?.fileList;
     };
 
+    const submitPersonnel = async (formattedValues: any) => {
+        const response = await apiClient.post('/api/personnel', formattedValues);
+        if (response.data.success) {
+            message.success('Personel başarıyla oluşturuldu');
+            router.push('/admin/personnel');
+        } else {
+            message.error(response.data.error || 'Bir hata oluştu');
+        }
+    };
+
     const onFinish = async (values: any) => {
         setLoading(true);
         try {
-            // Format dates
             const formattedValues = {
                 ...values,
                 birthDate: values.birthDate ? values.birthDate.toISOString() : null,
                 startDate: values.startDate ? values.startDate.toISOString() : null,
                 endDate: values.endDate ? values.endDate.toISOString() : null,
                 photo: values.photo && values.photo.length > 0
-                    ? values.photo[0].response?.data?.url
-                    : undefined
+                    ? values.photo[0].response?.data?.url : undefined
             };
-
-            const response = await apiClient.post('/api/personnel', formattedValues);
-
-            if (response.data.success) {
-                message.success('Personel başarıyla oluşturuldu');
-                router.push('/admin/personnel');
-            } else {
-                message.error(response.data.error || 'Bir hata oluştu');
-            }
+            await submitPersonnel(formattedValues);
         } catch (error: any) {
-            console.error('Create personnel error:', error);
+            if (error.response?.status === 409 && error.response?.data?.error === 'BLACKLISTED') {
+                setBlacklistInfo(error.response.data.blacklistInfo);
+                setPendingValues({
+                    ...values,
+                    birthDate: values.birthDate ? values.birthDate.toISOString() : null,
+                    startDate: values.startDate ? values.startDate.toISOString() : null,
+                    endDate: values.endDate ? values.endDate.toISOString() : null,
+                    photo: values.photo && values.photo.length > 0
+                        ? values.photo[0].response?.data?.url : undefined
+                });
+                setBlacklistModal(true);
+            } else {
+                message.error(error.response?.data?.error || 'Kayıt başarısız');
+            }
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleBlacklistOverride = async () => {
+        if (!pendingValues) return;
+        setLoading(true);
+        try {
+            await submitPersonnel({ ...pendingValues, forceBlacklistOverride: true });
+            setBlacklistModal(false);
+        } catch (error: any) {
             message.error(error.response?.data?.error || 'Kayıt başarısız');
         } finally {
             setLoading(false);
@@ -325,6 +356,95 @@ const PersonnelCreatePage = () => {
                         </Form.Item>
                     </Form>
                 </Card>
+
+                {/* Kara Liste Uyarı Modal */}
+                <Modal
+                    title={
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <div style={{
+                                width: 40, height: 40, borderRadius: 10,
+                                background: 'linear-gradient(135deg, #ef4444, #dc2626)',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                color: '#fff', fontSize: 18
+                            }}><WarningOutlined /></div>
+                            <div>
+                                <div style={{ fontSize: 16, fontWeight: 800, color: '#dc2626' }}>⛔ KARA LİSTE UYARISI</div>
+                                <div style={{ fontSize: 11, color: '#94a3b8' }}>Bu kişi kara listede kayıtlı</div>
+                            </div>
+                        </div>
+                    }
+                    open={blacklistModal}
+                    onCancel={() => setBlacklistModal(false)}
+                    footer={[
+                        <Button key="cancel" onClick={() => setBlacklistModal(false)} style={{ borderRadius: 8 }}>
+                            İptal — İşe Alma
+                        </Button>,
+                        <Button key="override" type="primary" danger loading={loading}
+                            onClick={handleBlacklistOverride}
+                            style={{ borderRadius: 8 }}>
+                            Riski Kabul Et — Yine de İşe Al
+                        </Button>
+                    ]}
+                    width={520}
+                >
+                    {blacklistInfo && (
+                        <div style={{ marginTop: 16 }}>
+                            <div style={{
+                                background: '#fef2f2', border: '1px solid #fecaca',
+                                borderRadius: 12, padding: '16px 18px', marginBottom: 16
+                            }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                                    <ExclamationCircleOutlined style={{ color: '#dc2626', fontSize: 18 }} />
+                                    <span style={{ fontWeight: 800, fontSize: 14, color: '#991b1b' }}>
+                                        Bu TC kimlik numarası kara listede!
+                                    </span>
+                                </div>
+
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 16px' }}>
+                                    <div>
+                                        <div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600 }}>KİŞİ</div>
+                                        <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>{blacklistInfo.name}</div>
+                                    </div>
+                                    <div>
+                                        <div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600 }}>TC KİMLİK</div>
+                                        <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b', fontFamily: 'monospace' }}>{blacklistInfo.tcNumber}</div>
+                                    </div>
+                                    <div>
+                                        <div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600 }}>İŞTEN ÇIKIŞ NEDENİ</div>
+                                        <div style={{ fontSize: 13, fontWeight: 700, color: '#dc2626' }}>{blacklistInfo.reason}</div>
+                                    </div>
+                                    <div>
+                                        <div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600 }}>ÇIKIŞ TARİHİ</div>
+                                        <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>
+                                            {blacklistInfo.endDate ? dayjs(blacklistInfo.endDate).format('DD.MM.YYYY') : '-'}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {blacklistInfo.note && (
+                                    <div style={{ marginTop: 10, padding: '8px 10px', background: '#fff5f5', borderRadius: 8, border: '1px solid #fecaca' }}>
+                                        <div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600, marginBottom: 2 }}>NOT</div>
+                                        <div style={{ fontSize: 12, color: '#7f1d1d', fontStyle: 'italic' }}>{blacklistInfo.note}</div>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div style={{
+                                background: '#fffbeb', border: '1px solid #fde68a',
+                                borderRadius: 10, padding: '10px 14px',
+                                fontSize: 12, color: '#92400e',
+                                display: 'flex', alignItems: 'flex-start', gap: 8
+                            }}>
+                                <WarningOutlined style={{ marginTop: 2 }} />
+                                <span>
+                                    Bu kişi daha önce kara listeye eklenmiştir. Devam ederseniz eski kayıt arşivlenir
+                                    ve yeni personel kaydı oluşturulur. Bu işlem geri alınamaz ve denetim loglarına kaydedilir.
+                                </span>
+                            </div>
+                        </div>
+                    )}
+                </Modal>
+
             </AdminLayout>
         </AdminGuard >
     );

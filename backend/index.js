@@ -376,8 +376,11 @@ const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
     origin: '*', // Allow all origins for mobile app/web panel
-    methods: ['GET', 'POST']
+    methods: ['GET', 'POST'],
+    credentials: true
   },
+  transports: ['polling', 'websocket'],
+  allowEIO3: true,
   // Generous timeouts for mobile clients (Android kills WebSocket in background)
   pingTimeout: 60000,   // Wait 60s for pong before considering connection dead (default 20s)
   pingInterval: 25000,  // Send ping every 25s (default 25s)
@@ -390,23 +393,39 @@ require('./src/socket/driverHandler')(io, app);
 app.set('io', io);
 
 // ── Raw WebSocket endpoint for native Android service ─────────────────────
+// IMPORTANT: Use noServer mode to prevent conflicts with Socket.IO's upgrade handler.
+// When ws is created with { server, path }, both ws and Socket.IO listen on the
+// same HTTP upgrade event, causing "Invalid frame header" errors during
+// Socket.IO's polling → websocket transport upgrade.
 const { WebSocketServer } = require('ws');
 const jwt = require('jsonwebtoken');
 const { JWT_SECRET } = require('./src/middleware/auth');
 
-const wss = new WebSocketServer({ server, path: '/ws/driver' });
+const wss = new WebSocketServer({ noServer: true });
+
+// Manually route upgrade requests: /ws/driver → raw ws, everything else → Socket.IO
+server.on('upgrade', (request, socket, head) => {
+  const pathname = new URL(request.url, 'http://localhost').pathname;
+
+  if (pathname === '/ws/driver') {
+    wss.handleUpgrade(request, socket, head, (ws) => {
+      wss.emit('connection', ws, request);
+    });
+  }
+  // Socket.IO handles /socket.io/ upgrades via its own internal listener
+});
 
 wss.on('connection', async (ws, req) => {
   const url = new URL(req.url, 'http://localhost');
   const fromQuery = url.searchParams.get('token');
   const fromHeader = req.headers['authorization']?.replace('Bearer ', '');
-  const token = fromQuery || fromHeader;
+  const wsToken = fromQuery || fromHeader;
 
-  if (!token) { ws.close(4001, 'No token'); return; }
+  if (!wsToken) { ws.close(4001, 'No token'); return; }
 
   let userId, userName;
   try {
-    const decoded = jwt.verify(token, JWT_SECRET);
+    const decoded = jwt.verify(wsToken, JWT_SECRET);
     userId = decoded.userId;
     const prisma = require('./src/lib/prisma');
     const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, fullName: true } });
@@ -424,7 +443,6 @@ wss.on('connection', async (ws, req) => {
       const loc = JSON.parse(data);
       if (!loc.lat || !loc.lng) return;
 
-      // Update onlineDrivers in memory
       const onlineDrivers = app.get('onlineDrivers');
       if (onlineDrivers) {
         onlineDrivers[userId] = {
@@ -435,7 +453,6 @@ wss.on('connection', async (ws, req) => {
         };
       }
 
-      // Forward to admin panel via Socket.IO
       io.to('admin_monitoring').emit('driver_location', {
         driverId: userId,
         driverName: userName,
@@ -463,7 +480,7 @@ setInterval(() => {
 
 server.listen(PORT, () => {
   console.log('');
-  console.log('🚀 ========================================');
+  console.log('� ========================================');
   console.log('🚀  SmartTravel Platform API');
   console.log('🚀 ========================================');
   console.log(`🚀  Version: 2.0.0 Enterprise`);
@@ -472,7 +489,7 @@ server.listen(PORT, () => {
   console.log(`🚀  URL: http://localhost:${PORT}`);
   console.log('🚀 ========================================');
   console.log('');
-  console.log('📚 Available endpoints:');
+  console.log('�📚 Available endpoints:');
   console.log('   GET  /health');
   console.log('   GET  /api/ping');
   console.log('   POST /api/auth/login');

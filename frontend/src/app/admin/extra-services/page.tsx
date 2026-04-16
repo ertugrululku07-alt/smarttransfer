@@ -150,7 +150,7 @@ const ExtraServicesPage: React.FC = () => {
         setEditingId(null);
         setImageUrl(undefined);
         form.resetFields();
-        const defaultCurrency = currencies.find(c => c.isDefault)?.code || 'EUR';
+        const defaultCurrency = currencies.find(c => c.isDefault)?.code || currencies[0]?.code || 'TRY';
         form.setFieldsValue({ currency: defaultCurrency, isPerPerson: false, excludeFromShuttle: true });
         setModalVisible(true);
     };
@@ -402,7 +402,9 @@ const ExtraServicesPage: React.FC = () => {
                                 style={{ width: 120 }}
                             >
                                 <Select
-                                    options={currencies.map(c => ({ label: c.code, value: c.code }))}
+                                    loading={currencies.length === 0}
+                                    notFoundContent={currencies.length === 0 ? 'Yükleniyor...' : 'Para birimi tanımlanmamış'}
+                                    options={currencies.map(c => ({ label: `${c.symbol} ${c.code}`, value: c.code }))}
                                 />
                             </Form.Item>
                         </div>

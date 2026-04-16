@@ -866,7 +866,7 @@ export default function OperationDashboard() {
                         </Space>
                     }
                     placement="right"
-                    width={420}
+                    styles={{ wrapper: { width: 420 } }}
                     open={driverLogDrawer}
                     onClose={() => setDriverLogDrawer(false)}
                     extra={

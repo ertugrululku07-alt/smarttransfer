@@ -692,16 +692,16 @@ const TransfersPage: React.FC = () => {
           }},
         { ...makeHeader('pickupDateTime'), dataIndex:'pickupDateTime', key:'pickupDateTime', width:colWidths.pickupDateTime,
           sorter:(a:Booking,b:Booking)=>dayjs(a.pickupDateTime).unix()-dayjs(b.pickupDateTime).unix(),
-          render:(d:string, r:Booking)=>renderEditableCell(r, 'pickupDateTime', <Space direction="vertical" size={0}><Text style={{fontSize:12}}>{dayjs(d).format('DD.MM.YYYY')}</Text><Text type="secondary" style={{fontSize:11}}>{dayjs(d).format('HH:mm')}</Text></Space>, <Input type="datetime-local" size="small" autoFocus defaultValue={dayjs(d).format('YYYY-MM-DDTHH:mm')} onBlur={(e) => saveCellEdit(r.id, 'pickupDateTime', e.target.value)} onPressEnter={(e) => saveCellEdit(r.id, 'pickupDateTime', (e.target as HTMLInputElement).value)} style={{width: 140}} />)},
+          render:(d:string, r:Booking)=>renderEditableCell(r, 'pickupDateTime', <Space orientation="vertical" size={0}><Text style={{fontSize:12}}>{dayjs(d).format('DD.MM.YYYY')}</Text><Text type="secondary" style={{fontSize:11}}>{dayjs(d).format('HH:mm')}</Text></Space>, <Input type="datetime-local" size="small" autoFocus defaultValue={dayjs(d).format('YYYY-MM-DDTHH:mm')} onBlur={(e) => saveCellEdit(r.id, 'pickupDateTime', e.target.value)} onPressEnter={(e) => saveCellEdit(r.id, 'pickupDateTime', (e.target as HTMLInputElement).value)} style={{width: 140}} />)},
         { ...makeHeader('createdAt'), dataIndex:'createdAt', key:'createdAt', width:colWidths.createdAt,
           sorter:(a:Booking,b:Booking)=>dayjs(a.createdAt).unix()-dayjs(b.createdAt).unix(),
-          render:(d:string)=><Space direction="vertical" size={0}><Text style={{fontSize:12}}>{dayjs(d).format('DD.MM.YYYY')}</Text><Text type="secondary" style={{fontSize:11}}>{dayjs(d).format('HH:mm')}</Text></Space>},
+          render:(d:string)=><Space orientation="vertical" size={0}><Text style={{fontSize:12}}>{dayjs(d).format('DD.MM.YYYY')}</Text><Text type="secondary" style={{fontSize:11}}>{dayjs(d).format('HH:mm')}</Text></Space>},
         { ...makeHeader('agency'), key:'agency', width:colWidths.agency,
           sorter:(a:Booking,b:Booking)=>{const na=a.agencyName||a.agency?.name||'Direkt';const nb=b.agencyName||b.agency?.name||'Direkt';return na.localeCompare(nb);},
           render:(_:any,r:any)=>{const n=r.agencyName||r.agency?.name||r.partnerName||r.metadata?.agencyName||'Direkt';return <Text strong style={{fontSize:12}}>{n}</Text>;}},
         { ...makeHeader('passengerName'), dataIndex:'passengerName', key:'passengerName', width:colWidths.passengerName,
           sorter:(a:Booking,b:Booking)=>a.passengerName.localeCompare(b.passengerName),
-          render:(text:string,r:Booking)=><Space direction="vertical" size={0}>{renderEditableCell(r, 'contactName', <Text strong style={{fontSize:12}}>{text}</Text>)}{renderEditableCell(r, 'contactPhone', <Text type="secondary" style={{fontSize:11}}>{r.passengerPhone}</Text>)}</Space>},
+          render:(text:string,r:Booking)=><Space orientation="vertical" size={0}>{renderEditableCell(r, 'contactName', <Text strong style={{fontSize:12}}>{text}</Text>)}{renderEditableCell(r, 'contactPhone', <Text type="secondary" style={{fontSize:11}}>{r.passengerPhone}</Text>)}</Space>},
         { ...makeHeader('pickupLoc'), key:'pickupLoc', width:colWidths.pickupLoc, ellipsis: true,
           render:(_:any,r:Booking)=>renderEditableCell(r, 'pickup', <EnvironmentItem text={getPickup(r)} color="green" />)},
         { ...makeHeader('dropoffLoc'), key:'dropoffLoc', width:colWidths.dropoffLoc, ellipsis: true,
@@ -750,7 +750,7 @@ const TransfersPage: React.FC = () => {
           render:(ps:string)=><Tag color={ps==='PAID'?'green':ps==='REFUNDED'?'red':'orange'} style={{fontSize:11}}>{ps==='PAID'?'Ödendi':ps==='REFUNDED'?'İade':'Bekliyor'}</Tag>},
         { ...makeHeader('flightNumber'), key:'flightNumber', width:colWidths.flightNumber,
           render:(_:any, fn:Booking)=>(
-              <Space direction="vertical" size={2}>
+              <Space orientation="vertical" size={2}>
                   {renderEditableCell(fn, 'flightNumber', fn.flightNumber ? <Text style={{fontSize:12}}>{fn.flightNumber}</Text> : <Text type="secondary" style={{fontSize:11}}>-</Text>)}
                   {renderEditableCell(fn, 'flightTime', fn.flightTime ? <Tag icon={<RocketOutlined />} color="cyan" style={{margin:0, fontSize: 10}}>{fn.flightTime}</Tag> : <Text type="secondary" style={{fontSize:11}}>-</Text>)}
               </Space>
@@ -802,7 +802,7 @@ const TransfersPage: React.FC = () => {
               const services = r.metadata?.extraServices || [];
               if (!services.length) return <Text type="secondary" style={{fontSize:11}}>-</Text>;
               return (
-                  <Space direction="vertical" size={2}>
+                  <Space orientation="vertical" size={2}>
                       {services.map((s:any, idx:number) => (
                          <div key={idx} style={{ fontSize: 11, background: '#f8fafc', padding: '2px 6px', borderRadius: 4, border: '1px solid #e2e8f0', whiteSpace: 'nowrap' }}>
                             {s.quantity}x {s.name}
@@ -992,7 +992,7 @@ const TransfersPage: React.FC = () => {
                     width={720}
                 >
                     {selectedBooking&&(
-                        <Space direction="vertical" size="middle" style={{width:'100%'}}>
+                        <Space orientation="vertical" size="middle" style={{width:'100%'}}>
                             <div style={{padding:'10px 16px',borderRadius:8,background:getStatusConf(selectedBooking).bg,borderLeft:`4px solid ${getStatusConf(selectedBooking).color}`,display:'flex',alignItems:'center',gap:12}}>
                                 <Text strong style={{color:getStatusConf(selectedBooking).color,fontSize:15}}>{getStatusConf(selectedBooking).label}</Text>
                                 <Text type="secondary" style={{fontSize:12}}>Transfer: {dayjs(selectedBooking.pickupDateTime).format('DD MMMM YYYY HH:mm')}</Text>

@@ -278,7 +278,7 @@ export default function AgencyDepositsPage() {
 
                                     {selectedBankAccount && (
                                         <Card size="small" style={{ marginBottom: 16, background: '#f6ffed', border: '1px solid #b7eb8f' }}>
-                                            <Space direction="vertical" style={{ width: '100%' }}>
+                                            <Space orientation="vertical" style={{ width: '100%' }}>
                                                 <Text strong>{selectedBankAccount.bank.name}</Text>
                                                 <div>
                                                     <Text type="secondary">Hesap Adı: </Text>
@@ -382,7 +382,7 @@ export default function AgencyDepositsPage() {
                         </Paragraph>
                         {successModal.bankAccount && (
                             <Card size="small">
-                                <Space direction="vertical">
+                                <Space orientation="vertical">
                                     <Text><Text strong>Banka:</Text> {successModal.bankAccount.bank.name}</Text>
                                     <Text><Text strong>Hesap:</Text> {successModal.bankAccount.accountName}</Text>
                                     <Text><Text strong>IBAN:</Text> <Text code>{successModal.bankAccount.iban}</Text></Text>

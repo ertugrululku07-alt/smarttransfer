@@ -230,7 +230,7 @@ export default function AdminAgencyDepositsPage() {
                     }
                 >
                     {detailDeposit && (
-                        <Space direction="vertical" style={{ width: '100%' }} size="middle">
+                        <Space orientation="vertical" style={{ width: '100%' }} size="middle">
                             <div><Text strong>Acente: </Text><Text>{detailDeposit.agency.name}</Text></div>
                             <div><Text strong>Referans No: </Text><Text code>{detailDeposit.transactionRef}</Text></div>
                             <div>

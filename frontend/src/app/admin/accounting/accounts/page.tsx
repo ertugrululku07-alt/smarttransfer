@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useMemo } from 'react';
+import { useDefinitions } from '@/app/hooks/useDefinitions';
 import {
     Table, Button, Card, Tag, Space, Modal, Form, Input, Select,
     message, Popconfirm, Row, Col, Statistic, Typography, Avatar,
@@ -65,6 +66,7 @@ const TRANSACTION_CONFIG: Record<TransactionType, { label: string; color: string
 
 const AccountsPage: React.FC = () => {
     const router = useRouter();
+    const { currencies: defCurrencies, defaultCurrency: defDefaultCurrency, loading: defLoading } = useDefinitions();
     const [accounts, setAccounts] = useState<Account[]>([]);
     const [loading, setLoading] = useState(true);
     const [isModalVisible, setIsModalVisible] = useState(false);
@@ -73,12 +75,9 @@ const AccountsPage: React.FC = () => {
     const [submitting, setSubmitting] = useState(false);
     const [search, setSearch] = useState('');
     const [typeFilter, setTypeFilter] = useState<string>('ALL');
-    const [currencies, setCurrencies] = useState<{code: string, symbol: string}[]>([
-        { code: 'TRY', symbol: '₺' },
-        { code: 'EUR', symbol: '€' },
-        { code: 'USD', symbol: '$' },
-        { code: 'GBP', symbol: '£' },
-    ]);
+    const [currencies, setCurrencies] = useState<{code: string, symbol: string}[]>([]);
+    // Merge: prefer locally fetched, fall back to definitions hook
+    const activeCurrencies = currencies.length > 0 ? currencies : defCurrencies;
 
     // Transaction states
     const [txModalVisible, setTxModalVisible] = useState(false);
@@ -155,7 +154,7 @@ const AccountsPage: React.FC = () => {
     const handleAdd = () => {
         setEditingAccount(null);
         form.resetFields();
-        const defaultCur = (currencies as any[]).find(c => c.isDefault)?.code || 'TRY';
+        const defaultCur = (activeCurrencies as any[]).find((c: any) => c.isDefault)?.code || activeCurrencies[0]?.code || defDefaultCurrency?.code || 'TRY';
         form.setFieldsValue({ currency: defaultCur, type: 'CUSTOMER' });
         setIsModalVisible(true);
     };
@@ -822,8 +821,8 @@ const AccountsPage: React.FC = () => {
                             </Col>
                             <Col span={12}>
                                 <Form.Item name="currency" label="Para Birimi" rules={[{ required: true }]}>
-                                    <Select showSearch optionFilterProp="children">
-                                        {currencies.map((c: any) => (
+                                    <Select showSearch optionFilterProp="children" loading={defLoading && activeCurrencies.length === 0} notFoundContent={defLoading ? 'Yükleniyor...' : 'Para birimi tanımlanmamış'}>
+                                        {activeCurrencies.map((c: any) => (
                                             <Option key={c.code} value={c.code}>
                                                 {c.code} {c.symbol ? `— ${c.symbol}` : ''} {c.rate ? `(Kur: ₺${c.rate})` : ''}
                                             </Option>

@@ -719,8 +719,7 @@ const LiveMapPage = () => {
                 }
                 open={violationDrawer}
                 onClose={() => setViolationDrawer(false)}
-                width={420}
-                styles={{ body: { padding: '12px 16px' } }}
+                styles={{ wrapper: { width: 420 }, body: { padding: '12px 16px' } }}
             >
                 {violationLoading ? (
                     <div style={{ padding: 60, textAlign: 'center' }}><Spin size="large" /></div>

@@ -312,6 +312,47 @@ export default function OperationsPage() {
     // ── Inline editable cell renderer ──
     const renderEditableCell = (record: any, field: string, displayValue: React.ReactNode, editComponent?: React.ReactNode) => {
         const isEditing = editingCell?.id === record.id && editingCell?.field === field;
+        
+        // Special handling for status field with POOL option
+        if (isEditing && field === 'status') {
+            const handlePoolTransferPrivate = () => {
+                const totalCollected = (record.total || 0) - (record.discount || 0);
+                setPoolTransferModal({
+                    booking: record,
+                    price: record.metadata?.price || record.price || 0,
+                    currency: record.metadata?.currency || defaultCurrency,
+                    collectedAmount: totalCollected
+                });
+            };
+            
+            return (
+                <Select 
+                    size="small" 
+                    autoFocus 
+                    value={editingCell.value}
+                    onChange={(val) => {
+                        setEditingCell(null);
+                        if (val === 'POOL') {
+                            handlePoolTransferPrivate();
+                        } else {
+                            saveCellEdit(record.id, field, val);
+                        }
+                    }}
+                    onBlur={() => setEditingCell(null)}
+                    style={{ width: 120 }}
+                    dropdownStyle={{ minWidth: 150 }}
+                    options={[
+                        { value: 'PENDING', label: '⏳ Bekliyor' },
+                        { value: 'CONFIRMED', label: '✅ Onaylı' },
+                        { value: 'IN_PROGRESS', label: '🚐 Alındı' },
+                        { value: 'COMPLETED', label: '🏁 Tamamlandı' },
+                        { value: 'CANCELLED', label: '❌ İptal' },
+                        { value: 'POOL', label: '📦 Havuza Gönder' }
+                    ]}
+                />
+            );
+        }
+        
         if (isEditing) {
             return (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -357,6 +398,7 @@ export default function OperationsPage() {
     const [isManualModalVisible, setIsManualModalVisible] = useState(false);
     const [manualRunTime, setManualRunTime] = useState('');
     const [manualRunName, setManualRunName] = useState('');
+    const [manualRunType, setManualRunType] = useState<'DEP' | 'ARV' | 'ARA'>('DEP');
 
     // ── Inline header title editing state ──
     const [editingHeaderKey, setEditingHeaderKey] = useState<string | null>(null);
@@ -373,6 +415,7 @@ export default function OperationsPage() {
             runKey: newRunId,
             departureTime: manualRunTime,
             routeName: manualRunName,
+            tripType: manualRunType,
             isManual: true,
             manualRunId: newRunId,
             date: dateStr,
@@ -386,6 +429,7 @@ export default function OperationsPage() {
         setIsManualModalVisible(false);
         setManualRunTime('');
         setManualRunName('');
+        setManualRunType('DEP');
         message.success("Manuel sefer eklendi. Yolcuları bu sefere sürükleyebilirsiniz.");
     };
 
@@ -445,7 +489,7 @@ export default function OperationsPage() {
     const [shuttleDetailStatusSaving, setShuttleDetailStatusSaving] = useState(false);
 
     // ── Pool Transfer Modal (with price) ──
-    const [poolTransferModal, setPoolTransferModal] = useState<{ booking: any; price: number; currency: string } | null>(null);
+    const [poolTransferModal, setPoolTransferModal] = useState<{ booking: any; price: number; currency: string; collectedAmount?: number } | null>(null);
     const [poolTransferSaving, setPoolTransferSaving] = useState(false);
 
     const handleShuttleStatusChange = async (bookingId: string, newStatus: string) => {
@@ -595,7 +639,7 @@ export default function OperationsPage() {
                 if (text === 'Gidiş') color = 'orange';
                 const isShuttle = record.transferType === 'SHUTTLE';
                 return (
-                    <Space direction="vertical" size={2}>
+                    <Space orientation="vertical" size={2}>
                         <Tag color={color} style={{ margin: 0 }}>{text}</Tag>
                         <Tag color={isShuttle ? 'geekblue' : 'purple'} style={{ margin: 0, fontSize: 10 }}>
                             {isShuttle ? 'Shuttle' : 'Özel'}
@@ -704,25 +748,64 @@ export default function OperationsPage() {
             title: 'DURUM',
             dataIndex: 'status',
             key: 'status',
-            width: 100,
+            width: 110,
             render: (status: string, record: any) => {
-                const map: any = { 'CONFIRMED': 'blue', 'PENDING': 'orange', 'COMPLETED': 'green', 'CANCELLED': 'red', 'IN_PROGRESS': 'purple' };
-                const label: any = { 'CONFIRMED': 'Onaylı', 'PENDING': 'Bekliyor', 'COMPLETED': 'Tamamlandı', 'CANCELLED': 'İptal', 'IN_PROGRESS': 'Alındı' };
-                return renderEditableCell(
-                    record, 'status',
-                    <Tag color={map[status]} style={{ fontSize: 10, margin: 0, cursor: 'text' }}>{label[status] || status}</Tag>,
-                    <Select size="small" autoFocus defaultValue={status}
-                        onBlur={(e: any) => saveCellEdit(record.id, 'status', e.target.value)}
-                        onChange={(val) => saveCellEdit(record.id, 'status', val)}
-                        style={{ width: 100 }}
-                        options={[
-                            { value: 'PENDING', label: 'Bekliyor' },
-                            { value: 'CONFIRMED', label: 'Onaylı' },
-                            { value: 'IN_PROGRESS', label: 'Alındı' },
-                            { value: 'COMPLETED', label: 'Tamamlandı' },
-                            { value: 'CANCELLED', label: 'İptal' }
-                        ]}
-                    />
+                const map: any = { 'CONFIRMED': 'blue', 'PENDING': 'orange', 'COMPLETED': 'green', 'CANCELLED': 'red', 'IN_PROGRESS': 'purple', 'POOL': 'gold' };
+                const label: any = { 'CONFIRMED': 'Onaylı', 'PENDING': 'Bekliyor', 'COMPLETED': 'Tamamlandı', 'CANCELLED': 'İptal', 'IN_PROGRESS': 'Alındı', 'POOL': 'Havuzda' };
+                
+                // If status is POOL, show special tag (no editing)
+                if (status === 'POOL') {
+                    return <Tag color="gold" style={{ fontSize: 10, margin: 0 }}>📦 Havuzda</Tag>;
+                }
+                
+                // Check if currently editing this cell
+                const isEditing = editingCell?.id === record.id && editingCell?.field === 'status';
+                
+                if (isEditing) {
+                    return (
+                        <Select 
+                            size="small" 
+                            autoFocus 
+                            defaultValue={status}
+                            onChange={(val) => {
+                                setEditingCell(null);
+                                if (val === 'POOL') {
+                                    // Open pool transfer modal
+                                    const totalCollected = (record.total || 0) - (record.discount || 0);
+                                    setPoolTransferModal({
+                                        booking: record,
+                                        price: record.metadata?.price || record.price || 0,
+                                        currency: record.metadata?.currency || defaultCurrency,
+                                        collectedAmount: totalCollected
+                                    });
+                                } else {
+                                    saveCellEdit(record.id, 'status', val);
+                                }
+                            }}
+                            onBlur={() => setEditingCell(null)}
+                            style={{ width: 110 }}
+                            dropdownStyle={{ minWidth: 150 }}
+                            options={[
+                                { value: 'PENDING', label: '⏳ Bekliyor' },
+                                { value: 'CONFIRMED', label: '✅ Onaylı' },
+                                { value: 'IN_PROGRESS', label: '🚐 Alındı' },
+                                { value: 'COMPLETED', label: '🏁 Tamamlandı' },
+                                { value: 'CANCELLED', label: '❌ İptal' },
+                                { value: 'POOL', label: '📦 Havuza Gönder' }
+                            ]}
+                        />
+                    );
+                }
+                
+                // Display mode - show tag with double-click to edit
+                return (
+                    <div 
+                        onDoubleClick={() => setEditingCell({ id: record.id, field: 'status', value: status })}
+                        title="Düzenlemek için çift tıklayın"
+                        style={{ cursor: 'text', minHeight: 20 }}
+                    >
+                        <Tag color={map[status]} style={{ fontSize: 10, margin: 0 }}>{label[status] || status}</Tag>
+                    </div>
                 );
             }
         },
@@ -970,7 +1053,7 @@ export default function OperationsPage() {
                 return (
                     <Popover
                         content={
-                            <Space direction="vertical" size={2}>
+                            <Space orientation="vertical" size={2}>
                                 {services.map((s:any, idx:number) => (
                                    <div key={idx} style={{ fontSize: 11, background: '#f8fafc', padding: '2px 6px', borderRadius: 4, border: '1px solid #e2e8f0' }}>
                                       {s.quantity}x {s.name}
@@ -1007,7 +1090,7 @@ export default function OperationsPage() {
                 }
 
                 return (
-                    <Space direction="vertical" size={2}>
+                    <Space orientation="vertical" size={2}>
                         {isAgencyBooking && isPayInVehicle && (
                             <Tooltip title="Transferi tamamla">
                                 <Button
@@ -1380,10 +1463,6 @@ export default function OperationsPage() {
             }
         } catch (e) {
             console.error('Settings fetch error:', e);
-            // Fallback for UI robustness only if fetch fails completely
-            if (currencies.length === 0) {
-                setCurrencies([{ code: 'EUR' }, { code: 'TRY' }, { code: 'USD' }, { code: 'GBP' }]);
-            }
         }
     };
 
@@ -1777,8 +1856,6 @@ export default function OperationsPage() {
     const handlePickupTimeEdit = async (bookingId: string, newTime: string) => {
         try {
             await apiClient.put(`/api/transfer/bookings/${bookingId}`, { pickupDateTime: newTime });
-            setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, pickupDateTime: newTime } : b));
-            // Also update shuttle runs
             setShuttleRuns(prev => prev.map(r => ({
                 ...r,
                 bookings: r.bookings.map((b: any) => b.id === bookingId ? { ...b, pickupDateTime: newTime } : b)
@@ -1787,7 +1864,28 @@ export default function OperationsPage() {
             message.success('Alınış saati güncellendi');
         } catch (e) {
             console.error('Update pickup time error:', e);
-            message.error('Güncelleme başarısız');
+            message.error('Saat güncellenemedi');
+            setEditingPickupTime(null);
+        }
+    };
+
+    // ---- SHUTTLE STATUS EDIT ----
+    const [editingStatus, setEditingStatus] = useState<{ bookingId: string; value: string } | null>(null);
+    const handleStatusEdit = async (bookingId: string, newStatus: string) => {
+        try {
+            await apiClient.patch(`/api/transfer/bookings/${bookingId}`, { status: newStatus });
+            setShuttleRuns(prev => prev.map(r => ({
+                ...r,
+                bookings: r.bookings.map((b: any) => b.id === bookingId ? { ...b, status: newStatus } : b)
+            })));
+            // Also update bookings array
+            setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, status: newStatus, operationalStatus: newStatus } : b));
+            setEditingStatus(null);
+            message.success('Durum güncellendi');
+        } catch (e) {
+            console.error('Update status error:', e);
+            message.error('Durum güncellenemedi');
+            setEditingStatus(null);
         }
     };
 
@@ -2015,7 +2113,57 @@ export default function OperationsPage() {
                     message.success('Yolcu taşındı');
                 }
             } catch (err: any) {
-                message.error('Taşıma başarısız');
+                const errorData = err?.response?.data;
+                if (errorData?.error === 'TRIP_TYPE_MISMATCH') {
+                    // Show detailed trip type mismatch modal
+                    Modal.error({
+                        title: '⚠️ Yön Uyumsuzluğu',
+                        content: (
+                            <div style={{ marginTop: 16 }}>
+                                <div style={{ fontSize: 14, marginBottom: 12 }}>
+                                    <strong>{errorData.bookingName}</strong> isimli rezervasyonu taşıyamazsınız.
+                                </div>
+                                <div style={{ background: '#fef2f2', padding: 12, borderRadius: 8, border: '1px solid #fecaca', marginBottom: 12 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                                        <span style={{ fontWeight: 700, color: '#991b1b' }}>Rezervasyon:</span>
+                                        <span style={{ 
+                                            background: errorData.bookingTripType === 'DEP' ? '#dcfce7' : errorData.bookingTripType === 'ARV' ? '#dbeafe' : '#fed7aa',
+                                            color: errorData.bookingTripType === 'DEP' ? '#166534' : errorData.bookingTripType === 'ARV' ? '#1e40af' : '#9a3412',
+                                            padding: '2px 8px',
+                                            borderRadius: 4,
+                                            fontWeight: 600,
+                                            fontSize: 12
+                                        }}>
+                                            {errorData.bookingTripType} ({errorData.bookingTripType === 'DEP' ? 'Gidiş' : errorData.bookingTripType === 'ARV' ? 'Geliş' : 'Ara'})
+                                        </span>
+                                    </div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                        <span style={{ fontWeight: 700, color: '#991b1b' }}>Hedef Sefer:</span>
+                                        <span style={{ 
+                                            background: errorData.targetTripType === 'DEP' ? '#dcfce7' : errorData.targetTripType === 'ARV' ? '#dbeafe' : '#fed7aa',
+                                            color: errorData.targetTripType === 'DEP' ? '#166534' : errorData.targetTripType === 'ARV' ? '#1e40af' : '#9a3412',
+                                            padding: '2px 8px',
+                                            borderRadius: 4,
+                                            fontWeight: 600,
+                                            fontSize: 12
+                                        }}>
+                                            {errorData.targetTripType} ({errorData.targetTripType === 'DEP' ? 'Gidiş' : errorData.targetTripType === 'ARV' ? 'Geliş' : 'Ara'})
+                                        </span>
+                                    </div>
+                                </div>
+                                <div style={{ fontSize: 13, color: '#7f1d1d', background: '#fff', padding: 10, borderRadius: 6, border: '1px dashed #fca5a5' }}>
+                                    💡 <strong>Farklı yönlerdeki rezervasyonlar aynı sefere eklenemez.</strong><br/>
+                                    Gidiş (DEP) rezervasyonları sadece gidiş seferlerine,<br/>
+                                    Geliş (ARV) rezervasyonları sadece geliş seferlerine aktarılabilir.
+                                </div>
+                            </div>
+                        ),
+                        okText: 'Anladım',
+                        width: 480
+                    });
+                } else {
+                    message.error('Taşıma başarısız: ' + (errorData?.error || errorData?.message || 'Bilinmeyen hata'));
+                }
             }
         }
     };
@@ -2706,6 +2854,15 @@ export default function OperationsPage() {
                             onRowOrderChange={handleRowOrderChange}
                             onAirportColorChange={handleAirportColorChange}
                             onOpenLocationModal={handleOpenLocationModal}
+                            onPoolTransfer={(booking) => {
+                                const totalCollected = (booking.total || 0) - (booking.discount || 0);
+                                setPoolTransferModal({
+                                    booking,
+                                    price: booking.metadata?.price || booking.price || 0,
+                                    currency: booking.metadata?.currency || defaultCurrency,
+                                    collectedAmount: totalCollected
+                                });
+                            }}
                         />
                     </div>
                     )}
@@ -2804,6 +2961,23 @@ export default function OperationsPage() {
                                                         {run.bookings.length > 4 && <span style={{ fontSize: 10, color: '#94a3b8' }}>+{run.bookings.length - 4}</span>}
                                                     </div>
                                                 </div>
+
+                                                {/* Trip Type Badge */}
+                                                {(() => {
+                                                    const tripColors: Record<string, string> = {
+                                                        DEP: '#059669',
+                                                        ARV: '#2563eb',
+                                                        ARA: '#d97706'
+                                                    };
+                                                    const tripType = run.tripType || 'DEP';
+                                                    const color = tripColors[tripType] || '#059669';
+                                                    return (
+                                                        <div style={{ textAlign: 'center', flexShrink: 0, background: '#fff', borderRadius: 8, padding: '4px 10px', boxShadow: '0 1px 4px rgba(0,0,0,0.08)' }}>
+                                                            <div style={{ fontWeight: 800, fontSize: 18, color, lineHeight: 1 }}>{tripType}</div>
+                                                            <div style={{ fontSize: 9, color: '#94a3b8', fontWeight: 600, marginTop: 2 }}>TIP</div>
+                                                        </div>
+                                                    );
+                                                })()}
 
                                                 {/* PAX Counter */}
                                                 <div style={{ textAlign: 'center', flexShrink: 0, background: '#fff', borderRadius: 8, padding: '4px 10px', boxShadow: '0 1px 4px rgba(0,0,0,0.08)' }}>
@@ -3213,21 +3387,123 @@ export default function OperationsPage() {
                                                                                 </div>
                                                                             );
                                                                         }
-                                                                        case 'status': return (
-                                                                            <span style={{
-                                                                                fontWeight: 700,
-                                                                                color: st.color,
-                                                                                background: st.color + '18',
-                                                                                padding: '2px 8px',
-                                                                                borderRadius: 10,
-                                                                                fontSize: 11,
-                                                                                border: `1px solid ${st.color}40`,
-                                                                                textTransform: 'uppercase',
-                                                                                letterSpacing: 0.3
-                                                                            }}>
-                                                                                {st.label}
-                                                                            </span>
-                                                                        );
+                                                                        case 'status': {
+                                                                            // Visual status popover with buttons
+                                                                            const statusOptions = [
+                                                                                { value: 'PENDING', label: '⏳ Bekliyor', color: '#d97706', bg: '#fffbeb' },
+                                                                                { value: 'CONFIRMED', label: '✅ Onaylı', color: '#2563eb', bg: '#eff6ff' },
+                                                                                { value: 'IN_PROGRESS', label: '🚐 Yolcu Alındı', color: '#0891b2', bg: '#ecfeff' },
+                                                                                { value: 'COMPLETED', label: '🏁 Tamamlandı', color: '#16a34a', bg: '#f0fdf4' },
+                                                                                { value: 'CANCELLED', label: '❌ İptal', color: '#dc2626', bg: '#fef2f2' }
+                                                                            ];
+                                                                            
+                                                                            const handleStatusClick = async (newStatus: string) => {
+                                                                                if (newStatus === b.status) {
+                                                                                    setEditingStatus(null);
+                                                                                    return;
+                                                                                }
+                                                                                try {
+                                                                                    await apiClient.patch(`/api/transfer/bookings/${b.id}`, { status: newStatus });
+                                                                                    
+                                                                                    // If completed, remove from current run (will show in completed tab)
+                                                                                    if (newStatus === 'COMPLETED') {
+                                                                                        setShuttleRuns(prev => prev.map(r => ({
+                                                                                            ...r,
+                                                                                            bookings: r.bookings.filter((bk: any) => bk.id !== b.id)
+                                                                                        })));
+                                                                                        message.success('✅ Rezervasyon tamamlandı ve tamamlananlara taşındı');
+                                                                                    } else {
+                                                                                        setShuttleRuns(prev => prev.map(r => ({
+                                                                                            ...r,
+                                                                                            bookings: r.bookings.map((bk: any) => bk.id === b.id ? { ...bk, status: newStatus } : bk)
+                                                                                        })));
+                                                                                        message.success('Durum güncellendi');
+                                                                                    }
+                                                                                    
+                                                                                    // Update bookings array
+                                                                                    setBookings(prev => prev.map(bk => bk.id === b.id ? { ...bk, status: newStatus, operationalStatus: newStatus } : bk));
+                                                                                    setEditingStatus(null);
+                                                                                } catch (e) {
+                                                                                    message.error('Durum güncellenemedi');
+                                                                                }
+                                                                            };
+                                                                            
+                                                                            if (editingStatus?.bookingId === b.id) {
+                                                                                return (
+                                                                                    <div 
+                                                                                        style={{
+                                                                                            position: 'absolute',
+                                                                                            zIndex: 100,
+                                                                                            background: '#fff',
+                                                                                            borderRadius: 12,
+                                                                                            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+                                                                                            border: '1px solid #e5e7eb',
+                                                                                            padding: 8,
+                                                                                            minWidth: 160,
+                                                                                            marginTop: -8
+                                                                                        }}
+                                                                                    >
+                                                                                        <div style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', marginBottom: 6, padding: '0 4px' }}>
+                                                                                            Durum Seçin
+                                                                                        </div>
+                                                                                        {statusOptions.map(opt => (
+                                                                                            <button
+                                                                                                key={opt.value}
+                                                                                                onClick={() => handleStatusClick(opt.value)}
+                                                                                                style={{
+                                                                                                    display: 'flex',
+                                                                                                    alignItems: 'center',
+                                                                                                    gap: 6,
+                                                                                                    width: '100%',
+                                                                                                    padding: '6px 10px',
+                                                                                                    borderRadius: 8,
+                                                                                                    border: 'none',
+                                                                                                    background: b.status === opt.value ? opt.bg : 'transparent',
+                                                                                                    color: opt.color,
+                                                                                                    fontSize: 12,
+                                                                                                    fontWeight: b.status === opt.value ? 700 : 500,
+                                                                                                    cursor: 'pointer',
+                                                                                                    marginBottom: 2,
+                                                                                                    transition: 'all 0.15s'
+                                                                                                }}
+                                                                                                onMouseEnter={(e) => {
+                                                                                                    e.currentTarget.style.background = opt.bg;
+                                                                                                }}
+                                                                                                onMouseLeave={(e) => {
+                                                                                                    if (b.status !== opt.value) {
+                                                                                                        e.currentTarget.style.background = 'transparent';
+                                                                                                    }
+                                                                                                }}
+                                                                                            >
+                                                                                                {opt.label}
+                                                                                                {b.status === opt.value && <span style={{ marginLeft: 'auto' }}>✓</span>}
+                                                                                            </button>
+                                                                                        ))}
+                                                                                    </div>
+                                                                                );
+                                                                            }
+                                                                            return (
+                                                                                <span 
+                                                                                    onClick={() => setEditingStatus({ bookingId: b.id, value: b.status })}
+                                                                                    title="Tıklayarak durum değiştirin"
+                                                                                    style={{
+                                                                                        fontWeight: 700,
+                                                                                        color: st.color,
+                                                                                        background: st.color + '18',
+                                                                                        padding: '2px 8px',
+                                                                                        borderRadius: 10,
+                                                                                        fontSize: 11,
+                                                                                        border: `1px solid ${st.color}40`,
+                                                                                        textTransform: 'uppercase',
+                                                                                        letterSpacing: 0.3,
+                                                                                        cursor: 'pointer',
+                                                                                        userSelect: 'none'
+                                                                                    }}
+                                                                                >
+                                                                                    {st.label}
+                                                                                </span>
+                                                                            );
+                                                                        }
                                                                         default: return null;
                                                                     }
                                                                 };
@@ -4327,10 +4603,12 @@ export default function OperationsPage() {
                                             block
                                             size="large"
                                             onClick={() => {
+                                                const totalCollected = (b.total || 0) - (b.discount || 0);
                                                 setPoolTransferModal({
                                                     booking: b,
                                                     price: b.metadata?.price || b.price || 0,
-                                                    currency: b.metadata?.currency || defaultCurrency
+                                                    currency: b.metadata?.currency || defaultCurrency,
+                                                    collectedAmount: totalCollected // Show collected amount from customer
                                                 });
                                             }}
                                             style={{
@@ -4386,6 +4664,24 @@ export default function OperationsPage() {
                                 }}>
                                     ⚠️ Bu transfer, havuza aktarılacak ve partner'lere açılacaktır. Lütfen havuz fiyatını belirleyin.
                                 </div>
+                                
+                                {/* Show collected amount from customer */}
+                                <div style={{
+                                    background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 10,
+                                    padding: '12px 16px', marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+                                }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                        <span style={{ fontSize: 20 }}>💰</span>
+                                        <div>
+                                            <div style={{ fontSize: 12, fontWeight: 600, color: '#166534' }}>Müşteriden Tahsil Edilen</div>
+                                            <div style={{ fontSize: 11, color: '#22c55e' }}>Bu transfer için alınan toplam tutar</div>
+                                        </div>
+                                    </div>
+                                    <div style={{ fontSize: 18, fontWeight: 800, color: '#16a34a' }}>
+                                        {poolTransferModal.collectedAmount?.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {poolTransferModal.currency}
+                                    </div>
+                                </div>
+                                
                                 <div style={{ marginBottom: 16 }}>
                                     <label style={{ fontWeight: 700, fontSize: 13, color: '#374151', display: 'block', marginBottom: 6 }}>Havuz Fiyatı</label>
                                     <div style={{ display: 'flex', gap: 8 }}>
@@ -4409,14 +4705,6 @@ export default function OperationsPage() {
                                             {currencies.map(c => (
                                                 <Option key={c.code} value={c.code}>{c.code} {c.symbol ? c.symbol : ''}</Option>
                                             ))}
-                                            {currencies.length === 0 && (
-                                                <>
-                                                    <Option value="EUR">EUR €</Option>
-                                                    <Option value="TRY">TRY ₺</Option>
-                                                    <Option value="USD">USD $</Option>
-                                                    <Option value="GBP">GBP £</Option>
-                                                </>
-                                            )}
                                         </Select>
                                     </div>
                                 </div>
@@ -4441,6 +4729,14 @@ export default function OperationsPage() {
                             <div>
                                 <label style={{ display: 'block', marginBottom: 6, fontWeight: 600 }}>Sefer Saati <span style={{ color: 'red' }}>*</span></label>
                                 <Input type="time" value={manualRunTime} onChange={e => setManualRunTime(e.target.value)} />
+                            </div>
+                            <div>
+                                <label style={{ display: 'block', marginBottom: 6, fontWeight: 600 }}>Sefer Tipi <span style={{ color: 'red' }}>*</span></label>
+                                <Select value={manualRunType} onChange={val => setManualRunType(val)} style={{ width: '100%' }}>
+                                    <Option value="DEP">DEP (Gidiş)</Option>
+                                    <Option value="ARV">ARV (Geliş)</Option>
+                                    <Option value="ARA">ARA (Ara Transfer)</Option>
+                                </Select>
                             </div>
                             <div>
                                 <label style={{ display: 'block', marginBottom: 6, fontWeight: 600 }}>Rota Adı <span style={{ color: 'red' }}>*</span></label>

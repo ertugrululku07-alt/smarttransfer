@@ -83,7 +83,33 @@ router.post('/', authMiddleware, async (req, res) => {
         });
 
         if (existing) {
-            return res.status(400).json({ success: false, error: 'Bu TC Kimlik No ile kayıtlı personel zaten var' });
+            // If the existing record is blacklisted, return blacklist info so frontend can warn
+            if (existing.metadata?.blacklisted) {
+                if (!data.forceBlacklistOverride) {
+                    return res.status(409).json({
+                        success: false,
+                        error: 'BLACKLISTED',
+                        blacklistInfo: {
+                            name: `${existing.firstName} ${existing.lastName}`,
+                            tcNumber: existing.tcNumber,
+                            reason: existing.metadata?.terminationReason || 'Belirtilmemiş',
+                            note: existing.metadata?.blacklistNote || existing.metadata?.terminationNote || '',
+                            endDate: existing.endDate,
+                            blacklistedAt: existing.metadata?.blacklistedAt
+                        }
+                    });
+                }
+                // User confirmed override — soft-delete the old blacklisted record so new one can be created
+                await prisma.personnel.update({
+                    where: { id: existing.id },
+                    data: { deletedAt: new Date() }
+                });
+            } else if (existing.isActive) {
+                return res.status(400).json({ success: false, error: 'Bu TC Kimlik No ile kayıtlı aktif personel zaten var' });
+            } else {
+                // Inactive but not blacklisted — let them know
+                return res.status(400).json({ success: false, error: 'Bu TC Kimlik No ile kayıtlı (pasif) personel zaten var. Mevcut kaydı aktife alabilirsiniz.' });
+            }
         }
 
         // Check if user email exists
@@ -222,33 +248,50 @@ router.put('/:id', authMiddleware, async (req, res) => {
             linkedUserId = newUser.id;
         }
 
+        // Build update payload - only include fields that are explicitly provided
+        const updatePayload = {};
+        if (data.firstName !== undefined) updatePayload.firstName = data.firstName;
+        if (data.lastName !== undefined) updatePayload.lastName = data.lastName;
+        if (data.birthDate !== undefined) updatePayload.birthDate = data.birthDate ? new Date(data.birthDate) : null;
+        if (data.birthPlace !== undefined) updatePayload.birthPlace = data.birthPlace;
+        if (data.gender !== undefined) updatePayload.gender = data.gender;
+        if (data.address !== undefined) updatePayload.address = data.address;
+        if (data.phone !== undefined) updatePayload.phone = data.phone;
+        if (data.relativePhone !== undefined) updatePayload.relativePhone = data.relativePhone;
+        if (data.email !== undefined) updatePayload.email = data.email;
+        if (data.startDate !== undefined) updatePayload.startDate = data.startDate ? new Date(data.startDate) : null;
+        if (data.endDate !== undefined) updatePayload.endDate = data.endDate ? new Date(data.endDate) : null;
+        if (data.jobTitle !== undefined) updatePayload.jobTitle = data.jobTitle;
+        if (data.department !== undefined) updatePayload.department = data.department;
+        if (data.salary !== undefined) updatePayload.salary = data.salary ? parseFloat(data.salary) : null;
+        if (data.isActive !== undefined) updatePayload.isActive = data.isActive;
+        if (data.licenseType !== undefined) updatePayload.licenseType = data.licenseType;
+        if (data.srcNumber !== undefined) updatePayload.srcNumber = data.srcNumber;
+        if (data.psychotechDocument !== undefined) updatePayload.psychotechDocument = data.psychotechDocument;
+        if (data.medicalHistory !== undefined) updatePayload.medicalHistory = data.medicalHistory;
+        if (data.bloodGroup !== undefined) updatePayload.bloodGroup = data.bloodGroup;
+        if (data.photo !== undefined) updatePayload.photo = data.photo;
+        if (data.metadata !== undefined) updatePayload.metadata = data.metadata;
+        if (linkedUserId && !existing.userId) updatePayload.userId = linkedUserId;
+
+        // When terminating, also deactivate the linked user account
+        if (data.isActive === false && existing.userId) {
+            await prisma.user.update({
+                where: { id: existing.userId },
+                data: { status: 'INACTIVE' }
+            }).catch(() => {}); // Don't fail if user update fails
+        }
+        // When reactivating, also activate the linked user account
+        if (data.isActive === true && existing.userId && !existing.isActive) {
+            await prisma.user.update({
+                where: { id: existing.userId },
+                data: { status: 'ACTIVE' }
+            }).catch(() => {});
+        }
+
         const personnel = await prisma.personnel.update({
             where: { id },
-            data: {
-                firstName: data.firstName,
-                lastName: data.lastName,
-                // tcNumber: data.tcNumber, // Usually TC doesn't change, but if allowed, check uniqueness
-                birthDate: data.birthDate ? new Date(data.birthDate) : undefined,
-                birthPlace: data.birthPlace,
-                gender: data.gender,
-                address: data.address,
-                phone: data.phone,
-                relativePhone: data.relativePhone,
-                email: data.email,
-                startDate: data.startDate ? new Date(data.startDate) : undefined,
-                endDate: data.endDate ? new Date(data.endDate) : undefined,
-                jobTitle: data.jobTitle,
-                department: data.department,
-                salary: data.salary ? parseFloat(data.salary) : undefined,
-                isActive: data.isActive,
-                licenseType: data.licenseType,
-                srcNumber: data.srcNumber,
-                psychotechDocument: data.psychotechDocument,
-                medicalHistory: data.medicalHistory,
-                bloodGroup: data.bloodGroup,
-                photo: data.photo,
-                ...(linkedUserId && !existing.userId ? { userId: linkedUserId } : {})
-            }
+            data: updatePayload
         });
 
         if (personnel.userId && data.photo !== undefined) {

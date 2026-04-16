@@ -141,13 +141,22 @@ router.post('/', authMiddleware, async (req, res) => {
             }
         });
 
+        // Map role type back to frontend format for consistency
+        let mappedReturnRole = 'CUSTOMER';
+        const rt = user.role?.type;
+        if (['SUPER_ADMIN', 'TENANT_ADMIN', 'TENANT_MANAGER', 'TENANT_STAFF'].includes(rt)) mappedReturnRole = 'ADMIN';
+        else if (['AGENCY_ADMIN', 'AGENCY_STAFF', 'PARTNER'].includes(rt)) mappedReturnRole = 'COMPANY';
+        else if (rt === 'DRIVER') mappedReturnRole = 'DRIVER';
+        else if (rt === 'CUSTOMER') mappedReturnRole = 'CUSTOMER';
+
         res.status(201).json({
             success: true,
             data: {
                 id: user.id,
                 name: user.fullName,
                 email: user.email,
-                role: user.role.type,
+                role: mappedReturnRole,
+                roleType: user.role?.type,
                 isActive: user.status === 'ACTIVE',
                 createdAt: user.createdAt
             }
@@ -174,6 +183,23 @@ router.put('/:id', authMiddleware, async (req, res) => {
 
         if (!tenantId) {
             return res.status(400).json({ success: false, error: 'Tenant context missing' });
+        }
+
+        // Capture previous state for audit trail
+        const prevUser = await prisma.user.findUnique({ where: { id }, include: { role: true } });
+        if (prevUser) {
+            let prevMappedRole = 'CUSTOMER';
+            const prt = prevUser.role?.type;
+            if (['SUPER_ADMIN', 'TENANT_ADMIN', 'TENANT_MANAGER', 'TENANT_STAFF'].includes(prt)) prevMappedRole = 'ADMIN';
+            else if (['AGENCY_ADMIN', 'AGENCY_STAFF', 'PARTNER'].includes(prt)) prevMappedRole = 'COMPANY';
+            else if (prt === 'DRIVER') prevMappedRole = 'DRIVER';
+            req._auditPreviousState = {
+                name: prevUser.fullName,
+                email: prevUser.email,
+                role: prevMappedRole,
+                roleType: prevUser.role?.type,
+                isActive: prevUser.status === 'ACTIVE'
+            };
         }
 
         const updateData = {};
@@ -204,13 +230,24 @@ router.put('/:id', authMiddleware, async (req, res) => {
             include: { role: true }
         });
 
+        // Map role type back to frontend format for consistency
+        let mappedReturnRole = 'CUSTOMER';
+        const rt = user.role?.type;
+        if (['SUPER_ADMIN', 'TENANT_ADMIN', 'TENANT_MANAGER', 'TENANT_STAFF'].includes(rt)) mappedReturnRole = 'ADMIN';
+        else if (['AGENCY_ADMIN', 'AGENCY_STAFF', 'PARTNER'].includes(rt)) mappedReturnRole = 'COMPANY';
+        else if (rt === 'DRIVER') mappedReturnRole = 'DRIVER';
+        else if (rt === 'CUSTOMER') mappedReturnRole = 'CUSTOMER';
+
         res.json({
             success: true,
             data: {
                 id: user.id,
                 name: user.fullName,
                 email: user.email,
-                role: user.role.type,
+                role: mappedReturnRole,
+                roleType: user.role?.type,
+                roleId: user.role?.id,
+                roleName: user.role?.name,
                 isActive: user.status === 'ACTIVE',
                 createdAt: user.createdAt
             }

@@ -68,15 +68,7 @@ export default function PricingPage() {
         }
       }
       
-      setCurrencies(prev => {
-        if (prev.length > 0) return prev;
-        return [
-          { code: 'TRY', symbol: '₺' }, 
-          { code: 'EUR', symbol: '€' }, 
-          { code: 'USD', symbol: '$' }, 
-          { code: 'GBP', symbol: '£' }
-        ];
-      });
+      // No hardcoded fallback - currencies come from system definitions only
 
     } catch (err: any) {
       console.error('Fetch error:', err);
@@ -233,8 +225,8 @@ export default function PricingPage() {
                     <Row gutter={16}>
                       <Col span={8}>
                         <Form.Item label="Para Birimi" name={['metadata', 'currency']}>
-                          <Select placeholder="Örn: EUR" allowClear>
-                            {currencies.map(c => <Option key={c.code} value={c.code}>{c.code} ({c.symbol})</Option>)}
+                          <Select placeholder={defaultCurrency || 'Para Birimi'} allowClear loading={currencies.length === 0} notFoundContent={currencies.length === 0 ? 'Yükleniyor...' : 'Para birimi tanımlanmamış'}>
+                            {currencies.map(c => <Option key={c.code} value={c.code}>{c.symbol} {c.code}</Option>)}
                           </Select>
                         </Form.Item>
                       </Col>

@@ -1,5 +1,6 @@
 'use client';
 import React, { useEffect, useState, useMemo } from 'react';
+import { useDefinitions } from '@/app/hooks/useDefinitions';
 import {
     Card, Table, Button, Tag, Typography, Row, Col, Statistic,
     Modal, Form, Input, InputNumber, Select, DatePicker,
@@ -77,6 +78,7 @@ const GRAD: Record<string, string> = {
 
 /* ─── Main Component ─────────────────────────── */
 const KasaPage: React.FC = () => {
+    const { currencies: defCurrencies, defaultCurrency, loading: defLoading } = useDefinitions();
     const [accounts, setAccounts] = useState<Record<string, AccountInfo>>({});
     const [entries, setEntries] = useState<KasaEntry[]>([]);
     const [loading, setLoading] = useState(true);
@@ -128,10 +130,18 @@ const KasaPage: React.FC = () => {
     useEffect(() => { fetchAll(); }, []);
     useEffect(() => { fetchEntries(); }, [dateRange, filterAccount, filterDir]);
 
+    // When definitions load, update form currency if modal is open and currency not yet set
+    useEffect(() => {
+        if (defCurrencies.length > 0 && modalOpen && !editing) {
+            const curr = form.getFieldValue('currency');
+            if (!curr) form.setFieldsValue({ currency: defaultCurrency?.code || defCurrencies[0]?.code });
+        }
+    }, [defCurrencies, modalOpen]);
+
     const openNew = () => {
         setEditing(null);
         form.resetFields();
-        form.setFieldsValue({ date: dayjs(), direction: 'IN', accountType: 'TL_CASH', currency: 'TRY' });
+        form.setFieldsValue({ date: dayjs(), direction: 'IN', accountType: 'TL_CASH', currency: defaultCurrency?.code || 'TRY' });
         setModalOpen(true);
     };
 
@@ -499,11 +509,10 @@ const KasaPage: React.FC = () => {
                             </Col>
                             <Col xs={24} md={12}>
                                 <Form.Item name="currency" label="Para Birimi" rules={[{ required: true }]}>
-                                    <Select size="large" style={{ borderRadius: 8 }}>
-                                        <Option value="TRY">🇹🇷 TRY — Türk Lirası</Option>
-                                        <Option value="USD">🇺🇸 USD — Dolar</Option>
-                                        <Option value="EUR">🇪🇺 EUR — Euro</Option>
-                                        <Option value="GBP">🇬🇧 GBP — Sterlin</Option>
+                                    <Select size="large" style={{ borderRadius: 8 }} loading={defLoading} notFoundContent={defLoading ? 'Yükleniyor...' : 'Para birimi tanımlanmamış'}>
+                                        {defCurrencies.map(c => (
+                                            <Option key={c.code} value={c.code}>{c.symbol} {c.code}</Option>
+                                        ))}
                                     </Select>
                                 </Form.Item>
                             </Col>

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useCallback } from 'react';
+import { useDefinitions } from '@/app/hooks/useDefinitions';
 import {
     Table, Button, Card, Tag, Space, Modal, Form, Input, InputNumber,
     Select, message, Popconfirm, Row, Col, Statistic, Drawer, Timeline,
@@ -47,9 +48,13 @@ interface PayrollTx {
     date: string;
 }
 
-const fmt = (n: number) => n.toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' });
-
 export default function PayrollPage() {
+    const { defaultCurrency: _defCur } = useDefinitions();
+    const fmt = (n: number) => {
+        const code = _defCur?.code || 'TRY';
+        try { return n.toLocaleString('tr-TR', { style: 'currency', currency: code }); }
+        catch { return `${n.toFixed(2)} ${code}`; }
+    };
     const [personnel, setPersonnel] = useState<PersonnelPayroll[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedPerson, setSelectedPerson] = useState<PersonnelPayroll | null>(null);

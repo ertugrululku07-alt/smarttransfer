@@ -52,6 +52,30 @@ function detectRegionCode(locationText, hubs) {
 }
 
 /**
+ * Determine trip type based on pickup and dropoff locations
+ * @param {string} pickup - Pickup location
+ * @param {string} dropoff - Dropoff location
+ * @returns {string} - 'DEP' | 'ARV' | 'ARA'
+ */
+function getTripType(pickup, dropoff) {
+    const pickupStr = String(pickup || '').toLowerCase();
+    const dropoffStr = String(dropoff || '').toLowerCase();
+    
+    const airportKeywords = ['havalimanı', 'havalimani', 'airport', 'havaalanı', 'havaalani', 'ayt', 'ist', 'sa', 'esenboğa'];
+    
+    const isPickupAirport = airportKeywords.some(kw => pickupStr.includes(kw));
+    const isDropoffAirport = airportKeywords.some(kw => dropoffStr.includes(kw));
+    
+    if (isPickupAirport && !isDropoffAirport) {
+        return 'ARV'; // Arrival: Airport to Hotel
+    } else if (!isPickupAirport && isDropoffAirport) {
+        return 'DEP'; // Departure: Hotel to Airport
+    } else {
+        return 'ARA'; // Ara Transfer: Between hotels or other
+    }
+}
+
+/**
  * Load tenant hubs from settings
  * @param {string} tenantId
  * @returns {Array} hubs
@@ -279,11 +303,15 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
             { code: 'CENTER', keywords: 'merkez, antalya', name: 'Antalya Merkez' }
         ];
 
+        let timeDefinitions = { privateTransferMinHours: 0, shuttleTransferMinHours: 0 };
         if (req.tenant?.id) {
             try {
                 const tenantInfo = await prisma.tenant.findUnique({ where: { id: req.tenant.id }, select: { settings: true } });
                 if (tenantInfo?.settings?.hubs && Array.isArray(tenantInfo.settings.hubs)) {
                     hubs = tenantInfo.settings.hubs;
+                }
+                if (tenantInfo?.settings?.timeDefinitions) {
+                    timeDefinitions = tenantInfo.settings.timeDefinitions;
                 }
             } catch (e) {
                 console.error("Failed to fetch tenant hubs", e);
@@ -684,11 +712,37 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                 };
             }).filter(Boolean); // Remove skipped vehicles
 
+        // ── TIME DEFINITIONS FILTER ──
+        // Check how many hours remain until the pickup/flight time
+        const now = new Date();
+        const pickupDate = new Date(pickupDateTime);
+        const hoursUntilPickup = (pickupDate.getTime() - now.getTime()) / (1000 * 60 * 60);
+        
+        const privateMinHours = Number(timeDefinitions.privateTransferMinHours) || 0;
+        const shuttleMinHours = Number(timeDefinitions.shuttleTransferMinHours) || 0;
+        
+        let filteredTypeResults = typeResults;
+        let filteredShuttleResults = shuttleResults;
+        
+        if (privateMinHours > 0 && hoursUntilPickup < privateMinHours) {
+            filteredTypeResults = [];
+            console.log(`[TimeFilter] Private transfers blocked: ${hoursUntilPickup.toFixed(1)}h < ${privateMinHours}h minimum`);
+        }
+        if (shuttleMinHours > 0 && hoursUntilPickup < shuttleMinHours) {
+            filteredShuttleResults = [];
+            console.log(`[TimeFilter] Shuttle transfers blocked: ${hoursUntilPickup.toFixed(1)}h < ${shuttleMinHours}h minimum`);
+        }
+
         res.json({
             success: true,
             data: {
                 searchParams: { pickup, dropoff, pickupDateTime, returnDateTime, passengers, transferType },
-                results: [...shuttleResults, ...typeResults]
+                results: [...filteredShuttleResults, ...filteredTypeResults],
+                timeFilter: {
+                    hoursUntilPickup: Math.round(hoursUntilPickup * 10) / 10,
+                    privateBlocked: privateMinHours > 0 && hoursUntilPickup < privateMinHours,
+                    shuttleBlocked: shuttleMinHours > 0 && hoursUntilPickup < shuttleMinHours
+                }
             }
         });
 
@@ -785,6 +839,7 @@ router.post('/book', optionalAuthMiddleware, async (req, res) => {
             
             const pickupRegionCode = detectRegionCode(pickup, hubs);
             const dropoffRegionCode = detectRegionCode(dropoff, hubs);
+            const tripType = getTripType(pickup, dropoff); // Determine trip type
 
             return await prisma.booking.create({
                 data: {
@@ -836,7 +891,8 @@ router.post('/book', optionalAuthMiddleware, async (req, res) => {
                         pickupRegionCode: pickupRegionCode || null,
                         dropoffRegionCode: dropoffRegionCode || null,
                         tripLeg: tripLeg || 'OUTBOUND',
-                        linkedBookingNumber: linkedBookingNumber
+                        linkedBookingNumber: linkedBookingNumber,
+                        tripType: tripType // Store trip type for shuttle grouping
                     }
                 }
             });
@@ -1496,6 +1552,21 @@ router.patch('/bookings/:id', authMiddleware, async (req, res) => {
             return res.status(404).json({ success: false, error: 'Rezervasyon bulunamadı' });
         }
 
+        // Capture previous state for audit trail
+        req._auditPreviousState = {
+            status: currentBooking.status,
+            driverId: currentBooking.driverId,
+            assignedVehicleId: currentBooking.assignedVehicleId,
+            contactName: currentBooking.contactName,
+            contactPhone: currentBooking.contactPhone,
+            price: Number(currentBooking.total || 0),
+            startDate: currentBooking.startDate,
+            pickup: currentBooking.metadata?.pickup,
+            dropoff: currentBooking.metadata?.dropoff,
+            flightNumber: currentBooking.metadata?.flightNumber,
+            operationalStatus: currentBooking.metadata?.operationalStatus
+        };
+
         // ---- Route Duration: calculate if not already stored ----
         let estimatedDurationMinutes = currentBooking.metadata?.estimatedDurationMinutes;
         if (!estimatedDurationMinutes) {
@@ -1801,6 +1872,23 @@ router.put('/bookings/admin/:id', authMiddleware, async (req, res) => {
             return res.status(404).json({ success: false, error: 'Rezervasyon bulunamadı' });
         }
 
+        // Capture previous state for audit trail
+        req._auditPreviousState = {
+            contactName: currentBooking.contactName,
+            contactPhone: currentBooking.contactPhone,
+            total: currentBooking.total,
+            subtotal: currentBooking.subtotal,
+            adults: currentBooking.adults,
+            children: currentBooking.children,
+            infants: currentBooking.infants,
+            startDate: currentBooking.startDate,
+            pickup: currentBooking.metadata?.pickup,
+            dropoff: currentBooking.metadata?.dropoff,
+            flightNumber: currentBooking.metadata?.flightNumber,
+            vehicleType: currentBooking.metadata?.vehicleType,
+            price: Number(currentBooking.total || 0)
+        };
+
         let newMetadata = currentBooking.metadata || {};
         if (pickup !== undefined) newMetadata.pickup = pickup;
         if (dropoff !== undefined) newMetadata.dropoff = dropoff;
@@ -1859,6 +1947,16 @@ router.put('/bookings/:id/status', authMiddleware, async (req, res) => {
                 error: 'Rezervasyon bulunamadı'
             });
         }
+
+        // Capture previous state for audit trail
+        req._auditPreviousState = {
+            status: currentBooking.status,
+            operationalStatus: currentBooking.metadata?.operationalStatus,
+            poolPrice: currentBooking.metadata?.poolPrice,
+            price: Number(currentBooking.total || 0),
+            collectedAmount: currentBooking.metadata?.collectedAmount,
+            contactName: currentBooking.contactName
+        };
 
         // Prepare metadata update
         let newMetadata = currentBooking.metadata || {};

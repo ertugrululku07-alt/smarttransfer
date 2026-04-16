@@ -228,7 +228,7 @@ const AdminShuttleRoutesPage: React.FC = () => {
         scheduleType: route.scheduleType,
         departureTimes: route.departureTimes,
         pricePerSeat: route.pricePerSeat,
-        currency: route.currency || 'EUR',
+        currency: route.currency || currencies.find((c: any) => c.isDefault)?.code || 'EUR',
         maxSeats: route.maxSeats,
         isActive: route.isActive,
         customDateRange: route.customStartDate && route.customEndDate
@@ -247,7 +247,7 @@ const AdminShuttleRoutesPage: React.FC = () => {
         scheduleType: 'DAILY',
         weeklyDays: [],
         departureTimes: ['08:00'],
-        currency: 'EUR',
+        currency: currencies.find((c: any) => c.isDefault)?.code || 'EUR',
         isBidirectional: false,
         returnDepartureTimes: [],
       });
@@ -304,7 +304,7 @@ const AdminShuttleRoutesPage: React.FC = () => {
         scheduleType: values.scheduleType,
         departureTimes: formattedDepartureTimes.sort(),
         pricePerSeat: Number(values.pricePerSeat),
-        currency: values.currency || 'EUR',
+        currency: values.currency || currencies.find((c: any) => c.isDefault)?.code || 'EUR',
         maxSeats: Number(values.maxSeats),
         isActive: values.isActive ?? true,
         customStartDate, customEndDate, weeklyDays,
@@ -887,7 +887,7 @@ const AdminShuttleRoutesPage: React.FC = () => {
                       <Input type="number" min={0} step={0.01} placeholder="10.00" style={{ width: 'calc(100% - 90px)' }} />
                     </Form.Item>
                     <Form.Item name="currency" noStyle rules={[{ required: true }]}>
-                      <Select style={{ width: 90 }}>
+                      <Select style={{ width: 90 }} loading={currencies.length === 0} notFoundContent={currencies.length === 0 ? 'Yükleniyor...' : 'Tanımsız'}>
                         {currencies.map((c) => (
                           <Option key={c.code} value={c.code}>{c.code} ({c.symbol})</Option>
                         ))}

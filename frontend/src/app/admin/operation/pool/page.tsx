@@ -280,7 +280,7 @@ export default function PoolTransfersPage() {
             width: 120,
             align: 'center' as const,
             render: (_: any, record: any) => (
-                <Space direction="vertical" size={6}>
+                <Space orientation="vertical" size={6}>
                     <Tooltip title="Operasyona Aktar">
                         <Button
                             size="small"

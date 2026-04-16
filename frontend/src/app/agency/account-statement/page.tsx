@@ -109,7 +109,7 @@ export default function AccountStatementPage() {
                 if (type === 'MANUAL_IN') { color = 'green'; label = 'İade (Cari Giriş)'; }
 
                 return (
-                    <Space direction="vertical" size={0}>
+                    <Space orientation="vertical" size={0}>
                         <Tag color={color}>{label}</Tag>
                         {record.referenceData && <Text type="secondary" style={{ fontSize: '12px' }}>{record.referenceData}</Text>}
                     </Space>

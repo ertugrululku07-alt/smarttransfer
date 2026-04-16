@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useDefinitions } from '@/app/hooks/useDefinitions';
 import PartnerLayout from '../PartnerLayout';
 import PartnerGuard from '../PartnerGuard';
 import { Table, Card, Row, Col, Typography, Tag, Statistic, message, Spin } from 'antd';
@@ -9,7 +10,9 @@ import apiClient from '@/lib/api-client';
 
 const { Title, Text } = Typography;
 
+
 export default function EarningsPage() {
+    const { defaultCurrency: defCurrency } = useDefinitions();
     const [loading, setLoading] = useState(true);
     const [earnings, setEarnings] = useState<any[]>([]);
     const [stats, setStats] = useState({
@@ -183,7 +186,7 @@ export default function EarningsPage() {
                                     title="Toplam Net Kazanç"
                                     value={stats.totalNet}
                                     precision={2}
-                                    suffix="TRY" // Assuming TRY for summary for now, ideally handle mixed currencies
+                                    suffix={defCurrency?.code || 'TRY'}
                                     valueStyle={{ color: '#3f8600', fontWeight: 700 }}
                                     prefix={<RiseOutlined />}
                                 />
@@ -195,7 +198,7 @@ export default function EarningsPage() {
                                     title="Bekleyen Ödeme"
                                     value={stats.pending}
                                     precision={2}
-                                    suffix="TRY"
+                                    suffix={defCurrency?.code || 'TRY'}
                                     valueStyle={{ color: '#faad14', fontWeight: 700 }}
                                     prefix={<ClockCircleOutlined />}
                                 />
@@ -207,7 +210,7 @@ export default function EarningsPage() {
                                     title="Yapılan Ödeme"
                                     value={stats.paid}
                                     precision={2}
-                                    suffix="TRY"
+                                    suffix={defCurrency?.code || 'TRY'}
                                     valueStyle={{ color: '#10B981', fontWeight: 700 }}
                                     prefix={<DollarOutlined />}
                                 />

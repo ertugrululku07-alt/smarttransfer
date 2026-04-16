@@ -226,7 +226,7 @@ const AdminBookingDetailPage: React.FC = () => {
         </Header>
 
         <Content style={{ margin: '16px' }}>
-          <Space direction="vertical" size="large" style={{ width: '100%' }}>
+          <Space orientation="vertical" size="large" style={{ width: '100%' }}>
             <Card title="Rezervasyon Bilgileri" bordered>
               <Descriptions bordered column={{ xxl: 3, xl: 2, lg: 2, md: 1, sm: 1, xs: 1 }}>
                 <Descriptions.Item label="Rezervasyon ID">{booking.id}</Descriptions.Item>

@@ -17,12 +17,6 @@ import apiClient from '@/lib/api-client';
 const { Title, Text } = Typography;
 const { Option } = Select;
 
-const CURRENCIES = [
-    { code: 'EUR', symbol: '€' },
-    { code: 'USD', symbol: '$' },
-    { code: 'TRY', symbol: '₺' },
-    { code: 'GBP', symbol: '£' },
-];
 
 interface Agency { id: string; name: string; email: string; status: string; }
 interface VehicleType { id: string; name: string; category: string; categoryDisplay?: string; capacity: number; image?: string; }
@@ -37,8 +31,8 @@ export default function AgencyContractsPage() {
     const [loadingAgencies, setLoadingAgencies] = useState(true);
     const [loadingVT, setLoadingVT] = useState(false);
     const [saving, setSaving] = useState(false);
-    const [defaultCurrency, setDefaultCurrency] = useState<string>('EUR');
-    const [allCurrencies, setAllCurrencies] = useState(CURRENCIES);
+    const [defaultCurrency, setDefaultCurrency] = useState<string>('');
+    const [allCurrencies, setAllCurrencies] = useState<{code: string; symbol: string}[]>([]);
 
     const [selectedAgency, setSelectedAgency] = useState<Agency | null>(null);
     const [selectedVT, setSelectedVT] = useState<VehicleType | null>(null);
@@ -140,7 +134,7 @@ export default function AgencyContractsPage() {
                 apiClient.post(
                     `/api/admin/agencies/${selectedAgency.id}/contract-meta/${selectedVT.id}`,
                     {
-                        currency: values.currency || 'EUR',
+                        currency: values.currency || defaultCurrency || 'TRY',
                         openingFee: values.openingFee ?? null,
                         basePricePerKm: values.basePricePerKm ?? null,
                         fixedPrice: values.fixedPrice ?? null,
@@ -297,9 +291,9 @@ export default function AgencyContractsPage() {
                                             <Row gutter={16}>
                                                 <Col span={8}>
                                                     <Form.Item label="Para Birimi" name="currency">
-                                                        <Select placeholder="EUR" allowClear>
+                                                        <Select placeholder={defaultCurrency || 'Para Birimi'} allowClear loading={allCurrencies.length === 0} notFoundContent={allCurrencies.length === 0 ? 'Yükleniyor...' : 'Para birimi tanımlanmamış'}>
                                                             {allCurrencies.map((c: any) => (
-                                                                <Option key={c.code} value={c.code}>{c.code} ({c.symbol})</Option>
+                                                                <Option key={c.code} value={c.code}>{c.symbol} {c.code}</Option>
                                                             ))}
                                                         </Select>
                                                     </Form.Item>
