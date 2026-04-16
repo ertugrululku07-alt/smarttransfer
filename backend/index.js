@@ -220,6 +220,9 @@ app.use('/api/admin/logs', tenantMiddleware, require('./src/routes/logs'));
 // Live Chat Webhook route (from n8n)
 app.use('/api/live-chat', require('./src/routes/live-chat'));
 
+// AI Integration Routes (for n8n tools)
+app.use('/api/ai', require('./src/routes/ai.js'));
+
 // ============================================================================
 // V1 LEGACY ROUTES (Backward Compatibility)
 // ============================================================================
