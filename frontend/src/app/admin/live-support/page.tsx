@@ -20,6 +20,7 @@ interface ChatSession {
 
 interface ChatMessage {
     id: string;
+    sessionId?: string;
     sender: 'USER' | 'BOT' | 'ADMIN';
     content: string;
     createdAt: string;
