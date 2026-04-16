@@ -423,6 +423,152 @@ router.post('/register-driver', async (req, res) => {
 });
 
 /**
+ * POST /api/auth/register-agency
+ * Register new sub-agency (B2B) with admin user
+ */
+router.post('/register-agency', async (req, res) => {
+    try {
+        const {
+            // User info
+            firstName, lastName, email, phone, password,
+            // Agency info
+            agencyName, companyName, taxOffice, taxNumber, address, website
+        } = req.body;
+
+        // 1. Validation
+        if (!email || !password || !firstName || !lastName || !agencyName) {
+            return res.status(400).json({ success: false, error: 'Tüm zorunlu alanlar doldurulmalıdır' });
+        }
+        if (password.length < 8) {
+            return res.status(400).json({ success: false, error: 'Şifre en az 8 karakter olmalıdır' });
+        }
+
+        // 2. Tenant context
+        const tenantId = req.tenant?.id;
+        if (!tenantId) {
+            return res.status(400).json({ success: false, error: 'Tenant context missing' });
+        }
+
+        // 3. Check duplicate email
+        const existingUser = await prisma.user.findFirst({
+            where: { tenantId, email: email.toLowerCase() }
+        });
+        if (existingUser) {
+            return res.status(409).json({ success: false, error: 'Bu e-posta adresi zaten kayıtlı' });
+        }
+
+        // Check duplicate agency email
+        const existingAgency = await prisma.agency.findFirst({
+            where: { email: email.toLowerCase() }
+        });
+        if (existingAgency) {
+            return res.status(409).json({ success: false, error: 'Bu e-posta ile bir acenta zaten kayıtlı' });
+        }
+
+        // 4. Find AGENCY_ADMIN role
+        let role = await prisma.role.findFirst({
+            where: { tenantId, type: 'AGENCY_ADMIN' }
+        });
+        if (!role) {
+            // Try to find any agency role
+            role = await prisma.role.findFirst({
+                where: { tenantId, type: 'AGENCY_STAFF' }
+            });
+        }
+        if (!role) {
+            return res.status(500).json({ success: false, error: 'Acenta rolü sistemde tanımlı değil' });
+        }
+
+        // 5. Transaction: Create Agency + User
+        const result = await prisma.$transaction(async (tx) => {
+            // Create Agency
+            const agency = await tx.agency.create({
+                data: {
+                    tenantId,
+                    name: agencyName,
+                    contactName: `${firstName} ${lastName}`,
+                    email: email.toLowerCase(),
+                    phone: phone || '',
+                    companyName: companyName || null,
+                    taxOffice: taxOffice || null,
+                    taxNumber: taxNumber || null,
+                    address: address || null,
+                    website: website || null,
+                    status: 'ACTIVE'
+                }
+            });
+
+            // Hash password
+            const passwordHash = await bcrypt.hash(password, 10);
+
+            // Create User linked to Agency
+            const user = await tx.user.create({
+                data: {
+                    tenantId,
+                    email: email.toLowerCase(),
+                    passwordHash,
+                    firstName,
+                    lastName,
+                    fullName: `${firstName} ${lastName}`,
+                    phone: phone || null,
+                    roleId: role.id,
+                    agencyId: agency.id,
+                    status: 'ACTIVE',
+                    emailVerified: false
+                },
+                include: {
+                    role: true,
+                    tenant: {
+                        select: {
+                            id: true, slug: true, name: true,
+                            transferEnabled: true, tourEnabled: true, hotelEnabled: true
+                        }
+                    }
+                }
+            });
+
+            return { user, agency };
+        });
+
+        // 6. Generate token
+        const token = jwt.sign(
+            {
+                userId: result.user.id,
+                email: result.user.email,
+                tenantId: result.user.tenantId,
+                roleCode: result.user.role.code
+            },
+            JWT_SECRET,
+            { expiresIn: JWT_EXPIRATION }
+        );
+
+        res.status(201).json({
+            success: true,
+            data: {
+                user: {
+                    id: result.user.id,
+                    email: result.user.email,
+                    firstName: result.user.firstName,
+                    lastName: result.user.lastName,
+                    fullName: result.user.fullName,
+                    tenant: result.user.tenant
+                },
+                agency: {
+                    id: result.agency.id,
+                    name: result.agency.name
+                },
+                token,
+                expiresIn: JWT_EXPIRATION
+            }
+        });
+
+    } catch (error) {
+        console.error('Register Agency error:', error);
+        res.status(500).json({ success: false, error: 'Acenta kaydı başarısız: ' + error.message });
+    }
+});
+
+/**
  * POST /api/auth/refresh
  * Refresh access token using refresh token
  */

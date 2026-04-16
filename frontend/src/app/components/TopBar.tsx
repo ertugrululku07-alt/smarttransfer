@@ -218,21 +218,38 @@ const TopBar: React.FC = () => {
                   </Button>
                 </Space>
               ) : (
-                <Button
-                  size="small"
-                  onClick={handleLoginClick}
-                  style={{
-                    background: 'linear-gradient(135deg, #667eea, #764ba2)',
-                    border: 'none',
-                    color: '#fff',
-                    fontWeight: 600,
-                    borderRadius: 6,
-                    fontSize: 13,
-                    padding: '0 16px',
-                  }}
-                >
-                  Giriş Yap
-                </Button>
+                <Space size="small" className="topbar-auth-desktop">
+                  <Button
+                    size="small"
+                    onClick={() => router.push('/register')}
+                    style={{
+                      background: 'transparent',
+                      border: '1px solid rgba(255,255,255,0.3)',
+                      color: '#fff',
+                      fontWeight: 600,
+                      borderRadius: 6,
+                      fontSize: 13,
+                      padding: '0 14px',
+                    }}
+                  >
+                    Kayıt Ol
+                  </Button>
+                  <Button
+                    size="small"
+                    onClick={handleLoginClick}
+                    style={{
+                      background: 'linear-gradient(135deg, #667eea, #764ba2)',
+                      border: 'none',
+                      color: '#fff',
+                      fontWeight: 600,
+                      borderRadius: 6,
+                      fontSize: 13,
+                      padding: '0 16px',
+                    }}
+                  >
+                    Giriş Yap
+                  </Button>
+                </Space>
               )}
             </>
           )}
@@ -267,6 +284,51 @@ const TopBar: React.FC = () => {
               {page.title}
             </a>
           ))}
+
+          {/* Mobile auth actions */}
+          {!authLoading && !user && (
+            <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <Button
+                block
+                onClick={() => { setMobileMenuOpen(false); router.push('/register'); }}
+                style={{ height: 44, borderRadius: 10, fontWeight: 600 }}
+              >
+                Kayıt Ol
+              </Button>
+              <Button
+                type="primary"
+                block
+                onClick={() => { setMobileMenuOpen(false); router.push('/login'); }}
+                style={{
+                  height: 44, borderRadius: 10, fontWeight: 600,
+                  background: 'linear-gradient(135deg, #667eea, #764ba2)',
+                  border: 'none',
+                }}
+              >
+                Giriş Yap
+              </Button>
+            </div>
+          )}
+          {!authLoading && user && panelRoute && (
+            <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <Button
+                type="primary"
+                block
+                onClick={() => { setMobileMenuOpen(false); router.push(panelRoute); }}
+                style={{ height: 44, borderRadius: 10, fontWeight: 600 }}
+              >
+                Panele Git
+              </Button>
+              <Button
+                danger
+                block
+                onClick={() => { setMobileMenuOpen(false); handleLogoutClick(); }}
+                style={{ height: 44, borderRadius: 10, fontWeight: 600 }}
+              >
+                Çıkış Yap
+              </Button>
+            </div>
+          )}
         </div>
       </Drawer>
 
@@ -275,6 +337,7 @@ const TopBar: React.FC = () => {
         @media (max-width: 768px) {
           .topbar-nav-desktop { display: none !important; }
           .topbar-user-desktop { display: none !important; }
+          .topbar-auth-desktop { display: none !important; }
           .topbar-mobile-btn { display: flex !important; }
         }
       `}</style>
