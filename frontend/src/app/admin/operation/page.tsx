@@ -85,6 +85,8 @@ interface Booking {
     driverId?: string;
     assignedVehicleId?: string;
     adults?: number;
+    children?: number;
+    infants?: number;
     flightNumber?: string;
     agencyName?: string;
 }
