@@ -2,7 +2,7 @@ const prisma = require('../lib/prisma');
 const axios = require('axios');
 
 // n8n Webhook URL
-const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL || 'http://localhost:5678/webhook/live-chat';
+const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL || 'https://n8n-production-0e284.up.railway.app/webhook/live-chat';
 
 module.exports = (io, app) => {
     io.on('connection', (socket) => {
