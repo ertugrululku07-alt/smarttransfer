@@ -52,9 +52,11 @@ const AgencyNewTransferPage = () => {
     const [dropoff, setDropoff] = useState('');
     const [dropoffLocation, setDropoffLocation] = useState<{ lat: number; lng: number } | null>(null);
     const [date, setDate] = useState<Dayjs | null>(null);
-    const [pickupHour, setPickupHour] = useState<string>('12');
-    const [pickupMinute, setPickupMinute] = useState<string>('00');
+    const [pickupTimeValue, setPickupTimeValue] = useState<Dayjs | null>(dayjs().hour(12).minute(0));
     const [flightTimeValue, setFlightTimeValue] = useState<Dayjs | null>(null);
+    const [returnDate, setReturnDate] = useState<Dayjs | null>(null);
+    const [returnTimeValue, setReturnTimeValue] = useState<Dayjs | null>(dayjs().hour(12).minute(0));
+    const [returnFlightTimeValue, setReturnFlightTimeValue] = useState<Dayjs | null>(null);
     const [passengerCounts, setPassengerCounts] = useState({ adults: 1, children: 0, babies: 0 });
     const [tripType, setTripType] = useState<'ONE_WAY' | 'ROUND_TRIP'>('ONE_WAY');
 
@@ -204,7 +206,7 @@ const AgencyNewTransferPage = () => {
             setSearchError(null);
 
             const totalPassengers = passengerCounts.adults + passengerCounts.children + passengerCounts.babies;
-            let pickupDateTime = `${date.format('YYYY-MM-DD')}T${pickupHour}:${pickupMinute}:00.000`;
+            let pickupDateTime = `${date.format('YYYY-MM-DD')}T${pickupTimeValue ? pickupTimeValue.format('HH:mm') : '12:00'}:00.000`;
             if (isAirportTransfer && flightTimeValue) {
                 // For airport pickup (airport -> city), default pickup time = flight time.
                 // For airport dropoff (city -> airport), we will compute a better pickup time after we have route duration.
@@ -229,13 +231,11 @@ const AgencyNewTransferPage = () => {
                                 const flightDate = dayjs(`${date.format('YYYY-MM-DD')}T${flightTimeValue.format('HH:mm')}`);
                                 const recommendedPickup = floorToNearest5(flightDate.subtract(totalBuffer, 'minute'));
                                 pickupDateTime = recommendedPickup.format('YYYY-MM-DDTHH:mm:00.000');
-                                setPickupHour(recommendedPickup.format('HH'));
-                                setPickupMinute(recommendedPickup.format('mm'));
+                                setPickupTimeValue(recommendedPickup);
                             }
                         } else if (isAirportPickup && flightTimeValue) {
                             // Airport pickup: keep pickupHour/minute aligned to flight time for consistency
-                            setPickupHour(flightTimeValue.format('HH'));
-                            setPickupMinute(flightTimeValue.format('mm'));
+                            setPickupTimeValue(flightTimeValue);
                         }
                     }
                 } catch (e) {
@@ -247,6 +247,7 @@ const AgencyNewTransferPage = () => {
                 pickup,
                 dropoff,
                 pickupDateTime,
+                returnDateTime: tripType === 'ROUND_TRIP' && returnDate ? `${returnDate.format('YYYY-MM-DD')}T${returnTimeValue ? returnTimeValue.format('HH:mm') : '12:00'}:00.000` : undefined,
                 passengers: totalPassengers || 1,
                 transferType: tripType,
                 distance,
@@ -298,7 +299,7 @@ const AgencyNewTransferPage = () => {
         // Fetch services in background when vehicle selected
         fetchExtraServices();
 
-        const fullDate = date?.hour(parseInt(pickupHour)).minute(parseInt(pickupMinute)).second(0);
+        const fullDate = date?.hour(pickupTimeValue?.hour() ?? 12).minute(pickupTimeValue?.minute() ?? 0).second(0);
         const totalPax = passengerCounts.adults + passengerCounts.children + passengerCounts.babies;
 
         // Form'u yolcu listesi ile başlat (1. yolcu ana formda)
@@ -338,7 +339,7 @@ const AgencyNewTransferPage = () => {
             // B2B payload
             // Construct the correct startDate (pickup time)
             let startDateWithTime = date
-                ? date.hour(parseInt(pickupHour, 10)).minute(parseInt(pickupMinute, 10)).second(0).millisecond(0)
+                ? date.hour(pickupTimeValue?.hour() ?? 12).minute(pickupTimeValue?.minute() ?? 0).second(0).millisecond(0)
                 : (values.startDate || null);
 
             // If airport transfer + flight time present, compute pickup time properly.
@@ -380,6 +381,7 @@ const AgencyNewTransferPage = () => {
                     contactNationality: values.contactNationality,
                     flightNumber: values.flightNumber,
                     flightTime: flightTimeToSend,
+                    returnFlightTime: returnFlightTimeValue ? returnFlightTimeValue.format('HH:mm') : undefined,
                     customerNotes: values.customerNotes || (flightTimeToSend ? `Uçuş Saati: ${flightTimeToSend}` : undefined),
                     wantsInvoice: values.wantsInvoice,
                     agencyNotes: values.agencyNotes,
@@ -542,20 +544,24 @@ const AgencyNewTransferPage = () => {
                             placeholder="Tarih seçin"
                             value={date}
                             onChange={setDate}
+                            disabledDate={(current) => current && current < dayjs().startOf('day')}
                         />
                     </Col>
                     <Col xs={24} md={6}>
                         {!isAirportTransfer ? (
                             <>
                                 <label style={{ display: 'block', marginBottom: 8, fontWeight: 700, fontSize: 13, color: '#374151', textTransform: 'uppercase', letterSpacing: 0.5 }}>🕐 Saat</label>
-                                <Space.Compact style={{ width: '100%' }}>
-                                    <Select size="large" value={pickupHour} onChange={setPickupHour} style={{ width: '50%' }}
-                                        options={Array.from({ length: 24 }, (_, i) => ({ value: i.toString().padStart(2, '0'), label: i.toString().padStart(2, '0') }))}
-                                    />
-                                    <Select size="large" value={pickupMinute} onChange={setPickupMinute} style={{ width: '50%' }}
-                                        options={['00', '15', '30', '45'].map(m => ({ value: m, label: m }))}
-                                    />
-                                </Space.Compact>
+                                <TimePicker
+                                    size="large"
+                                    style={{ width: '100%' }}
+                                    format="HH:mm"
+                                    minuteStep={5}
+                                    value={pickupTimeValue}
+                                    onChange={(v) => setPickupTimeValue(v)}
+                                    placeholder="Saat seçin"
+                                    needConfirm={false}
+                                    showNow={false}
+                                />
                             </>
                         ) : (
                             <>
@@ -564,9 +570,12 @@ const AgencyNewTransferPage = () => {
                                     size="large"
                                     style={{ width: '100%' }}
                                     format="HH:mm"
+                                    minuteStep={5}
                                     value={flightTimeValue}
                                     onChange={(v) => setFlightTimeValue(v)}
                                     placeholder="Örn: 14:30"
+                                    needConfirm={false}
+                                    showNow={false}
                                 />
                             </>
                         )}
@@ -583,6 +592,56 @@ const AgencyNewTransferPage = () => {
                         </Radio.Group>
                     </Col>
                 </Row>
+                
+                {tripType === 'ROUND_TRIP' && (
+                    <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
+                        <Col xs={24} md={6}>
+                            <label style={{ display: 'block', marginBottom: 8, fontWeight: 700, fontSize: 13, color: '#374151', textTransform: 'uppercase', letterSpacing: 0.5 }}>📅 Dönüş Tarihi</label>
+                            <DatePicker
+                                size="large"
+                                style={{ width: '100%' }}
+                                format="DD.MM.YYYY"
+                                placeholder="Dönüş tarihi seçin"
+                                value={returnDate}
+                                onChange={setReturnDate}
+                                disabledDate={(current) => current && (!date || current < date.startOf('day'))}
+                            />
+                        </Col>
+                        <Col xs={24} md={6}>
+                            {!isAirportTransfer ? (
+                                <>
+                                    <label style={{ display: 'block', marginBottom: 8, fontWeight: 700, fontSize: 13, color: '#374151', textTransform: 'uppercase', letterSpacing: 0.5 }}>🕐 Dönüş Saati</label>
+                                    <TimePicker
+                                        size="large"
+                                        style={{ width: '100%' }}
+                                        format="HH:mm"
+                                        minuteStep={5}
+                                        value={returnTimeValue}
+                                        onChange={(v) => setReturnTimeValue(v)}
+                                        placeholder="Saat seçin"
+                                        needConfirm={false}
+                                        showNow={false}
+                                    />
+                                </>
+                            ) : (
+                                <>
+                                    <label style={{ display: 'block', marginBottom: 8, fontWeight: 700, fontSize: 13, color: '#374151', textTransform: 'uppercase', letterSpacing: 0.5 }}>✈️ Dönüş Uçuş Saati</label>
+                                    <TimePicker
+                                        size="large"
+                                        style={{ width: '100%' }}
+                                        format="HH:mm"
+                                        minuteStep={5}
+                                        value={returnFlightTimeValue}
+                                        onChange={(v) => setReturnFlightTimeValue(v)}
+                                        placeholder="Örn: 14:30"
+                                        needConfirm={false}
+                                        showNow={false}
+                                    />
+                                </>
+                            )}
+                        </Col>
+                    </Row>
+                )}
 
                 {/* Search Button */}
                 <button
@@ -771,11 +830,6 @@ const AgencyNewTransferPage = () => {
                                 }}>
                                     {getCurrencySymbol(result.currency)}{result.price}
                                 </div>
-                                {(result.basePrice && result.basePrice !== result.price) && (
-                                    <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 4 }}>
-                                        B2B Net: {getCurrencySymbol(result.currency)}{result.basePrice}
-                                    </div>
-                                )}
                                 <button
                                     onClick={() => handleSelectVehicle(result)}
                                     style={{
@@ -816,13 +870,11 @@ const AgencyNewTransferPage = () => {
                             <Row>
                                 <Col span={12}>
                                     <div><Text type="secondary">Rota:</Text> {pickup} ➔ {dropoff}</div>
-                                    <div><Text type="secondary">Tarih:</Text> {date?.format('DD.MM.YYYY')} - {pickupHour}:{pickupMinute}</div>
+                                    <div><Text type="secondary">Tarih:</Text> {date?.format('DD.MM.YYYY')} - {pickupTimeValue?.format('HH:mm')}</div>
                                 </Col>
                                 <Col span={12}>
                                     <div style={{ textAlign: 'right' }}>
-                                        <Text type="secondary">B2B Alış Fiyatınız:</Text> <Text strong>{selectedVehicle.basePrice || selectedVehicle.price} {selectedVehicle.currency}</Text>
-                                        <br />
-                                        <Text type="secondary">Önerilen Satış Fiyatı:</Text> <Text strong style={{ color: '#2b6cb0' }}>{selectedVehicle.price} {selectedVehicle.currency}</Text>
+                                        <Text type="secondary">Transfer Ücreti:</Text> <Text strong style={{ color: '#2b6cb0', fontSize: 16 }}>{selectedVehicle.price} {selectedVehicle.currency}</Text>
                                     </div>
                                 </Col>
                             </Row>
@@ -1135,7 +1187,7 @@ const AgencyNewTransferPage = () => {
                                     type="info"
                                     showIcon
                                     message="Anında 3D Güvenli Ödeme & Kâr Transferi"
-                                    description="Bu seçenekte rezervasyonu tamamlarken ekranınızda güvenli Sanal POS açılır. Müşterinizin kart bilgileri girilip ödeme çekildiğinde, belirlediğiniz satış fiyatı ile B2B alış fiyatı arasındaki KÂR MARJI anında Cari Bakiyenize yatırılır."
+                                    description="Bu seçenekte rezervasyonu tamamlarken ekranınızda güvenli Sanal POS açılır. İşlem tamamlandığında acente kârınız/komisyonunuz anında Cari Bakiyenize yatırılır."
                                     style={{ marginTop: 16 }}
                                 />
                             );
@@ -1145,7 +1197,7 @@ const AgencyNewTransferPage = () => {
                                     type="warning"
                                     showIcon
                                     message="Cari Hesaba Sonradan Yansıtma İşlemi"
-                                    description="Anında bakiye düşümü yapılmaz. Transfer tamamlanıp, şoför/operasyon tahsil edilen işlem tutarını sisteme girdiğinde B2B alış fiyatınız sisteme aktarılır, satış fiyatı ile arasındaki kâr farkı cari bakiyenize alacak olarak yansıtılır."
+                                    description="Ödeme araçta tahsil edilir. Transfer tamamlandıktan sonra acente kârı/komisyonu cari bakiyenize alacak olarak yansıtılır."
                                     style={{ marginTop: 16 }}
                                 />
                             );
@@ -1179,8 +1231,8 @@ const AgencyNewTransferPage = () => {
     );
 
     const renderSuccessStep = () => {
-        // Use the pickupHour/pickupMinute state (not date.format which is always 00:00)
-        const pickupTimeStr = `${pickupHour}:${pickupMinute}`;
+        // Use the pickupTimeValue state
+        const pickupTimeStr = pickupTimeValue?.format('HH:mm') || '12:00';
         const durationText = routeStats?.duration || selectedVehicle?.estimatedDuration || 'Yolculuk süresi';
         const flightTimeStr = bookingResult?.metadata?.flightTime || bookingResult?.flightTime || (form.getFieldValue('flightTime')?.format?.('HH:mm') ?? null);
         let suggestedPickup: string | null = null;

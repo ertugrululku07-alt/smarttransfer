@@ -304,6 +304,7 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
         ];
 
         let timeDefinitions = { privateTransferMinHours: 0, shuttleTransferMinHours: 0 };
+        let tenantDefaultCurrency = 'EUR'; // Fallback
         if (req.tenant?.id) {
             try {
                 const tenantInfo = await prisma.tenant.findUnique({ where: { id: req.tenant.id }, select: { settings: true } });
@@ -313,8 +314,12 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                 if (tenantInfo?.settings?.timeDefinitions) {
                     timeDefinitions = tenantInfo.settings.timeDefinitions;
                 }
+                if (tenantInfo?.settings?.definitions?.currencies) {
+                    const defaultCur = tenantInfo.settings.definitions.currencies.find(c => c.isDefault);
+                    if (defaultCur) tenantDefaultCurrency = defaultCur.code;
+                }
             } catch (e) {
-                console.error("Failed to fetch tenant hubs", e);
+                console.error("Failed to fetch tenant settings", e);
             }
         }
 
@@ -561,7 +566,7 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                 luggage: 1, // Per person
                 price: Number(markedUpShuttlePrice.toFixed(2)),
                 basePrice: baseShuttlePrice, // Store original B2B cost
-                currency: 'EUR', // Shuttle prices are fixed in EUR
+                currency: tenantDefaultCurrency, // Shuttle prices use default currency
                 features: ['Belirli Kalkış Saatleri', 'Ekonomik', 'Paylaşımlı Yolculuk', ...(s.vehicle?.metadata?.hasWifi ? ['WiFi'] : [])],
                 cancellationPolicy: '24 saat öncesine kadar ücretsiz iptal',
                 estimatedDuration: 'Değişken', // Depends on stops
@@ -674,15 +679,17 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                 const contractLookupKey = finalMatchedZoneId && detectedBaseLocation ? `${vt.id}:${finalMatchedZoneId}:${detectedBaseLocation}` : null;
                 const contractPrice = contractLookupKey ? agencyContractMap[contractLookupKey] : null;
                 let finalPrice;
+                let baseContractValue = 0;
                 if (contractPrice) {
-                    // Contract price overrides all other pricing logic
+                    // Contract price is the B2B base. Apply margin on top for retail final price.
                     const extra = usedOverageDistanceKm * (Number(contractPrice.extraKmPrice) || 0);
                     if (Number(contractPrice.fixedPrice) > 0) {
-                        finalPrice = Math.round((Number(contractPrice.fixedPrice) + extra) * typeMult);
+                        baseContractValue = (Number(contractPrice.fixedPrice) + extra) * typeMult;
                     } else {
                         const perPersonPrice = Number(contractPrice.price) || 0;
-                        finalPrice = Math.round(((perPersonPrice * Number(passengers)) + extra) * typeMult);
+                        baseContractValue = ((perPersonPrice * Number(passengers)) + extra) * typeMult;
                     }
+                    finalPrice = Math.round(baseContractValue * (1 + (agencyMarkup / 100)));
                 } else {
                     // Standard pricing: apply agency markup on calculated price
                     finalPrice = Math.round(calculatedPrice * (1 + (agencyMarkup / 100)));
@@ -699,8 +706,8 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                     capacity: vt.capacity,
                     luggage: vt.luggage,
                     price: finalPrice,
-                    basePrice: contractPrice ? finalPrice : calculatedPrice, 
-                    currency: vt.metadata?.currency || 'EUR', 
+                    basePrice: contractPrice ? Math.round(baseContractValue) : calculatedPrice, 
+                    currency: vt.metadata?.currency || tenantDefaultCurrency, 
                     features: ['Özel Transfer', 'Kapıdan Kapıya', ...(vt.features || [])],
                     cancellationPolicy: '24 saat öncesine kadar ücretsiz iptal',
                     estimatedDuration: distance ? `${Math.round((distance ? Number(distance) : 50) * 1.2)} dk` : '50 dk', 

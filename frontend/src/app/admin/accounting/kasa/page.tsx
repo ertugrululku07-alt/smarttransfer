@@ -1,18 +1,16 @@
 'use client';
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useDefinitions } from '@/app/hooks/useDefinitions';
 import {
-    Card, Table, Button, Tag, Typography, Row, Col, Statistic,
+    Card, Table, Button, Tag, Typography, Row, Col,
     Modal, Form, Input, InputNumber, Select, DatePicker,
-    Tabs, message, Popconfirm, Space, Badge, Tooltip,
-    Divider, Empty, Spin, Alert
+    message, Popconfirm, Space, Badge, Tooltip,
+    Empty, Spin
 } from 'antd';
 import {
     PlusOutlined, EditOutlined, DeleteOutlined, ArrowUpOutlined,
-    ArrowDownOutlined, BankOutlined, WalletOutlined, CreditCardOutlined,
-    DollarOutlined, FilterOutlined, ReloadOutlined, CalculatorOutlined,
-    CarryOutOutlined, CalendarOutlined, FileTextOutlined,
-    ThunderboltOutlined
+    ArrowDownOutlined, FilterOutlined, ReloadOutlined, CalculatorOutlined,
+    FileTextOutlined
 } from '@ant-design/icons';
 import AdminLayout from '../../AdminLayout';
 import AdminGuard from '../../AdminGuard';
@@ -34,20 +32,37 @@ interface KasaEntry {
     counterpart?: string; refNo?: string;
     notes?: string; paymentStatus?: string; readonly?: boolean;
 }
-interface AccountInfo { label: string; currency: string; icon: string; balance: number; in: number; out: number; }
+
+interface AccountTypeDef {
+    value: string;
+    label: string;
+    icon: string;
+    currency: string;
+    symbol?: string;
+    color: string;
+    type: 'cash' | 'bank';
+    bankId?: string;
+    bankAccountId?: string;
+}
+
+interface AccountBalanceInfo {
+    label: string;
+    currency: string;
+    icon: string;
+    color: string;
+    type: 'cash' | 'bank';
+    balance: number;
+    in: number;
+    out: number;
+}
+
+interface CurrencyTotals {
+    in: number;
+    out: number;
+    net: number;
+}
 
 /* ─── Config ─────────────────────────────────── */
-const ACCOUNT_TYPES = [
-    { value: 'TL_CASH', label: 'TL Kasa', icon: '💵', currency: 'TRY', color: '#16a34a' },
-    { value: 'USD_CASH', label: 'Dolar Kasa', icon: '🇺🇸', currency: 'USD', color: '#2563eb' },
-    { value: 'EUR_CASH', label: 'Euro Kasa', icon: '🇪🇺', currency: 'EUR', color: '#7c3aed' },
-    { value: 'GBP_CASH', label: 'Sterlin Kasa', icon: '🇬🇧', currency: 'GBP', color: '#0891b2' },
-    { value: 'BANK_TRY', label: 'Banka TL', icon: '🏦', currency: 'TRY', color: '#d97706' },
-    { value: 'BANK_USD', label: 'Banka Dolar', icon: '🏦', currency: 'USD', color: '#dc2626' },
-    { value: 'BANK_EUR', label: 'Banka Euro', icon: '🏦', currency: 'EUR', color: '#7c3aed' },
-    { value: 'CREDIT_CARD', label: 'Kredi Kartı', icon: '💳', currency: 'TRY', color: '#6366f1' },
-];
-
 const CATEGORIES = [
     'Doğrudan Müşteri Satışı', 'Acente Satışı', 'Acente Depozitosu',
     'Genel Gelir', 'Genel Gider', 'Yakıt', 'Bakım-Onarım',
@@ -59,27 +74,18 @@ const SOURCE_CFG: Record<string, { label: string; color: string }> = {
     BOOKING: { label: 'Rezervasyon', color: '#16a34a' },
     INVOICE: { label: 'Fatura', color: '#2563eb' },
     AGENCY: { label: 'Acente', color: '#d97706' },
+    PERSONNEL: { label: 'Personel', color: '#ec4899' },
 };
 
 /* ─── Formatter ──────────────────────────────── */
 const fmt = (v: number, cur = 'TRY') =>
     new Intl.NumberFormat('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v) + ' ' + cur;
 
-const GRAD: Record<string, string> = {
-    TL_CASH: 'linear-gradient(135deg,#16a34a 0%,#4ade80 100%)',
-    USD_CASH: 'linear-gradient(135deg,#2563eb 0%,#60a5fa 100%)',
-    EUR_CASH: 'linear-gradient(135deg,#7c3aed 0%,#a78bfa 100%)',
-    GBP_CASH: 'linear-gradient(135deg,#0891b2 0%,#22d3ee 100%)',
-    BANK_TRY: 'linear-gradient(135deg,#d97706 0%,#fbbf24 100%)',
-    BANK_USD: 'linear-gradient(135deg,#dc2626 0%,#f87171 100%)',
-    BANK_EUR: 'linear-gradient(135deg,#9333ea 0%,#c084fc 100%)',
-    CREDIT_CARD: 'linear-gradient(135deg,#1e293b 0%,#475569 100%)',
-};
-
 /* ─── Main Component ─────────────────────────── */
 const KasaPage: React.FC = () => {
     const { currencies: defCurrencies, defaultCurrency, loading: defLoading } = useDefinitions();
-    const [accounts, setAccounts] = useState<Record<string, AccountInfo>>({});
+    const [accountTypes, setAccountTypes] = useState<AccountTypeDef[]>([]);
+    const [accounts, setAccounts] = useState<Record<string, AccountBalanceInfo>>({});
     const [entries, setEntries] = useState<KasaEntry[]>([]);
     const [loading, setLoading] = useState(true);
     const [entriesLoading, setEntriesLoading] = useState(false);
@@ -87,6 +93,7 @@ const KasaPage: React.FC = () => {
     const [editing, setEditing] = useState<KasaEntry | null>(null);
     const [saving, setSaving] = useState(false);
     const [form] = Form.useForm();
+    const [totalsByCurrency, setTotalsByCurrency] = useState<Record<string, CurrencyTotals>>({});
 
     // Filters
     const [dateRange, setDateRange] = useState<[dayjs.Dayjs, dayjs.Dayjs]>([
@@ -97,14 +104,26 @@ const KasaPage: React.FC = () => {
     const [activeAccTab, setActiveAccTab] = useState('ALL');
     const [totals, setTotals] = useState({ in: 0, out: 0, net: 0 });
 
-    const fetchAccounts = async () => {
+    // Dynamic account type groups
+    const cashAccounts = useMemo(() => accountTypes.filter(a => a.type === 'cash'), [accountTypes]);
+    const bankAccounts = useMemo(() => accountTypes.filter(a => a.type === 'bank'), [accountTypes]);
+
+    // Fetch dynamic account types
+    const fetchAccountTypes = useCallback(async () => {
+        try {
+            const r = await apiClient.get('/api/kasa/account-types');
+            if (r.data.success) setAccountTypes(r.data.data);
+        } catch { }
+    }, []);
+
+    const fetchAccounts = useCallback(async () => {
         try {
             const r = await apiClient.get('/api/kasa/accounts');
             if (r.data.success) setAccounts(r.data.data);
         } catch { }
-    };
+    }, []);
 
-    const fetchEntries = async () => {
+    const fetchEntries = useCallback(async () => {
         setEntriesLoading(true);
         try {
             const params: any = { limit: 1000 };
@@ -117,31 +136,38 @@ const KasaPage: React.FC = () => {
             if (r.data.success) {
                 setEntries(r.data.data.entries);
                 setTotals(r.data.data.totals);
+                setTotalsByCurrency(r.data.data.totalsByCurrency || {});
             }
         } catch { } finally { setEntriesLoading(false); }
-    };
+    }, [dateRange, filterAccount, filterDir]);
 
-    const fetchAll = async () => {
+    const fetchAll = useCallback(async () => {
         setLoading(true);
-        await Promise.all([fetchAccounts(), fetchEntries()]);
+        await Promise.all([fetchAccountTypes(), fetchAccounts(), fetchEntries()]);
         setLoading(false);
-    };
+    }, [fetchAccountTypes, fetchAccounts, fetchEntries]);
 
     useEffect(() => { fetchAll(); }, []);
     useEffect(() => { fetchEntries(); }, [dateRange, filterAccount, filterDir]);
 
-    // When definitions load, update form currency if modal is open and currency not yet set
-    useEffect(() => {
-        if (defCurrencies.length > 0 && modalOpen && !editing) {
-            const curr = form.getFieldValue('currency');
-            if (!curr) form.setFieldsValue({ currency: defaultCurrency?.code || defCurrencies[0]?.code });
+    // When account type changes in form, auto-set the currency
+    const handleAccountTypeChange = (accTypeValue: string) => {
+        const accDef = accountTypes.find(a => a.value === accTypeValue);
+        if (accDef) {
+            form.setFieldsValue({ currency: accDef.currency });
         }
-    }, [defCurrencies, modalOpen]);
+    };
 
     const openNew = () => {
         setEditing(null);
         form.resetFields();
-        form.setFieldsValue({ date: dayjs(), direction: 'IN', accountType: 'TL_CASH', currency: defaultCurrency?.code || 'TRY' });
+        const firstCash = accountTypes.find(a => a.type === 'cash');
+        form.setFieldsValue({
+            date: dayjs(),
+            direction: 'IN',
+            accountType: firstCash?.value || accountTypes[0]?.value || '',
+            currency: firstCash?.currency || defaultCurrency?.code || defCurrencies[0]?.code || 'TRY'
+        });
         setModalOpen(true);
     };
 
@@ -183,6 +209,19 @@ const KasaPage: React.FC = () => {
         return entries.filter(e => e.accountType === activeAccTab);
     }, [entries, activeAccTab]);
 
+    /* ─── Per-currency summary for filtered entries ─── */
+    const filteredTotalsByCurrency = useMemo(() => {
+        const result: Record<string, CurrencyTotals> = {};
+        filteredEntries.forEach(e => {
+            const cur = e.currency || 'TRY';
+            if (!result[cur]) result[cur] = { in: 0, out: 0, net: 0 };
+            if (e.direction === 'IN') result[cur].in += e.amount;
+            else result[cur].out += e.amount;
+            result[cur].net = result[cur].in - result[cur].out;
+        });
+        return result;
+    }, [filteredEntries]);
+
     /* ─── Table columns ─── */
     const columns = [
         {
@@ -215,7 +254,7 @@ const KasaPage: React.FC = () => {
         {
             title: 'Hesap', dataIndex: 'accountType', width: 130,
             render: (v: string) => {
-                const cfg = ACCOUNT_TYPES.find(a => a.value === v);
+                const cfg = accountTypes.find(a => a.value === v);
                 return cfg
                     ? <span style={{ fontSize: 12, color: cfg.color, fontWeight: 600 }}>{cfg.icon} {cfg.label}</span>
                     : <Text type="secondary">{v}</Text>;
@@ -249,73 +288,222 @@ const KasaPage: React.FC = () => {
         }
     ];
 
-    /* ─── Account Drawer Cards ─── */
+    // Build gradient from color
+    const buildGrad = (color: string) => `linear-gradient(135deg, ${color} 0%, ${color}cc 100%)`;
+
+    /* ─── Account Card ─── */
+    const renderSingleCard = (acc: AccountTypeDef) => {
+        const info = accounts[acc.value] || { balance: 0, in: 0, out: 0, color: acc.color };
+        const isActive = activeAccTab === acc.value;
+        return (
+            <Col key={acc.value} xs={12} sm={8} md={6} xl={3}>
+                <div
+                    style={{
+                        borderRadius: 16,
+                        background: buildGrad(info.color || acc.color),
+                        border: isActive ? '2px solid #fff' : '2px solid transparent',
+                        cursor: 'pointer',
+                        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                        boxShadow: isActive ? `0 8px 24px ${acc.color}50` : '0 4px 16px rgba(0,0,0,0.12)',
+                        padding: '14px 16px',
+                        transform: isActive ? 'scale(1.02)' : 'scale(1)',
+                        position: 'relative' as const,
+                        overflow: 'hidden',
+                    }}
+                    onClick={() => setActiveAccTab(isActive ? 'ALL' : acc.value)}
+                    onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)'; }}
+                    onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLElement).style.transform = 'scale(1)'; }}
+                >
+                    {/* Decorative circle */}
+                    <div style={{ position: 'absolute', top: -20, right: -20, width: 80, height: 80, borderRadius: '50%', background: 'rgba(255,255,255,0.08)' }} />
+                    <div style={{ position: 'absolute', bottom: -30, left: -10, width: 60, height: 60, borderRadius: '50%', background: 'rgba(255,255,255,0.05)' }} />
+
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6, position: 'relative', zIndex: 1 }}>
+                        <span style={{ fontSize: 22 }}>{acc.icon}</span>
+                        {isActive && <Badge count="●" style={{ background: 'transparent', color: '#fff', boxShadow: 'none', fontSize: 14 }} />}
+                    </div>
+                    <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.85)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', position: 'relative', zIndex: 1 }}>{acc.label}</div>
+                    <div style={{ fontSize: 18, fontWeight: 800, color: '#fff', fontFamily: 'monospace', marginTop: 4, letterSpacing: '-0.5px', position: 'relative', zIndex: 1 }}>
+                        {fmt(info.balance, acc.currency)}
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, position: 'relative', zIndex: 1 }}>
+                        <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.7)' }}>▲ {fmt(info.in, acc.currency)}</span>
+                        <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.7)' }}>▼ {fmt(info.out, acc.currency)}</span>
+                    </div>
+                </div>
+            </Col>
+        );
+    };
+
+    /* ─── Account Cards Section ─── */
     const renderAccountCards = () => (
-        <Row gutter={[12, 12]} style={{ marginBottom: 20 }}>
-            {ACCOUNT_TYPES.map(acc => {
-                const info = accounts[acc.value] || { balance: 0, in: 0, out: 0 };
-                return (
-                    <Col key={acc.value} xs={12} sm={8} md={6} xl={3}>
-                        <Card
-                            variant="borderless"
-                            style={{ borderRadius: 16, background: GRAD[acc.value], border: 'none', cursor: 'pointer', transition: 'transform 0.2s', boxShadow: '0 4px 16px rgba(0,0,0,0.12)' }}
-                            bodyStyle={{ padding: '14px 16px' }}
-                            onClick={() => setActiveAccTab(activeAccTab === acc.value ? 'ALL' : acc.value)}
-                            hoverable
-                        >
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                                <span style={{ fontSize: 20 }}>{acc.icon}</span>
-                                {activeAccTab === acc.value && <Badge count="●" style={{ background: 'transparent', color: '#fff', boxShadow: 'none', fontSize: 12 }} />}
-                            </div>
-                            <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.8)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{acc.label}</div>
-                            <div style={{ fontSize: 17, fontWeight: 800, color: '#fff', fontFamily: 'monospace', marginTop: 2, letterSpacing: '-0.5px' }}>
-                                {fmt(info.balance, acc.currency)}
-                            </div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
-                                <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.7)' }}>▲ {fmt(info.in, acc.currency)}</span>
-                                <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.7)' }}>▼ {fmt(info.out, acc.currency)}</span>
-                            </div>
-                        </Card>
-                    </Col>
-                );
-            })}
-        </Row>
+        <div style={{ marginBottom: 20 }}>
+            {/* Nakit Kasalar */}
+            {cashAccounts.length > 0 && (
+                <>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                        <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#16a34a' }} />
+                        <Text style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                            Nakit Kasalar
+                        </Text>
+                        <div style={{ flex: 1, height: 1, background: '#f0f0f0' }} />
+                    </div>
+                    <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
+                        {cashAccounts.map(acc => renderSingleCard(acc))}
+                    </Row>
+                </>
+            )}
+
+            {/* Banka Hesapları */}
+            {bankAccounts.length > 0 && (
+                <>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                        <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#2563eb' }} />
+                        <Text style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                            Banka Hesapları
+                        </Text>
+                        <div style={{ flex: 1, height: 1, background: '#f0f0f0' }} />
+                    </div>
+                    <Row gutter={[12, 12]}>
+                        {bankAccounts.map(acc => renderSingleCard(acc))}
+                    </Row>
+                </>
+            )}
+
+            {/* Hiç hesap yoksa uyarı */}
+            {accountTypes.length === 0 && !loading && (
+                <div style={{
+                    padding: '24px', textAlign: 'center', borderRadius: 12,
+                    background: '#fffbeb', border: '1px solid #fde68a', color: '#92400e'
+                }}>
+                    <Text style={{ fontSize: 13, fontWeight: 600, color: '#92400e' }}>
+                        Henüz hesap tanımlanmamış. Lütfen Sistem Tanımları'ndan para birimleri ekleyin veya Banka Yönetimi'nden hesap oluşturun.
+                    </Text>
+                </div>
+            )}
+        </div>
     );
 
-    /* ─── Summary Bar ─── */
+    /* ─── Summary Bar — per currency ─── */
     const renderSummaryBar = () => {
-        const absoluteNetKasa = Object.values(accounts).reduce((s, a) => s + (a.balance || 0), 0);
+        const displayTotals = activeAccTab === 'ALL' ? totalsByCurrency : filteredTotalsByCurrency;
+        const currencyKeys = Object.keys(displayTotals);
+
+        if (currencyKeys.length === 0) {
+            return (
+                <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
+                    <Col span={24}>
+                        <div style={{
+                            borderRadius: 12, background: '#f8fafc', border: '1px solid #e2e8f0',
+                            padding: '16px', textAlign: 'center'
+                        }}>
+                            <Text type="secondary">Seçilen dönemde işlem bulunamadı</Text>
+                        </div>
+                    </Col>
+                </Row>
+            );
+        }
 
         return (
-            <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
-                <Col xs={24} md={6}>
-                    <Card variant="borderless" style={{ borderRadius: 12, background: '#f0fdf4', border: '1px solid #bbf7d0' }} bodyStyle={{ padding: '12px 16px' }}>
-                        <div style={{ fontSize: 11, color: '#16a34a', fontWeight: 700, textTransform: 'uppercase' }}>Toplam Gelir</div>
-                        <div style={{ fontSize: 22, fontWeight: 800, color: '#16a34a', fontFamily: 'monospace' }}>+{fmt(totals.in)}</div>
-                    </Card>
-                </Col>
-                <Col xs={24} md={6}>
-                    <Card variant="borderless" style={{ borderRadius: 12, background: '#fef2f2', border: '1px solid #fca5a5' }} bodyStyle={{ padding: '12px 16px' }}>
-                        <div style={{ fontSize: 11, color: '#dc2626', fontWeight: 700, textTransform: 'uppercase' }}>Toplam Gider</div>
-                        <div style={{ fontSize: 22, fontWeight: 800, color: '#dc2626', fontFamily: 'monospace' }}>-{fmt(totals.out)}</div>
-                    </Card>
-                </Col>
-                <Col xs={24} md={6}>
-                    <Card variant="borderless" style={{ borderRadius: 12, background: absoluteNetKasa >= 0 ? '#eff6ff' : '#fef2f2', border: `1px solid ${absoluteNetKasa >= 0 ? '#bfdbfe' : '#fca5a5'}` }} bodyStyle={{ padding: '12px 16px' }}>
-                        <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: absoluteNetKasa >= 0 ? '#2563eb' : '#dc2626' }}>Net Kasa</div>
-                        <div style={{ fontSize: 22, fontWeight: 800, fontFamily: 'monospace', color: absoluteNetKasa >= 0 ? '#2563eb' : '#dc2626' }}>
-                            {absoluteNetKasa >= 0 ? '+' : ''}{fmt(absoluteNetKasa)}
+            <div style={{ marginBottom: 16 }}>
+                <Row gutter={[12, 12]}>
+                    {currencyKeys.map(cur => {
+                        const t = displayTotals[cur];
+                        return (
+                            <Col key={cur} xs={24} md={currencyKeys.length === 1 ? 24 : 12} lg={currencyKeys.length <= 2 ? 12 : 8}>
+                                <div style={{
+                                    borderRadius: 14,
+                                    background: 'linear-gradient(135deg, #ffffff 0%, #fafbfc 100%)',
+                                    border: '1px solid #e5e7eb',
+                                    padding: '16px 20px',
+                                    boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                                }}>
+                                    <div style={{
+                                        display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12,
+                                        paddingBottom: 10, borderBottom: '1px solid #f3f4f6'
+                                    }}>
+                                        <div style={{
+                                            width: 28, height: 28, borderRadius: 8,
+                                            background: 'linear-gradient(135deg, #6366f1, #818cf8)',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            fontSize: 12, color: '#fff', fontWeight: 800
+                                        }}>{cur.slice(0, 2)}</div>
+                                        <Text style={{ fontSize: 13, fontWeight: 800, color: '#374151' }}>{cur}</Text>
+                                    </div>
+                                    <div style={{ display: 'flex', gap: 16, justifyContent: 'space-between' }}>
+                                        <div>
+                                            <div style={{ fontSize: 10, fontWeight: 600, color: '#16a34a', textTransform: 'uppercase', marginBottom: 2 }}>Gelir</div>
+                                            <div style={{ fontSize: 16, fontWeight: 800, color: '#16a34a', fontFamily: 'monospace' }}>+{fmt(t.in, cur)}</div>
+                                        </div>
+                                        <div>
+                                            <div style={{ fontSize: 10, fontWeight: 600, color: '#dc2626', textTransform: 'uppercase', marginBottom: 2 }}>Gider</div>
+                                            <div style={{ fontSize: 16, fontWeight: 800, color: '#dc2626', fontFamily: 'monospace' }}>-{fmt(t.out, cur)}</div>
+                                        </div>
+                                        <div>
+                                            <div style={{ fontSize: 10, fontWeight: 600, color: t.net >= 0 ? '#2563eb' : '#dc2626', textTransform: 'uppercase', marginBottom: 2 }}>Net</div>
+                                            <div style={{ fontSize: 16, fontWeight: 800, color: t.net >= 0 ? '#2563eb' : '#dc2626', fontFamily: 'monospace' }}>
+                                                {t.net >= 0 ? '+' : ''}{fmt(t.net, cur)}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </Col>
+                        );
+                    })}
+                    <Col xs={24} md={currencyKeys.length === 1 ? 24 : 12} lg={currencyKeys.length <= 2 ? 12 : 8}>
+                        <div style={{
+                            borderRadius: 14,
+                            background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
+                            border: '1px solid #e2e8f0',
+                            padding: '16px 20px',
+                            boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                            height: '100%',
+                            display: 'flex', flexDirection: 'column' as const, justifyContent: 'center', alignItems: 'center',
+                        }}>
+                            <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#6b7280', marginBottom: 4 }}>Kayıt Sayısı</div>
+                            <div style={{ fontSize: 28, fontWeight: 800, color: '#111', fontFamily: 'monospace' }}>
+                                {filteredEntries.length}
+                            </div>
+                            <div style={{ fontSize: 10, color: '#9ca3af', marginTop: 2 }}>{currencyKeys.length} para birimi</div>
                         </div>
-                    </Card>
-                </Col>
-                <Col xs={24} md={6}>
-                    <Card variant="borderless" style={{ borderRadius: 12, background: '#f8fafc', border: '1px solid #e2e8f0' }} bodyStyle={{ padding: '12px 16px' }}>
-                        <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: '#6b7280' }}>Kayıt Sayısı</div>
-                        <div style={{ fontSize: 22, fontWeight: 800, color: '#111' }}>{entries.length}</div>
-                    </Card>
-                </Col>
-            </Row>
-        )
+                    </Col>
+                </Row>
+            </div>
+        );
+    };
+
+    /* ─── Table summary footer — per currency ─── */
+    const renderTableSummary = () => {
+        const currencies = Object.keys(filteredTotalsByCurrency);
+        if (currencies.length === 0) return null;
+
+        return (
+            <Table.Summary fixed>
+                <Table.Summary.Row style={{ background: '#f8fafc', fontWeight: 700 }}>
+                    <Table.Summary.Cell index={0} colSpan={3}>
+                        <Text strong>TOPLAM ({filteredEntries.length} kayıt)</Text>
+                    </Table.Summary.Cell>
+                    <Table.Summary.Cell index={3} align="right">
+                        <div>
+                            {currencies.map(cur => {
+                                const t = filteredTotalsByCurrency[cur];
+                                return (
+                                    <div key={cur} style={{ marginBottom: currencies.length > 1 ? 4 : 0 }}>
+                                        <div style={{ color: '#16a34a', fontFamily: 'monospace', fontSize: 12 }}>
+                                            +{fmt(t.in, cur)}
+                                        </div>
+                                        <div style={{ color: '#dc2626', fontFamily: 'monospace', fontSize: 12 }}>
+                                            -{fmt(t.out, cur)}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </Table.Summary.Cell>
+                    <Table.Summary.Cell index={4} colSpan={5} />
+                </Table.Summary.Row>
+            </Table.Summary>
+        );
     };
 
     if (loading) return (
@@ -337,7 +525,12 @@ const KasaPage: React.FC = () => {
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
                         <div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                                <div style={{ width: 48, height: 48, borderRadius: 14, background: 'linear-gradient(135deg,#16a34a,#4ade80)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, boxShadow: '0 4px 16px rgba(22,163,74,0.3)' }}>
+                                <div style={{
+                                    width: 48, height: 48, borderRadius: 14,
+                                    background: 'linear-gradient(135deg,#16a34a,#4ade80)',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    fontSize: 22, boxShadow: '0 4px 16px rgba(22,163,74,0.3)'
+                                }}>
                                     💵
                                 </div>
                                 <div>
@@ -376,11 +569,20 @@ const KasaPage: React.FC = () => {
                             <Select
                                 allowClear
                                 placeholder="Hesap tipi"
-                                style={{ width: 170, borderRadius: 8 }}
+                                style={{ width: 200, borderRadius: 8 }}
                                 value={filterAccount || undefined}
                                 onChange={v => setFilterAccount(v || '')}
                             >
-                                {ACCOUNT_TYPES.map(a => <Option key={a.value} value={a.value}>{a.icon} {a.label}</Option>)}
+                                {cashAccounts.length > 0 && (
+                                    <Select.OptGroup label="💵 Nakit Kasalar">
+                                        {cashAccounts.map(a => <Option key={a.value} value={a.value}>{a.icon} {a.label}</Option>)}
+                                    </Select.OptGroup>
+                                )}
+                                {bankAccounts.length > 0 && (
+                                    <Select.OptGroup label="🏦 Banka Hesapları">
+                                        {bankAccounts.map(a => <Option key={a.value} value={a.value}>{a.icon} {a.label}</Option>)}
+                                    </Select.OptGroup>
+                                )}
                             </Select>
                             <Select
                                 allowClear
@@ -399,13 +601,13 @@ const KasaPage: React.FC = () => {
                                     style={{ borderRadius: 8, fontWeight: 600, padding: '4px 10px' }}
                                     color="blue"
                                 >
-                                    {ACCOUNT_TYPES.find(a => a.value === activeAccTab)?.label} filtresi
+                                    {accountTypes.find(a => a.value === activeAccTab)?.label} filtresi
                                 </Tag>
                             )}
                         </div>
                     </Card>
 
-                    {/* Summary Bar */}
+                    {/* Summary Bar — Per Currency */}
                     {renderSummaryBar()}
 
                     {/* Unified Ledger */}
@@ -420,7 +622,7 @@ const KasaPage: React.FC = () => {
                                 <Badge count={filteredEntries.length} color="#16a34a" />
                                 {activeAccTab !== 'ALL' && (
                                     <Tag color="blue" style={{ borderRadius: 6, fontSize: 11 }}>
-                                        {ACCOUNT_TYPES.find(a => a.value === activeAccTab)?.label}
+                                        {accountTypes.find(a => a.value === activeAccTab)?.label}
                                     </Tag>
                                 )}
                             </div>
@@ -436,22 +638,7 @@ const KasaPage: React.FC = () => {
                             pagination={{ pageSize: 25, showSizeChanger: true, showTotal: t => `${t} kayıt` }}
                             rowClassName={(r: KasaEntry) => r.direction === 'IN' ? 'row-income' : 'row-expense'}
                             locale={{ emptyText: <Empty description="Kayıt yok. Hesap seçin veya tarih aralığını değiştirin." /> }}
-                            summary={() => (
-                                <Table.Summary fixed>
-                                    <Table.Summary.Row style={{ background: '#f8fafc', fontWeight: 700 }}>
-                                        <Table.Summary.Cell index={0} colSpan={3}>
-                                            <Text strong>TOPLAM ({filteredEntries.length} kayıt)</Text>
-                                        </Table.Summary.Cell>
-                                        <Table.Summary.Cell index={3} align="right">
-                                            <div>
-                                                <div style={{ color: '#16a34a', fontFamily: 'monospace' }}>+{fmt(filteredEntries.filter(e => e.direction === 'IN').reduce((s, e) => s + e.amount, 0))}</div>
-                                                <div style={{ color: '#dc2626', fontFamily: 'monospace' }}>-{fmt(filteredEntries.filter(e => e.direction === 'OUT').reduce((s, e) => s + e.amount, 0))}</div>
-                                            </div>
-                                        </Table.Summary.Cell>
-                                        <Table.Summary.Cell index={4} colSpan={5} />
-                                    </Table.Summary.Row>
-                                </Table.Summary>
-                            )}
+                            summary={() => renderTableSummary()}
                         />
                     </Card>
                 </div>
@@ -490,8 +677,17 @@ const KasaPage: React.FC = () => {
                             </Col>
                             <Col xs={24} md={12}>
                                 <Form.Item name="accountType" label="Hesap / Kasa" rules={[{ required: true }]}>
-                                    <Select size="large" style={{ borderRadius: 8 }}>
-                                        {ACCOUNT_TYPES.map(a => <Option key={a.value} value={a.value}>{a.icon} {a.label}</Option>)}
+                                    <Select size="large" style={{ borderRadius: 8 }} onChange={handleAccountTypeChange}>
+                                        {cashAccounts.length > 0 && (
+                                            <Select.OptGroup label="💵 Nakit Kasalar">
+                                                {cashAccounts.map(a => <Option key={a.value} value={a.value}>{a.icon} {a.label} ({a.currency})</Option>)}
+                                            </Select.OptGroup>
+                                        )}
+                                        {bankAccounts.length > 0 && (
+                                            <Select.OptGroup label="🏦 Banka Hesapları">
+                                                {bankAccounts.map(a => <Option key={a.value} value={a.value}>{a.icon} {a.label} ({a.currency})</Option>)}
+                                            </Select.OptGroup>
+                                        )}
                                     </Select>
                                 </Form.Item>
                             </Col>

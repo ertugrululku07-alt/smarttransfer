@@ -22,6 +22,119 @@ async function saveTenantMeta(tenantId, meta) {
     await prisma.tenant.update({ where: { id: tenantId }, data: { metadata: meta } });
 }
 
+/* ─── Legacy key mapping ─────────────────────── */
+const LEGACY_KEY_MAP = {
+    'TL_CASH': 'CASH_TRY',
+    'USD_CASH': 'CASH_USD',
+    'EUR_CASH': 'CASH_EUR',
+    'GBP_CASH': 'CASH_GBP',
+};
+
+function normAccountType(key) {
+    return LEGACY_KEY_MAP[key] || key;
+}
+
+/* ─── Dynamic account types builder ──────────── */
+// Well-known currency icons — any unknown currency gets a generic 💰 icon
+const KNOWN_ICONS = { TRY: '💵', USD: '🇺🇸', EUR: '🇪🇺', GBP: '🇬🇧', CHF: '🇨🇭', JPY: '🇯🇵', RUB: '🇷🇺', AED: '🇦🇪', SAR: '🇸🇦', NOK: '🇳🇴', SEK: '🇸🇪', DKK: '🇩🇰', CAD: '🇨🇦', AUD: '🇦🇺' };
+function getCashIcon(code) { return KNOWN_ICONS[code] || '💰'; }
+
+// Dynamic color palette — assigned by index for unknown currencies
+const CASH_COLOR_PALETTE = ['#16a34a', '#2563eb', '#7c3aed', '#0891b2', '#d97706', '#dc2626', '#059669', '#b45309', '#6366f1', '#9333ea'];
+function getCashColor(code, idx) {
+    const known = { TRY: '#16a34a', USD: '#2563eb', EUR: '#7c3aed', GBP: '#0891b2' };
+    return known[code] || CASH_COLOR_PALETTE[idx % CASH_COLOR_PALETTE.length];
+}
+const BANK_COLORS = ['#d97706', '#dc2626', '#9333ea', '#0891b2', '#6366f1', '#059669', '#0d9488', '#b45309'];
+
+async function buildDynamicAccountTypes(tenantId) {
+    // 1. Get currencies from tenant settings
+    const tenant = await prisma.tenant.findUnique({
+        where: { id: tenantId },
+        select: { settings: true }
+    });
+    const defs = tenant?.settings?.definitions || {};
+    const currencies = defs.currencies || [];
+
+    // 2. Get banks with their accounts
+    const banks = await prisma.bank.findMany({
+        where: { tenantId },
+        include: { accounts: true },
+        orderBy: { createdAt: 'asc' }
+    });
+
+    const accountTypes = [];
+
+    // Cash registers — one per defined currency (fully dynamic)
+    currencies.forEach((cur, idx) => {
+        accountTypes.push({
+            value: `CASH_${cur.code}`,
+            label: `${cur.code} Kasa`,
+            currency: cur.code,
+            symbol: cur.symbol || cur.code,
+            icon: getCashIcon(cur.code),
+            color: getCashColor(cur.code, idx),
+            type: 'cash'
+        });
+    });
+
+    // Bank accounts — one per bank account
+    let bankColorIdx = 0;
+    banks.forEach(bank => {
+        (bank.accounts || []).forEach(acc => {
+            accountTypes.push({
+                value: `BANK_${acc.id}`,
+                label: `${bank.name} ${acc.accountName}`,
+                currency: acc.currency || 'TRY',
+                icon: '🏦',
+                color: BANK_COLORS[bankColorIdx % BANK_COLORS.length],
+                type: 'bank',
+                bankId: bank.id,
+                bankAccountId: acc.id
+            });
+            bankColorIdx++;
+        });
+    });
+
+    return accountTypes;
+}
+
+/* Build a legacy→dynamic mapping for a tenant (for auto-entries using BANK_TRY etc.) */
+async function buildLegacyBankMapping(tenantId) {
+    const banks = await prisma.bank.findMany({
+        where: { tenantId },
+        include: { accounts: true },
+        orderBy: { createdAt: 'asc' }
+    });
+
+    const map = {}; // e.g. { BANK_TRY: 'BANK_<uuid>', BANK_USD: 'BANK_<uuid>' }
+    const allAccounts = [];
+    banks.forEach(b => (b.accounts || []).forEach(a => allAccounts.push(a)));
+
+    // Map old BANK_<CUR> keys to first matching bank account
+    ['TRY', 'USD', 'EUR', 'GBP'].forEach(cur => {
+        const acc = allAccounts.find(a => (a.currency || 'TRY') === cur);
+        if (acc) map[`BANK_${cur}`] = `BANK_${acc.id}`;
+    });
+
+    // CREDIT_CARD → first bank account tagged as credit card (by name containing 'kredi' or 'credit'), or first TRY bank account
+    const ccAcc = allAccounts.find(a => (a.accountName || '').toLowerCase().includes('kredi') || (a.accountName || '').toLowerCase().includes('credit'));
+    if (ccAcc) map['CREDIT_CARD'] = `BANK_${ccAcc.id}`;
+    else if (allAccounts.length > 0) map['CREDIT_CARD'] = `BANK_${allAccounts[0].id}`;
+
+    return map;
+}
+
+/* Resolve any entry's accountType into a dynamic key */
+function resolveAccountType(key, legacyBankMap) {
+    // 1. Direct legacy cash mapping
+    if (LEGACY_KEY_MAP[key]) return LEGACY_KEY_MAP[key];
+    // 2. Legacy bank mapping
+    if (legacyBankMap && legacyBankMap[key]) return legacyBankMap[key];
+    // 3. Already a dynamic key
+    return key;
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // GET /api/kasa/summary
 // Returns totals per account type
@@ -156,30 +269,45 @@ router.get('/entries', authMiddleware, async (req, res) => {
         dateTo.setHours(23, 59, 59, 999);
 
         const meta = await getTenantMeta(tenantId);
+        
+        // Get dynamic types and mappings for converting legacy keys
+        const dynamicTypes = await buildDynamicAccountTypes(tenantId);
+        const legacyBankMap = await buildLegacyBankMapping(tenantId);
+        
+        // Get default currency
+        const tenant = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { settings: true } });
+        const defs = tenant?.settings?.definitions || {};
+        const defCurrencies = defs.currencies || [];
+        const defaultCur = (defCurrencies.find(c => c.isDefault) || defCurrencies[0])?.code || 'TRY';
 
-        // 1. Manual Kasa Entries
+        // 1. Manual Kasa Entries (resolve legacy keys)
         let rows = (meta.kasaEntries || [])
             .filter(e => {
                 const d = new Date(e.date);
                 return d >= dateFrom && d <= dateTo;
             })
-            .map(e => ({ ...e, source: 'MANUAL' }));
+            .map(e => ({ 
+                ...e, 
+                source: 'MANUAL',
+                accountType: resolveAccountType(e.accountType || `CASH_${defaultCur}`, legacyBankMap)
+            }));
 
-        // 2. Bookings (AUTO)
+        // 2. Bookings (AUTO) → Dynamic: CASH_<currency>
         const bookings = await prisma.booking.findMany({
             where: { tenantId, createdAt: { gte: dateFrom, lte: dateTo }, status: { not: 'CANCELLED' } },
             select: { id: true, bookingNumber: true, total: true, currency: true, paymentStatus: true, contactName: true, createdAt: true, metadata: true }
         });
         bookings.forEach(b => {
+            const cur = b.currency || defaultCur;
             rows.push({
                 id: `booking-${b.id}`,
                 source: 'BOOKING',
                 direction: 'IN',
                 date: b.createdAt.toISOString(),
                 amount: Number(b.total || 0),
-                currency: b.currency || 'TRY',
-                accountType: 'TL_CASH',
-                accountCurrency: b.currency || 'TRY',
+                currency: cur,
+                accountType: `CASH_${cur}`,
+                accountCurrency: cur,
                 description: `Transfer Rezervasyonu: ${b.bookingNumber}`,
                 category: 'DIRECT_SALE',
                 counterpart: b.contactName,
@@ -189,22 +317,23 @@ router.get('/entries', authMiddleware, async (req, res) => {
             });
         });
 
-        // 3. Approved Sales Invoices (AUTO)
+        // 3. Approved Sales Invoices (AUTO) → Dynamic: CASH_<currency>
         const invoices = (meta.invoices || [])
             .filter(inv => {
                 const d = new Date(inv.invoiceDate || inv.createdAt);
                 return inv.status === 'APPROVED' && inv.invoiceType === 'SALES' && d >= dateFrom && d <= dateTo;
             });
         invoices.forEach(inv => {
+            const cur = inv.currency || defaultCur;
             rows.push({
                 id: `invoice-${inv.id}`,
                 source: 'INVOICE',
                 direction: 'IN',
                 date: inv.invoiceDate || inv.createdAt,
                 amount: Number(inv.grandTotal || 0),
-                currency: inv.currency || 'TRY',
-                accountType: 'TL_CASH',
-                accountCurrency: inv.currency || 'TRY',
+                currency: cur,
+                accountType: `CASH_${cur}`,
+                accountCurrency: cur,
                 description: `${inv.invoiceNo} — Onaylı Satış Faturası`,
                 category: 'INVOICE_PAYMENT',
                 counterpart: inv.buyerInfo?.companyName || inv.buyerInfo?.fullName,
@@ -249,16 +378,17 @@ router.get('/entries', authMiddleware, async (req, res) => {
                     const pId = rawId.replace('personnel-', '');
                     counterpart = 'Personel Cari: ' + (personnelMap[pId] || pId);
                 }
-
+                
+                const cur = tx.currency || defaultCur;
                 rows.push({
                     id: `tx-${tx.id}`,
                     source,
                     direction: tx.isCredit ? 'IN' : 'OUT',
                     date: tx.date,
                     amount: Number(tx.amount || 0),
-                    currency: tx.currency || 'TRY',
-                    accountType: 'TL_CASH',
-                    accountCurrency: tx.currency || 'TRY',
+                    currency: cur,
+                    accountType: `CASH_${cur}`,
+                    accountCurrency: cur,
                     description: tx.description || 'Cari Hesap İşlemi',
                     category: tx.type === 'SALARY' ? 'Maaş/Avans' : 'Tahsilat/Tediye',
                     counterpart: counterpart,
@@ -268,7 +398,7 @@ router.get('/entries', authMiddleware, async (req, res) => {
             });
         } catch (_) { }
 
-        // 4.5. Agency Deposits (AUTO)
+        // 4.5. Agency Deposits (AUTO) → Dynamic: find bank account matching currency, fallback to cash
         try {
             const agDeposits = await prisma.agencyDeposit.findMany({
                 where: {
@@ -283,15 +413,18 @@ router.get('/entries', authMiddleware, async (req, res) => {
             });
 
             agDeposits.forEach(dep => {
+                const cur = dep.currency || defaultCur;
+                // Try to find a bank account for this currency
+                const bankAcc = dynamicTypes.find(t => t.type === 'bank' && t.currency === cur);
                 rows.push({
                     id: `ag-dep-${dep.id}`,
                     source: 'AGENCY',
-                    direction: 'IN', // Deposit from agency to us
+                    direction: 'IN',
                     date: dep.updatedAt || dep.createdAt,
                     amount: Number(dep.amount || 0),
-                    currency: dep.currency || 'TRY',
-                    accountType: 'BANK_TRY', // Assuming bank transfer usually
-                    accountCurrency: dep.currency || 'TRY',
+                    currency: cur,
+                    accountType: bankAcc ? bankAcc.value : `CASH_${cur}`,
+                    accountCurrency: cur,
                     description: `Acente Depozitosu (Banka / EFT)`,
                     category: 'Acente Depozitosu',
                     counterpart: dep.agency?.name || dep.agency?.companyName || 'Acente',
@@ -312,53 +445,53 @@ router.get('/entries', authMiddleware, async (req, res) => {
                 const tr = v.metadata?.tracking || {};
                 const vName = `${v.plateNumber} - ${v.brand} ${v.model}`;
 
-                // Fuel
+                // Fuel → Default cash
                 (tr.fuel || []).filter(f => {
                     const d = new Date(f.date); return d >= dateFrom && d <= dateTo;
                 }).forEach(f => {
                     rows.push({
                         id: `v-fuel-${f.id}`, source: 'MANUAL', direction: 'OUT',
-                        date: f.date, amount: Number(f.totalCost || 0), currency: 'TRY', // Default tracking currency
-                        accountType: 'TL_CASH', accountCurrency: 'TRY',
+                        date: f.date, amount: Number(f.totalCost || 0), currency: defaultCur,
+                        accountType: `CASH_${defaultCur}`, accountCurrency: defaultCur,
                         description: `Yakıt Alımı (${f.liters}L) - ${f.station || ''}`, category: 'Yakıt',
                         counterpart: vName, readonly: true
                     });
                 });
 
-                // Maintenance
+                // Maintenance → Default cash
                 (tr.maintenance || []).filter(m => {
                     const d = new Date(m.date); return d >= dateFrom && d <= dateTo;
                 }).forEach(m => {
                     rows.push({
                         id: `v-maint-${m.id}`, source: 'MANUAL', direction: 'OUT',
-                        date: m.date, amount: Number(m.cost || 0), currency: 'TRY',
-                        accountType: 'TL_CASH', accountCurrency: 'TRY',
+                        date: m.date, amount: Number(m.cost || 0), currency: defaultCur,
+                        accountType: `CASH_${defaultCur}`, accountCurrency: defaultCur,
                         description: `Araç Bakım/Onarım: ${m.type || m.description || ''}`, category: 'Bakım-Onarım',
                         counterpart: vName, readonly: true
                     });
                 });
 
-                // Insurance
+                // Insurance → Default cash
                 (tr.insurance || []).filter(i => {
                     const d = new Date(i.startDate); return d >= dateFrom && d <= dateTo;
                 }).forEach(i => {
                     rows.push({
                         id: `v-ins-${i.id}`, source: 'MANUAL', direction: 'OUT',
-                        date: i.startDate, amount: Number(i.cost || 0), currency: 'TRY',
-                        accountType: 'TL_CASH', accountCurrency: 'TRY',
+                        date: i.startDate, amount: Number(i.cost || 0), currency: defaultCur,
+                        accountType: `CASH_${defaultCur}`, accountCurrency: defaultCur,
                         description: `Araç Sigortası/Kasko: ${i.company || ''}`, category: 'Vergi/Sigorta',
                         counterpart: vName, readonly: true
                     });
                 });
 
-                // Inspection
+                // Inspection → Default cash
                 (tr.inspection || []).filter(i => {
                     const d = new Date(i.date); return d >= dateFrom && d <= dateTo;
                 }).forEach(i => {
                     rows.push({
                         id: `v-insp-${i.id}`, source: 'MANUAL', direction: 'OUT',
-                        date: i.date, amount: Number(i.cost || 0), currency: 'TRY',
-                        accountType: 'TL_CASH', accountCurrency: 'TRY',
+                        date: i.date, amount: Number(i.cost || 0), currency: defaultCur,
+                        accountType: `CASH_${defaultCur}`, accountCurrency: defaultCur,
                         description: `Araç Muayenesi - ${i.station || ''}`, category: 'Vergi/Sigorta',
                         counterpart: vName, readonly: true
                     });
@@ -378,16 +511,27 @@ router.get('/entries', authMiddleware, async (req, res) => {
         const start = (Number(page) - 1) * Number(limit);
         const paginated = rows.slice(start, start + Number(limit));
 
-        // Calculate running totals
+        // Calculate running totals — per currency
         let totalIn = rows.filter(r => r.direction === 'IN').reduce((s, r) => s + r.amount, 0);
         let totalOut = rows.filter(r => r.direction === 'OUT').reduce((s, r) => s + r.amount, 0);
+
+        // Per-currency breakdown
+        const byCurrency = {};
+        rows.forEach(r => {
+            const cur = r.currency || defaultCur;
+            if (!byCurrency[cur]) byCurrency[cur] = { in: 0, out: 0, net: 0 };
+            if (r.direction === 'IN') byCurrency[cur].in += r.amount;
+            else byCurrency[cur].out += r.amount;
+            byCurrency[cur].net = byCurrency[cur].in - byCurrency[cur].out;
+        });
 
         res.json({
             success: true,
             data: {
                 entries: paginated,
                 pagination: { total, page: Number(page), limit: Number(limit), pages: Math.ceil(total / Number(limit)) },
-                totals: { in: totalIn, out: totalOut, net: totalIn - totalOut }
+                totals: { in: totalIn, out: totalOut, net: totalIn - totalOut },
+                totalsByCurrency: byCurrency
             }
         });
     } catch (e) {
@@ -513,8 +657,22 @@ router.delete('/entries/:id', authMiddleware, async (req, res) => {
 });
 
 // ────────────────────────────────────────────────────────────────────────────
+// GET /api/kasa/account-types
+// Returns dynamically built account types from currencies + bank accounts
+// ────────────────────────────────────────────────────────────────────────────
+router.get('/account-types', authMiddleware, async (req, res) => {
+    try {
+        const types = await buildDynamicAccountTypes(req.user.tenantId);
+        res.json({ success: true, data: types });
+    } catch (e) {
+        console.error('Account types error:', e);
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+// ────────────────────────────────────────────────────────────────────────────
 // GET /api/kasa/accounts
-// Returns "drawers": TL_CASH, USD_CASH, EUR_CASH, BANK_TRY, BANK_USD, BANK_EUR, CREDIT_CARD
+// Returns dynamic "drawers" built from tenant currencies + bank accounts
 // Each shows its running balance from all mixed sources
 // ────────────────────────────────────────────────────────────────────────────
 router.get('/accounts', authMiddleware, async (req, res) => {
@@ -522,26 +680,45 @@ router.get('/accounts', authMiddleware, async (req, res) => {
         const { tenantId } = req.user;
         const meta = await getTenantMeta(tenantId);
 
+        // Build dynamic account types
+        const dynamicTypes = await buildDynamicAccountTypes(tenantId);
+        const legacyBankMap = await buildLegacyBankMapping(tenantId);
+
+        // Get default currency from tenant settings
+        const tenant = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { settings: true } });
+        const defs = tenant?.settings?.definitions || {};
+        const defCurrencies = defs.currencies || [];
+        const defaultCur = (defCurrencies.find(c => c.isDefault) || defCurrencies[0])?.code || 'TRY';
+
+        // Initialize accounts from dynamic types
+        const accounts = {};
+        dynamicTypes.forEach(t => {
+            accounts[t.value] = { label: t.label, currency: t.currency, icon: t.icon, color: t.color, type: t.type, balance: 0, in: 0, out: 0 };
+        });
+
         let allEntries = [];
 
-        // 1. Manual Kasa Entries
+        // 1. Manual Kasa Entries (resolve legacy keys)
         (meta.kasaEntries || []).forEach(e => {
-            allEntries.push({ accountType: e.accountType, direction: e.direction, amount: Number(e.amount || 0) });
+            const resolved = resolveAccountType(e.accountType || 'CASH_' + defaultCur, legacyBankMap);
+            allEntries.push({ accountType: resolved, direction: e.direction, amount: Number(e.amount || 0) });
         });
 
-        // 2. Bookings (AUTO)
+        // 2. Bookings (AUTO) → goes to CASH_<booking.currency>
         const bookings = await prisma.booking.findMany({
             where: { tenantId, status: { not: 'CANCELLED' } },
-            select: { total: true }
+            select: { total: true, currency: true }
         });
         bookings.forEach(b => {
-            allEntries.push({ accountType: 'TL_CASH', direction: 'IN', amount: Number(b.total || 0) });
+            const cur = b.currency || defaultCur;
+            allEntries.push({ accountType: `CASH_${cur}`, direction: 'IN', amount: Number(b.total || 0) });
         });
 
         // 3. Approved Sales Invoices (AUTO)
         const invoices = (meta.invoices || []).filter(inv => inv.status === 'APPROVED' && inv.invoiceType === 'SALES');
         invoices.forEach(inv => {
-            allEntries.push({ accountType: 'TL_CASH', direction: 'IN', amount: Number(inv.grandTotal || 0) });
+            const cur = inv.currency || defaultCur;
+            allEntries.push({ accountType: `CASH_${cur}`, direction: 'IN', amount: Number(inv.grandTotal || 0) });
         });
 
         // 4. Global Transactions
@@ -552,48 +729,39 @@ router.get('/accounts', authMiddleware, async (req, res) => {
             }
         });
         txs.forEach(tx => {
-            allEntries.push({ accountType: 'TL_CASH', direction: tx.isCredit ? 'IN' : 'OUT', amount: Number(tx.amount || 0) });
+            const cur = tx.currency || defaultCur;
+            allEntries.push({ accountType: `CASH_${cur}`, direction: tx.isCredit ? 'IN' : 'OUT', amount: Number(tx.amount || 0) });
         });
 
-        // 4.5. Agency Deposits
+        // 4.5. Agency Deposits → first bank account matching currency, or cash
         const agDeposits = await prisma.agencyDeposit.findMany({
-            where: {
-                tenantId,
-                status: 'APPROVED'
-            },
-            select: { amount: true }
+            where: { tenantId, status: 'APPROVED' },
+            select: { amount: true, currency: true }
         });
         agDeposits.forEach(dep => {
-            allEntries.push({ accountType: 'BANK_TRY', direction: 'IN', amount: Number(dep.amount || 0) });
+            const cur = dep.currency || defaultCur;
+            // Try to find a bank account for this currency
+            const bankAcc = dynamicTypes.find(t => t.type === 'bank' && t.currency === cur);
+            allEntries.push({ accountType: bankAcc ? bankAcc.value : `CASH_${cur}`, direction: 'IN', amount: Number(dep.amount || 0) });
         });
 
-        // 5. Vehicle Tracking Expenses
+        // 5. Vehicle Tracking Expenses → default cash
         const vehicles = await prisma.vehicle.findMany({
             where: { tenantId },
             select: { metadata: true }
         });
         vehicles.forEach(v => {
             const tr = v.metadata?.tracking || {};
-            (tr.fuel || []).forEach(f => allEntries.push({ accountType: 'TL_CASH', direction: 'OUT', amount: Number(f.totalCost || 0) }));
-            (tr.maintenance || []).forEach(m => allEntries.push({ accountType: 'TL_CASH', direction: 'OUT', amount: Number(m.cost || 0) }));
-            (tr.insurance || []).forEach(i => allEntries.push({ accountType: 'TL_CASH', direction: 'OUT', amount: Number(i.cost || 0) }));
-            (tr.inspection || []).forEach(i => allEntries.push({ accountType: 'TL_CASH', direction: 'OUT', amount: Number(i.cost || 0) }));
+            (tr.fuel || []).forEach(f => allEntries.push({ accountType: `CASH_${defaultCur}`, direction: 'OUT', amount: Number(f.totalCost || 0) }));
+            (tr.maintenance || []).forEach(m => allEntries.push({ accountType: `CASH_${defaultCur}`, direction: 'OUT', amount: Number(m.cost || 0) }));
+            (tr.insurance || []).forEach(i => allEntries.push({ accountType: `CASH_${defaultCur}`, direction: 'OUT', amount: Number(i.cost || 0) }));
+            (tr.inspection || []).forEach(i => allEntries.push({ accountType: `CASH_${defaultCur}`, direction: 'OUT', amount: Number(i.cost || 0) }));
         });
 
-        const accounts = {
-            TL_CASH: { label: 'TL Kasa', currency: 'TRY', icon: '💵', balance: 0, in: 0, out: 0 },
-            USD_CASH: { label: 'Dolar Kasa', currency: 'USD', icon: '🇺🇸', balance: 0, in: 0, out: 0 },
-            EUR_CASH: { label: 'Euro Kasa', currency: 'EUR', icon: '🇪🇺', balance: 0, in: 0, out: 0 },
-            GBP_CASH: { label: 'Sterlin Kasa', currency: 'GBP', icon: '🇬🇧', balance: 0, in: 0, out: 0 },
-            BANK_TRY: { label: 'Banka TL', currency: 'TRY', icon: '🏦', balance: 0, in: 0, out: 0 },
-            BANK_USD: { label: 'Banka Dolar', currency: 'USD', icon: '🏦', balance: 0, in: 0, out: 0 },
-            BANK_EUR: { label: 'Banka Euro', currency: 'EUR', icon: '🏦', balance: 0, in: 0, out: 0 },
-            CREDIT_CARD: { label: 'Kredi Kartı', currency: 'TRY', icon: '💳', balance: 0, in: 0, out: 0 },
-        };
-
+        // Aggregate
         allEntries.forEach(e => {
             const acc = accounts[e.accountType];
-            if (!acc) return;
+            if (!acc) return; // unknown account type, skip
             if (e.direction === 'IN') {
                 acc.in += e.amount;
                 acc.balance += e.amount;
@@ -605,6 +773,7 @@ router.get('/accounts', authMiddleware, async (req, res) => {
 
         res.json({ success: true, data: accounts });
     } catch (e) {
+        console.error('Kasa accounts error:', e);
         res.status(500).json({ success: false, error: e.message });
     }
 });
