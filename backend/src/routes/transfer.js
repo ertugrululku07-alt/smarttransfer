@@ -371,7 +371,7 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
         let detectedBaseLocation = null;
         // Use RAW pickup text (not normalized) so that airport words like 'havalimanı' are preserved for detection
         const pickupTextRaw = pickup.toLowerCase();
-        
+        let bestMatchScore = 0;
         let bestMatchLength = 0;
         
         // 1. Detect Base Location for Pricing
@@ -380,29 +380,22 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
         for (const hub of hubs) {
             const keys = hub.keywords ? hub.keywords.split(',').map(k => k.trim().toLowerCase()).filter(k => k) : [];
             keys.push(hub.code.toLowerCase());
-            // NOTE: Do NOT auto-generate keys from hub.name as it produces generic words like 'antalya'
-            // that conflict between airport hubs and city hubs. Admin should set explicit keywords.
             
             // Add robust aliases — airport-specific words only for AYT to avoid city name conflicts
             if (hub.code === 'GZP') keys.push('gazipaşa', 'gazipasa');
             if (hub.code === 'AYT') keys.push('havalimanı', 'havalimani', 'airport', 'havaalani');
             
             for (const k of keys) {
-                if (pickupTextRaw.includes(k) && k.length >= bestMatchLength) {
-                    // Give priority to specific airports over generic city names
-                    if (k.includes('gazipaşa') || k.includes('gazipasa') || k.includes('gzp')) {
-                         detectedBaseLocation = 'GZP';
-                         originalPickupHubCode = 'GZP';
-                         bestMatchLength = 999; // Max priority
-                    } else if (k.includes('havalimanı') || k.includes('havalimani') || k.includes('airport') || k.includes('havaalani') || k === 'ayt') {
-                        // Airport-specific keyword: highest priority
+                if (pickupTextRaw.includes(k)) {
+                    let score = 1;
+                    if (k.includes('gazipaşa') || k.includes('gazipasa') || k.includes('gzp')) score = 3;
+                    else if (k.includes('havalimanı') || k.includes('havalimani') || k.includes('airport') || k.includes('havaalani') || k === 'ayt') score = 2;
+                    
+                    if (score > bestMatchScore || (score === bestMatchScore && k.length > bestMatchLength)) {
                         detectedBaseLocation = hub.code;
                         originalPickupHubCode = hub.code;
-                        bestMatchLength = 998;
-                    } else {
-                         detectedBaseLocation = hub.code;
-                         originalPickupHubCode = hub.code;
-                         bestMatchLength = k.length;
+                        bestMatchScore = score;
+                        bestMatchLength = k.length;
                     }
                 }
             }
@@ -411,6 +404,7 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
         // Also detect from dropoff (for city→airport transfers)
         let detectedDropoffBase = null;
         const dropoffTextRaw = dropoff.toLowerCase();
+        let bestDropoffScore = 0;
         let bestDropoffMatchLength = 0;
         for (const hub of hubs) {
             const keys = hub.keywords ? hub.keywords.split(',').map(k => k.trim().toLowerCase()).filter(k => k) : [];
@@ -418,13 +412,15 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
             if (hub.code === 'GZP') keys.push('gazipaşa', 'gazipasa');
             if (hub.code === 'AYT') keys.push('havalimanı', 'havalimani', 'airport', 'havaalani');
             for (const k of keys) {
-                if (dropoffTextRaw.includes(k) && k.length >= bestDropoffMatchLength) {
-                    if (k.includes('gazipaşa') || k.includes('gazipasa') || k.includes('gzp')) {
-                        detectedDropoffBase = 'GZP'; bestDropoffMatchLength = 999;
-                    } else if (k.includes('havalimanı') || k.includes('havalimani') || k.includes('airport') || k.includes('havaalani') || k === 'ayt') {
-                        detectedDropoffBase = hub.code; bestDropoffMatchLength = 998;
-                    } else {
-                        detectedDropoffBase = hub.code; bestDropoffMatchLength = k.length;
+                if (dropoffTextRaw.includes(k)) {
+                    let score = 1;
+                    if (k.includes('gazipaşa') || k.includes('gazipasa') || k.includes('gzp')) score = 3;
+                    else if (k.includes('havalimanı') || k.includes('havalimani') || k.includes('airport') || k.includes('havaalani') || k === 'ayt') score = 2;
+                    
+                    if (score > bestDropoffScore || (score === bestDropoffScore && k.length > bestDropoffMatchLength)) {
+                        detectedDropoffBase = hub.code;
+                        bestDropoffScore = score;
+                        bestDropoffMatchLength = k.length;
                     }
                 }
             }
