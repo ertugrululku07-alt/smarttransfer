@@ -492,7 +492,7 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                 }
 
                 // 1b. Radius Check (Fallback if not matched yet and radius exists)
-                if (!isPickupMatch && route.pickupRadius && route.pickupLocation) {
+                if (!isPickupMatch && route.pickupRadius && route.pickupLocation && !route.pickupPolygon) {
                     const routeLoc = typeof route.pickupLocation === 'string'
                         ? JSON.parse(route.pickupLocation)
                         : route.pickupLocation;
@@ -508,8 +508,8 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                 }
             }
 
-            // 1c. Text matching fallback (if no coordinates sent or no polygon/radius match)
-            if (!isPickupMatch) {
+            // 1c. Text matching fallback (only if no polygon provided)
+            if (!isPickupMatch && !route.pickupPolygon) {
                 const routeFrom = normalizeLocation(route.fromName);
                 // Use primary location token (before / or ,) to avoid false matches
                 // e.g., "Kemer/Antalya" should NOT match shuttle route from "Antalya Havalimanı"
@@ -520,7 +520,7 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
 
             // 1d. Hub-based pickup matching: if user pickup resolves to a known hub,
             //     match routes whose fromName contains that hub's keywords
-            if (!isPickupMatch && originalPickupHubCode) {
+            if (!isPickupMatch && originalPickupHubCode && !route.pickupPolygon) {
                 const pickupHub = hubs.find(h => h.code === originalPickupHubCode);
                 if (pickupHub) {
                     const routeFromLower = route.fromName.toLowerCase();
@@ -787,9 +787,16 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                     calculatedPrice = Math.round((baseRouteCost + overageCost) * typeMult);
                 } else {
                     // Fallback to distance-based pricing:
+                    // STRICT ZONE RULE: If the agency has defined ANY zones, we assume they only
+                    // want to provide service within those explicitly defined zones.
+                    // If the pickup/dropoff did NOT match any zone (zonePriceConfig is null),
+                    // we block km-based pricing so they don't get random prices for unserviced regions like Kemer.
+                    if (zones && zones.length > 0 && !zonePriceConfig) {
+                        return null; // Outside polygons / zones -> No service
+                    }
+
+                    // Fallback to distance-based pricing:
                     // RULE: km-based pricing only applies when the pickup is from a known hub.
-                    // If detectedBaseLocation is null (e.g. Denizli, İzmir — outside service area),
-                    // do NOT give any price — show no vehicles for this search.
                     if (!detectedBaseLocation && !detectedDropoffBase) {
                         return null;
                     }
