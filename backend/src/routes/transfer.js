@@ -209,6 +209,7 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
         let matchedZoneId = null;
         let overageDistanceKm = 0;
         let hasAnyZones = false;
+        let zones = [];
         
         let activeTenantId = req.tenant?.id;
         if (!activeTenantId) {
@@ -216,13 +217,15 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
             if (defaultTenant) activeTenantId = defaultTenant.id;
         }
 
-        if (encodedPolyline && activeTenantId) {
+        if (activeTenantId) {
+            zones = await prisma.zone.findMany({ where: { tenantId: activeTenantId } });
+            hasAnyZones = zones.length > 0;
+        }
+
+        if (encodedPolyline && activeTenantId && zones.length > 0) {
             try {
                 const decoded = flexpolyline.decode(encodedPolyline);
                 const routeCoords = decoded.polyline.map(p => [p[1], p[0]]);
-                
-                const zones = await prisma.zone.findMany({ where: { tenantId: activeTenantId } });
-                hasAnyZones = zones.length > 0;
                 
                 // Gather ALL zones that the route intersects and map their overages
                 let zoneOverages = {};
@@ -412,6 +415,7 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
         
         // Also detect from dropoff (for city→airport transfers)
         let detectedDropoffBase = null;
+        let originalDropoffHubCode = null;
         const dropoffPrimaryToken = dropoff.toLowerCase().split(/[\/,]/)[0].trim();
         const dropoffTextRaw = dropoff.toLowerCase();
         let bestDropoffScore = 0;
@@ -433,6 +437,7 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                     
                     if (score > bestDropoffScore || (score === bestDropoffScore && k.length > bestDropoffMatchLength)) {
                         detectedDropoffBase = hub.code;
+                        originalDropoffHubCode = hub.code;
                         bestDropoffScore = score;
                         bestDropoffMatchLength = k.length;
                     }
@@ -445,7 +450,7 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
             detectedBaseLocation = detectedDropoffBase;
         }
 
-        console.log(`[HubDetect] pickupPrimary="${pickupPrimaryToken}" dropoffPrimary="${dropoffPrimaryToken}" → pickupHub="${originalPickupHubCode}", baseLocation="${detectedBaseLocation}", dropoffBase="${detectedDropoffBase}", hasAnyZones=${hasAnyZones}`);
+        console.log(`[HubDetect] pickupHub="${originalPickupHubCode}" dropoffHub="${originalDropoffHubCode}" baseLocation="${detectedBaseLocation}" hasAnyZones=${hasAnyZones}`);
 
         const dateObj = new Date(pickupDateTime);
         // Use Turkey timezone (UTC+3) for day-of-week calculation
@@ -552,28 +557,21 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
             const routeMeta = route.metadata || {};
             const routeToHubCode = routeMeta.toHubCode;
             if (routeToHubCode) {
-                // Detect which hub the user's dropoff text maps to
-                const dropoffHubCode = detectRegionCode(dropoff, hubs);
-                if (dropoffHubCode && dropoffHubCode === routeToHubCode) {
+                if (originalDropoffHubCode && originalDropoffHubCode === routeToHubCode) {
                     isDropoffMatch = true;
                 }
-            }
-
-            // 2b. Text matching fallback
-            if (!isDropoffMatch) {
+                // STRICT RULE: If a hub is explicitly defined for this shuttle route,
+                // we do NOT fall back to fuzzy text matching. It must match the hub.
+            } else {
+                // 2b. Text matching fallback (only if no hub code provided)
                 const routeTo = normalizeLocation(route.toName);
-                // Use primary location token to avoid false matches
                 const dropoffPrimary = dropoffNorm.split(/[\/,]/)[0].trim();
                 const routeToPrimary = routeTo.split(/[\/,]/)[0].trim();
-                isDropoffMatch = (routeToPrimary.includes(dropoffPrimary) || dropoffPrimary.includes(routeToPrimary));
-            }
+                isDropoffMatch = (routeToPrimary === dropoffPrimary || routeToPrimary.includes(dropoffPrimary) || dropoffPrimary.includes(routeToPrimary));
 
-            // 2c. Hub-based dropoff matching: detect which hub the dropoff text maps to,
-            //     then check if route.toName contains that hub's keywords
-            if (!isDropoffMatch) {
-                const dropoffHubCode = detectRegionCode(dropoff, hubs);
-                if (dropoffHubCode) {
-                    const dropoffHub = hubs.find(h => h.code === dropoffHubCode);
+                // 2c. Hub-based dropoff matching fallback
+                if (!isDropoffMatch && originalDropoffHubCode) {
+                    const dropoffHub = hubs.find(h => h.code === originalDropoffHubCode);
                     if (dropoffHub) {
                         const routeToLower = route.toName.toLowerCase();
                         const hubKeys = dropoffHub.keywords ? dropoffHub.keywords.split(',').map(k => k.trim().toLowerCase()).filter(k => k) : [];
@@ -582,16 +580,6 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                         isDropoffMatch = hubKeys.some(k => k && routeToLower.includes(k));
                     }
                 }
-            }
-
-            // 2d. Zone-based dropoff matching: check if route.toName matches any zone name
-            if (!isDropoffMatch) {
-                const routeToLower = route.toName.toLowerCase();
-                const dropoffLower = dropoff.toLowerCase();
-                // Use primary location token to avoid false province-name matches
-                const dropoffPrimaryRaw = dropoffLower.split(/[\/,]/)[0].trim();
-                const routeToPrimaryRaw = routeToLower.split(/[\/,]/)[0].trim();
-                isDropoffMatch = (routeToPrimaryRaw.includes(dropoffPrimaryRaw) || dropoffPrimaryRaw.includes(routeToPrimaryRaw));
             }
 
             if (!isDropoffMatch) return false;
@@ -762,10 +750,11 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                         const pickupTokens = tokenize(pickupLower);
                         const dropoffTokens = tokenize(dropoffLower);
                         
-                        // Zone is relevant if any zone name token appears in pickup or dropoff
+                        // Zone is relevant ONLY if the zone name exactly matches or is the primary token of pickup/dropoff
+                        // This prevents "Alanya" zone from matching "Antalya" province in "Kemer/Antalya"
                         const isRelevant = zoneTokens.some(zt => 
-                            pickupTokens.some(pt => pt.includes(zt) || zt.includes(pt)) ||
-                            dropoffTokens.some(dt => dt.includes(zt) || zt.includes(dt))
+                            pickupTokens.some(pt => pt === zt) ||
+                            dropoffTokens.some(dt => dt === zt)
                         ) || (zoneCode && (pickupLower.includes(zoneCode) || dropoffLower.includes(zoneCode)));
                         
                         if (!isRelevant) {
