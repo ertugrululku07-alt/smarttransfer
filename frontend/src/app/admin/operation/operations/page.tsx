@@ -329,7 +329,7 @@ export default function OperationsPage() {
                 <Select 
                     size="small" 
                     autoFocus 
-                    value={editingCell.value}
+                    value={editingCell?.value}
                     onChange={(val) => {
                         setEditingCell(null);
                         if (val === 'POOL') {
@@ -360,7 +360,7 @@ export default function OperationsPage() {
                         <Input
                             size="small"
                             autoFocus
-                            defaultValue={editingCell.value}
+                            defaultValue={editingCell?.value}
                             onBlur={(e) => saveCellEdit(record.id, field, e.target.value)}
                             onPressEnter={(e) => saveCellEdit(record.id, field, (e.target as HTMLInputElement).value)}
                             style={{ minWidth: 80 }}
@@ -3566,10 +3566,10 @@ export default function OperationsPage() {
                                                                                 return (
                                                                                     <input
                                                                                         type="text"
-                                                                                        defaultValue={editingDriverNote.value}
+                                                                                        defaultValue={editingDriverNote?.value}
                                                                                         autoFocus
                                                                                         onBlur={(e) => {
-                                                                                            if (e.target.value !== editingDriverNote.value) {
+                                                                                            if (e.target.value !== editingDriverNote?.value) {
                                                                                                 handleDriverNoteEdit(b.id, e.target.value);
                                                                                             } else {
                                                                                                 setEditingDriverNote(null);
