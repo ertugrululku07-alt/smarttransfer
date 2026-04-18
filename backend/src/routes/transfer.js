@@ -280,11 +280,39 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                         }
                         if (!hitEnd) distFromEnd = Infinity;
 
-                        const overage = Math.min(distFromStart, distFromEnd);
+                        // Overage = distance the route travels OUTSIDE the polygon.
+                        // If both start and end are outside, we want the non-hub side overage.
+                        // - If pickup is a hub (e.g. AYT), the hub→polygon distance is expected,
+                        //   so overage = distFromEnd (dropoff side beyond polygon)
+                        // - If dropoff is a hub, overage = distFromStart (pickup side beyond polygon)
+                        // - If neither is a hub, use the larger side (the actual extra distance)
+                        let overage;
+                        if (hitStart && hitEnd) {
+                            // Route starts and ends inside polygon → no overage
+                            overage = 0;
+                        } else if (hitStart && !hitEnd) {
+                            // Route starts inside polygon but ends outside → dropoff side overage
+                            overage = distFromEnd;
+                        } else if (!hitStart && hitEnd) {
+                            // Route ends inside polygon but starts outside → pickup side overage
+                            overage = distFromStart;
+                        } else {
+                            // Both sides are outside the polygon (route passes through)
+                            // Store both distances; the hub side is "expected" distance (no charge),
+                            // the non-hub side is the real overage. Hub detection runs later,
+                            // so store distFromEnd for now (most common: hub is pickup side).
+                            // We also store distFromStart in zone data for later correction.
+                            overage = distFromEnd !== Infinity ? distFromEnd : (distFromStart !== Infinity ? distFromStart : 0);
+                        }
                         const area = turf.area(zonePolygon);
                         
-                        if (overage !== Infinity) {
-                            zoneOverages[zone.id] = { overage, area, zoneName: zone.name || '', zoneCode: zone.code || '' };
+                        if (distFromStart !== Infinity || distFromEnd !== Infinity) {
+                            zoneOverages[zone.id] = { 
+                                overage, area, zoneName: zone.name || '', zoneCode: zone.code || '',
+                                distFromStart: distFromStart !== Infinity ? distFromStart : null,
+                                distFromEnd: distFromEnd !== Infinity ? distFromEnd : null,
+                                hitStart, hitEnd
+                            };
                         }
                     }
 
@@ -694,7 +722,19 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                     let currentIsPickupZone = false;
 
                     for (const [zoneId, zoneData] of Object.entries(req.zoneOverages)) {
-                        const zoneOverage = zoneData.overage;
+                        // Correct overage based on hub detection:
+                        // Hub side distance is expected (part of zone price), only charge for the other side.
+                        let zoneOverage = zoneData.overage;
+                        if (!zoneData.hitStart && !zoneData.hitEnd) {
+                            // Route passes through polygon, both sides are outside
+                            if (originalPickupHubCode) {
+                                // Pickup is hub → overage is dropoff side
+                                zoneOverage = zoneData.distFromEnd ?? zoneData.overage;
+                            } else if (originalDropoffHubCode) {
+                                // Dropoff is hub → overage is pickup side
+                                zoneOverage = zoneData.distFromStart ?? zoneData.overage;
+                            }
+                        }
                         const zoneArea = zoneData.area;
                         const isPickupZone = pickupZoneIds.has(zoneId);
 
@@ -802,20 +842,23 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                     
                     const overageCost = usedOverageDistanceKm * extraKmRate;
                     calculatedPrice = Math.round((baseRouteCost + overageCost) * typeMult);
-                    console.log(`[PriceDecision] ZONE price: ${calculatedPrice} (fixP=${fixP}, overage=${usedOverageDistanceKm}km)`);
+                    console.log(`[PriceDecision] ZONE price: ${calculatedPrice} (fixP=${fixP}, base=${baseRouteCost}, overage=${usedOverageDistanceKm.toFixed(1)}km × ${extraKmRate}TL = ${overageCost.toFixed(0)})`);
                 } else {
                     // Fallback to distance-based pricing:
-                    // STRICT ZONE RULE: If the agency has defined ANY zones, we assume they only
-                    // want to provide service within those explicitly defined zones.
-                    // If the pickup/dropoff did NOT match any zone (zonePriceConfig is null),
-                    // we block km-based pricing so they don't get random prices for unserviced regions like Kemer.
-                    if (hasAnyZones && !zonePriceConfig) {
-                        return null; // Outside polygons / zones -> No service
+                    // Check if pickup or dropoff is inside any zone polygon (even if no zone price matched).
+                    // This covers cases like Alanya→Konya where Alanya is a known zone but Konya has no hub/zone.
+                    const pickupInZone = req.pickupZoneIds && req.pickupZoneIds.size > 0;
+                    const dropoffInZone = req.zoneOverages && Object.keys(req.zoneOverages).length > 0;
+                    const hasZoneContact = pickupInZone || dropoffInZone;
+
+                    // STRICT ZONE RULE: If zones are defined but NEITHER pickup nor dropoff
+                    // touched any zone polygon, block km-based pricing (unserviced region).
+                    if (hasAnyZones && !zonePriceConfig && !hasZoneContact) {
+                        return null; // Completely outside all zones -> No service
                     }
 
-                    // Fallback to distance-based pricing:
-                    // RULE: km-based pricing only applies when the pickup is from a known hub.
-                    if (!detectedBaseLocation && !detectedDropoffBase) {
+                    // If no hub was detected at all and no zone contact, skip
+                    if (!detectedBaseLocation && !detectedDropoffBase && !hasZoneContact) {
                         return null;
                     }
 
