@@ -369,8 +369,11 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
         }
 
         let detectedBaseLocation = null;
-        // Use RAW pickup text (not normalized) so that airport words like 'havalimanı' are preserved for detection
-        const pickupTextRaw = pickup.toLowerCase();
+        // CRITICAL: Use only the PRIMARY location token (before / or ,) for hub detection.
+        // This prevents province names like "Antalya" in "Kemer/Antalya, Türkiye" from 
+        // falsely matching AYT zone keywords. Only the actual location name matters.
+        const pickupPrimaryToken = pickup.toLowerCase().split(/[\/,]/)[0].trim();
+        const pickupTextRaw = pickup.toLowerCase(); // Keep full text for airport-specific words
         let bestMatchScore = 0;
         let bestMatchLength = 0;
         
@@ -386,10 +389,16 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
             if (hub.code === 'AYT') keys.push('havalimanı', 'havalimani', 'airport', 'havaalani');
             
             for (const k of keys) {
-                if (pickupTextRaw.includes(k)) {
+                // Airport-specific keywords (score 2+) can match full text (the address often has "Havalimanı" in the middle)
+                // But general keywords (score 1) must only match the PRIMARY token to prevent province-name false matches
+                const isAirportKeyword = k.includes('gazipaşa') || k.includes('gazipasa') || k.includes('gzp') ||
+                    k.includes('havalimanı') || k.includes('havalimani') || k.includes('airport') || k.includes('havaalani') || k === 'ayt';
+                const textToSearch = isAirportKeyword ? pickupTextRaw : pickupPrimaryToken;
+                
+                if (textToSearch.includes(k)) {
                     let score = 1;
                     if (k.includes('gazipaşa') || k.includes('gazipasa') || k.includes('gzp')) score = 3;
-                    else if (k.includes('havalimanı') || k.includes('havalimani') || k.includes('airport') || k.includes('havaalani') || k === 'ayt') score = 2;
+                    else if (isAirportKeyword) score = 2;
                     
                     if (score > bestMatchScore || (score === bestMatchScore && k.length > bestMatchLength)) {
                         detectedBaseLocation = hub.code;
@@ -403,6 +412,7 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
         
         // Also detect from dropoff (for city→airport transfers)
         let detectedDropoffBase = null;
+        const dropoffPrimaryToken = dropoff.toLowerCase().split(/[\/,]/)[0].trim();
         const dropoffTextRaw = dropoff.toLowerCase();
         let bestDropoffScore = 0;
         let bestDropoffMatchLength = 0;
@@ -412,10 +422,14 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
             if (hub.code === 'GZP') keys.push('gazipaşa', 'gazipasa');
             if (hub.code === 'AYT') keys.push('havalimanı', 'havalimani', 'airport', 'havaalani');
             for (const k of keys) {
-                if (dropoffTextRaw.includes(k)) {
+                const isAirportKeyword = k.includes('gazipaşa') || k.includes('gazipasa') || k.includes('gzp') ||
+                    k.includes('havalimanı') || k.includes('havalimani') || k.includes('airport') || k.includes('havaalani') || k === 'ayt';
+                const textToSearch = isAirportKeyword ? dropoffTextRaw : dropoffPrimaryToken;
+                
+                if (textToSearch.includes(k)) {
                     let score = 1;
                     if (k.includes('gazipaşa') || k.includes('gazipasa') || k.includes('gzp')) score = 3;
-                    else if (k.includes('havalimanı') || k.includes('havalimani') || k.includes('airport') || k.includes('havaalani') || k === 'ayt') score = 2;
+                    else if (isAirportKeyword) score = 2;
                     
                     if (score > bestDropoffScore || (score === bestDropoffScore && k.length > bestDropoffMatchLength)) {
                         detectedDropoffBase = hub.code;
@@ -431,7 +445,7 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
             detectedBaseLocation = detectedDropoffBase;
         }
 
-        console.log(`Hub Detection: pickup="${pickup.substring(0,40)}" → originalPickupHub="${originalPickupHubCode}", detectedBaseLocation="${detectedBaseLocation}", dropoffBase="${detectedDropoffBase}"`);
+        console.log(`[HubDetect] pickupPrimary="${pickupPrimaryToken}" dropoffPrimary="${dropoffPrimaryToken}" → pickupHub="${originalPickupHubCode}", baseLocation="${detectedBaseLocation}", dropoffBase="${detectedDropoffBase}", hasAnyZones=${hasAnyZones}`);
 
         const dateObj = new Date(pickupDateTime);
         // Use Turkey timezone (UTC+3) for day-of-week calculation
@@ -765,6 +779,8 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
 
                 const typeMult = transferType === 'ROUND_TRIP' ? 1.9 : 1.0;
 
+                console.log(`[PriceDecision] vt=${vt.name}, zonePriceConfig=${!!zonePriceConfig}, finalMatchedZoneId=${finalMatchedZoneId}, hasAnyZones=${hasAnyZones}, baseLocation=${detectedBaseLocation}, dropoffBase=${detectedDropoffBase}`);
+
                 if (zonePriceConfig) {
                     calculationMethod = 'ZONE_POLYGON';
                     
@@ -783,6 +799,7 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                     
                     const overageCost = usedOverageDistanceKm * extraKmRate;
                     calculatedPrice = Math.round((baseRouteCost + overageCost) * typeMult);
+                    console.log(`[PriceDecision] ZONE price: ${calculatedPrice} (fixP=${fixP}, overage=${usedOverageDistanceKm}km)`);
                 } else {
                     // Fallback to distance-based pricing:
                     // STRICT ZONE RULE: If the agency has defined ANY zones, we assume they only
