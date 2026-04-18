@@ -11,6 +11,15 @@ const prisma = require('../lib/prisma');
  */
 router.get('/', async (req, res) => {
     try {
+        // Auto-fix legacy routes with null tenantId
+        const tenantId = req.tenant?.id;
+        if (tenantId) {
+            await prisma.shuttleRoute.updateMany({
+                where: { tenantId: null },
+                data: { tenantId }
+            });
+        }
+
         const routes = await prisma.shuttleRoute.findMany({
             include: {
                 vehicle: true
@@ -40,6 +49,7 @@ router.post('/', authMiddleware, async (req, res) => {
 
         const route = await prisma.shuttleRoute.create({
             data: {
+                tenantId: req.tenant?.id || null,
                 vehicleId: data.vehicleId,
                 fromName: data.fromName,
                 toName: data.toName,
@@ -55,6 +65,7 @@ router.post('/', authMiddleware, async (req, res) => {
                 pickupLocation: data.pickupLocation ? (typeof data.pickupLocation === 'object' ? JSON.stringify(data.pickupLocation) : data.pickupLocation) : null,
                 pickupRadius: data.pickupRadius,
                 pickupPolygon: data.pickupPolygon,
+                pickupLeadHours: data.pickupLeadHours != null ? data.pickupLeadHours : null,
                 metadata: data.metadata || null
             }
         });
@@ -65,7 +76,8 @@ router.post('/', authMiddleware, async (req, res) => {
             const reverseMeta = {
                 fromZoneId: null, // The reverse pickup is the hub (airport), not a zone
                 toHubCode: null,  // The reverse dropoff is the zone area, not a hub
-                reverseOf: 'auto-created'
+                reverseOf: 'auto-created',
+                ...originalMeta
             };
             // If the original route goes FROM a zone TO a hub,
             // the reverse goes FROM the hub TO the zone.
@@ -108,6 +120,7 @@ router.post('/', authMiddleware, async (req, res) => {
                     pickupLocation: reversePickupLocation ? JSON.stringify(reversePickupLocation) : null,
                     pickupRadius: null,
                     pickupPolygon: reversePickupPolygon,
+                    pickupLeadHours: data.pickupLeadHours != null ? data.pickupLeadHours : null,
                     metadata: reverseMeta,
                     tenantId: req.tenant?.id || null
                 }
@@ -148,6 +161,7 @@ router.put('/:id', authMiddleware, async (req, res) => {
                 pickupLocation: data.pickupLocation ? (typeof data.pickupLocation === 'object' ? JSON.stringify(data.pickupLocation) : data.pickupLocation) : null,
                 pickupRadius: data.pickupRadius,
                 pickupPolygon: data.pickupPolygon,
+                pickupLeadHours: data.pickupLeadHours != null ? data.pickupLeadHours : null,
                 metadata: data.metadata || null
             }
         });
@@ -170,7 +184,14 @@ router.put('/:id', authMiddleware, async (req, res) => {
                     weeklyDays: data.weeklyDays,
                     pickupLocation: null,
                     pickupRadius: null,
-                    pickupPolygon: null
+                    pickupPolygon: null,
+                    pickupLeadHours: data.pickupLeadHours != null ? data.pickupLeadHours : null,
+                    metadata: {
+                        ...(data.metadata || {}),
+                        fromZoneId: null,
+                        toHubCode: null,
+                        reverseOf: 'auto-updated'
+                    }
                 }
             });
         }
@@ -212,12 +233,19 @@ router.delete('/:id', authMiddleware, async (req, res) => {
         const tenantId = req.tenant?.id;
         if (!tenantId) return res.status(401).json({ success: false, error: 'Tenant context missing.' });
 
-        // Ensure the route belongs to the tenant
+        // Ensure the route belongs to the tenant (also match null tenantId for legacy data)
         const route = await prisma.shuttleRoute.findFirst({
-            where: { id: req.params.id, tenantId }
+            where: { 
+                id: req.params.id, 
+                OR: [
+                    { tenantId },
+                    { tenantId: null }
+                ]
+            }
         });
 
         if (!route) {
+            console.log(`[DELETE shuttle-route] Not found: id=${req.params.id}, tenantId=${tenantId}`);
             return res.status(404).json({ success: false, error: 'Shuttle rotası bulunamadı.' });
         }
 

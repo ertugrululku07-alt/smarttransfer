@@ -37,6 +37,7 @@ import {
   CheckCircleOutlined,
   CloseCircleOutlined,
   DeleteOutlined,
+  InfoCircleOutlined,
 } from '@ant-design/icons';
 import apiClient from '../../../lib/api-client';
 import moment from 'moment';
@@ -65,6 +66,7 @@ interface ShuttleRoute {
   pickupLocation?: string | { lat: number; lng: number; address: string } | null;
   pickupRadius?: number | null;
   pickupPolygon?: { lat: number; lng: number }[] | null;
+  pickupLeadHours?: number | null;
   metadata?: any;
 }
 
@@ -155,11 +157,22 @@ const AdminShuttleRoutesPage: React.FC = () => {
 
   const fetchCurrencies = async () => {
     try {
-      const res = await apiClient.get('/api/tenant/info');
-      const settings = res.data?.data?.tenant?.settings || {};
+      const [tenantRes, zonesRes] = await Promise.all([
+        apiClient.get('/api/tenant/info'),
+        apiClient.get('/api/zones')
+      ]);
+      const settings = tenantRes.data?.data?.tenant?.settings || {};
       const defs = settings.definitions || { currencies: [] };
       setCurrencies(defs.currencies || []);
-      if (settings.hubs && Array.isArray(settings.hubs)) {
+      // Derive hubs from zones with code (unified zone model)
+      if (zonesRes.data?.success) {
+        const hubsFromZones = (zonesRes.data.data || []).filter((z: any) => z.code).map((z: any) => ({ code: z.code, name: z.name, keywords: z.keywords || '' }));
+        if (hubsFromZones.length > 0) {
+          setHubs(hubsFromZones);
+        } else if (settings.hubs && Array.isArray(settings.hubs)) {
+          setHubs(settings.hubs);
+        }
+      } else if (settings.hubs && Array.isArray(settings.hubs)) {
         setHubs(settings.hubs);
       }
     } catch (error) {
@@ -235,6 +248,14 @@ const AdminShuttleRoutesPage: React.FC = () => {
           ? [moment(route.customStartDate, 'YYYY-MM-DD'), moment(route.customEndDate, 'YYYY-MM-DD')]
           : null,
         weeklyDays: route.weeklyDays || [],
+        pickupLeadHours: route.pickupLeadHours != null ? route.pickupLeadHours : undefined,
+        subtractLeadTime: (() => {
+            let meta = route.metadata;
+            if (typeof meta === 'string') {
+                try { meta = JSON.parse(meta); } catch(e) { meta = {}; }
+            }
+            return meta?.subtractLeadTime ?? true;
+        })(),
         isBidirectional: false,
         returnDepartureTimes: [],
       });
@@ -248,6 +269,8 @@ const AdminShuttleRoutesPage: React.FC = () => {
         weeklyDays: [],
         departureTimes: ['08:00'],
         currency: currencies.find((c: any) => c.isDefault)?.code || 'EUR',
+        pickupLeadHours: undefined,
+        subtractLeadTime: true,
         isBidirectional: false,
         returnDepartureTimes: [],
       });
@@ -311,9 +334,14 @@ const AdminShuttleRoutesPage: React.FC = () => {
         pickupLocation,
         pickupRadius: null,
         pickupPolygon: polygonToUse || null,
+        pickupLeadHours: values.pickupLeadHours ? Number(values.pickupLeadHours) : null,
         isBidirectional: values.isBidirectional,
         returnDepartureTimes: values.returnDepartureTimes ? values.returnDepartureTimes.sort() : [],
-        metadata: { fromZoneId: values.fromZoneId || null, toHubCode: values.toHubCode || null }
+        metadata: { 
+            fromZoneId: values.fromZoneId || null, 
+            toHubCode: values.toHubCode || null,
+            subtractLeadTime: values.subtractLeadTime ?? true
+        }
       };
 
       if (editingRoute) {
@@ -899,6 +927,25 @@ const AdminShuttleRoutesPage: React.FC = () => {
               <Col span={12}>
                 <Form.Item name="maxSeats" label={<span style={{ fontWeight: 600, color: '#334155' }}>👤 Maks. Koltuk</span>} rules={[{ required: true, message: 'Sayı girin' }]}>
                   <Input type="number" min={1} placeholder="14" />
+                </Form.Item>
+              </Col>
+            </Row>
+
+            {/* ===== PICKUP LEAD HOURS & SUBTRACT OPTION ===== */}
+            <Row gutter={16} align="bottom">
+              <Col span={14}>
+                <Form.Item name="pickupLeadHours" label={<span style={{ fontWeight: 600, color: '#334155' }}><ClockCircleOutlined style={{ color: '#6366f1' }} /> Alınış Süresi (Saat)</span>}>
+                  <Input type="number" min={0} step={0.5} placeholder="Örn: 2 (uçuştan kaç saat önce)" />
+                </Form.Item>
+              </Col>
+              <Col span={10}>
+                <Form.Item name="subtractLeadTime" valuePropName="checked" style={{ marginBottom: 24 }}>
+                  <Checkbox style={{ fontWeight: 500, color: '#475569' }}>
+                    Düşülecek
+                    <Tooltip title="İşaretliyse, bu süreyi uçuş saatinden çıkarıp mesafe hesabını da katarak alış saati oluşturur. İşaretli değilse, bu süreyi sadece direkt olarak uçuş saatine ekler (kalkış).">
+                      <InfoCircleOutlined style={{ marginLeft: 6, color: '#94a3b8' }} />
+                    </Tooltip>
+                  </Checkbox>
                 </Form.Item>
               </Col>
             </Row>

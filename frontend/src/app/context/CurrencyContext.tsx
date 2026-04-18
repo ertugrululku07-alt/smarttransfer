@@ -142,7 +142,7 @@ export const CurrencyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const baseValue = amount * (fromCurr.rate || 1);
     const converted = baseValue / (toCurr.rate || 1);
 
-    return Math.round(converted);
+    return Math.round(converted * 100) / 100; // 2 decimal precision (e.g. 12.50, not 13)
   };
 
   const formatPrice = (amount: number, fromCode: string) => {

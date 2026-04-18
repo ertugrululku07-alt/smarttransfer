@@ -87,6 +87,15 @@ async function loadTenantHubs(tenantId) {
     ];
     if (!tenantId) return defaultHubs;
     try {
+        // Primary: load from Zone table (unified zone model)
+        const zonesWithCode = await prisma.zone.findMany({
+            where: { tenantId, code: { not: null } },
+            select: { code: true, keywords: true, name: true }
+        });
+        if (zonesWithCode.length > 0) {
+            return zonesWithCode.map(z => ({ code: z.code, keywords: z.keywords || '', name: z.name }));
+        }
+        // Fallback: legacy settings.hubs
         const tenantInfo = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { settings: true } });
         if (tenantInfo?.settings?.hubs && Array.isArray(tenantInfo.settings.hubs)) {
             return tenantInfo.settings.hubs;
@@ -258,6 +267,34 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                         }
                     }
 
+                    // Also check pickup point directly against zones
+                    // Track which zones contain the actual pickup point for priority matching
+                    const pickupZoneIds = new Set();
+                    if (pickupLat && pickupLng) {
+                        const pickupPoint = turf.point([Number(pickupLng), Number(pickupLat)]);
+                        for (const zone of zones) {
+                            if (!zone.polygon || zone.polygon.length < 3) continue;
+                            let polyCoords = zone.polygon.map(p => [p.lng, p.lat]);
+                            if (polyCoords[0][0] !== polyCoords[polyCoords.length - 1][0] || 
+                                polyCoords[0][1] !== polyCoords[polyCoords.length - 1][1]) {
+                                polyCoords.push(polyCoords[0]);
+                            }
+                            try {
+                                const zonePolygon = turf.polygon([polyCoords]);
+                                if (turf.booleanPointInPolygon(pickupPoint, zonePolygon)) {
+                                    const area = turf.area(zonePolygon);
+                                    if (!zoneOverages[zone.id]) {
+                                        zoneOverages[zone.id] = { overage: 0, area };
+                                    }
+                                    pickupZoneIds.add(zone.id);
+                                    console.log(`[ZonePickup] Pickup point inside zone ${zone.name} (${zone.id}), area=${area.toFixed(0)}`);
+                                }
+                            } catch (e) { /* skip invalid polygon */ }
+                        }
+                    }
+                    // Store for use in zone price selection
+                    req.pickupZoneIds = pickupZoneIds;
+
                     if (Object.keys(zoneOverages).length > 0) {
                         req.zoneOverages = zoneOverages;
                         console.log(`Matched Zones & Overages:`, zoneOverages);
@@ -297,18 +334,24 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
         const pickupNorm = normalizeLocation(pickup);
         const dropoffNorm = normalizeLocation(dropoff);
         
-        let hubs = [
-            { code: 'AYT', keywords: 'ayt, antalya', name: 'Antalya Havalimanı' },
-            { code: 'GZP', keywords: 'gzp, gazipasa, gazipaşa', name: 'Gazipaşa Havalimanı' },
-            { code: 'CENTER', keywords: 'merkez, antalya', name: 'Antalya Merkez' }
-        ];
+        let hubs = [];
 
         let timeDefinitions = { privateTransferMinHours: 0, shuttleTransferMinHours: 0 };
         let tenantDefaultCurrency = 'EUR'; // Fallback
         if (req.tenant?.id) {
             try {
+                // Load hubs from Zone table (zones with a code serve as origin hubs)
+                const zonesWithCode = await prisma.zone.findMany({
+                    where: { tenantId: req.tenant.id, code: { not: null } },
+                    select: { code: true, keywords: true, name: true }
+                });
+                if (zonesWithCode.length > 0) {
+                    hubs = zonesWithCode.map(z => ({ code: z.code, keywords: z.keywords || '', name: z.name }));
+                }
+
                 const tenantInfo = await prisma.tenant.findUnique({ where: { id: req.tenant.id }, select: { settings: true } });
-                if (tenantInfo?.settings?.hubs && Array.isArray(tenantInfo.settings.hubs)) {
+                // Fallback: if no zones with codes, try legacy settings.hubs
+                if (hubs.length === 0 && tenantInfo?.settings?.hubs && Array.isArray(tenantInfo.settings.hubs)) {
                     hubs = tenantInfo.settings.hubs;
                 }
                 if (tenantInfo?.settings?.timeDefinitions) {
@@ -357,7 +400,34 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
             }
         }
         
-        console.log(`Hub Detection: pickup="${pickup.substring(0,40)}" → detectedBaseLocation="${detectedBaseLocation}"`);
+        // Also detect from dropoff (for city→airport transfers)
+        let detectedDropoffBase = null;
+        const dropoffTextRaw = dropoff.toLowerCase();
+        let bestDropoffMatchLength = 0;
+        for (const hub of hubs) {
+            const keys = hub.keywords ? hub.keywords.split(',').map(k => k.trim().toLowerCase()).filter(k => k) : [];
+            keys.push(hub.code.toLowerCase());
+            if (hub.code === 'GZP') keys.push('gazipaşa', 'gazipasa');
+            if (hub.code === 'AYT') keys.push('havalimanı', 'havalimani', 'airport', 'havaalani');
+            for (const k of keys) {
+                if (dropoffTextRaw.includes(k) && k.length >= bestDropoffMatchLength) {
+                    if (k.includes('gazipaşa') || k.includes('gazipasa') || k.includes('gzp')) {
+                        detectedDropoffBase = 'GZP'; bestDropoffMatchLength = 999;
+                    } else if (k.includes('havalimanı') || k.includes('havalimani') || k.includes('airport') || k.includes('havaalani') || k === 'ayt') {
+                        detectedDropoffBase = hub.code; bestDropoffMatchLength = 998;
+                    } else {
+                        detectedDropoffBase = hub.code; bestDropoffMatchLength = k.length;
+                    }
+                }
+            }
+        }
+
+        // If pickup is NOT a hub but dropoff IS (city→airport), use dropoff as base
+        if (!detectedBaseLocation && detectedDropoffBase) {
+            detectedBaseLocation = detectedDropoffBase;
+        }
+
+        console.log(`Hub Detection: pickup="${pickup.substring(0,40)}" → detectedBaseLocation="${detectedBaseLocation}", dropoffBase="${detectedDropoffBase}"`);
 
         const dateObj = new Date(pickupDateTime);
         const dayOfWeekVal = dateObj.getDay(); // 0=Sun, 1=Mon...
@@ -556,6 +626,7 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
         const shuttleResults = matchingShuttles.map(s => {
             const baseShuttlePrice = Number(s.pricePerSeat) * Number(passengers);
             const markedUpShuttlePrice = baseShuttlePrice * (1 + (agencyMarkup / 100));
+            console.log(`[Shuttle] route=${s.fromName}→${s.toName}, pricePerSeat=${s.pricePerSeat}, currency=${s.currency}, passengers=${passengers}, total=${markedUpShuttlePrice}`);
 
             return {
                 id: `shuttle_${s.id}`,
@@ -566,7 +637,7 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                 luggage: 1, // Per person
                 price: Number(markedUpShuttlePrice.toFixed(2)),
                 basePrice: baseShuttlePrice, // Store original B2B cost
-                currency: tenantDefaultCurrency, // Shuttle prices use default currency
+                currency: s.currency || tenantDefaultCurrency, // Use route's own currency
                 features: ['Belirli Kalkış Saatleri', 'Ekonomik', 'Paylaşımlı Yolculuk', ...(s.vehicle?.metadata?.hasWifi ? ['WiFi'] : [])],
                 cancellationPolicy: '24 saat öncesine kadar ücretsiz iptal',
                 estimatedDuration: 'Değişken', // Depends on stops
@@ -574,7 +645,9 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                 isShuttle: true,
                 departureTimes: s.departureTimes, // Pass departure times to frontend
                 matchedMasterTime: s._matchedMasterTime,
-                timeOffsetMin: s._timeOffsetMin
+                timeOffsetMin: s._timeOffsetMin,
+                pickupLeadHours: s.pickupLeadHours ? Number(s.pickupLeadHours) : null,
+                metadata: typeof s.metadata === 'string' ? (()=>{try{return JSON.parse(s.metadata)}catch(e){return {}}})() : (s.metadata || {})
             };
         });
 
@@ -591,13 +664,16 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                 let finalMatchedZoneId = null;
                 let usedOverageDistanceKm = 0;
                 
+                const pickupZoneIds = req.pickupZoneIds || new Set();
                 if (req.zoneOverages && Object.keys(req.zoneOverages).length > 0) {
                     let lowestValidOverage = Infinity;
                     let smallestArea = Infinity;
+                    let currentIsPickupZone = false;
 
                     for (const [zoneId, zoneData] of Object.entries(req.zoneOverages)) {
                         const zoneOverage = zoneData.overage;
                         const zoneArea = zoneData.area;
+                        const isPickupZone = pickupZoneIds.has(zoneId);
 
                         // Zone pricing ONLY applies when the pickup is from a known, registered hub.
                         // If detectedBaseLocation is null (e.g. pickup from Denizli, İzmir etc.),
@@ -609,18 +685,39 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                             const agencyConfig = agencyContractMap[contractKey];
                             candidateConfig = globalConfig || agencyConfig;
                         }
+                        // Fallback: try dropoff base (for city→airport where prices are stored as AYT→Zone)
+                        if (!candidateConfig && detectedDropoffBase && detectedDropoffBase !== detectedBaseLocation) {
+                            const globalConfig2 = vt.zonePrices?.find(zp => zp.zoneId === zoneId && zp.baseLocation === detectedDropoffBase);
+                            const contractKey2 = `${vt.id}:${zoneId}:${detectedDropoffBase}`;
+                            const agencyConfig2 = agencyContractMap[contractKey2];
+                            candidateConfig = globalConfig2 || agencyConfig2;
+                        }
 
                         if (candidateConfig) {
-                            // If this overage is strictly better, OR it's a tie but this zone is more specific (smaller area)
-                            if (zoneOverage < lowestValidOverage || (zoneOverage === lowestValidOverage && zoneArea < smallestArea)) {
+                            // Priority: 1) pickup zone with smallest area, 2) lowest overage with smallest area
+                            const isBetter = 
+                                // New candidate is a pickup zone but current is not
+                                (isPickupZone && !currentIsPickupZone) ||
+                                // Both are pickup zones (or both aren't): pick smallest area
+                                (isPickupZone === currentIsPickupZone && (
+                                    zoneOverage < lowestValidOverage || 
+                                    (zoneOverage === lowestValidOverage && zoneArea < smallestArea)
+                                ));
+                            
+                            if (isBetter) {
                                 lowestValidOverage = zoneOverage;
                                 smallestArea = zoneArea;
+                                currentIsPickupZone = isPickupZone;
                                 zonePriceConfig = candidateConfig;
                                 finalMatchedZoneId = zoneId;
                                 usedOverageDistanceKm = zoneOverage;
                             }
                         }
                     }
+                }
+
+                if (zonePriceConfig) {
+                    console.log(`[ZoneMatch] ${vt.name}: zone=${finalMatchedZoneId}, base=${detectedBaseLocation}, pickupLeadHours=${zonePriceConfig.pickupLeadHours}, fixedPrice=${zonePriceConfig.fixedPrice}`);
                 }
 
                 const typeMult = transferType === 'ROUND_TRIP' ? 1.9 : 1.0;
@@ -648,7 +745,7 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                     // RULE: km-based pricing only applies when the pickup is from a known hub.
                     // If detectedBaseLocation is null (e.g. Denizli, İzmir — outside service area),
                     // do NOT give any price — show no vehicles for this search.
-                    if (!detectedBaseLocation) {
+                    if (!detectedBaseLocation && !detectedDropoffBase) {
                         return null;
                     }
 
@@ -676,8 +773,13 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
 
                 // === CHECK AGENCY CONTRACT PRICE (zone-based) ===
                 // If a zone was matched, look for a contract price for this vehicleType+zone
-                const contractLookupKey = finalMatchedZoneId && detectedBaseLocation ? `${vt.id}:${finalMatchedZoneId}:${detectedBaseLocation}` : null;
-                const contractPrice = contractLookupKey ? agencyContractMap[contractLookupKey] : null;
+                let contractLookupKey = finalMatchedZoneId && detectedBaseLocation ? `${vt.id}:${finalMatchedZoneId}:${detectedBaseLocation}` : null;
+                let contractPrice = contractLookupKey ? agencyContractMap[contractLookupKey] : null;
+                // Fallback: try dropoff base for contract
+                if (!contractPrice && finalMatchedZoneId && detectedDropoffBase && detectedDropoffBase !== detectedBaseLocation) {
+                    const key2 = `${vt.id}:${finalMatchedZoneId}:${detectedDropoffBase}`;
+                    contractPrice = agencyContractMap[key2] || null;
+                }
                 let finalPrice;
                 let baseContractValue = 0;
                 if (contractPrice) {

@@ -600,6 +600,10 @@ export default function OperationsPage() {
     const [tempColumnTitles, setTempColumnTitles] = useState<Record<string, string>>({});
 
 
+    // Ref to always access the latest fetch functions from socket handlers
+    const fetchBookingsRef = useRef<() => void>(() => {});
+    const fetchShuttleRunsRef = useRef<(silent?: boolean) => void>(() => {});
+
     // Filters — default to PRIVATE so only Özel Transferler show on load
     const [filters, setFilters] = useState({
         dateRange: [dayjs(), dayjs()],
@@ -1288,6 +1292,11 @@ export default function OperationsPage() {
         }
     };
 
+    // Keep ref updated so socket handlers always use the latest state/filters
+    fetchBookingsRef.current = fetchBookings;
+    // We defer assigning fetchShuttleRunsRef.current to where it is defined, but we can do it via useEffect or just let it update when the component renders.
+    // However, since fetchShuttleRuns is defined further down, we will assign it after it's defined.
+
     // Load colors from API on mount
     useEffect(() => {
         const loadPreferences = async () => {
@@ -1321,13 +1330,13 @@ export default function OperationsPage() {
                     ? { ...b, status: data.status, driverId: data.driverId || b.driverId }
                     : b
             ));
-            fetchShuttleRuns(true);
+            fetchShuttleRunsRef.current(true);
         };
 
         const handleNewBooking = () => {
-            // Trigger a re-fetch to ensure all nested relations (customer, metadata) are complete
-            fetchBookings();
-            fetchShuttleRuns(true);
+            // Use ref to always access the latest fetchBookings with current filters
+            fetchBookingsRef.current();
+            fetchShuttleRunsRef.current(true);
         };
 
         const handleShuttleRunsUpdated = () => {
@@ -1335,11 +1344,11 @@ export default function OperationsPage() {
                 return; // Ignore echo from our own optimistic update
             }
             // Re-fetch without showing loading spinner
-            fetchShuttleRuns(true);
+            fetchShuttleRunsRef.current(true);
         };
 
         const handleAcknowledged = () => {
-            fetchShuttleRuns(true);
+            fetchShuttleRunsRef.current(true);
         };
 
         const handlePaymentUpdate = (data: { bookingId: string, paymentStatus: string }) => {
@@ -1350,7 +1359,7 @@ export default function OperationsPage() {
                     : b
             ));
             // Also refresh shuttle runs to reflect payment changes
-            fetchShuttleRuns(true);
+            fetchShuttleRunsRef.current(true);
         };
 
         socket.on('booking_status_update', handleStatusUpdate);
@@ -1758,17 +1767,21 @@ export default function OperationsPage() {
     // ---- SHUTTLE-SPECIFIC COLUMN CONFIG (completely separate from private) ----
     type ShuttleColCfg = { key: string; width: number; label: string; hidden: boolean };
     const SHUTTLE_DEFAULT_COLS: ShuttleColCfg[] = [
-        { key: 'sort',       width: 40,  label: 'SIRA',           hidden: false },
-        { key: 'index',      width: 36,  label: '#',              hidden: false },
-        { key: 'customer',   width: 200, label: 'MÜŞTERİ',         hidden: false },
-        { key: 'pickupTime', width: 80,  label: 'ALIŞ SAATİ',      hidden: false },
-        { key: 'pickup',     width: 220, label: 'ALIŞ NOKTASI',    hidden: false },
-        { key: 'flight',     width: 130, label: 'UÇUŞ',            hidden: false },
-        { key: 'payment',    width: 90,  label: 'ÖDEME',           hidden: false },
-        { key: 'pax',        width: 50,  label: 'PAX',            hidden: false },
-        { key: 'phone',      width: 140, label: 'TELEFON',        hidden: false },
-        { key: 'extras',     width: 160, label: 'EKSTRA HİZMET',   hidden: false },
-        { key: 'status',     width: 100, label: 'DURUM',          hidden: false },
+        { key: 'sort',        width: 40,  label: 'SIRA',           hidden: false },
+        { key: 'index',       width: 36,  label: '#',              hidden: false },
+        { key: 'customer',    width: 200, label: 'MÜŞTERİ',         hidden: false },
+        { key: 'pickupTime',  width: 80,  label: 'ALIŞ SAATİ',      hidden: false },
+        { key: 'pickup',      width: 220, label: 'ALIŞ NOKTASI',    hidden: false },
+        { key: 'pickupZone',  width: 80,  label: 'ALIŞ BÖLGE',      hidden: false },
+        { key: 'dropoffZone', width: 80,  label: 'BIRAKIŞ BÖLGE',   hidden: false },
+        { key: 'dropoff',     width: 220, label: 'BIRAKIŞ NOKTASI', hidden: false },
+        { key: 'flight',      width: 130, label: 'UÇUŞ',            hidden: false },
+        { key: 'payment',     width: 90,  label: 'ÖDEME',           hidden: false },
+        { key: 'pax',         width: 50,  label: 'PAX',            hidden: false },
+        { key: 'phone',       width: 140, label: 'TELEFON',        hidden: false },
+        { key: 'extras',      width: 160, label: 'EKSTRA HİZMET',   hidden: false },
+        { key: 'status',      width: 100, label: 'DURUM',          hidden: false },
+        { key: 'driverNote', width: 160, label: 'ŞOFÖR NOTU',     hidden: false },
     ];
     const [shuttleCols, setShuttleCols] = useState<ShuttleColCfg[]>(SHUTTLE_DEFAULT_COLS);
     const [shuttleColEditVisible, setShuttleColEditVisible] = useState(false);
@@ -1855,7 +1868,7 @@ export default function OperationsPage() {
     const [editingPickupTime, setEditingPickupTime] = useState<{ bookingId: string; value: string } | null>(null);
     const handlePickupTimeEdit = async (bookingId: string, newTime: string) => {
         try {
-            await apiClient.put(`/api/transfer/bookings/${bookingId}`, { pickupDateTime: newTime });
+            await apiClient.put(`/api/transfer/bookings/admin/${bookingId}`, { pickupDateTime: newTime });
             setShuttleRuns(prev => prev.map(r => ({
                 ...r,
                 bookings: r.bookings.map((b: any) => b.id === bookingId ? { ...b, pickupDateTime: newTime } : b)
@@ -1870,7 +1883,25 @@ export default function OperationsPage() {
     };
 
     // ---- SHUTTLE STATUS EDIT ----
-    const [editingStatus, setEditingStatus] = useState<{ bookingId: string; value: string } | null>(null);
+    const [editingStatus, setEditingStatus] = useState<{ bookingId: string; value: string; x: number; y: number } | null>(null);
+    
+    // ---- SHUTTLE DRIVER NOTE EDIT ----
+    const [editingDriverNote, setEditingDriverNote] = useState<{ bookingId: string; value: string } | null>(null);
+    const handleDriverNoteEdit = async (bookingId: string, newNote: string) => {
+        try {
+            await apiClient.put(`/api/transfer/bookings/admin/${bookingId}`, { notes: newNote });
+            setShuttleRuns(prev => prev.map(r => ({
+                ...r,
+                bookings: r.bookings.map((b: any) => b.id === bookingId ? { ...b, notes: newNote, metadata: { ...b.metadata, notes: newNote } } : b)
+            })));
+            setEditingDriverNote(null);
+            message.success('Şoför notu güncellendi');
+        } catch (e) {
+            console.error('Update driver note error:', e);
+            message.error('Not güncellenemedi');
+            setEditingDriverNote(null);
+        }
+    };
     const handleStatusEdit = async (bookingId: string, newStatus: string) => {
         try {
             await apiClient.patch(`/api/transfer/bookings/${bookingId}`, { status: newStatus });
@@ -1980,6 +2011,8 @@ export default function OperationsPage() {
             setShuttleRunsLoading(false);
         }
     };
+
+    fetchShuttleRunsRef.current = fetchShuttleRuns;
 
     useEffect(() => {
         if (operationsMode === 'shuttle') {
@@ -3097,6 +3130,7 @@ export default function OperationsPage() {
                                                     <div style={{ 
                                                         display: 'grid', 
                                                         gridTemplateColumns: shuttleCols.filter(c => !c.hidden).map(c => `${c.width}px`).join(' '),
+                                                        minWidth: 'max-content',
                                                         background: 'linear-gradient(135deg, #f5f3ff, #ede9fe)', borderBottom: '1px solid #c4b5fd', padding: '0 4px'
                                                     }}>
                                                         {shuttleCols.filter(c => !c.hidden).map((col, colIdx) => (
@@ -3174,23 +3208,31 @@ export default function OperationsPage() {
                                                     <div style={{ minHeight: 20 }}>
                                                         <SortableContext items={run.bookings.map((b: any) => b.id)} strategy={verticalListSortingStrategy}>
                                                             {run.bookings.map((b: any, idx: number) => {
-                                                                const rowBg = (shuttleColors as any)[b.status] || (idx % 2 === 0 ? '#fff' : '#fafafa');
+                                                                const defaultRowBg: Record<string, string> = {
+                                                                    CONFIRMED: '#eef4ff',
+                                                                    PENDING: '#fffbeb',
+                                                                    IN_PROGRESS: '#ecfeff',
+                                                                    COMPLETED: '#f0fdf4',
+                                                                    CANCELLED: '#fef2f2',
+                                                                    NO_SHOW: '#fff1f2',
+                                                                };
+                                                                const rowBg = (shuttleColors as any)[b.status] || defaultRowBg[b.status] || (idx % 2 === 0 ? '#fff' : '#fafafa');
                                                                 const pickupTime = b.pickupDateTime ? new Date(b.pickupDateTime).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }) : run.departureTime;
 
                                                                 const renderCell = (key: string) => {
                                                                     const statusMap: any = {
-                                                                        CONFIRMED: { color: '#2563eb', label: 'Onaylı' },
-                                                                        PENDING: { color: '#d97706', label: 'Bekliyor' },
-                                                                        IN_PROGRESS: { color: '#0e7490', label: 'Yolcu Alındı' },
-                                                                        NO_SHOW: { color: '#be123c', label: 'No-Show' },
-                                                                        COMPLETED: { color: '#16a34a', label: 'Tamamlandı' },
-                                                                        CANCELLED: { color: '#dc2626', label: 'İptal' },
+                                                                        CONFIRMED: { color: '#1e40af', bg: '#93c5fd', border: '#3b82f6', label: 'Onaylı' },
+                                                                        PENDING: { color: '#92400e', bg: '#fcd34d', border: '#f59e0b', label: 'Bekliyor' },
+                                                                        IN_PROGRESS: { color: '#155e75', bg: '#67e8f9', border: '#06b6d4', label: 'Alındı' },
+                                                                        NO_SHOW: { color: '#9f1239', bg: '#fda4af', border: '#f43f5e', label: 'Gelmedi' },
+                                                                        COMPLETED: { color: '#166534', bg: '#86efac', border: '#22c55e', label: 'Bitti' },
+                                                                        CANCELLED: { color: '#991b1b', bg: '#fca5a5', border: '#ef4444', label: 'İptal' },
                                                                     };
                                                                     // Override: if driver acknowledged, show "Okundu"
                                                                     const isAcknowledged = b.acknowledgedAt || b.metadata?.acknowledgedAt;
-                                                                    let st = statusMap[b.status] || { color: '#6b7280', label: b.status };
+                                                                    let st = statusMap[b.status] || { color: '#4b5563', bg: '#d1d5db', border: '#9ca3af', label: b.status };
                                                                     if (isAcknowledged && (b.status === 'CONFIRMED' || b.status === 'PENDING')) {
-                                                                        st = { color: '#0369a1', label: 'Okundu ✓' };
+                                                                        st = { color: '#0369a1', bg: '#e0f2fe', border: '#7dd3fc', label: 'Okundu' };
                                                                     }
                                                                     
                                                                     switch(key) {
@@ -3374,6 +3416,29 @@ export default function OperationsPage() {
                                                                             );
                                                                         }
                                                                         case 'phone': return <span style={{ fontSize: 12, color: '#374151' }}>{b.contactPhone}</span>;
+                                                                        case 'pickupZone': {
+                                                                            const pzCode = b.pickupRegionCode || b.metadata?.pickupRegionCode;
+                                                                            if (!pzCode) return <span style={{ fontSize: 11, color: '#999' }}>-</span>;
+                                                                            return (
+                                                                                <span style={{ display: 'inline-block', fontSize: 10, fontWeight: 800, fontFamily: 'monospace', letterSpacing: 0.5, background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#166534', borderRadius: 4, padding: '1px 6px' }}>
+                                                                                    {pzCode}
+                                                                                </span>
+                                                                            );
+                                                                        }
+                                                                        case 'dropoffZone': {
+                                                                            const dzCode = b.dropoffRegionCode || b.metadata?.dropoffRegionCode;
+                                                                            if (!dzCode) return <span style={{ fontSize: 11, color: '#999' }}>-</span>;
+                                                                            return (
+                                                                                <span style={{ display: 'inline-block', fontSize: 10, fontWeight: 800, fontFamily: 'monospace', letterSpacing: 0.5, background: '#fef3c7', border: '1px solid #fde68a', color: '#92400e', borderRadius: 4, padding: '1px 6px' }}>
+                                                                                    {dzCode}
+                                                                                </span>
+                                                                            );
+                                                                        }
+                                                                        case 'dropoff': return (
+                                                                            <span style={{ fontSize: 12, color: '#374151' }}>
+                                                                                <span style={{ color: '#2563eb', marginRight: 3 }}>📍</span>{b.dropoff || b.metadata?.dropoff || '-'}
+                                                                            </span>
+                                                                        );
                                                                         case 'extras': {
                                                                             const extras = b.metadata?.extraServices || b.extraServices || [];
                                                                             if (!extras.length) return <span style={{ fontSize: 11, color: '#999' }}>-</span>;
@@ -3428,79 +3493,107 @@ export default function OperationsPage() {
                                                                                 }
                                                                             };
                                                                             
-                                                                            if (editingStatus?.bookingId === b.id) {
-                                                                                return (
-                                                                                    <div 
+                                                                            return (
+                                                                                <>
+                                                                                    <span 
+                                                                                        onDoubleClick={(e) => {
+                                                                                            const rect = e.currentTarget.getBoundingClientRect();
+                                                                                            setEditingStatus({ bookingId: b.id, value: b.status, x: rect.left, y: rect.bottom + 4 });
+                                                                                        }}
+                                                                                        title="Çift tıklayarak durum değiştirin"
                                                                                         style={{
-                                                                                            position: 'absolute',
-                                                                                            zIndex: 100,
-                                                                                            background: '#fff',
-                                                                                            borderRadius: 12,
-                                                                                            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
-                                                                                            border: '1px solid #e5e7eb',
-                                                                                            padding: 8,
-                                                                                            minWidth: 160,
-                                                                                            marginTop: -8
+                                                                                            display: 'inline-block',
+                                                                                            fontWeight: 700,
+                                                                                            color: st.color,
+                                                                                            background: st.bg || '#f3f4f6',
+                                                                                            padding: '2px 8px',
+                                                                                            borderRadius: 10,
+                                                                                            fontSize: 11,
+                                                                                            border: `1px solid ${st.border || st.color + '40'}`,
+                                                                                            textTransform: 'uppercase',
+                                                                                            letterSpacing: 0.3,
+                                                                                            cursor: 'pointer',
+                                                                                            userSelect: 'none'
                                                                                         }}
                                                                                     >
-                                                                                        <div style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', marginBottom: 6, padding: '0 4px' }}>
-                                                                                            Durum Seçin
-                                                                                        </div>
-                                                                                        {statusOptions.map(opt => (
-                                                                                            <button
-                                                                                                key={opt.value}
-                                                                                                onClick={() => handleStatusClick(opt.value)}
-                                                                                                style={{
-                                                                                                    display: 'flex',
-                                                                                                    alignItems: 'center',
-                                                                                                    gap: 6,
-                                                                                                    width: '100%',
-                                                                                                    padding: '6px 10px',
-                                                                                                    borderRadius: 8,
-                                                                                                    border: 'none',
-                                                                                                    background: b.status === opt.value ? opt.bg : 'transparent',
-                                                                                                    color: opt.color,
-                                                                                                    fontSize: 12,
-                                                                                                    fontWeight: b.status === opt.value ? 700 : 500,
-                                                                                                    cursor: 'pointer',
-                                                                                                    marginBottom: 2,
-                                                                                                    transition: 'all 0.15s'
-                                                                                                }}
-                                                                                                onMouseEnter={(e) => {
-                                                                                                    e.currentTarget.style.background = opt.bg;
-                                                                                                }}
-                                                                                                onMouseLeave={(e) => {
-                                                                                                    if (b.status !== opt.value) {
-                                                                                                        e.currentTarget.style.background = 'transparent';
-                                                                                                    }
-                                                                                                }}
-                                                                                            >
-                                                                                                {opt.label}
-                                                                                                {b.status === opt.value && <span style={{ marginLeft: 'auto' }}>✓</span>}
-                                                                                            </button>
-                                                                                        ))}
-                                                                                    </div>
+                                                                                        {st.label}
+                                                                                    </span>
+                                                                                    {editingStatus?.bookingId === b.id && (
+                                                                                        <>
+                                                                                            <div onClick={() => setEditingStatus(null)} style={{ position: 'fixed', inset: 0, zIndex: 999 }} />
+                                                                                            <div style={{
+                                                                                                position: 'fixed',
+                                                                                                left: editingStatus.x,
+                                                                                                top: editingStatus.y,
+                                                                                                zIndex: 1000,
+                                                                                                background: '#fff',
+                                                                                                borderRadius: 12,
+                                                                                                boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)',
+                                                                                                border: '1px solid #e5e7eb',
+                                                                                                padding: 8,
+                                                                                                minWidth: 160,
+                                                                                            }}>
+                                                                                                <div style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', marginBottom: 6, padding: '0 4px' }}>
+                                                                                                    Durum Seçin
+                                                                                                </div>
+                                                                                                {statusOptions.map(opt => (
+                                                                                                    <button
+                                                                                                        key={opt.value}
+                                                                                                        onClick={() => handleStatusClick(opt.value)}
+                                                                                                        style={{
+                                                                                                            display: 'flex', alignItems: 'center', gap: 6, width: '100%',
+                                                                                                            padding: '6px 10px', borderRadius: 8, border: 'none',
+                                                                                                            background: b.status === opt.value ? opt.bg : 'transparent',
+                                                                                                            color: opt.color, fontSize: 12,
+                                                                                                            fontWeight: b.status === opt.value ? 700 : 500,
+                                                                                                            cursor: 'pointer', marginBottom: 2, transition: 'all 0.15s'
+                                                                                                        }}
+                                                                                                        onMouseEnter={(e) => { e.currentTarget.style.background = opt.bg; }}
+                                                                                                        onMouseLeave={(e) => { if (b.status !== opt.value) e.currentTarget.style.background = 'transparent'; }}
+                                                                                                    >
+                                                                                                        {opt.label}
+                                                                                                        {b.status === opt.value && <span style={{ marginLeft: 'auto' }}>✓</span>}
+                                                                                                    </button>
+                                                                                                ))}
+                                                                                            </div>
+                                                                                        </>
+                                                                                    )}
+                                                                                </>
+                                                                            );
+                                                                        }
+                                                                        case 'driverNote': {
+                                                                            if (editingDriverNote?.bookingId === b.id) {
+                                                                                return (
+                                                                                    <input
+                                                                                        type="text"
+                                                                                        defaultValue={editingDriverNote.value}
+                                                                                        autoFocus
+                                                                                        onBlur={(e) => {
+                                                                                            if (e.target.value !== editingDriverNote.value) {
+                                                                                                handleDriverNoteEdit(b.id, e.target.value);
+                                                                                            } else {
+                                                                                                setEditingDriverNote(null);
+                                                                                            }
+                                                                                        }}
+                                                                                        onKeyDown={(e) => {
+                                                                                            if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                                                                                            if (e.key === 'Escape') setEditingDriverNote(null);
+                                                                                        }}
+                                                                                        style={{
+                                                                                            fontSize: 11, color: '#374151', padding: '2px 6px', border: '2px solid #3b82f6', borderRadius: 5,
+                                                                                            outline: 'none', width: '100%', background: '#dbeafe'
+                                                                                        }}
+                                                                                    />
                                                                                 );
                                                                             }
+                                                                            const note = b.notes || b.metadata?.notes || b.specialRequests || '';
                                                                             return (
-                                                                                <span 
-                                                                                    onClick={() => setEditingStatus({ bookingId: b.id, value: b.status })}
-                                                                                    title="Tıklayarak durum değiştirin"
-                                                                                    style={{
-                                                                                        fontWeight: 700,
-                                                                                        color: st.color,
-                                                                                        background: st.color + '18',
-                                                                                        padding: '2px 8px',
-                                                                                        borderRadius: 10,
-                                                                                        fontSize: 11,
-                                                                                        border: `1px solid ${st.color}40`,
-                                                                                        textTransform: 'uppercase',
-                                                                                        letterSpacing: 0.3,
-                                                                                        cursor: 'pointer',
-                                                                                        userSelect: 'none'
-                                                                                    }}
+                                                                                <span
+                                                                                    onDoubleClick={() => setEditingDriverNote({ bookingId: b.id, value: note })}
+                                                                                    title={note || 'Çift tıklayarak düzenle'}
+                                                                                    style={{ fontSize: 11, color: note ? '#374151' : '#999', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block', maxWidth: '100%', cursor: 'pointer' }}
                                                                                 >
-                                                                                    {st.label}
+                                                                                    {note ? `📝 ${note}` : '📝 -'}
                                                                                 </span>
                                                                             );
                                                                         }
@@ -3517,6 +3610,7 @@ export default function OperationsPage() {
                                                                                     ...dnd.style,
                                                                                     display: 'grid', 
                                                                                     gridTemplateColumns: shuttleCols.filter(c => !c.hidden).map(c => `${c.width}px`).join(' '),
+                                                                                    minWidth: 'max-content',
                                                                                     background: dnd.isDragging ? '#e0e7ff' : rowBg,
                                                                                     borderBottom: '1px solid #ede9fe',
                                                                                     padding: '0 4px',

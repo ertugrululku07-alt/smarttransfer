@@ -134,7 +134,8 @@ router.post('/', authMiddleware, async (req, res) => {
                         babyPrice: z.babyPrice,
                         fixedPrice: z.fixedPrice,
                         cost: z.cost,
-                        extraKmPrice: z.extraKmPrice
+                        extraKmPrice: z.extraKmPrice,
+                        pickupLeadHours: z.pickupLeadHours ?? null
                     }))
                 } : undefined
             },
@@ -195,6 +196,7 @@ router.put('/:id', authMiddleware, async (req, res) => {
                             fixedPrice: z.fixedPrice ?? null,
                             cost: z.cost ?? null,
                             extraKmPrice: z.extraKmPrice ?? null,
+                            pickupLeadHours: z.pickupLeadHours ?? null,
                         }))
                     });
                 }

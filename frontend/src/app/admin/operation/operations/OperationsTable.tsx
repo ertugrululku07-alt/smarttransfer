@@ -1113,7 +1113,7 @@ export default function OperationsTable({
                 if (adults > 0) parts.push(`${adults}Y`);
                 if (children > 0) parts.push(`${children}Ç`);
                 if (infants > 0) parts.push(`${infants}B`);
-                const hasPassengers = total > 1 || (record.metadata?.passengerDetails?.length > 0);
+                const hasPassengers = total > 1 || (record.metadata?.passengerDetails?.length > 1);
                 const isExpanded = expandedRows.has(record.id);
                 return (
                     <div 
@@ -1491,10 +1491,12 @@ export default function OperationsTable({
                                         return 'infant';
                                     };
                                     
-                                    if (passengers.length > 0) {
-                                        passengers.forEach((p: any, i: number) => {
-                                            // Use explicit type if available, otherwise derive from slot position
-                                            const pType = (p.type && p.type !== 'adult' && p.type !== 'unknown') ? p.type : getTypeForSlot(i);
+                                    // Skip first entry (main contact already added above)
+                                    const otherPassengers = passengers.length > 0 ? passengers.slice(1) : [];
+                                    if (otherPassengers.length > 0) {
+                                        otherPassengers.forEach((p: any, i: number) => {
+                                            // Use explicit type from passengerDetails, fallback to slot-based derivation
+                                            const pType = p.type || getTypeForSlot(i);
                                             list.push({
                                                 num: i + 2,
                                                 name: p.name || p.fullName || (p.firstName ? `${p.firstName || ''} ${p.lastName || ''}`.trim() : ''),
@@ -1550,7 +1552,7 @@ export default function OperationsTable({
                                 },
                                 rowExpandable: (record: any) => {
                                     const total = (record.adults || 0) + (record.children || 0) + (record.infants || 0);
-                                    return total > 1 || (record.metadata?.passengerDetails?.length > 0);
+                                    return total > 1 || (record.metadata?.passengerDetails?.length > 1);
                                 },
                             }}
                             rowClassName={(record) => {

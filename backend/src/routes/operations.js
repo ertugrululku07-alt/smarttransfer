@@ -77,8 +77,9 @@ router.get('/driver-schedule', authMiddleware, async (req, res) => {
             return res.status(400).json({ success: false, error: 'driverId ve date zorunlu' });
         }
 
-        const dayStart = new Date(`${date}T00:00:00.000Z`);
-        const dayEnd = new Date(`${date}T23:59:59.999Z`);
+        const TZ_OFFSET_MS = 3 * 60 * 60 * 1000; // UTC+3 Turkey
+        const dayStart = new Date(new Date(`${date}T00:00:00.000Z`).getTime() - TZ_OFFSET_MS);
+        const dayEnd = new Date(new Date(`${date}T23:59:59.999Z`).getTime() - TZ_OFFSET_MS);
 
         const bookings = await prisma.booking.findMany({
             where: {
@@ -122,8 +123,9 @@ router.get('/vehicle-schedule', authMiddleware, async (req, res) => {
             return res.status(400).json({ success: false, error: 'vehicleId ve date zorunlu' });
         }
 
-        const dayStart = new Date(`${date}T00:00:00.000Z`);
-        const dayEnd = new Date(`${date}T23:59:59.999Z`);
+        const TZ_OFFSET_MS = 3 * 60 * 60 * 1000; // UTC+3 Turkey
+        const dayStart = new Date(new Date(`${date}T00:00:00.000Z`).getTime() - TZ_OFFSET_MS);
+        const dayEnd = new Date(new Date(`${date}T23:59:59.999Z`).getTime() - TZ_OFFSET_MS);
 
         // assignedVehicleId is stored in metadata
         const allBookings = await prisma.booking.findMany({
@@ -239,8 +241,9 @@ router.get('/driver-availability', authMiddleware, async (req, res) => {
             return res.status(400).json({ success: false, error: 'date zorunlu' });
         }
 
-        const dayStart = new Date(`${date}T00:00:00.000Z`);
-        const dayEnd = new Date(`${date}T23:59:59.999Z`);
+        const TZ_OFFSET_MS = 3 * 60 * 60 * 1000; // UTC+3 Turkey
+        const dayStart = new Date(new Date(`${date}T00:00:00.000Z`).getTime() - TZ_OFFSET_MS);
+        const dayEnd = new Date(new Date(`${date}T23:59:59.999Z`).getTime() - TZ_OFFSET_MS);
 
         // Fetch all personnel with driver job title
         const tenantId = req.tenant?.id;
@@ -396,12 +399,14 @@ router.post('/auto-assign', authMiddleware, async (req, res) => {
         const endDateStr = req.body.endDate;
 
         let dayStart, dayEnd;
+        const TZ_OFFSET_MS = 3 * 60 * 60 * 1000; // UTC+3 Turkey
+        
         if (startDateStr && endDateStr) {
-            dayStart = new Date(`${startDateStr}T00:00:00.000Z`);
-            dayEnd = new Date(`${endDateStr}T23:59:59.999Z`);
+            dayStart = new Date(new Date(`${startDateStr}T00:00:00.000Z`).getTime() - TZ_OFFSET_MS);
+            dayEnd = new Date(new Date(`${endDateStr}T23:59:59.999Z`).getTime() - TZ_OFFSET_MS);
         } else {
-            dayStart = new Date(`${targetDate}T00:00:00.000Z`);
-            dayEnd = new Date(`${targetDate}T23:59:59.999Z`);
+            dayStart = new Date(new Date(`${targetDate}T00:00:00.000Z`).getTime() - TZ_OFFSET_MS);
+            dayEnd = new Date(new Date(`${targetDate}T23:59:59.999Z`).getTime() - TZ_OFFSET_MS);
         }
 
         // 1. Fetch unassigned bookings for the date range (no driverId set)
@@ -693,8 +698,12 @@ router.get('/shuttle-runs', authMiddleware, async (req, res, next) => {
              datePart = new Date().toISOString().split('T')[0];
         }
         
-        const dayStart = new Date(`${datePart}T00:00:00.000Z`);
-        const dayEnd   = new Date(`${datePart}T23:59:59.999Z`);
+        // Türkiye UTC+3'te çalışır. UTC midnight kullanırsak 02:15 TR = 23:15 UTC önceki gün,
+        // bu yüzden gece saatindeki bookinglar yanlış güne düşüyor.
+        // Çözüm: TR günü 00:00 → UTC 21:00 önceki gün, TR günü 23:59 → UTC 20:59 aynı gün
+        const TZ_OFFSET_MS = 3 * 60 * 60 * 1000; // UTC+3
+        const dayStart = new Date(new Date(`${datePart}T00:00:00.000Z`).getTime() - TZ_OFFSET_MS);
+        const dayEnd   = new Date(new Date(`${datePart}T23:59:59.999Z`).getTime() - TZ_OFFSET_MS);
 
         LOG_TAG = "CHECK_TENANT";
         const user = req.user;
@@ -753,7 +762,7 @@ router.get('/shuttle-runs', authMiddleware, async (req, res, next) => {
                 tenantId: tenantId, 
                 productType: 'TRANSFER',
                 startDate: { gte: dayStart, lte: dayEnd },
-                status: { notIn: ['CANCELLED', 'COMPLETED'] },
+                status: { notIn: ['CANCELLED', 'COMPLETED', 'PENDING'] },
             },
             include: { customer: true, agency: true },
             orderBy: { startDate: 'asc' }
@@ -960,7 +969,7 @@ router.patch('/shuttle-runs/assign', authMiddleware, async (req, res) => {
         if (!bookingIds || !Array.isArray(bookingIds) || bookingIds.length === 0) {
             return res.status(400).json({ success: false, error: 'bookingIds array zorunlu' });
         }
-        if (!driverId && !vehicleId) {
+        if (driverId === undefined && vehicleId === undefined) {
             return res.status(400).json({ success: false, error: 'driverId veya vehicleId gerekli' });
         }
 
@@ -1447,9 +1456,18 @@ router.post('/migrate-region-codes', authMiddleware, async (req, res) => {
         const tenantId = req.user?.tenantId;
         if (!tenantId) return res.status(400).json({ success: false, error: 'Tenant context missing' });
 
-        // Load hubs
-        const tenantInfo = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { settings: true } });
-        const hubs = tenantInfo?.settings?.hubs || [];
+        // Load hubs from Zone table (unified model), fallback to settings.hubs
+        const zonesWithCode = await prisma.zone.findMany({
+            where: { tenantId, code: { not: null } },
+            select: { code: true, keywords: true, name: true }
+        });
+        let hubs = zonesWithCode.length > 0
+            ? zonesWithCode.map(z => ({ code: z.code, keywords: z.keywords || '', name: z.name }))
+            : [];
+        if (!hubs.length) {
+            const tenantInfo = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { settings: true } });
+            hubs = tenantInfo?.settings?.hubs || [];
+        }
         if (!hubs.length) return res.json({ success: true, message: 'No hubs defined', updated: 0 });
 
         const trLower = (s) => (s || '').toLocaleLowerCase('tr');

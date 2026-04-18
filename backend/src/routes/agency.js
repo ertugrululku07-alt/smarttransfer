@@ -14,6 +14,15 @@ async function loadTenantHubs(tenantId) {
     ];
     if (!tenantId) return defaultHubs;
     try {
+        // Primary: load from Zone table (unified zone model)
+        const zonesWithCode = await prisma.zone.findMany({
+            where: { tenantId, code: { not: null } },
+            select: { code: true, keywords: true, name: true }
+        });
+        if (zonesWithCode.length > 0) {
+            return zonesWithCode.map(z => ({ code: z.code, keywords: z.keywords || '', name: z.name }));
+        }
+        // Fallback: legacy settings.hubs
         const tenantInfo = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { settings: true } });
         if (tenantInfo?.settings?.hubs && Array.isArray(tenantInfo.settings.hubs)) {
             return tenantInfo.settings.hubs;

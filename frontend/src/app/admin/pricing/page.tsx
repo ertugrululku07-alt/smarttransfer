@@ -1,15 +1,15 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
-  Typography, message, Row, Col, Avatar,
-  Button, Form, InputNumber, Select, Spin, Empty,
-  Divider, Input, Tag, Badge
+  Typography, message, Row, Col,
+  Button, Form, InputNumber, Select, Spin,
+  Badge, Switch, Tooltip
 } from 'antd';
 import {
   CarOutlined, PlusOutlined, CloseCircleOutlined, SaveOutlined,
-  DollarOutlined, EnvironmentOutlined, UserOutlined,
-  FieldTimeOutlined, DashboardOutlined
+  DollarOutlined, EnvironmentOutlined,
+  DashboardOutlined, SwapOutlined, DeleteOutlined
 } from '@ant-design/icons';
 import AdminLayout from '../AdminLayout';
 import AdminGuard from '../AdminGuard';
@@ -21,7 +21,6 @@ const { Option } = Select;
 export default function PricingPage() {
   const [vehicleTypes, setVehicleTypes] = useState<any[]>([]);
   const [zones, setZones] = useState<any[]>([]);
-  const [hubs, setHubs] = useState<any[]>([]);
   const [currencies, setCurrencies] = useState<any[]>([]);
 
   const [loading, setLoading] = useState(true);
@@ -30,6 +29,10 @@ export default function PricingPage() {
   const [defaultCurrency, setDefaultCurrency] = useState<string>('EUR');
 
   const [form] = Form.useForm();
+
+  // Helper: build zone lookup
+  const zoneByCode = useCallback((code: string) => zones.find(z => z.code === code), [zones]);
+  const zoneById = useCallback((id: string) => zones.find(z => z.id === id), [zones]);
 
   const fetchData = async () => {
     try {
@@ -49,9 +52,6 @@ export default function PricingPage() {
       if (tenantRes.status === 'fulfilled' && tenantRes.value.data?.success) {
         const tenant = tenantRes.value.data.data.tenant;
         const st = tenant.settings || {};
-        if (st.hubs && Array.isArray(st.hubs) && st.hubs.length > 0) {
-          setHubs(st.hubs);
-        } else { setHubs([]); }
         if (st.definitions?.currencies) {
           setCurrencies(st.definitions.currencies);
           const defCur = st.definitions.currencies.find((c: any) => c.isDefault);
@@ -69,8 +69,53 @@ export default function PricingPage() {
 
   useEffect(() => { fetchData(); }, []);
 
+  // Detect bidirectional pairs on load
+  const detectBidirectional = (zonePrices: any[]) => {
+    const pairs = new Set<string>();
+    const biRows = new Set<number>();
+    zonePrices.forEach((zp, i) => {
+      if (biRows.has(i)) return;
+      const reverseIdx = zonePrices.findIndex((r, j) => j > i && r.baseLocation === zones.find(z => z.id === zp.zoneId)?.code && zones.find(z => z.code === zp.baseLocation)?.id === r.zoneId);
+      if (reverseIdx !== -1) {
+        biRows.add(i);
+        biRows.add(reverseIdx);
+      }
+    });
+    return biRows;
+  };
+
   const handleSelectType = (vt: any) => {
     setSelectedType(vt);
+    const rawPrices = (vt.zonePrices || []).map((zp: any) => ({
+      ...zp,
+      price: zp.price ? Number(zp.price) : undefined,
+      childPrice: zp.childPrice ? Number(zp.childPrice) : undefined,
+      babyPrice: zp.babyPrice ? Number(zp.babyPrice) : undefined,
+      fixedPrice: zp.fixedPrice ? Number(zp.fixedPrice) : undefined,
+      cost: zp.cost ? Number(zp.cost) : undefined,
+      extraKmPrice: zp.extraKmPrice ? Number(zp.extraKmPrice) : undefined,
+      pickupLeadHours: zp.pickupLeadHours ? Number(zp.pickupLeadHours) : undefined,
+      bidirectional: false
+    }));
+
+    // Detect and merge bidirectional pairs
+    const merged: any[] = [];
+    const used = new Set<number>();
+    rawPrices.forEach((zp: any, i: number) => {
+      if (used.has(i)) return;
+      const reverseIdx = rawPrices.findIndex((r: any, j: number) => 
+        j > i && !used.has(j) &&
+        zones.find((z: any) => z.id === zp.zoneId)?.code === r.baseLocation &&
+        zones.find((z: any) => z.code === zp.baseLocation)?.id === r.zoneId
+      );
+      if (reverseIdx !== -1) {
+        used.add(reverseIdx);
+        merged.push({ ...zp, bidirectional: true });
+      } else {
+        merged.push({ ...zp, bidirectional: false });
+      }
+    });
+
     form.setFieldsValue({
       metadata: {
         openingFee: vt.metadata?.openingFee,
@@ -79,15 +124,7 @@ export default function PricingPage() {
         basePricePerHour: vt.metadata?.basePricePerHour,
         currency: vt.metadata?.currency || defaultCurrency
       },
-      zonePrices: (vt.zonePrices || []).map((zp: any) => ({
-        ...zp,
-        price: zp.price ? Number(zp.price) : undefined,
-        childPrice: zp.childPrice ? Number(zp.childPrice) : undefined,
-        babyPrice: zp.babyPrice ? Number(zp.babyPrice) : undefined,
-        fixedPrice: zp.fixedPrice ? Number(zp.fixedPrice) : undefined,
-        cost: zp.cost ? Number(zp.cost) : undefined,
-        extraKmPrice: zp.extraKmPrice ? Number(zp.extraKmPrice) : undefined
-      }))
+      zonePrices: merged
     });
   };
 
@@ -102,26 +139,53 @@ export default function PricingPage() {
         basePricePerHour: values.metadata?.basePricePerHour,
         currency: values.metadata?.currency
       };
+
+      // Expand bidirectional rows into two entries
+      const expandedPrices: any[] = [];
+      (values.zonePrices || []).forEach((zp: any) => {
+        const { bidirectional, ...priceData } = zp;
+        expandedPrices.push(priceData);
+        if (bidirectional) {
+          const fromZone = zones.find(z => z.code === zp.baseLocation);
+          const toZone = zones.find(z => z.id === zp.zoneId);
+          if (fromZone && toZone?.code) {
+            expandedPrices.push({
+              ...priceData,
+              baseLocation: toZone.code,
+              zoneId: fromZone.id,
+            });
+          }
+        }
+      });
+
       const payload = {
         name: selectedType.name, category: selectedType.category,
         capacity: selectedType.capacity, luggage: selectedType.luggage,
         description: selectedType.description, features: selectedType.features,
         image: selectedType.image, metadata: newMetadata,
-        zonePrices: values.zonePrices
+        zonePrices: expandedPrices
       };
       await apiClient.put(`/api/vehicle-types/${selectedType.id}`, payload);
       message.success('Fiyatlandırma başarıyla kaydedildi');
-      setVehicleTypes(prev => prev.map(t => t.id === selectedType.id ? { ...t, metadata: newMetadata, zonePrices: values.zonePrices } : t));
+      setVehicleTypes(prev => prev.map(t => t.id === selectedType.id ? { ...t, metadata: newMetadata, zonePrices: expandedPrices } : t));
+      // Re-select to refresh form with merged pairs
+      const updated = { ...selectedType, metadata: newMetadata, zonePrices: expandedPrices };
+      setTimeout(() => handleSelectType(updated), 100);
     } catch (err: any) {
       console.error('Save error:', err);
       message.error(err.response?.data?.error || 'Kaydedilemedi');
     } finally { setSaving(false); }
   };
 
-  // ── Category colors ──
   const CAT_COLORS: Record<string, string> = {
     SEDAN: '#6366f1', VAN: '#0891b2', VIP_VAN: '#7c3aed',
     MINIBUS: '#2563eb', BUS: '#ea580c', LUXURY: '#ca8a04',
+  };
+
+  // Compact label style
+  const thStyle: React.CSSProperties = {
+    fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase',
+    letterSpacing: 0.5, padding: '8px 4px', whiteSpace: 'nowrap', textAlign: 'center',
   };
 
   return (
@@ -129,13 +193,12 @@ export default function PricingPage() {
       <AdminLayout selectedKey="pricing">
         <div style={{ paddingBottom: 40 }}>
 
-          {/* ── Header ── */}
           <div style={{ marginBottom: 24 }}>
             <h1 style={{ fontSize: 24, fontWeight: 800, color: '#1a1a2e', margin: 0, letterSpacing: -0.5 }}>
               Araç Tipi Fiyatlandırması
             </h1>
             <Text type="secondary" style={{ fontSize: 13 }}>
-              Araç tipleri için baz fiyatları ve bölge (poligon) fiyatlarını yönetin.
+              Araç tipleri için baz fiyatları ve bölge fiyatlarını yönetin.
             </Text>
           </div>
 
@@ -165,16 +228,13 @@ export default function PricingPage() {
                       const isSelected = selectedType?.id === item.id;
                       const catColor = CAT_COLORS[item.category] || '#6366f1';
                       return (
-                        <div
-                          key={item.id}
-                          onClick={() => handleSelectType(item)}
+                        <div key={item.id} onClick={() => handleSelectType(item)}
                           style={{
                             padding: '12px 16px', cursor: 'pointer',
                             display: 'flex', alignItems: 'center', gap: 12,
                             background: isSelected ? `${catColor}08` : 'transparent',
                             borderLeft: isSelected ? `4px solid ${catColor}` : '4px solid transparent',
-                            transition: 'all 0.15s',
-                            borderBottom: '1px solid #f8fafc',
+                            transition: 'all 0.15s', borderBottom: '1px solid #f8fafc',
                           }}
                           onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = '#f8fafc'; }}
                           onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = 'transparent'; }}
@@ -182,8 +242,7 @@ export default function PricingPage() {
                           <div style={{
                             width: 40, height: 40, borderRadius: 12, overflow: 'hidden',
                             background: item.image ? 'transparent' : `${catColor}15`,
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            flexShrink: 0,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                           }}>
                             {item.image ? (
                               <img src={getImageUrl(item.image)} alt={item.name} style={{ width: 40, height: 40, objectFit: 'cover' }} />
@@ -196,9 +255,7 @@ export default function PricingPage() {
                               fontSize: 13, fontWeight: isSelected ? 700 : 600,
                               color: isSelected ? catColor : '#1e293b',
                               overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                            }}>
-                              {item.name}
-                            </div>
+                            }}>{item.name}</div>
                             <div style={{ fontSize: 11, color: '#94a3b8' }}>
                               {item.categoryDisplay} · {item.capacity} Yolcu
                             </div>
@@ -218,8 +275,7 @@ export default function PricingPage() {
                 {selectedType ? (
                   <div style={{
                     background: '#fff', borderRadius: 20, overflow: 'hidden',
-                    border: '1px solid #f0f0f0',
-                    boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                    border: '1px solid #f0f0f0', boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
                   }}>
                     {/* Title bar */}
                     <div style={{
@@ -252,14 +308,11 @@ export default function PricingPage() {
                       </Button>
                     </div>
 
-                    {/* Form content */}
                     <div style={{ padding: '24px' }}>
                       <Form form={form} layout="vertical" onFinish={handleSave} requiredMark={false}>
 
-                        {/* ── BASE PRICING ── */}
-                        <div style={{
-                          display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16,
-                        }}>
+                        {/* ── BASE PRICING — COMPACT TABLE ── */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
                           <div style={{
                             width: 32, height: 32, borderRadius: 8,
                             background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -267,56 +320,61 @@ export default function PricingPage() {
                             <DashboardOutlined style={{ fontSize: 15, color: '#2563eb' }} />
                           </div>
                           <div>
-                            <div style={{ fontWeight: 700, fontSize: 14, color: '#1e293b' }}>Mesafe Bazlı Formül Fiyatlandırması</div>
-                            <div style={{ fontSize: 11, color: '#94a3b8' }}>
-                              Transfer rotası hiçbir bölge ile eşleşmezse uygulanacak yedek fiyatlar
+                            <div style={{ fontWeight: 700, fontSize: 14, color: '#1e293b' }}>Mesafe Bazlı Formül</div>
+                            <div style={{ fontSize: 11, color: '#94a3b8' }}>Rota hiçbir bölge ile eşleşmezse uygulanacak yedek fiyatlar</div>
+                          </div>
+                        </div>
+
+                        <div style={{ borderRadius: 12, border: '1px solid #e2e8f0', overflow: 'hidden', marginBottom: 28 }}>
+                          <div style={{
+                            display: 'grid',
+                            gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr',
+                            background: 'linear-gradient(135deg, #f8fafc, #eef2ff)',
+                            borderBottom: '1px solid #e2e8f0',
+                          }}>
+                            <div style={thStyle}>Para Birimi</div>
+                            <div style={thStyle}>Başlangıç Ücreti</div>
+                            <div style={thStyle}>Km Başı Ücret</div>
+                            <div style={thStyle}>Sabit Fiyat</div>
+                            <div style={thStyle}>Saatlik Fiyat</div>
+                          </div>
+                          <div style={{
+                            display: 'grid',
+                            gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr',
+                            padding: '8px 0', background: '#fff',
+                          }}>
+                            <div style={{ padding: '0 6px' }}>
+                              <Form.Item name={['metadata', 'currency']} style={{ marginBottom: 0 }}>
+                                <Select placeholder={defaultCurrency || 'Seçiniz'} allowClear size="small">
+                                  {currencies.map(c => <Option key={c.code} value={c.code}>{c.symbol} {c.code}</Option>)}
+                                </Select>
+                              </Form.Item>
+                            </div>
+                            <div style={{ padding: '0 6px' }}>
+                              <Form.Item name={['metadata', 'openingFee']} style={{ marginBottom: 0 }}>
+                                <InputNumber min={0} step={1} precision={2} placeholder="0.00" style={{ width: '100%' }} size="small" controls={false} />
+                              </Form.Item>
+                            </div>
+                            <div style={{ padding: '0 6px' }}>
+                              <Form.Item name={['metadata', 'basePricePerKm']} style={{ marginBottom: 0 }}>
+                                <InputNumber min={0} step={0.1} precision={2} placeholder="0.00" style={{ width: '100%' }} size="small" controls={false} />
+                              </Form.Item>
+                            </div>
+                            <div style={{ padding: '0 6px' }}>
+                              <Form.Item name={['metadata', 'fixedPrice']} style={{ marginBottom: 0 }}>
+                                <InputNumber min={0} step={1} precision={2} placeholder="0.00" style={{ width: '100%' }} size="small" controls={false} />
+                              </Form.Item>
+                            </div>
+                            <div style={{ padding: '0 6px' }}>
+                              <Form.Item name={['metadata', 'basePricePerHour']} style={{ marginBottom: 0 }}>
+                                <InputNumber min={0} step={1} precision={2} placeholder="0.00" style={{ width: '100%' }} size="small" controls={false} />
+                              </Form.Item>
                             </div>
                           </div>
                         </div>
 
-                        <div style={{
-                          padding: '20px', borderRadius: 16,
-                          background: '#f8fafc', border: '1px solid #f1f5f9',
-                          marginBottom: 28,
-                        }}>
-                          <Row gutter={16}>
-                            <Col span={6}>
-                              <Form.Item label={<span style={{ fontWeight: 600, color: '#334155', fontSize: 12 }}>Para Birimi</span>} name={['metadata', 'currency']}>
-                                <Select placeholder={defaultCurrency || 'Seçiniz'} allowClear size="large"
-                                  loading={currencies.length === 0} notFoundContent={currencies.length === 0 ? 'Yükleniyor...' : 'Tanımsız'}>
-                                  {currencies.map(c => <Option key={c.code} value={c.code}>{c.symbol} {c.code}</Option>)}
-                                </Select>
-                              </Form.Item>
-                            </Col>
-                            <Col span={6}>
-                              <Form.Item label={<span style={{ fontWeight: 600, color: '#334155', fontSize: 12 }}>Başlangıç Ücreti</span>} name={['metadata', 'openingFee']}>
-                                <InputNumber min={0} step={1} precision={2} placeholder="0.00" style={{ width: '100%' }} size="large" />
-                              </Form.Item>
-                            </Col>
-                            <Col span={6}>
-                              <Form.Item label={<span style={{ fontWeight: 600, color: '#334155', fontSize: 12 }}>Km Başı Ücret</span>} name={['metadata', 'basePricePerKm']}>
-                                <InputNumber min={0} step={0.1} precision={2} placeholder="0.00" style={{ width: '100%' }} size="large" />
-                              </Form.Item>
-                            </Col>
-                            <Col span={6}>
-                              <Form.Item label={<span style={{ fontWeight: 600, color: '#334155', fontSize: 12 }}>Sabit Fiyat</span>} name={['metadata', 'fixedPrice']}>
-                                <InputNumber min={0} step={1} precision={2} placeholder="0.00" style={{ width: '100%' }} size="large" />
-                              </Form.Item>
-                            </Col>
-                          </Row>
-                          <Row gutter={16}>
-                            <Col span={6}>
-                              <Form.Item label={<span style={{ fontWeight: 600, color: '#334155', fontSize: 12 }}>Saatlik Fiyat</span>} name={['metadata', 'basePricePerHour']} style={{ marginBottom: 0 }}>
-                                <InputNumber min={0} step={1} precision={2} placeholder="0.00" style={{ width: '100%' }} size="large" />
-                              </Form.Item>
-                            </Col>
-                          </Row>
-                        </div>
-
-                        {/* ── ZONE PRICING ── */}
-                        <div style={{
-                          display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16,
-                        }}>
+                        {/* ── ZONE PRICING — COMPACT TABLE ── */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
                           <div style={{
                             width: 32, height: 32, borderRadius: 8,
                             background: '#f0fdf4', display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -324,142 +382,173 @@ export default function PricingPage() {
                             <EnvironmentOutlined style={{ fontSize: 15, color: '#16a34a' }} />
                           </div>
                           <div style={{ flex: 1 }}>
-                            <div style={{ fontWeight: 700, fontSize: 14, color: '#1e293b' }}>Bölge (Poligon) Fiyatları</div>
+                            <div style={{ fontWeight: 700, fontSize: 14, color: '#1e293b' }}>Bölge Fiyatları</div>
                             <div style={{ fontSize: 11, color: '#94a3b8' }}>
-                              Poligonlar arası transfer fiyat tarifeleri
+                              Bölgeler arası transfer fiyat tarifeleri · <SwapOutlined /> Çift yön işaretlenen rotalar ters yönde de aynı fiyatla kaydedilir
                             </div>
                           </div>
                         </div>
 
                         <Form.List name="zonePrices">
                           {(fields, { add, remove }) => (
-                            <>
+                            <div style={{ borderRadius: 12, border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+                              {/* Table Header */}
+                              <div style={{
+                                display: 'grid',
+                                gridTemplateColumns: '2fr 24px 2fr 42px 1fr 1fr 1fr 1fr 1fr 1fr 1fr 32px',
+                                background: 'linear-gradient(135deg, #f8fafc, #f1f5f9)',
+                                borderBottom: '1px solid #e2e8f0',
+                                alignItems: 'center',
+                              }}>
+                                <div style={thStyle}>Kalkış</div>
+                                <div style={thStyle}></div>
+                                <div style={thStyle}>Varış</div>
+                                <div style={{ ...thStyle, fontSize: 9 }}>
+                                  <Tooltip title="Çift yön: Ters yönde de aynı fiyat">↔</Tooltip>
+                                </div>
+                                <div style={thStyle}>Fix</div>
+                                <div style={thStyle}>Yetişkin</div>
+                                <div style={thStyle}>Çocuk</div>
+                                <div style={thStyle}>Bebek</div>
+                                <div style={thStyle}>Maliyet</div>
+                                <div style={thStyle}>Aşım</div>
+                                <div style={thStyle}>
+                                  <Tooltip title="Uçuştan kaç saat önce alınacak">⏰ Saat</Tooltip>
+                                </div>
+                                <div style={thStyle}></div>
+                              </div>
+
+                              {/* Table Body */}
                               {fields.length === 0 && (
-                                <div style={{
-                                  textAlign: 'center', padding: '40px 20px',
-                                  borderRadius: 16, border: '2px dashed #e2e8f0', background: '#fafafa',
-                                  marginBottom: 16,
-                                }}>
-                                  <EnvironmentOutlined style={{ fontSize: 32, color: '#d1d5db', marginBottom: 8, display: 'block' }} />
-                                  <div style={{ fontSize: 14, color: '#94a3b8', fontWeight: 500 }}>Henüz bölge fiyatı eklenmemiş</div>
+                                <div style={{ padding: '32px 20px', textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>
+                                  <EnvironmentOutlined style={{ fontSize: 24, color: '#d1d5db', marginBottom: 6, display: 'block' }} />
+                                  Henüz bölge fiyatı eklenmemiş
                                 </div>
                               )}
 
                               {fields.map(({ key, name, ...restField }) => (
                                 <div key={key} style={{
-                                  padding: '18px 20px',
-                                  background: '#fff',
-                                  border: '1px solid #e2e8f0',
-                                  borderRadius: 16,
-                                  marginBottom: 16,
-                                  position: 'relative',
-                                  boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+                                  display: 'grid',
+                                  gridTemplateColumns: '2fr 24px 2fr 42px 1fr 1fr 1fr 1fr 1fr 1fr 1fr 32px',
+                                  alignItems: 'center',
+                                  borderBottom: '1px solid #f1f5f9',
+                                  padding: '4px 0',
+                                  background: key % 2 === 0 ? '#fff' : '#fafbfc',
+                                  transition: 'background 0.1s',
                                 }}>
-                                  <Button type="text" danger icon={<CloseCircleOutlined />} onClick={() => remove(name)}
-                                    style={{ position: 'absolute', top: 12, right: 12, borderRadius: 8 }} />
+                                  {/* Kalkış */}
+                                  <div style={{ padding: '0 4px', overflow: 'hidden', minWidth: 0 }}>
+                                    <Form.Item {...restField} name={[name, 'baseLocation']} rules={[{ required: true, message: '' }]} style={{ marginBottom: 0 }}>
+                                      <Select placeholder="Kalkış" showSearch optionFilterProp="children" size="small"
+                                        style={{ width: '100%' }}
+                                        dropdownStyle={{ minWidth: 240 }}>
+                                        {zones.map(z => (
+                                          <Option key={z.code || z.id} value={z.code || z.name}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                              <div style={{ width: 8, height: 8, borderRadius: '50%', background: z.color || '#94a3b8', flexShrink: 0 }} />
+                                              <span style={{ fontSize: 12 }}>{z.name}</span>
+                                              {z.code && <span style={{ fontSize: 10, color: '#94a3b8' }}>({z.code})</span>}
+                                            </div>
+                                          </Option>
+                                        ))}
+                                      </Select>
+                                    </Form.Item>
+                                  </div>
 
-                                  <Row gutter={16}>
-                                    <Col span={10}>
-                                      <Form.Item {...restField} name={[name, 'baseLocation']}
-                                        label={<span style={{ fontWeight: 600, color: '#334155', fontSize: 12 }}>Merkez (Kalkış / Varış)</span>}
-                                        rules={[{ required: true, message: 'Gerekli' }]}>
-                                        {hubs.length > 0 ? (
-                                          <Select placeholder="Seçiniz" showSearch optionFilterProp="children" size="large">
-                                            {hubs.map((h: any) => (
-                                              <Option key={h.code} value={h.code}>{h.name} ({h.code})</Option>
-                                            ))}
-                                          </Select>
-                                        ) : (
-                                          <Input placeholder="Örn: AYT Havalimanı" size="large" />
-                                        )}
-                                      </Form.Item>
-                                    </Col>
-                                    <Col span={10}>
-                                      <Form.Item {...restField} name={[name, 'zoneId']}
-                                        label={<span style={{ fontWeight: 600, color: '#334155', fontSize: 12 }}>Bölge (Poligon)</span>}
-                                        rules={[{ required: true, message: 'Seçiniz' }]}>
-                                        <Select placeholder="Poligon Seç" showSearch optionFilterProp="children" size="large">
-                                          {zones.map(z => (
-                                            <Option key={z.id} value={z.id}>
-                                              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                                <div style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: z.color }} />
-                                                {z.name}
-                                              </div>
-                                            </Option>
-                                          ))}
-                                        </Select>
-                                      </Form.Item>
-                                    </Col>
-                                  </Row>
+                                  {/* Arrow */}
+                                  <div style={{ textAlign: 'center', color: '#94a3b8', fontSize: 14 }}>→</div>
 
-                                  {/* Price grid */}
-                                  <div style={{
-                                    padding: '16px', borderRadius: 12,
-                                    background: '#f8fafc', border: '1px solid #f1f5f9',
-                                  }}>
-                                    <div style={{
-                                      fontSize: 11, fontWeight: 700, color: '#94a3b8',
-                                      textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 12,
-                                    }}>
-                                      <DollarOutlined style={{ marginRight: 6 }} />
-                                      Fiyat & Maliyet Detayları
-                                    </div>
-                                    <Row gutter={[12, 0]}>
-                                      <Col span={4}>
-                                        <Form.Item {...restField} name={[name, 'fixedPrice']}
-                                          label={<span style={{ fontWeight: 600, color: '#334155', fontSize: 11 }}>Fix Fiyat</span>}
-                                          tooltip="Araç başına sabit satış fiyatı">
-                                          <InputNumber min={0} step={1} precision={2} placeholder="0.00" style={{ width: '100%' }} />
-                                        </Form.Item>
-                                      </Col>
-                                      <Col span={4}>
-                                        <Form.Item {...restField} name={[name, 'price']}
-                                          label={<span style={{ fontWeight: 600, color: '#334155', fontSize: 11 }}>Yetişkin</span>}
-                                          tooltip="Kişi başı yetişkin fiyatı">
-                                          <InputNumber min={0} step={1} precision={2} placeholder="0.00" style={{ width: '100%' }} />
-                                        </Form.Item>
-                                      </Col>
-                                      <Col span={4}>
-                                        <Form.Item {...restField} name={[name, 'childPrice']}
-                                          label={<span style={{ fontWeight: 600, color: '#334155', fontSize: 11 }}>Çocuk</span>}>
-                                          <InputNumber min={0} step={1} precision={2} placeholder="0.00" style={{ width: '100%' }} />
-                                        </Form.Item>
-                                      </Col>
-                                      <Col span={4}>
-                                        <Form.Item {...restField} name={[name, 'babyPrice']}
-                                          label={<span style={{ fontWeight: 600, color: '#334155', fontSize: 11 }}>Bebek</span>}>
-                                          <InputNumber min={0} step={1} precision={2} placeholder="0.00" style={{ width: '100%' }} />
-                                        </Form.Item>
-                                      </Col>
-                                      <Col span={4}>
-                                        <Form.Item {...restField} name={[name, 'cost']}
-                                          label={<span style={{ fontWeight: 600, color: '#334155', fontSize: 11 }}>Maliyet</span>}
-                                          tooltip="Güzergah maliyeti">
-                                          <InputNumber min={0} step={1} precision={2} placeholder="0.00" style={{ width: '100%' }} />
-                                        </Form.Item>
-                                      </Col>
-                                      <Col span={4}>
-                                        <Form.Item {...restField} name={[name, 'extraKmPrice']}
-                                          label={<span style={{ fontWeight: 600, color: '#334155', fontSize: 11 }}>Aşım/km</span>}
-                                          tooltip="Poligon dışı km başına ek ücret">
-                                          <InputNumber min={0} step={0.1} precision={2} placeholder="0.00" style={{ width: '100%' }} />
-                                        </Form.Item>
-                                      </Col>
-                                    </Row>
+                                  {/* Varış */}
+                                  <div style={{ padding: '0 4px', overflow: 'hidden', minWidth: 0 }}>
+                                    <Form.Item {...restField} name={[name, 'zoneId']} rules={[{ required: true, message: '' }]} style={{ marginBottom: 0 }}>
+                                      <Select placeholder="Varış" showSearch optionFilterProp="children" size="small"
+                                        style={{ width: '100%' }}
+                                        dropdownStyle={{ minWidth: 240 }}>
+                                        {zones.map(z => (
+                                          <Option key={z.id} value={z.id}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                              <div style={{ width: 8, height: 8, borderRadius: '50%', background: z.color || '#94a3b8', flexShrink: 0 }} />
+                                              <span style={{ fontSize: 12 }}>{z.name}</span>
+                                              {z.code && <span style={{ fontSize: 10, color: '#94a3b8' }}>({z.code})</span>}
+                                            </div>
+                                          </Option>
+                                        ))}
+                                      </Select>
+                                    </Form.Item>
+                                  </div>
+
+                                  {/* Çift Yön */}
+                                  <div style={{ textAlign: 'center' }}>
+                                    <Form.Item {...restField} name={[name, 'bidirectional']} valuePropName="checked" style={{ marginBottom: 0 }}>
+                                      <Switch size="small" checkedChildren="↔" unCheckedChildren="→" />
+                                    </Form.Item>
+                                  </div>
+
+                                  {/* Fix Fiyat */}
+                                  <div style={{ padding: '0 2px' }}>
+                                    <Form.Item {...restField} name={[name, 'fixedPrice']} style={{ marginBottom: 0 }}>
+                                      <InputNumber min={0} step={1} precision={2} placeholder="0" size="small" style={{ width: '100%' }} controls={false} />
+                                    </Form.Item>
+                                  </div>
+
+                                  {/* Yetişkin */}
+                                  <div style={{ padding: '0 2px' }}>
+                                    <Form.Item {...restField} name={[name, 'price']} style={{ marginBottom: 0 }}>
+                                      <InputNumber min={0} step={1} precision={2} placeholder="0" size="small" style={{ width: '100%' }} controls={false} />
+                                    </Form.Item>
+                                  </div>
+
+                                  {/* Çocuk */}
+                                  <div style={{ padding: '0 2px' }}>
+                                    <Form.Item {...restField} name={[name, 'childPrice']} style={{ marginBottom: 0 }}>
+                                      <InputNumber min={0} step={1} precision={2} placeholder="0" size="small" style={{ width: '100%' }} controls={false} />
+                                    </Form.Item>
+                                  </div>
+
+                                  {/* Bebek */}
+                                  <div style={{ padding: '0 2px' }}>
+                                    <Form.Item {...restField} name={[name, 'babyPrice']} style={{ marginBottom: 0 }}>
+                                      <InputNumber min={0} step={1} precision={2} placeholder="0" size="small" style={{ width: '100%' }} controls={false} />
+                                    </Form.Item>
+                                  </div>
+
+                                  {/* Maliyet */}
+                                  <div style={{ padding: '0 2px' }}>
+                                    <Form.Item {...restField} name={[name, 'cost']} style={{ marginBottom: 0 }}>
+                                      <InputNumber min={0} step={1} precision={2} placeholder="0" size="small" style={{ width: '100%' }} controls={false} />
+                                    </Form.Item>
+                                  </div>
+
+                                  {/* Aşım/km */}
+                                  <div style={{ padding: '0 2px' }}>
+                                    <Form.Item {...restField} name={[name, 'extraKmPrice']} style={{ marginBottom: 0 }}>
+                                      <InputNumber min={0} step={0.1} precision={2} placeholder="0" size="small" style={{ width: '100%' }} controls={false} />
+                                    </Form.Item>
+                                  </div>
+
+                                  {/* Alınış Saati */}
+                                  <div style={{ padding: '0 2px' }}>
+                                    <Form.Item {...restField} name={[name, 'pickupLeadHours']} style={{ marginBottom: 0 }}>
+                                      <InputNumber min={0} max={24} step={0.5} precision={1} placeholder="0" size="small" style={{ width: '100%' }} controls={false} />
+                                    </Form.Item>
+                                  </div>
+
+                                  {/* Delete */}
+                                  <div style={{ textAlign: 'center' }}>
+                                    <Button type="text" danger size="small" icon={<DeleteOutlined />} onClick={() => remove(name)}
+                                      style={{ width: 28, height: 28, padding: 0, borderRadius: 6 }} />
                                   </div>
                                 </div>
                               ))}
 
-                              <Form.Item>
-                                <Button type="dashed" onClick={() => add()} block icon={<PlusOutlined />} size="large"
-                                  style={{
-                                    borderRadius: 12, height: 48, fontWeight: 600, fontSize: 14,
-                                    borderColor: '#d1d5db', color: '#64748b',
-                                  }}>
-                                  Yeni Bölge Fiyatı Ekle
+                              {/* Add button */}
+                              <div style={{ padding: '8px 12px', background: '#fafbfc' }}>
+                                <Button type="dashed" onClick={() => add({ bidirectional: true })} block icon={<PlusOutlined />} size="small"
+                                  style={{ borderRadius: 8, fontWeight: 600, fontSize: 12, color: '#64748b', height: 36 }}>
+                                  Yeni Güzergah Ekle
                                 </Button>
-                              </Form.Item>
-                            </>
+                              </div>
+                            </div>
                           )}
                         </Form.List>
                       </Form>

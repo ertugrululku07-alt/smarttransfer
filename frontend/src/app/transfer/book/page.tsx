@@ -22,8 +22,7 @@ import {
     Alert,
     Checkbox,
     Collapse,
-    Select,
-    TimePicker
+    Select
 } from 'antd';
 import {
     CarOutlined,
@@ -357,38 +356,62 @@ const TransferBookingContent: React.FC = () => {
                 };
             });
 
-            let finalPickupDateTime = time ? `${date}T${time}:00.000` : date;
-            let flightTimeToSend = values.flightTime ? values.flightTime.format('HH:mm') : undefined;
+            // Calculate pickup time logic using pickupLeadHours
+            const calculatePickupTime = (targetDate: string, targetTime: string, tripDropoff: string, vDetails: any) => {
+                let finalPickupDateTime = targetTime ? `${targetDate}T${targetTime}:00.000` : targetDate;
+                let flightTimeToSend = targetTime || undefined;
 
-            const isAirportDropoff = [
-                'AYT', 'IST', 'GZP', 'HAVALIMANI', 'AIRPORT', 'HAVAALANI'
-            ].some(code => dropoff?.toUpperCase().includes(code));
+                const isAirportDrop = [
+                    'AYT', 'IST', 'GZP', 'HAVALIMANI', 'AIRPORT', 'HAVAALANI'
+                ].some(code => tripDropoff?.toUpperCase().includes(code));
 
-            if (isAirportDropoff && flightTimeToSend && durationParam) {
-                // Parse duration
-                let durationMinutes = 0;
-                const hourMatch = durationParam.match(/(\d+)\s*(hour|saat)/i);
-                const minMatch = durationParam.match(/(\d+)\s*(min|dk)/i);
-                if (hourMatch) durationMinutes += parseInt(hourMatch[1]) * 60;
-                if (minMatch) durationMinutes += parseInt(minMatch[1]);
-                
-                if (durationMinutes > 0) {
-                    const isShuttle = vehicleDetails?.isShuttle || vehicleDetails?.vehicleType?.toLowerCase().includes('shuttle');
-                    const bufferHours = isShuttle ? 3 : 2;
-                    // Add 30 mins extra buffer and duration and check-in time
-                    const totalBuffer = durationMinutes + (bufferHours * 60) + 30;
+                const leadHours =
+                    vDetails?.zonePriceConfig?.pickupLeadHours
+                        ? Number(vDetails.zonePriceConfig.pickupLeadHours)
+                        : vDetails?.pickupLeadHours
+                            ? Number(vDetails.pickupLeadHours)
+                            : null;
 
-                    const flightDate = dayjs(`${date}T${flightTimeToSend}`);
-                    let recommendedPickup = flightDate.subtract(totalBuffer, 'minute');
+                const isShuttle = !!vDetails?.isShuttle;
+
+                if ((isShuttle || isAirportDrop) && targetTime && leadHours && leadHours > 0) {
+                    const flightDateStr = `${targetDate}T${targetTime}`;
+                    const flightDjs = dayjs(flightDateStr);
+                    let leadMinutes = Math.round(leadHours * 60);
+
+                    // If it's a shuttle, check the add/subtract setting from metadata
+                    const isSubtractLeadTime = vDetails?.metadata?.subtractLeadTime !== false; // defaults to true
+
+                    let recommendedPickup;
+
+                    if (isSubtractLeadTime) {
+                        if (durationParam) {
+                            let durationMinutes = 0;
+                            const hourMatch = durationParam.match(/(\d+)\s*(hour|saat)/i);
+                            const minMatch = durationParam.match(/(\d+)\s*(min|dk)/i);
+                            if (hourMatch) durationMinutes += parseInt(hourMatch[1]) * 60;
+                            if (minMatch) durationMinutes += parseInt(minMatch[1]);
+                            leadMinutes += durationMinutes;
+                        }
+                        recommendedPickup = flightDjs.subtract(leadMinutes, 'minute');
+                    } else {
+                        // Eğer checkbox isaretsizse, ucus saatine direkt ekliyoruz (Gidise falan degil, direk gelis e.g. delay)
+                        recommendedPickup = flightDjs.add(leadMinutes, 'minute');
+                    }
                     
-                    // Floor to nearest 5 minutes
                     const mins = recommendedPickup.minute();
                     const remainder = mins % 5;
                     recommendedPickup = recommendedPickup.subtract(remainder, 'minute');
 
                     finalPickupDateTime = recommendedPickup.format('YYYY-MM-DDTHH:mm:00.000');
                 }
-            }
+                
+                return { finalPickupDateTime, flightTimeToSend };
+            };
+
+            const outboundTimes = calculatePickupTime(date as string, time as string, dropoff as string, vehicleDetails);
+            const finalPickupDateTime = outboundTimes.finalPickupDateTime;
+            let flightTimeToSend = outboundTimes.flightTimeToSend;
 
             // Map form payment method values to backend constants
             const paymentMethodMap: Record<string, string> = {
@@ -418,7 +441,7 @@ const TransferBookingContent: React.FC = () => {
                 },
                 flightNumber: values.flightNumber,
                 flightTime: flightTimeToSend,
-                notes: values.notes || (flightTimeToSend ? `Uçuş Saati: ${flightTimeToSend}` : undefined),
+                notes: values.notes || undefined,
                 passengerDetails: [
                     {
                         firstName: values.fullName.split(' ')[0],
@@ -449,11 +472,13 @@ const TransferBookingContent: React.FC = () => {
             };
 
             // Build return payload if round trip
+            const returnTimes = isRoundTrip && returnVehicleDetails ? calculatePickupTime(returnDate as string, returnTime as string, pickup as string, returnVehicleDetails) : null;
+
             const returnPayload = isRoundTrip && returnVehicleDetails ? {
                 vehicleType: returnVehicleDetails.vehicleType,
                 pickup: dropoff, // Reverse direction
                 dropoff: pickup,
-                pickupDateTime: returnTime ? `${returnDate}T${returnTime}:00.000` : returnDate,
+                pickupDateTime: returnTimes?.finalPickupDateTime || returnDate,
                 passengers: Number(passengers),
                 adults: Number(adultsParam) || Number(passengers) || 1,
                 children: Number(childrenParam) || 0,
@@ -467,6 +492,7 @@ const TransferBookingContent: React.FC = () => {
                     phone: fullPhone
                 },
                 flightNumber: values.returnFlightNumber || values.flightNumber,
+                flightTime: returnTimes?.flightTimeToSend,
                 notes: values.notes,
                 passengerDetails: [
                     {
@@ -529,53 +555,92 @@ const TransferBookingContent: React.FC = () => {
                             </Button>,
                         ]}
                     >
-                        {/* Airport Pickup Time Calculation Display */}
+                        {/* Pickup Time Calculation — both private transfer (zonePriceConfig) and shuttle (direct pickupLeadHours) */}
                         {(() => {
                             const isAirportDropoff = [
                                 'AYT', 'IST', 'GZP', 'HAVALIMANI', 'AIRPORT', 'HAVAALANI'
                             ].some(code => dropoff?.toUpperCase().includes(code));
 
-                            if (isAirportDropoff && time && durationParam) {
+                            // Support both private (zonePriceConfig) and shuttle (direct field)
+                            const leadHours =
+                                vehicleDetails?.zonePriceConfig?.pickupLeadHours
+                                    ? Number(vehicleDetails.zonePriceConfig.pickupLeadHours)
+                                    : vehicleDetails?.pickupLeadHours
+                                        ? Number(vehicleDetails.pickupLeadHours)
+                                        : null;
+
+                            const isShuttle = !!vehicleDetails?.isShuttle;
+
+                            // For shuttles: always show if pickupLeadHours set (dropoff may or may not be airport)
+                            // For private: only show for airport dropoffs
+                            const shouldShow = leadHours && leadHours > 0 && time && (
+                                isShuttle || isAirportDropoff
+                            );
+
+                            if (shouldShow) {
                                 try {
-                                    // Parse duration (e.g., "1 hour 55 mins" or "1 saat 55 dk")
-                                    let durationMinutes = 0;
-                                    const hourMatch = durationParam.match(/(\d+)\s*(hour|saat)/i);
-                                    const minMatch = durationParam.match(/(\d+)\s*(min|dk)/i);
+                                    const flightDate = dayjs(`${date}T${time}`);
+                                    let leadMinutes = Math.round(leadHours! * 60);
+                                    let routeDurationText = '';
+                                    let durationMinutesTotal = 0;
 
-                                    if (hourMatch) durationMinutes += parseInt(hourMatch[1]) * 60;
-                                    if (minMatch) durationMinutes += parseInt(minMatch[1]);
+                                    const isSubtractLeadTime = vehicleDetails?.metadata?.subtractLeadTime !== false;
 
-                                    if (durationMinutes > 0) {
-                                        // Flight Time
-                                        const flightDate = dayjs(`${date}T${time}`);
+                                    let recommendedPickup;
 
-                                        // Buffer: 3 hours for Shuttle, 2 hours for Private
-                                        const isShuttle = vehicleDetails?.isShuttle || vehicleDetails?.vehicleType?.toLowerCase().includes('shuttle');
-                                        const bufferHours = isShuttle ? 3 : 2;
-                                        const totalBuffer = durationMinutes + (bufferHours * 60) + 30; // 30 min extra buffer matching backend payload
+                                    if (isSubtractLeadTime) {
+                                        if (durationParam) {
+                                            const hourMatch = durationParam.match(/(\d+)\s*(hour|saat)/i);
+                                            const minMatch = durationParam.match(/(\d+)\s*(min|dk)/i);
+                                            if (hourMatch) durationMinutesTotal += parseInt(hourMatch[1]) * 60;
+                                            if (minMatch) durationMinutesTotal += parseInt(minMatch[1]);
+                                            leadMinutes += durationMinutesTotal;
+                                            routeDurationText = durationParam;
+                                        }
 
-                                        let recommendedPickup = flightDate.subtract(totalBuffer, 'minute');
-
-                                        // Floor to nearest 5 minutes
-                                        const mins = recommendedPickup.minute();
-                                        const remainder = mins % 5;
-                                        recommendedPickup = recommendedPickup.subtract(remainder, 'minute');
-
-                                        return (
-                                            <div style={{ marginTop: 24, padding: 16, background: '#e6f7ff', border: '1px solid #91d5ff', borderRadius: 8 }}>
-                                                <Title level={5} style={{ marginTop: 0, color: '#0050b3' }}>
-                                                    <RocketOutlined /> Önerilen Alınış Saati
-                                                </Title>
-                                                <Text>
-                                                    Uçuş saatiniz <strong>{time}</strong> olarak kabul edilmiştir.
-                                                    <br />
-                                                    Uçuşunuzdan <strong>{bufferHours} saat</strong> önce havalimanında olmanız, <strong>{durationParam}</strong> yolculuk süresi ve <strong>30 dk güvenlik payı</strong> dikkate alınarak;
-                                                    <br />
-                                                    Aracımızın sizi alacağı (Transfer) saat: <strong>{recommendedPickup.format('HH:mm')}</strong>
-                                                </Text>
-                                            </div>
-                                        );
+                                        recommendedPickup = flightDate.subtract(leadMinutes, 'minute');
+                                    } else {
+                                        recommendedPickup = flightDate.add(leadMinutes, 'minute');
                                     }
+
+                                    const mins = recommendedPickup.minute();
+                                    const remainder = mins % 5;
+                                    recommendedPickup = recommendedPickup.subtract(remainder, 'minute');
+
+                                    const leadHoursInt = Math.floor(leadHours!);
+                                    const leadHoursLabel = leadHoursInt === leadHours
+                                        ? `${leadHoursInt} saat`
+                                        : `${leadHours} saat`;
+
+                                    return (
+                                        <div style={{ marginTop: 24, padding: '16px 20px', background: '#e6f7ff', border: '1px solid #91d5ff', borderRadius: 10 }}>
+                                            <Title level={5} style={{ marginTop: 0, color: '#0050b3', marginBottom: 8 }}>
+                                                <ClockCircleOutlined /> Alınış Saati
+                                            </Title>
+                                            <Text style={{ lineHeight: 2 }}>
+                                                {!isSubtractLeadTime ? (
+                                                    <>
+                                                        Uçuş saatiniz <strong>{time}</strong> olarak belirlenmiştir.<br />
+                                                        Terminal çıkışınız zaman alacağı için.<br />
+                                                        Aracımızın sizi alacağı {isShuttle ? '(Shuttle)' : '(Transfer)'} saati:{' '}
+                                                        <strong style={{ fontSize: 16, color: '#0050b3' }}>{recommendedPickup.format('HH:mm')}</strong> olarak atanmıştır.
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        {isShuttle
+                                                            ? <>Shuttle kalkış saatiniz <strong>{shuttleMasterTime || time}</strong> olarak belirlenmiştir.<br /></>
+                                                            : <>Uçuş saatiniz <strong>{time}</strong> olarak kabul edilmiştir.<br /></>
+                                                        }
+                                                        Uçuştan <strong>2 saat</strong> önce havalimanında olmanız gerektiği için
+                                                        {routeDurationText ? <>, <strong>{routeDurationText}</strong> yolculuk sürenizi dikkate alarak</> : ''}
+                                                        <br />
+                                                        Aracımızın sizi alacağı {isShuttle ? '(Shuttle)' : '(Transfer)'} saati:{' '}
+                                                        <strong style={{ fontSize: 16, color: '#0050b3' }}>{recommendedPickup.format('HH:mm')}</strong>
+                                                    </>
+                                                )}
+                                            </Text>
+                                        </div>
+                                    );
                                 } catch (e) {
                                     console.error('Pickup time calculation error:', e);
                                 }
@@ -662,7 +727,7 @@ const TransferBookingContent: React.FC = () => {
                                         showIcon
                                         icon={<RocketOutlined />}
                                         message="Havalimanı Transferi Tespit Edildi"
-                                        description="Hata yapmamak için uçuş saatinizi ve uçuş numaranızı doğru girmeniz gerekmektedir."
+                                        description="Alınış saatiniz, bölge mesafesine göre otomatik hesaplanacaktır."
                                         style={{ marginBottom: 16 }}
                                     />
                                 )}
@@ -677,29 +742,12 @@ const TransferBookingContent: React.FC = () => {
                                         </Form.Item>
                                     </Col>
                                     <Col xs={24} md={12}>
-                                        {isAirportTransfer ? (
-                                            <Form.Item
-                                                name="flightTime"
-                                                label="Uçuş Saatiniz"
-                                                tooltip="Uçuşunuzun kalkış veya varış saatini giriniz. Şoförümüz bu saate göre sizi alır."
-                                                rules={[{ required: true, message: 'Havalimanı transferi için uçuş saati zorunludur' }]}
-                                            >
-                                                <TimePicker
-                                                    size="large"
-                                                    format="HH:mm"
-                                                    style={{ width: '100%' }}
-                                                    placeholder="Uçuş Saatiniz (ÖR: 14:30)"
-                                                    minuteStep={5}
-                                                />
-                                            </Form.Item>
-                                        ) : (
-                                            <Form.Item
-                                                name="notes"
-                                                label="Sürücüye Not (Opsiyonel)"
-                                            >
-                                                <Input size="large" placeholder="Örn: Bebek koltuğu istiyorum" />
-                                            </Form.Item>
-                                        )}
+                                        <Form.Item
+                                            name="notes"
+                                            label="Notlarınız"
+                                        >
+                                            <Input size="large" placeholder="Varsa ek istekleriniz..." />
+                                        </Form.Item>
                                     </Col>
                                 </Row>
                                 {Number(passengers) > 1 && (
@@ -888,10 +936,6 @@ const TransferBookingContent: React.FC = () => {
                                         </Form.Item>
                                     </div>
                                 )}
-
-                                <Form.Item name="notes" label="Notlarınız">
-                                    <Input.TextArea rows={3} placeholder="Varsa ek istekleriniz..." />
-                                </Form.Item>
 
                                 <Divider />
 
