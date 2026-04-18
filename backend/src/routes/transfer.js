@@ -372,6 +372,9 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
         
         let bestMatchLength = 0;
         
+        // 1. Detect Base Location for Pricing
+        let originalPickupHubCode = null;
+
         for (const hub of hubs) {
             const keys = hub.keywords ? hub.keywords.split(',').map(k => k.trim().toLowerCase()).filter(k => k) : [];
             keys.push(hub.code.toLowerCase());
@@ -387,13 +390,16 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                     // Give priority to specific airports over generic city names
                     if (k.includes('gazipaşa') || k.includes('gazipasa') || k.includes('gzp')) {
                          detectedBaseLocation = 'GZP';
+                         originalPickupHubCode = 'GZP';
                          bestMatchLength = 999; // Max priority
                     } else if (k.includes('havalimanı') || k.includes('havalimani') || k.includes('airport') || k.includes('havaalani') || k === 'ayt') {
                         // Airport-specific keyword: highest priority
                         detectedBaseLocation = hub.code;
+                        originalPickupHubCode = hub.code;
                         bestMatchLength = 998;
                     } else {
                          detectedBaseLocation = hub.code;
+                         originalPickupHubCode = hub.code;
                          bestMatchLength = k.length;
                     }
                 }
@@ -427,7 +433,7 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
             detectedBaseLocation = detectedDropoffBase;
         }
 
-        console.log(`Hub Detection: pickup="${pickup.substring(0,40)}" → detectedBaseLocation="${detectedBaseLocation}", dropoffBase="${detectedDropoffBase}"`);
+        console.log(`Hub Detection: pickup="${pickup.substring(0,40)}" → originalPickupHub="${originalPickupHubCode}", detectedBaseLocation="${detectedBaseLocation}", dropoffBase="${detectedDropoffBase}"`);
 
         const dateObj = new Date(pickupDateTime);
         // Use Turkey timezone (UTC+3) for day-of-week calculation
@@ -514,8 +520,8 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
 
             // 1d. Hub-based pickup matching: if user pickup resolves to a known hub,
             //     match routes whose fromName contains that hub's keywords
-            if (!isPickupMatch && detectedBaseLocation) {
-                const pickupHub = hubs.find(h => h.code === detectedBaseLocation);
+            if (!isPickupMatch && originalPickupHubCode) {
+                const pickupHub = hubs.find(h => h.code === originalPickupHubCode);
                 if (pickupHub) {
                     const routeFromLower = route.fromName.toLowerCase();
                     const hubKeys = pickupHub.keywords ? pickupHub.keywords.split(',').map(k => k.trim().toLowerCase()).filter(k => k) : [];
