@@ -358,7 +358,7 @@ const TransferBookingContent: React.FC = () => {
 
             // Calculate pickup time logic using pickupLeadHours
             const calculatePickupTime = (targetDate: string, targetTime: string, tripDropoff: string, vDetails: any) => {
-                let finalPickupDateTime = targetTime ? `${targetDate}T${targetTime}:00.000` : targetDate;
+                let finalPickupDateTime = targetTime ? dayjs(`${targetDate}T${targetTime}`).format() : targetDate;
                 let flightTimeToSend = targetTime || undefined;
 
                 const isAirportDrop = [
@@ -403,7 +403,7 @@ const TransferBookingContent: React.FC = () => {
                     const remainder = mins % 5;
                     recommendedPickup = recommendedPickup.subtract(remainder, 'minute');
 
-                    finalPickupDateTime = recommendedPickup.format('YYYY-MM-DDTHH:mm:00.000');
+                    finalPickupDateTime = recommendedPickup.format();
                 }
                 
                 return { finalPickupDateTime, flightTimeToSend };

@@ -206,11 +206,11 @@ const AgencyNewTransferPage = () => {
             setSearchError(null);
 
             const totalPassengers = passengerCounts.adults + passengerCounts.children + passengerCounts.babies;
-            let pickupDateTime = `${date.format('YYYY-MM-DD')}T${pickupTimeValue ? pickupTimeValue.format('HH:mm') : '12:00'}:00.000`;
+            let pickupDateTime = date.hour(pickupTimeValue ? pickupTimeValue.hour() : 12).minute(pickupTimeValue ? pickupTimeValue.minute() : 0).second(0).format();
             if (isAirportTransfer && flightTimeValue) {
                 // For airport pickup (airport -> city), default pickup time = flight time.
                 // For airport dropoff (city -> airport), we will compute a better pickup time after we have route duration.
-                pickupDateTime = `${date.format('YYYY-MM-DD')}T${flightTimeValue.format('HH:mm')}:00.000`;
+                pickupDateTime = date.hour(flightTimeValue.hour()).minute(flightTimeValue.minute()).second(0).format();
             }
 
             let distance: number | undefined;
@@ -230,7 +230,7 @@ const AgencyNewTransferPage = () => {
                                 const totalBuffer = durationMinutes + (2 * 60) + 30;
                                 const flightDate = dayjs(`${date.format('YYYY-MM-DD')}T${flightTimeValue.format('HH:mm')}`);
                                 const recommendedPickup = floorToNearest5(flightDate.subtract(totalBuffer, 'minute'));
-                                pickupDateTime = recommendedPickup.format('YYYY-MM-DDTHH:mm:00.000');
+                                pickupDateTime = recommendedPickup.format();
                                 setPickupTimeValue(recommendedPickup);
                             }
                         } else if (isAirportPickup && flightTimeValue) {
@@ -247,7 +247,7 @@ const AgencyNewTransferPage = () => {
                 pickup,
                 dropoff,
                 pickupDateTime,
-                returnDateTime: tripType === 'ROUND_TRIP' && returnDate ? `${returnDate.format('YYYY-MM-DD')}T${returnTimeValue ? returnTimeValue.format('HH:mm') : '12:00'}:00.000` : undefined,
+                returnDateTime: tripType === 'ROUND_TRIP' && returnDate ? returnDate.hour(returnTimeValue ? returnTimeValue.hour() : 12).minute(returnTimeValue ? returnTimeValue.minute() : 0).second(0).format() : undefined,
                 passengers: totalPassengers || 1,
                 transferType: tripType,
                 distance,
