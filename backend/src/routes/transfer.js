@@ -208,6 +208,7 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
         // ==========================================
         let matchedZoneId = null;
         let overageDistanceKm = 0;
+        let hasAnyZones = false;
         
         let activeTenantId = req.tenant?.id;
         if (!activeTenantId) {
@@ -221,6 +222,7 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                 const routeCoords = decoded.polyline.map(p => [p[1], p[0]]);
                 
                 const zones = await prisma.zone.findMany({ where: { tenantId: activeTenantId } });
+                hasAnyZones = zones.length > 0;
                 
                 // Gather ALL zones that the route intersects and map their overages
                 let zoneOverages = {};
@@ -791,7 +793,7 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                     // want to provide service within those explicitly defined zones.
                     // If the pickup/dropoff did NOT match any zone (zonePriceConfig is null),
                     // we block km-based pricing so they don't get random prices for unserviced regions like Kemer.
-                    if (zones && zones.length > 0 && !zonePriceConfig) {
+                    if (hasAnyZones && !zonePriceConfig) {
                         return null; // Outside polygons / zones -> No service
                     }
 
