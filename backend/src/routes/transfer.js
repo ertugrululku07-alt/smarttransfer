@@ -641,7 +641,7 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
         const shuttleResults = matchingShuttles.map(s => {
             const baseShuttlePrice = Number(s.pricePerSeat) * Number(passengers);
             const markedUpShuttlePrice = baseShuttlePrice * (1 + (agencyMarkup / 100));
-            console.log(`[Shuttle] route=${s.fromName}→${s.toName}, pricePerSeat=${s.pricePerSeat}, currency=${s.currency}, passengers=${passengers}, total=${markedUpShuttlePrice}`);
+            console.log(`[Shuttle] route=${s.fromName}→${s.toName}, pricePerSeat=${s.pricePerSeat}, passengers=${passengers}, total=${markedUpShuttlePrice}`);
 
             return {
                 id: `shuttle_${s.id}`,
@@ -700,8 +700,8 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                             const agencyConfig = agencyContractMap[contractKey];
                             candidateConfig = globalConfig || agencyConfig;
                         }
-                        // Fallback: try dropoff base (for city→airport where prices are stored as AYT→Zone)
-                        if (!candidateConfig && detectedDropoffBase && detectedDropoffBase !== detectedBaseLocation) {
+                        // Bidirectional Fallback: try dropoff base (e.g., Alanya -> AYT return matching an AYT -> Alanya price)
+                        if (!candidateConfig && detectedDropoffBase) {
                             const globalConfig2 = vt.zonePrices?.find(zp => zp.zoneId === zoneId && zp.baseLocation === detectedDropoffBase);
                             const contractKey2 = `${vt.id}:${zoneId}:${detectedDropoffBase}`;
                             const agencyConfig2 = agencyContractMap[contractKey2];
@@ -764,7 +764,7 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                     }
                 }
 
-                const typeMult = transferType === 'ROUND_TRIP' ? 1.9 : 1.0;
+                const typeMult = 1.0; // Inflation fix: Use 1.0 multiplier to show the individual leg price.
 
                 console.log(`[PriceDecision] vt=${vt.name}, zonePriceConfig=${!!zonePriceConfig}, finalMatchedZoneId=${finalMatchedZoneId}, hasAnyZones=${hasAnyZones}, baseLocation=${detectedBaseLocation}, dropoffBase=${detectedDropoffBase}`);
 
