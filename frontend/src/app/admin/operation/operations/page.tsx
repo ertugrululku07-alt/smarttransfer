@@ -3523,8 +3523,8 @@ export default function OperationsPage() {
                                                                                             <div onClick={() => setEditingStatus(null)} style={{ position: 'fixed', inset: 0, zIndex: 999 }} />
                                                                                             <div style={{
                                                                                                 position: 'fixed',
-                                                                                                left: editingStatus.x,
-                                                                                                top: editingStatus.y,
+                                                                                                left: editingStatus?.x,
+                                                                                                top: editingStatus?.y,
                                                                                                 zIndex: 1000,
                                                                                                 background: '#fff',
                                                                                                 borderRadius: 12,
