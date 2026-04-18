@@ -227,6 +227,20 @@ const TransferBookingContent: React.FC = () => {
             const pickupLng = searchParams.get('pickupLng');
             const dropoffLat = searchParams.get('dropoffLat');
             const dropoffLng = searchParams.get('dropoffLng');
+
+            // Calculate route for reversed direction (needed for zone matching)
+            let returnDistance: number | undefined;
+            let returnPolyline: string | undefined;
+            try {
+                const { getRouteDetails } = await import('@/lib/routing');
+                const route = await getRouteDetails(dropoff as string, pickup as string);
+                if (route) {
+                    returnDistance = route.distanceKm;
+                    returnPolyline = route.encodedPolyline;
+                }
+            } catch (e) {
+                console.error('Return route calculation failed:', e);
+            }
             
             const payload = {
                 pickup: dropoff, // Reverse direction
@@ -234,8 +248,12 @@ const TransferBookingContent: React.FC = () => {
                 pickupDateTime: returnPickupDateTime,
                 passengers: Number(passengers),
                 transferType: 'ONE_WAY',
+                distance: returnDistance,
+                encodedPolyline: returnPolyline,
                 pickupLat: dropoffLat,
                 pickupLng: dropoffLng,
+                dropoffLat: pickupLat,
+                dropoffLng: pickupLng,
                 shuttleMasterTime: returnShuttleMasterTime || undefined
             };
 
