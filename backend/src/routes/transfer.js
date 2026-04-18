@@ -85,25 +85,33 @@ async function loadTenantHubs(tenantId) {
         { code: 'AYT', keywords: 'ayt, antalya havalimanı, antalya airport', name: 'Antalya Havalimanı' },
         { code: 'GZP', keywords: 'gzp, gazipasa, gazipaşa', name: 'Gazipaşa Havalimanı' },
     ];
-    if (!tenantId) return defaultHubs;
+    let finalHubs = [...defaultHubs];
+
+    if (!tenantId) return finalHubs;
     try {
-        // Primary: load from Zone table (unified zone model)
         const zonesWithCode = await prisma.zone.findMany({
             where: { tenantId, code: { not: null } },
             select: { code: true, keywords: true, name: true }
         });
+        
         if (zonesWithCode.length > 0) {
-            return zonesWithCode.map(z => ({ code: z.code, keywords: z.keywords || '', name: z.name }));
+            zonesWithCode.forEach(z => {
+                const idx = finalHubs.findIndex(h => h.code === z.code);
+                if (idx === -1) finalHubs.push({ code: z.code, keywords: z.keywords || '', name: z.name });
+                else finalHubs[idx].keywords += `, ${z.keywords || ''}`;
+            });
         }
-        // Fallback: legacy settings.hubs
+        
         const tenantInfo = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { settings: true } });
         if (tenantInfo?.settings?.hubs && Array.isArray(tenantInfo.settings.hubs)) {
-            return tenantInfo.settings.hubs;
+            tenantInfo.settings.hubs.forEach(h => {
+                if (!finalHubs.some(fh => fh.code === h.code)) finalHubs.push(h);
+            });
         }
     } catch (e) {
-        console.error("Failed to fetch tenant hubs for region detection", e);
+        console.error("Failed to fetch tenant hubs", e);
     }
-    return defaultHubs;
+    return finalHubs;
 }
 
 /**
@@ -345,19 +353,29 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
         let tenantDefaultCurrency = 'EUR'; // Fallback
         if (req.tenant?.id) {
             try {
-                // Load hubs from Zone table (zones with a code serve as origin hubs)
+                const defaultHubs = [
+                    { code: 'AYT', keywords: 'ayt, antalya havalimanı, antalya airport', name: 'Antalya Havalimanı' },
+                    { code: 'GZP', keywords: 'gzp, gazipasa, gazipaşa', name: 'Gazipaşa Havalimanı' },
+                ];
+                hubs = [...defaultHubs];
+
                 const zonesWithCode = await prisma.zone.findMany({
                     where: { tenantId: req.tenant.id, code: { not: null } },
                     select: { code: true, keywords: true, name: true }
                 });
                 if (zonesWithCode.length > 0) {
-                    hubs = zonesWithCode.map(z => ({ code: z.code, keywords: z.keywords || '', name: z.name }));
+                    zonesWithCode.forEach(z => {
+                        const idx = hubs.findIndex(h => h.code === z.code);
+                        if (idx === -1) hubs.push({ code: z.code, keywords: z.keywords || '', name: z.name });
+                        else hubs[idx].keywords += `, ${z.keywords || ''}`;
+                    });
                 }
 
                 const tenantInfo = await prisma.tenant.findUnique({ where: { id: req.tenant.id }, select: { settings: true } });
-                // Fallback: if no zones with codes, try legacy settings.hubs
-                if (hubs.length === 0 && tenantInfo?.settings?.hubs && Array.isArray(tenantInfo.settings.hubs)) {
-                    hubs = tenantInfo.settings.hubs;
+                if (hubs.length <= 2 && tenantInfo?.settings?.hubs && Array.isArray(tenantInfo.settings.hubs)) { 
+                    tenantInfo.settings.hubs.forEach(h => {
+                        if (!hubs.some(fh => fh.code === h.code)) hubs.push(h);
+                    });
                 }
                 if (tenantInfo?.settings?.timeDefinitions) {
                     timeDefinitions = tenantInfo.settings.timeDefinitions;
@@ -372,69 +390,53 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
         }
 
         let detectedBaseLocation = null;
-        // CRITICAL: Use only the PRIMARY location token (before / or ,) for hub detection.
-        // This prevents province names like "Antalya" in "Kemer/Antalya, Türkiye" from 
-        // falsely matching AYT zone keywords. Only the actual location name matters.
-        const pickupPrimaryToken = pickup.toLowerCase().split(/[\/,]/)[0].trim();
-        const pickupTextRaw = pickup.toLowerCase(); // Keep full text for airport-specific words
-        let bestMatchScore = 0;
-        let bestMatchLength = 0;
-        
-        // 1. Detect Base Location for Pricing
         let originalPickupHubCode = null;
+        const pickupPrimaryToken = pickup.toLowerCase().split(/[\/,]/)[0].trim();
+        const pickupTextRaw = pickup.toLowerCase();
+        let bestPickupScore = 0;
+        let bestPickupLength = 0;
 
         for (const hub of hubs) {
             const keys = hub.keywords ? hub.keywords.split(',').map(k => k.trim().toLowerCase()).filter(k => k) : [];
             keys.push(hub.code.toLowerCase());
-            
-            // Add robust aliases — airport-specific words only for AYT to avoid city name conflicts
-            if (hub.code === 'GZP') keys.push('gazipaşa', 'gazipasa');
-            if (hub.code === 'AYT') keys.push('havalimanı', 'havalimani', 'airport', 'havaalani');
-            
             for (const k of keys) {
-                // Airport-specific keywords (score 2+) can match full text (the address often has "Havalimanı" in the middle)
-                // But general keywords (score 1) must only match the PRIMARY token to prevent province-name false matches
-                const isAirportKeyword = k.includes('gazipaşa') || k.includes('gazipasa') || k.includes('gzp') ||
-                    k.includes('havalimanı') || k.includes('havalimani') || k.includes('airport') || k.includes('havaalani') || k === 'ayt';
-                const textToSearch = isAirportKeyword ? pickupTextRaw : pickupPrimaryToken;
-                
+                const isGZP = k.includes('gazipaşa') || k.includes('gazipasa') || k.includes('gzp');
+                const isAYT = k.includes('antalya havalimanı') || k.includes('antalya airport') || k.includes('havalimanı') || k.includes('havalimani') || k.includes('airport') || k === 'ayt';
+                const textToSearch = (isGZP || isAYT) ? pickupTextRaw : pickupPrimaryToken;
                 if (textToSearch.includes(k)) {
                     let score = 1;
-                    if (k.includes('gazipaşa') || k.includes('gazipasa') || k.includes('gzp')) score = 3;
-                    else if (isAirportKeyword) score = 2;
-                    
-                    if (score > bestMatchScore || (score === bestMatchScore && k.length > bestMatchLength)) {
+                    if (isGZP) score = 4;
+                    else if (isAYT) score = 3;
+                    if (k === pickupPrimaryToken) score += 1;
+                    if (score > bestPickupScore || (score === bestPickupScore && k.length > bestPickupLength)) {
                         detectedBaseLocation = hub.code;
                         originalPickupHubCode = hub.code;
-                        bestMatchScore = score;
-                        bestMatchLength = k.length;
+                        bestPickupScore = score;
+                        bestPickupLength = k.length;
                     }
                 }
             }
         }
         
-        // Also detect from dropoff (for city→airport transfers)
         let detectedDropoffBase = null;
         let originalDropoffHubCode = null;
         const dropoffPrimaryToken = dropoff.toLowerCase().split(/[\/,]/)[0].trim();
         const dropoffTextRaw = dropoff.toLowerCase();
         let bestDropoffScore = 0;
         let bestDropoffMatchLength = 0;
+
         for (const hub of hubs) {
             const keys = hub.keywords ? hub.keywords.split(',').map(k => k.trim().toLowerCase()).filter(k => k) : [];
             keys.push(hub.code.toLowerCase());
-            if (hub.code === 'GZP') keys.push('gazipaşa', 'gazipasa');
-            if (hub.code === 'AYT') keys.push('havalimanı', 'havalimani', 'airport', 'havaalani');
             for (const k of keys) {
-                const isAirportKeyword = k.includes('gazipaşa') || k.includes('gazipasa') || k.includes('gzp') ||
-                    k.includes('havalimanı') || k.includes('havalimani') || k.includes('airport') || k.includes('havaalani') || k === 'ayt';
-                const textToSearch = isAirportKeyword ? dropoffTextRaw : dropoffPrimaryToken;
-                
+                const isGZP = k.includes('gazipaşa') || k.includes('gazipasa') || k.includes('gzp');
+                const isAYT = k.includes('antalya havalimanı') || k.includes('antalya airport') || k.includes('havalimanı') || k.includes('havalimani') || k.includes('airport') || k === 'ayt';
+                const textToSearch = (isGZP || isAYT) ? dropoffTextRaw : dropoffPrimaryToken;
                 if (textToSearch.includes(k)) {
                     let score = 1;
-                    if (k.includes('gazipaşa') || k.includes('gazipasa') || k.includes('gzp')) score = 3;
-                    else if (isAirportKeyword) score = 2;
-                    
+                    if (isGZP) score = 4;
+                    else if (isAYT) score = 3;
+                    if (k === dropoffPrimaryToken) score += 1;
                     if (score > bestDropoffScore || (score === bestDropoffScore && k.length > bestDropoffMatchLength)) {
                         detectedDropoffBase = hub.code;
                         originalDropoffHubCode = hub.code;
@@ -553,23 +555,18 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
             // 2. DROPOFF Location Check (to → user's dropoff)
             let isDropoffMatch = false;
 
-            // 2a. Hub code matching (preferred — compare route's toHubCode with detected hub from dropoff text)
             const routeMeta = route.metadata || {};
             const routeToHubCode = routeMeta.toHubCode;
             if (routeToHubCode) {
                 if (originalDropoffHubCode && originalDropoffHubCode === routeToHubCode) {
                     isDropoffMatch = true;
+                } else {
+                    return false;
                 }
-                // STRICT RULE: If a hub is explicitly defined for this shuttle route,
-                // we do NOT fall back to fuzzy text matching. It must match the hub.
             } else {
-                // 2b. Text matching fallback (only if no hub code provided)
                 const routeTo = normalizeLocation(route.toName);
-                const dropoffPrimary = dropoffNorm.split(/[\/,]/)[0].trim();
                 const routeToPrimary = routeTo.split(/[\/,]/)[0].trim();
-                isDropoffMatch = (routeToPrimary === dropoffPrimary || routeToPrimary.includes(dropoffPrimary) || dropoffPrimary.includes(routeToPrimary));
-
-                // 2c. Hub-based dropoff matching fallback
+                isDropoffMatch = (routeToPrimary === dropoffPrimaryToken || routeToPrimary.includes(dropoffPrimaryToken) || dropoffPrimaryToken.includes(routeToPrimary));
                 if (!isDropoffMatch && originalDropoffHubCode) {
                     const dropoffHub = hubs.find(h => h.code === originalDropoffHubCode);
                     if (dropoffHub) {
@@ -742,26 +739,27 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                     const zoneName = (zoneData?.zoneName || '').toLowerCase();
                     const zoneCode = (zoneData?.zoneCode || '').toLowerCase();
                     if (zoneName) {
-                        const pickupLower = (pickup || '').toLowerCase();
-                        const dropoffLower = (dropoff || '').toLowerCase();
-                        // Tokenize zone name and addresses by common separators
                         const tokenize = (s) => s.split(/[\s\/,()]+/).filter(t => t.length > 2);
                         const zoneTokens = tokenize(zoneName);
-                        const pickupTokens = tokenize(pickupLower);
-                        const dropoffTokens = tokenize(dropoffLower);
                         
-                        // Zone is relevant ONLY if the zone name exactly matches or is the primary token of pickup/dropoff
-                        // This prevents "Alanya" zone from matching "Antalya" province in "Kemer/Antalya"
-                        const isRelevant = zoneTokens.some(zt => 
-                            pickupTokens.some(pt => pt === zt) ||
-                            dropoffTokens.some(dt => dt === zt)
-                        ) || (zoneCode && (pickupLower.includes(zoneCode) || dropoffLower.includes(zoneCode)));
-                        
+                        let isRelevant = false;
+                        if (zoneCode && (zoneCode === originalPickupHubCode || zoneCode === originalDropoffHubCode)) {
+                            isRelevant = true;
+                        } 
                         if (!isRelevant) {
-                            console.log(`[ZoneRelevance] SKIP zone "${zoneData.zoneName}" (${zoneCode}) — not relevant to "${pickup?.substring(0,30)}" → "${dropoff?.substring(0,30)}"`);
+                            const pTokens = tokenize(pickupPrimaryToken || '');
+                            const dTokens = tokenize(dropoffPrimaryToken || '');
+                            isRelevant = zoneTokens.every(zt => 
+                                pTokens.some(pt => pt === zt || pt.startsWith(zt)) || 
+                                dTokens.some(dt => dt === zt || dt.startsWith(zt))
+                            );
+                        }
+                        if (isRelevant && originalDropoffHubCode === 'GZP' && zoneName.includes('alanya')) {
+                            isRelevant = false;
+                        }
+                        if (!isRelevant) {
                             zonePriceConfig = null;
                             finalMatchedZoneId = null;
-                            usedOverageDistanceKm = 0;
                         }
                     }
                 }
@@ -856,6 +854,9 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                 // Get image from active vehicles if type doesn't have one
                 const imageUrl = vt.image || (vt.vehicles && vt.vehicles.length > 0 ? vt.vehicles[0].metadata?.imageUrl : '/vehicles/vito.png');
 
+                // If the final price is zero or negative, skip this vehicle (unserviced)
+                if (finalPrice <= 0) return null;
+
                 return {
                     id: vt.id, 
                     vehicleType: vt.name, 
@@ -875,7 +876,7 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                     zonePriceConfig: contractPrice ? null : zonePriceConfig,
                     metadata: vt.metadata
                 };
-            }).filter(Boolean); // Remove skipped vehicles
+            }).filter(Boolean); // Remove skipped vehicles (null or zero price)
 
         // ── TIME DEFINITIONS FILTER ──
         // Check how many hours remain until the pickup/flight time
