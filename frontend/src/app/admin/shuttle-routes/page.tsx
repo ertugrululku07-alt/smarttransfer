@@ -243,12 +243,12 @@ const AdminShuttleRoutesPage: React.FC = () => {
         pricePerSeat: route.pricePerSeat,
         currency: route.currency || currencies.find((c: any) => c.isDefault)?.code || 'EUR',
         maxSeats: route.maxSeats,
+        pickupLeadHours: route.pickupLeadHours ? Number(route.pickupLeadHours) : undefined,
         isActive: route.isActive,
         customDateRange: route.customStartDate && route.customEndDate
           ? [moment(route.customStartDate, 'YYYY-MM-DD'), moment(route.customEndDate, 'YYYY-MM-DD')]
           : null,
         weeklyDays: route.weeklyDays || [],
-        pickupLeadHours: route.pickupLeadHours != null ? route.pickupLeadHours : undefined,
         subtractLeadTime: (() => {
             let meta = route.metadata;
             if (typeof meta === 'string') {

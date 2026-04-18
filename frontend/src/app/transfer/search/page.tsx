@@ -162,12 +162,27 @@ const TransferSearchContent: React.FC = () => {
             const rTime = returnTime || '12:00';
             returnPickupDateTime = `${returnDate || date}T${rTime}:00.000`;
 
+            // Calculate route for reversed direction (needed for zone matching)
+            let returnDistance: number | undefined;
+            let returnPolyline: string | undefined;
+            try {
+                const route = await getRouteDetails(dropoff, pickup);
+                if (route) {
+                    returnDistance = route.distanceKm;
+                    returnPolyline = route.encodedPolyline;
+                }
+            } catch (e) {
+                console.error('Return route calculation failed:', e);
+            }
+
             const payload = {
                 pickup: dropoff,   // Reversed!
                 dropoff: pickup,   // Reversed!
                 pickupDateTime: returnPickupDateTime,
                 passengers: Number(passengers) || 1,
                 transferType: 'ONE_WAY',
+                distance: returnDistance,
+                encodedPolyline: returnPolyline,
                 pickupLat: dropoffLat || undefined,
                 pickupLng: dropoffLng || undefined,
                 dropoffLat: pickupLat || undefined,
