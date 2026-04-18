@@ -263,7 +263,7 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                         const area = turf.area(zonePolygon);
                         
                         if (overage !== Infinity) {
-                            zoneOverages[zone.id] = { overage, area };
+                            zoneOverages[zone.id] = { overage, area, zoneName: zone.name || '', zoneCode: zone.code || '' };
                         }
                     }
 
@@ -284,7 +284,7 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                                 if (turf.booleanPointInPolygon(pickupPoint, zonePolygon)) {
                                     const area = turf.area(zonePolygon);
                                     if (!zoneOverages[zone.id]) {
-                                        zoneOverages[zone.id] = { overage: 0, area };
+                                        zoneOverages[zone.id] = { overage: 0, area, zoneName: zone.name || '', zoneCode: zone.code || '' };
                                     }
                                     pickupZoneIds.add(zone.id);
                                     console.log(`[ZonePickup] Pickup point inside zone ${zone.name} (${zone.id}), area=${area.toFixed(0)}`);
@@ -430,7 +430,9 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
         console.log(`Hub Detection: pickup="${pickup.substring(0,40)}" → detectedBaseLocation="${detectedBaseLocation}", dropoffBase="${detectedDropoffBase}"`);
 
         const dateObj = new Date(pickupDateTime);
-        const dayOfWeekVal = dateObj.getDay(); // 0=Sun, 1=Mon...
+        // Use Turkey timezone (UTC+3) for day-of-week calculation
+        const trDateObj = new Date(dateObj.getTime() + (3 * 60 * 60 * 1000));
+        const dayOfWeekVal = trDateObj.getUTCDay(); // 0=Sun, 1=Mon...
         const daysMap = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
         const currentDayCode = daysMap[dayOfWeekVal];
         const dateStr = dateObj.toISOString().split('T')[0];
@@ -503,7 +505,11 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
             // 1c. Text matching fallback (if no coordinates sent or no polygon/radius match)
             if (!isPickupMatch) {
                 const routeFrom = normalizeLocation(route.fromName);
-                isPickupMatch = (routeFrom.includes(pickupNorm) || pickupNorm.includes(routeFrom));
+                // Use primary location token (before / or ,) to avoid false matches
+                // e.g., "Kemer/Antalya" should NOT match shuttle route from "Antalya Havalimanı"
+                const pickupPrimary = pickupNorm.split(/[\/,]/)[0].trim();
+                const routeFromPrimary = routeFrom.split(/[\/,]/)[0].trim();
+                isPickupMatch = (routeFromPrimary.includes(pickupPrimary) || pickupPrimary.includes(routeFromPrimary));
             }
 
             // 1d. Hub-based pickup matching: if user pickup resolves to a known hub,
@@ -538,7 +544,10 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
             // 2b. Text matching fallback
             if (!isDropoffMatch) {
                 const routeTo = normalizeLocation(route.toName);
-                isDropoffMatch = (routeTo.includes(dropoffNorm) || dropoffNorm.includes(routeTo));
+                // Use primary location token to avoid false matches
+                const dropoffPrimary = dropoffNorm.split(/[\/,]/)[0].trim();
+                const routeToPrimary = routeTo.split(/[\/,]/)[0].trim();
+                isDropoffMatch = (routeToPrimary.includes(dropoffPrimary) || dropoffPrimary.includes(routeToPrimary));
             }
 
             // 2c. Hub-based dropoff matching: detect which hub the dropoff text maps to,
@@ -561,8 +570,10 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
             if (!isDropoffMatch) {
                 const routeToLower = route.toName.toLowerCase();
                 const dropoffLower = dropoff.toLowerCase();
-                // Simple substring check on raw (non-normalized) names
-                isDropoffMatch = (routeToLower.includes(dropoffLower) || dropoffLower.includes(routeToLower));
+                // Use primary location token to avoid false province-name matches
+                const dropoffPrimaryRaw = dropoffLower.split(/[\/,]/)[0].trim();
+                const routeToPrimaryRaw = routeToLower.split(/[\/,]/)[0].trim();
+                isDropoffMatch = (routeToPrimaryRaw.includes(dropoffPrimaryRaw) || dropoffPrimaryRaw.includes(routeToPrimaryRaw));
             }
 
             if (!isDropoffMatch) return false;
@@ -584,8 +595,9 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
 
             // TIME WINDOW CHECK (±2 hours)
             const searchDate = new Date(pickupDateTime);
-            // Ignore timezone issues if pickupDateTime is accurate in local time, but we fallback safely
-            const userMin = searchDate.getHours() * 60 + searchDate.getMinutes();
+            // Use Turkey timezone (UTC+3) for time comparison
+            const trSearchDate = new Date(searchDate.getTime() + (3 * 60 * 60 * 1000));
+            const userMin = trSearchDate.getUTCHours() * 60 + trSearchDate.getUTCMinutes();
             let closestMasterTime = null;
             let minOffset = Infinity;
             
@@ -716,8 +728,35 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                     }
                 }
 
-                if (zonePriceConfig) {
-                    console.log(`[ZoneMatch] ${vt.name}: zone=${finalMatchedZoneId}, base=${detectedBaseLocation}, pickupLeadHours=${zonePriceConfig.pickupLeadHours}, fixedPrice=${zonePriceConfig.fixedPrice}`);
+                if (zonePriceConfig && finalMatchedZoneId) {
+                    // ── ZONE RELEVANCE CHECK ──
+                    // Verify the matched zone name is semantically related to the actual pickup or dropoff.
+                    // E.g., zone "Alanya" should NOT apply pricing to a "Kemer" pickup.
+                    const zoneData = req.zoneOverages[finalMatchedZoneId];
+                    const zoneName = (zoneData?.zoneName || '').toLowerCase();
+                    const zoneCode = (zoneData?.zoneCode || '').toLowerCase();
+                    if (zoneName) {
+                        const pickupLower = (pickup || '').toLowerCase();
+                        const dropoffLower = (dropoff || '').toLowerCase();
+                        // Tokenize zone name and addresses by common separators
+                        const tokenize = (s) => s.split(/[\s\/,()]+/).filter(t => t.length > 2);
+                        const zoneTokens = tokenize(zoneName);
+                        const pickupTokens = tokenize(pickupLower);
+                        const dropoffTokens = tokenize(dropoffLower);
+                        
+                        // Zone is relevant if any zone name token appears in pickup or dropoff
+                        const isRelevant = zoneTokens.some(zt => 
+                            pickupTokens.some(pt => pt.includes(zt) || zt.includes(pt)) ||
+                            dropoffTokens.some(dt => dt.includes(zt) || zt.includes(dt))
+                        ) || (zoneCode && (pickupLower.includes(zoneCode) || dropoffLower.includes(zoneCode)));
+                        
+                        if (!isRelevant) {
+                            console.log(`[ZoneRelevance] SKIP zone "${zoneData.zoneName}" (${zoneCode}) — not relevant to "${pickup?.substring(0,30)}" → "${dropoff?.substring(0,30)}"`);
+                            zonePriceConfig = null;
+                            finalMatchedZoneId = null;
+                            usedOverageDistanceKm = 0;
+                        }
+                    }
                 }
 
                 const typeMult = transferType === 'ROUND_TRIP' ? 1.9 : 1.0;
@@ -1308,7 +1347,7 @@ router.get('/pool-bookings', authMiddleware, async (req, res) => {
             },
             pickup: {
                 location: b.metadata?.pickup || 'Belirtilmemiş',
-                time: new Date(b.startDate).toLocaleString('tr-TR', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }),
+                time: new Date(b.startDate).toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }),
                 timeDate: b.startDate, // Raw date for FlightTracker
                 note: b.specialRequests
             },
@@ -1370,7 +1409,7 @@ router.get('/bookings/:id', authMiddleware, async (req, res) => {
             },
             pickup: {
                 location: booking.metadata?.pickup || 'Belirtilmemiş',
-                time: new Date(booking.startDate).toLocaleString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+                time: new Date(booking.startDate).toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
                 timeDate: booking.startDate, // Raw date for FlightTracker
                 note: booking.specialRequests,
                 // Pass raw location string for Map component
@@ -1446,7 +1485,7 @@ router.get('/partner/active-bookings', authMiddleware, async (req, res) => {
             },
             pickup: {
                 location: b.metadata?.pickup || 'Belirtilmemiş',
-                time: new Date(b.startDate).toLocaleString('tr-TR', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }),
+                time: new Date(b.startDate).toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }),
                 timeDate: b.startDate, // Raw date for FlightTracker
                 note: b.specialRequests
             },
@@ -1517,7 +1556,7 @@ router.get('/partner/completed-bookings', authMiddleware, async (req, res) => {
             },
             pickup: {
                 location: b.metadata?.pickup || 'Belirtilmemiş',
-                time: new Date(b.startDate).toLocaleString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+                time: new Date(b.startDate).toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
             },
             dropoff: {
                 location: b.metadata?.dropoff || 'Belirtilmemiş',
@@ -1861,7 +1900,7 @@ router.patch('/bookings/:id', authMiddleware, async (req, res) => {
                 if (pushToken && pushToken.startsWith('ExponentPushToken')) {
                     const pickupStr = updated.metadata?.pickup || 'Belirtilmemiş';
                     const dateStr = updated.startDate
-                        ? new Date(updated.startDate).toLocaleString('tr-TR', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })
+                        ? new Date(updated.startDate).toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })
                         : '';
 
                     await fetch('https://exp.host/--/api/v2/push/send', {

@@ -924,8 +924,9 @@ router.get('/shuttle-runs', authMiddleware, async (req, res, next) => {
                     if (firstPickup) {
                         const d = new Date(firstPickup);
                         if (!isNaN(d.getTime())) {
-                            const hours = d.getHours();
-                            const mins = d.getMinutes();
+                            const trTime = new Date(d.getTime() + (3 * 60 * 60 * 1000));
+                            const hours = trTime.getUTCHours();
+                            const mins = trTime.getUTCMinutes();
                             run.departureTime = `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
                         } else { run.departureTime = "--:--"; }
                     } else { run.departureTime = "--:--"; }
@@ -1025,7 +1026,7 @@ router.patch('/shuttle-runs/assign', authMiddleware, async (req, res) => {
                     const firstUpdated = await prisma.booking.findFirst({ where: { id: { in: updates } }, select: { metadata: true, startDate: true, bookingNumber: true } });
                     const pickupStr = firstUpdated?.metadata?.pickup || 'Belirtilmemiş';
                     const dateStr = firstUpdated?.startDate
-                        ? new Date(firstUpdated.startDate).toLocaleString('tr-TR', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })
+                        ? new Date(firstUpdated.startDate).toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })
                         : '';
 
                     fetch('https://exp.host/--/api/v2/push/send', {

@@ -9,9 +9,9 @@ const formatDriverSchedule = (driver, existingBookings) => {
     if (driverBookings.length === 0) return `${driver.firstName} ${driver.lastName}: Boş gün`;
 
     const list = driverBookings.map(b => {
-        const start = new Date(b.startDate).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+        const start = new Date(b.startDate).toLocaleTimeString('tr-TR', { timeZone: 'Europe/Istanbul', hour: '2-digit', minute: '2-digit' });
         const dur = b.metadata?.estimatedDurationMinutes || 120;
-        const end = new Date(new Date(b.startDate).getTime() + (dur + 30) * 60000).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+        const end = new Date(new Date(b.startDate).getTime() + (dur + 30) * 60000).toLocaleTimeString('tr-TR', { timeZone: 'Europe/Istanbul', hour: '2-digit', minute: '2-digit' });
         return `${start}-${end} (${b.metadata?.pickup || '?'} → ${b.metadata?.dropoff || '?'})`;
     }).join(' | ');
 
@@ -67,7 +67,7 @@ const suggestAssignment = async (booking, drivers, vehicles, existingBookings) =
     }
 
     const pickupDateTime = new Date(booking.startDate).toLocaleString('tr-TR', {
-        day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit'
+        timeZone: 'Europe/Istanbul', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit'
     });
 
     const isShuttle = (booking.metadata?.vehicleType || '').toLowerCase().includes('shuttle') ||
