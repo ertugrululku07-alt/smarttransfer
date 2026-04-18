@@ -181,7 +181,15 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
             }
         }
 
-        console.log('Transfer Search Request:', { pickup, dropoff, distance, transferType, agencyMarkup });
+        console.log('Transfer Search Request:', { 
+            pickup, 
+            dropoff, 
+            distance, 
+            transferType, 
+            agencyMarkup, 
+            user: req.user?.email || 'Guest',
+            tenant: req.tenant?.id 
+        });
 
         // Validation
         if (!pickup || !dropoff || !pickupDateTime) {
@@ -842,6 +850,8 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                     const key2 = `${vt.id}:${finalMatchedZoneId}:${detectedDropoffBase}`;
                     contractPrice = agencyContractMap[key2] || null;
                 }
+                console.log(`[Trace] VT:${vt.name} detectedBase:${detectedBaseLocation} dropoffBase:${detectedDropoffBase} matchedZone:${finalMatchedZoneId}`);
+
                 let finalPrice;
                 let baseContractValue = 0;
                 if (contractPrice) {
@@ -854,9 +864,16 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                         baseContractValue = ((perPersonPrice * Number(passengers)) + extra) * typeMult;
                     }
                     finalPrice = Math.round(baseContractValue * (1 + (agencyMarkup / 100)));
+                    console.log(`[Trace] VT:${vt.name} CONTRACT price: ${finalPrice} (base: ${baseContractValue}, markup: ${agencyMarkup}%)`);
                 } else {
                     // Standard pricing: apply agency markup on calculated price
                     finalPrice = Math.round(calculatedPrice * (1 + (agencyMarkup / 100)));
+                    console.log(`[Trace] VT:${vt.name} STANDARD price: ${finalPrice} (calc: ${calculatedPrice}, markup: ${agencyMarkup}%)`);
+                }
+
+                if (finalPrice <= 0) {
+                    console.log(`[Trace] VT:${vt.name} SKIPPED: price is 0 or less`);
+                    return null;
                 }
                 
                 // Get image from active vehicles if type doesn't have one
