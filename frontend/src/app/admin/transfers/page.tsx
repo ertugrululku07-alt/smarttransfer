@@ -12,7 +12,7 @@ import {
     SafetyCertificateOutlined, TeamOutlined, DownloadOutlined, PrinterOutlined,
     FilterOutlined, SettingOutlined, FileExcelOutlined, FilePdfOutlined,
     FilterFilled, ClearOutlined, BgColorsOutlined, ReloadOutlined as ResetOutlined,
-    EditOutlined, RocketOutlined
+    EditOutlined, RocketOutlined, MoreOutlined, ThunderboltOutlined, HolderOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import 'dayjs/locale/tr';
@@ -57,7 +57,7 @@ const DEFAULT_COL_WIDTHS: Record<string, number> = {
     agency: 100, passengerName: 130, pickupLoc: 200, dropoffLoc: 200,
     airportCode: 100, pickupRegionCode: 80, dropoffRegionCode: 80,
     vehicleType: 130, price: 90, status: 120,
-    paymentType: 110, paymentStatus: 100, flightNumber: 90, adults: 90, extraServices: 150, action: 120,
+    paymentType: 110, paymentStatus: 100, flightNumber: 90, adults: 90, extraServices: 150, action: 50,
 };
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -168,17 +168,17 @@ function getAirportCode(location: string): string | null {
 
 // ─── Column Definitions ──────────────────────────────────────────────────────
 const ALL_COL_KEYS = [
-    'bookingNumber', 'pickupDateTime', 'createdAt', 'agency',
+    'action', 'bookingNumber', 'pickupDateTime', 'createdAt', 'agency',
     'passengerName', 'pickupLoc', 'dropoffLoc', 'airportCode',
     'pickupRegionCode', 'dropoffRegionCode',
     'vehicleType', 'price', 'status', 'paymentType', 'paymentStatus',
-    'flightNumber', 'adults', 'extraServices', 'customerNote', 'internalNotes', 'action'
+    'flightNumber', 'adults', 'extraServices', 'customerNote', 'internalNotes'
 ];
 const DEFAULT_VISIBLE_COLS = [
-    'bookingNumber', 'pickupDateTime', 'createdAt', 'agency',
+    'action', 'bookingNumber', 'pickupDateTime', 'createdAt', 'agency',
     'passengerName', 'pickupLoc', 'dropoffLoc', 'airportCode',
     'pickupRegionCode', 'dropoffRegionCode',
-    'vehicleType', 'price', 'status', 'customerNote', 'internalNotes', 'extraServices', 'action'
+    'vehicleType', 'price', 'status', 'customerNote', 'internalNotes', 'extraServices'
 ];
 const DEFAULT_COL_TITLES: Record<string, string> = {
     bookingNumber:  'No',
@@ -357,8 +357,12 @@ const TransfersPage: React.FC = () => {
 
     const [visibleCols, setVisibleCols] = useState<string[]>(DEFAULT_VISIBLE_COLS);
     const [colTitles, setColTitles] = useState<Record<string,string>>(DEFAULT_COL_TITLES);
+    const [colOrder, setColOrder] = useState<string[]>(ALL_COL_KEYS);
     const [colManagerOpen, setColManagerOpen] = useState(false);
     const [colFilters, setColFilters] = useState<ColFilters>({});
+    const [autoApprove, setAutoApprove] = useState<'off'|'operation'|'pool'>('off');
+    const autoApproveRef = useRef<'off'|'operation'|'pool'>('off');
+    const [dragColIdx, setDragColIdx] = useState<number|null>(null);
 
     // Inline cell editing state
     const [editingCell, setEditingCell] = useState<{ id: string; field: string; value: any } | null>(null);
@@ -474,6 +478,8 @@ const TransfersPage: React.FC = () => {
         }).catch(()=>{});
     };
 
+    useEffect(() => { autoApproveRef.current = autoApprove; }, [autoApprove]);
+
     useEffect(() => {
         apiClient.get('/api/auth/metadata').then(res => {
             if (res.data?.success && res.data?.data?.transfer_preferences) {
@@ -481,6 +487,8 @@ const TransfersPage: React.FC = () => {
                 if (prefs.colTitles) setColTitles(prefs.colTitles);
                 if (prefs.visibleCols) setVisibleCols(prefs.visibleCols);
                 if (prefs.statusColors) setStatusColors(prefs.statusColors);
+                if (prefs.colOrder) setColOrder(prefs.colOrder);
+                if (prefs.autoApprove) { setAutoApprove(prefs.autoApprove); autoApproveRef.current = prefs.autoApprove; }
             } else {
                 setStatusColors(loadColors());
             }
@@ -503,9 +511,21 @@ const TransfersPage: React.FC = () => {
 
     useEffect(() => {
         if (!socket || !isConnected) return;
-        const handleNewBooking = () => {
+        const handleNewBooking = (data: any) => {
             console.log("Socket: New booking received, reloading list...");
             fetchBookings();
+            // Auto-approve if enabled
+            const mode = autoApproveRef.current;
+            if (mode !== 'off' && data?.bookingId) {
+                const subStatus = mode === 'operation' ? 'IN_OPERATION' : 'IN_POOL';
+                setTimeout(() => {
+                    apiClient.put(`/api/transfer/bookings/${data.bookingId}/status`, { status: 'CONFIRMED', subStatus })
+                        .then(() => {
+                            message.info(`Otomatik: ${mode === 'operation' ? 'Operasyona aktarıldı' : 'Havuza aktarıldı'}`);
+                            fetchBookings();
+                        }).catch(() => {});
+                }, 1500);
+            }
         };
         socket.on('new_booking', handleNewBooking);
         return () => {
@@ -811,52 +831,85 @@ const TransfersPage: React.FC = () => {
                   </Space>
               );
           }},
-        { ...makeHeader('action'), key:'action', width:colWidths.action,
-          render:(_:any,record:Booking)=>(
-              <Space size="small">
-                  <Tooltip title="Detaylar"><Button type="text" size="small" icon={<EyeOutlined/>} onClick={()=>{setSelectedBooking(record);setDetailModalVisible(true);}}/></Tooltip>
-                  {record.status==='PENDING'&&(<>
-                      <Dropdown menu={{items:[
-                          {key:'op',label:'Onayla & Operasyona',icon:<SafetyCertificateOutlined/>,onClick:()=>handleUpdateStatus(record.id,'CONFIRMED','IN_OPERATION')},
-                          {key:'pool',label:'Onayla & Havuza Aktar',icon:<TeamOutlined/>,onClick:()=>{
-                              setActivePoolBooking(record);
-                              setPoolPriceInput(record.price || 0);
-                              setPoolModalOpen(true);
-                          }}
-                      ]}}>
-                          <Button type="text" size="small" icon={<CheckCircleOutlined/>} style={{color:'#10b981'}}/>
-                      </Dropdown>
-                      <Tooltip title="İptal Et"><Button type="text" size="small" icon={<CloseCircleOutlined/>} style={{color:'#ef4444'}} onClick={()=>handleUpdateStatus(record.id,'CANCELLED')}/></Tooltip>
-                  </>)}
-                  {record.status==='CONFIRMED' && !['IN_OPERATION', 'IN_POOL'].includes(record.operationalStatus || '') &&(<>
-                      <Dropdown menu={{items:[
-                          {key:'op',label:'Operasyona Aktar',icon:<SafetyCertificateOutlined/>,onClick:()=>handleUpdateStatus(record.id,'CONFIRMED','IN_OPERATION')},
-                          {key:'pool',label:'Havuza Aktar',icon:<TeamOutlined/>,onClick:()=>{
-                              setActivePoolBooking(record);
-                              setPoolPriceInput(record.price || 0);
-                              setPoolModalOpen(true);
-                          }}
-                      ]}}>
-                          <Button type="text" size="small" icon={<CheckCircleOutlined/>} style={{color:'#10b981'}}/>
-                      </Dropdown>
-                      <Tooltip title="Tamamlandı"><Button type="text" size="small" icon={<CheckCircleOutlined/>} style={{color:'#6366f1'}} onClick={()=>handleUpdateStatus(record.id,'COMPLETED')}/></Tooltip>
-                  </>)}
-              </Space>
-          )},
+        { ...makeHeader('action'), key:'action', width:colWidths.action, fixed: 'left',
+          render:(_:any,record:Booking)=>{
+              const items: MenuProps['items'] = [
+                  {key:'detail',label:'Detaylar',icon:<EyeOutlined/>,onClick:()=>{setSelectedBooking(record);setDetailModalVisible(true);}},
+              ];
+              if (record.status==='PENDING') {
+                  items.push({type:'divider'} as any);
+                  items.push({key:'op',label:'Onayla & Operasyona',icon:<SafetyCertificateOutlined style={{color:'#10b981'}}/>,onClick:()=>handleUpdateStatus(record.id,'CONFIRMED','IN_OPERATION')});
+                  items.push({key:'pool',label:'Onayla & Havuza',icon:<TeamOutlined style={{color:'#06b6d4'}}/>,onClick:()=>{setActivePoolBooking(record);setPoolPriceInput(record.price||0);setPoolModalOpen(true);}});
+                  items.push({type:'divider'} as any);
+                  items.push({key:'cancel',label:'İptal Et',icon:<CloseCircleOutlined style={{color:'#ef4444'}}/>,danger:true,onClick:()=>handleUpdateStatus(record.id,'CANCELLED')});
+              }
+              if (record.status==='CONFIRMED' && !['IN_OPERATION','IN_POOL'].includes(record.operationalStatus||'')) {
+                  items.push({type:'divider'} as any);
+                  items.push({key:'op2',label:'Operasyona Aktar',icon:<SafetyCertificateOutlined style={{color:'#10b981'}}/>,onClick:()=>handleUpdateStatus(record.id,'CONFIRMED','IN_OPERATION')});
+                  items.push({key:'pool2',label:'Havuza Aktar',icon:<TeamOutlined style={{color:'#06b6d4'}}/>,onClick:()=>{setActivePoolBooking(record);setPoolPriceInput(record.price||0);setPoolModalOpen(true);}});
+                  items.push({key:'complete',label:'Tamamlandı',icon:<CheckCircleOutlined style={{color:'#6366f1'}}/>,onClick:()=>handleUpdateStatus(record.id,'COMPLETED')});
+              }
+              return (
+                  <Dropdown menu={{items}} trigger={['click']} placement="bottomLeft">
+                      <Button type="text" size="small" icon={<MoreOutlined style={{fontSize:16}}/>}
+                          style={{width:28,height:28,display:'flex',alignItems:'center',justifyContent:'center',borderRadius:6,border:'1px solid #e5e7eb'}}/>
+                  </Dropdown>
+              );
+          }},
     ];
 
-    const visibleColumns = ALL_COLUMNS.filter(c=>visibleCols.includes(c.key));
-    const totalWidth = visibleColumns.reduce((sum, col) => sum + (col.width || 100), 0);
+    // Sort columns by colOrder, then filter by visibility
+    const sortedColumns = [...colOrder, ...ALL_COL_KEYS.filter(k => !colOrder.includes(k))]
+        .filter(k => visibleCols.includes(k))
+        .map(k => ALL_COLUMNS.find(c => c.key === k))
+        .filter(Boolean);
+    const totalWidth = sortedColumns.reduce((sum: number, col: any) => sum + (col.width || 100), 0);
     const activeFilterCount = Object.values(colFilters).filter(f=>f.text||(f.statuses?.length)||f.dateRange||f.minPrice!=null||f.maxPrice!=null).length;
 
+    // Column drag handlers for reorder in col manager
+    const handleColDragStart = (idx: number) => { setDragColIdx(idx); };
+    const handleColDragOver = (e: React.DragEvent, idx: number) => {
+        e.preventDefault();
+        if (dragColIdx === null || dragColIdx === idx) return;
+        const newOrder = [...colOrder];
+        const dragged = newOrder.splice(dragColIdx, 1)[0];
+        newOrder.splice(idx, 0, dragged);
+        setColOrder(newOrder);
+        setDragColIdx(idx);
+    };
+    const handleColDragEnd = () => {
+        setDragColIdx(null);
+        savePreferences({ colOrder });
+    };
+
+    // Reorder-capable keys (action stays fixed at left)
+    const reorderableKeys = colOrder.filter(k => k !== 'action');
+
     const colManagerContent = (
-        <div style={{width:260}}>
-            <Text type="secondary" style={{fontSize:11,marginBottom:8,display:'block'}}>Kolon başlığına <b>çift tıklayarak</b> adını düzenleyebilirsiniz.</Text>
+        <div style={{width:280}}>
+            <Text type="secondary" style={{fontSize:11,marginBottom:8,display:'block'}}>
+                <HolderOutlined /> Sürükle-bırak ile kolon sırası değiştir. Çift tıkla → ad düzenle.
+            </Text>
             <Divider style={{margin:'8px 0'}}/>
-            <div style={{display:'flex',flexDirection:'column',gap:8}}>
-                {ALL_COL_KEYS.filter(k=>k!=='action').map(key=>(
-                    <div key={key} style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-                        <Text style={{fontSize:12}}>{colTitles[key]||key}</Text>
+            <div style={{display:'flex',flexDirection:'column',gap:2}}>
+                {reorderableKeys.map((key, idx) => (
+                    <div key={key}
+                        draggable
+                        onDragStart={() => handleColDragStart(colOrder.indexOf(key))}
+                        onDragOver={(e) => handleColDragOver(e, colOrder.indexOf(key))}
+                        onDragEnd={handleColDragEnd}
+                        style={{
+                            display:'flex',alignItems:'center',justifyContent:'space-between',
+                            padding:'6px 8px', borderRadius:6, cursor:'grab',
+                            background: dragColIdx === colOrder.indexOf(key) ? '#eef2ff' : 'transparent',
+                            border: dragColIdx === colOrder.indexOf(key) ? '1px dashed #6366f1' : '1px solid transparent',
+                            transition: 'all 0.15s'
+                        }}
+                    >
+                        <Space size={8}>
+                            <HolderOutlined style={{color:'#9ca3af', fontSize:12}} />
+                            <Text style={{fontSize:12}}>{colTitles[key]||DEFAULT_COL_TITLES[key]||key}</Text>
+                        </Space>
                         <Switch size="small" checked={visibleCols.includes(key)} onChange={checked=>{
                             let next: string[];
                             if(checked) next = [...visibleCols, key];
@@ -871,7 +924,8 @@ const TransfersPage: React.FC = () => {
             <Button size="small" block onClick={()=>{
                 setVisibleCols(DEFAULT_VISIBLE_COLS);
                 setColTitles(DEFAULT_COL_TITLES);
-                savePreferences({ visibleCols: DEFAULT_VISIBLE_COLS, colTitles: DEFAULT_COL_TITLES });
+                setColOrder(ALL_COL_KEYS);
+                savePreferences({ visibleCols: DEFAULT_VISIBLE_COLS, colTitles: DEFAULT_COL_TITLES, colOrder: ALL_COL_KEYS });
             }}>Varsayılana Sıfırla</Button>
         </div>
     );
@@ -901,6 +955,25 @@ const TransfersPage: React.FC = () => {
                         <Input placeholder="Ara (No, İsim, Tel)" prefix={<SearchOutlined style={{color:'#9ca3af'}}/>}
                             onChange={e=>setSearchText(e.target.value)} style={{width:220,borderRadius:8}} allowClear/>
                         <Button icon={<ReloadOutlined/>} onClick={fetchBookings} style={{borderRadius:8}}>Yenile</Button>
+
+                        {/* Auto-Approve */}
+                        <Select
+                            value={autoApprove}
+                            onChange={(val: 'off'|'operation'|'pool') => {
+                                setAutoApprove(val);
+                                autoApproveRef.current = val;
+                                savePreferences({ autoApprove: val });
+                                if (val === 'off') message.info('Otomatik onaylama kapatıldı');
+                                else message.success(`Otomatik: ${val === 'operation' ? 'Operasyona Aktar' : 'Havuza At'} aktif`);
+                            }}
+                            style={{width:200, borderRadius:8}}
+                            suffixIcon={<ThunderboltOutlined style={{color: autoApprove !== 'off' ? '#10b981' : '#9ca3af'}} />}
+                            options={[
+                                {value:'off', label:'Otomatik Onay: Kapalı'},
+                                {value:'operation', label:'⚡ Oto → Operasyona'},
+                                {value:'pool', label:'⚡ Oto → Havuza At'},
+                            ]}
+                        />
 
                         {/* Column Manager */}
                         <Popover content={colManagerContent} title={<Space><SettingOutlined/>Kolon Ayarları</Space>}
@@ -939,7 +1012,7 @@ const TransfersPage: React.FC = () => {
                 {/* Table */}
                 <Card variant="borderless" style={{borderRadius:12,boxShadow:'0 1px 4px rgba(0,0,0,0.06)'}} styles={{body:{padding:0}}}>
                     <Table
-                        columns={visibleColumns} dataSource={filteredBookings} rowKey="id"
+                        columns={sortedColumns} dataSource={filteredBookings} rowKey="id"
                         loading={loading} scroll={{x: Math.max(totalWidth, 1000)}}
                         components={tableComponents}
                         tableLayout="fixed"
