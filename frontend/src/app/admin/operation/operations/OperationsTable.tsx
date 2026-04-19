@@ -145,6 +145,7 @@ interface OperationsTableProps {
     onAirportColorChange?: (airportCode: string, color: string) => void;
     onOpenLocationModal?: (location: string, name: string) => void;
     onPoolTransfer?: (booking: any) => void;
+    onOpenBookingDetail?: (booking: any) => void;
 }
 
 const DEFAULT_STATUS_COLORS: Record<string, string> = {
@@ -178,6 +179,7 @@ export default function OperationsTable({
     onAirportColorChange,
     onOpenLocationModal,
     onPoolTransfer,
+    onOpenBookingDetail,
 }: OperationsTableProps) {
     const [editingCell, setEditingCell] = useState<{ id: string; field: string; value: any } | null>(null);
     const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
@@ -519,8 +521,14 @@ export default function OperationsTable({
             key: 'bookingNumber',
             width: columnWidths.bookingNumber,
             ellipsis: true,
-            render: (text: string) => (
-                <Text copyable={{ text, tooltips: ['Kopyala', 'Kopyalandı'] }} style={{ fontSize: 10.5, fontFamily: 'monospace', color: '#3b82f6', fontWeight: 600 }}>{text}</Text>
+            render: (text: string, record: any) => (
+                <span
+                    onDoubleClick={() => onOpenBookingDetail?.(record)}
+                    title="Detay için çift tıklayın"
+                    style={{ cursor: 'pointer', userSelect: 'none' }}
+                >
+                    <Text copyable={{ text, tooltips: ['Kopyala', 'Kopyalandı'] }} style={{ fontSize: 10.5, fontFamily: 'monospace', color: '#3b82f6', fontWeight: 600 }}>{text}</Text>
+                </span>
             ),
         },
         {

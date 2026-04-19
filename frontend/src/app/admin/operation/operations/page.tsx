@@ -2938,6 +2938,7 @@ export default function OperationsPage() {
                                     collectedAmount: totalCollected
                                 });
                             }}
+                            onOpenBookingDetail={(booking) => setDetailModal({ visible: true, booking })}
                         />
                     </div>
                     )}
