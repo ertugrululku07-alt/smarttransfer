@@ -282,30 +282,10 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                         }
                         if (!hitEnd) distFromEnd = Infinity;
 
-                        // Overage = distance the route travels OUTSIDE the polygon.
-                        // If both start and end are outside, we want the non-hub side overage.
-                        // - If pickup is a hub (e.g. AYT), the hub→polygon distance is expected,
-                        //   so overage = distFromEnd (dropoff side beyond polygon)
-                        // - If dropoff is a hub, overage = distFromStart (pickup side beyond polygon)
-                        // - If neither is a hub, use the larger side (the actual extra distance)
-                        let overage;
-                        if (hitStart && hitEnd) {
-                            // Route starts and ends inside polygon → no overage
-                            overage = 0;
-                        } else if (hitStart && !hitEnd) {
-                            // Route starts inside polygon but ends outside → dropoff side overage
-                            overage = distFromEnd;
-                        } else if (!hitStart && hitEnd) {
-                            // Route ends inside polygon but starts outside → pickup side overage
-                            overage = distFromStart;
-                        } else {
-                            // Both sides are outside the polygon (route passes through)
-                            // Store both distances; the hub side is "expected" distance (no charge),
-                            // the non-hub side is the real overage. Hub detection runs later,
-                            // so store distFromEnd for now (most common: hub is pickup side).
-                            // We also store distFromStart in zone data for later correction.
-                            overage = distFromEnd !== Infinity ? distFromEnd : (distFromStart !== Infinity ? distFromStart : 0);
-                        }
+                        // Store both distances. The real overage (non-hub side) will be
+                        // determined later in the zone selection phase after hub detection.
+                        // For now, set a preliminary overage = distFromEnd (most common: pickup is hub).
+                        let overage = distFromEnd !== Infinity ? distFromEnd : (distFromStart !== Infinity ? distFromStart : 0);
                         const area = turf.area(zonePolygon);
                         
                         if (distFromStart !== Infinity || distFromEnd !== Infinity) {
@@ -801,18 +781,16 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
 
                     for (const [zoneId, zoneData] of Object.entries(req.zoneOverages)) {
                         // Correct overage based on hub detection:
-                        // Hub side distance is expected (part of zone price), only charge for the other side.
+                        // Hub side distance is "expected" (part of zone price), overage is always non-hub side.
                         let zoneOverage = zoneData.overage;
-                        if (!zoneData.hitStart && !zoneData.hitEnd) {
-                            // Route passes through polygon, both sides are outside
-                            if (originalPickupHubCode) {
-                                // Pickup is hub → overage is dropoff side
-                                zoneOverage = zoneData.distFromEnd ?? zoneData.overage;
-                            } else if (originalDropoffHubCode) {
-                                // Dropoff is hub → overage is pickup side
-                                zoneOverage = zoneData.distFromStart ?? zoneData.overage;
-                            }
+                        if (originalPickupHubCode && zoneData.distFromEnd != null) {
+                            // Pickup is hub → overage is dropoff side (distance from route end to polygon)
+                            zoneOverage = zoneData.distFromEnd;
+                        } else if (originalDropoffHubCode && zoneData.distFromStart != null) {
+                            // Dropoff is hub → overage is pickup side (distance from route start to polygon)
+                            zoneOverage = zoneData.distFromStart;
                         }
+                        console.log(`[ZoneOverageCorrection] zone=${zoneData.zoneName}, raw=${zoneData.overage?.toFixed?.(1)}, corrected=${zoneOverage?.toFixed?.(1)}, distFromStart=${zoneData.distFromStart?.toFixed?.(1)}, distFromEnd=${zoneData.distFromEnd?.toFixed?.(1)}, pickupHub=${originalPickupHubCode}, dropoffHub=${originalDropoffHubCode}`);
                         const zoneArea = zoneData.area;
                         const isPickupZone = pickupZoneIds.has(zoneId);
 
