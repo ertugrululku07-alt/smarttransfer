@@ -49,13 +49,20 @@ const windowsOverlap = (a, b) => {
 // Returns 'DEP' | 'ARV' | 'ARA'
 // ---------------------------------------------------------------------------
 const getTripType = (pickup, dropoff) => {
-    const pickupStr = String(pickup || '').toLowerCase();
-    const dropoffStr = String(dropoff || '').toLowerCase();
+    const pickupStr = String(pickup || '').toLocaleLowerCase('tr');
+    const dropoffStr = String(dropoff || '').toLocaleLowerCase('tr');
     
-    const airportKeywords = ['havalimanı', 'havalimani', 'airport', 'havaalanı', 'havaalani', 'ayt', 'ist', 'sa', 'esenboğa'];
+    const airportKeywords = [
+        'havalimanı', 'havalimani', 'havaalanı', 'havaalani',
+        'airport', 'havalimanı', 'esenboğa', 'esenboga',
+        'antalya havalimanı', 'gazipaşa', 'gazipasa',
+    ];
     
-    const isPickupAirport = airportKeywords.some(kw => pickupStr.includes(kw));
-    const isDropoffAirport = airportKeywords.some(kw => dropoffStr.includes(kw));
+    // Also check for standalone IATA codes (must be word-boundary to avoid false positives like "ayt" in "aytar")
+    const iataPattern = /\b(ayt|gzp|ist|saw|esb|adl|bjv|dlm)\b/i;
+    
+    const isPickupAirport = airportKeywords.some(kw => pickupStr.includes(kw)) || iataPattern.test(pickupStr);
+    const isDropoffAirport = airportKeywords.some(kw => dropoffStr.includes(kw)) || iataPattern.test(dropoffStr);
     
     if (isPickupAirport && !isDropoffAirport) {
         return 'ARV'; // Arrival: Airport to Hotel
@@ -902,29 +909,60 @@ router.get('/shuttle-runs', authMiddleware, async (req, res, next) => {
                 maxSeatsForGrouping = Number(route.maxSeats) || 0;
                 pricePerSeatForGrouping = Number(route.pricePerSeat) || 0;
             } else {
+                // ADHOC shuttle: group by direction (ARV/DEP/TRF) + time, NOT by individual dropoff
+                const pickup = String(m.pickup || '').trim();
                 const dropoff = String(m.dropoff || 'Bilinmeyen Varış').trim();
-                const dropoffKey = dropoff.substring(0, 60).toLowerCase().replace(/\s+/g, ' ');
-                key = `ADHOC::${dropoffKey}${masterTime ? '::' + masterTime : ''}`;
+                const { fromCode, toCode, type: dirType } = getAbbreviationAndType(pickup, dropoff);
                 
-                const { fromCode, toCode, type } = getAbbreviationAndType('Bilinmeyen', dropoff);
-                routeNameForGrouping = `Shuttle → ${toCode} ${type}`;
+                // Determine region code for grouping:
+                // 1. Use metadata region code if available (most reliable)
+                // 2. Use hub-based code if hub matched (not just first 3 chars)
+                // 3. Try to extract city/district from address (e.g. "Alanya/Antalya" → "ALA")
+                let regionCode = m.dropoffRegionCode || m.pickupRegionCode;
+                if (!regionCode) {
+                    // Check if toCode came from a real hub match (not just substring)
+                    const hubMatched = hubs.some(h => {
+                        const keys = h.keywords ? h.keywords.split(',').map(k => trLower(k).trim()) : [];
+                        if (h.code) keys.push(trLower(h.code));
+                        if (h.name) keys.push(trLower(h.name));
+                        return keys.some(k => k && trLower(dirType === 'ARV' ? dropoff : pickup).includes(k));
+                    });
+                    if (hubMatched) {
+                        regionCode = dirType === 'ARV' ? toCode : fromCode;
+                    } else {
+                        // Try to extract district from address like "Saray, Alanya/Antalya, Türkiye"
+                        const targetAddr = dirType === 'ARV' ? dropoff : pickup;
+                        const slashMatch = targetAddr.match(/([A-Za-zÇçĞğİıÖöŞşÜü]+)\s*\/\s*[A-Za-zÇçĞğİıÖöŞşÜü]+/);
+                        if (slashMatch) {
+                            regionCode = slashMatch[1].substring(0, 3).toUpperCase();
+                        } else {
+                            regionCode = dirType === 'ARV' ? toCode : fromCode;
+                        }
+                    }
+                }
+                
+                // Group by direction + region + time (so same-time same-direction bookings merge)
+                key = `ADHOC::${dirType}::${regionCode}${masterTime ? '::' + masterTime : ''}`;
+                
+                // Use region-based name instead of hotel name
+                if (dirType === 'ARV') {
+                    routeNameForGrouping = `Shuttle → ${regionCode} ARV`;
+                } else if (dirType === 'DEP') {
+                    routeNameForGrouping = `Shuttle → ${fromCode} DEP`;
+                } else {
+                    routeNameForGrouping = `Shuttle → ${regionCode} TRF`;
+                }
                 
                 if (masterTime) {
                     routeNameForGrouping += ` (${masterTime})`;
                 }
-                fromNameForGrouping = 'Çeşitli Noktalar';
-                toNameForGrouping = dropoff;
+                fromNameForGrouping = dirType === 'ARV' ? pickup : 'Çeşitli Noktalar';
+                toNameForGrouping = dirType === 'DEP' ? dropoff : regionCode;
             }
 
             if (!runsMap[key]) {
-                // Determine trip type: use metadata if available, otherwise detect from booking pickup/dropoff
-                let tripType;
-                if (m.tripType) {
-                    tripType = m.tripType; // Use saved trip type from booking
-                } else {
-                    // Detect from actual pickup/dropoff locations
-                    tripType = getTripType(m.pickup, m.dropoff);
-                }
+                // Always compute trip type from actual pickup/dropoff locations (don't trust stale metadata)
+                const tripType = getTripType(m.pickup, m.dropoff);
                 
                 runsMap[key] = {
                     runKey: key,
