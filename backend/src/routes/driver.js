@@ -1616,14 +1616,31 @@ async function ocrReadOdometer(imageUrl) {
         });
         
         const rawText = data.text.trim();
-        // Extract the longest numeric sequence (likely the odometer)
-        const numbers = rawText.match(/\d[\d\s.,]*/g) || [];
-        const candidates = numbers
-            .map(n => parseFloat(n.replace(/[\s,]/g, '').replace(/\.(?=\d{3})/g, '')))
-            .filter(n => !isNaN(n) && n > 100 && n < 9999999) // reasonable KM range
-            .sort((a, b) => b - a); // largest first
+        console.log(`[OCR] Raw text: "${rawText}"`);
         
+        // Odometer is always a whole number — strip ALL non-digit characters, find longest sequence
+        // First: try combining all digits from the raw text (odometer digits may have spaces/dots between them)
+        const allDigits = rawText.replace(/[^0-9]/g, '');
+        const candidates = [];
+        
+        // Candidate 1: all digits combined (e.g. "2 0 3 7 2 7" → "203727")
+        if (allDigits.length >= 3) {
+            const val = parseInt(allDigits, 10);
+            if (val > 100 && val < 9999999) candidates.push(val);
+        }
+        
+        // Candidate 2: individual number groups (in case of multiple numbers in the image)
+        const groups = rawText.match(/\d[\d\s.,]*/g) || [];
+        for (const g of groups) {
+            const clean = g.replace(/[\s.,]/g, ''); // remove ALL separators — odometer has no decimals
+            const val = parseInt(clean, 10);
+            if (!isNaN(val) && val > 100 && val < 9999999) candidates.push(val);
+        }
+        
+        // Pick the largest reasonable value
+        candidates.sort((a, b) => b - a);
         const ocrKm = candidates.length > 0 ? candidates[0] : null;
+        console.log(`[OCR] Candidates: ${JSON.stringify(candidates)} → ocrKm: ${ocrKm}`);
         const confidence = data.confidence ? data.confidence / 100 : 0;
         
         return { ocrKm, ocrConfidence: confidence, ocrRawText: rawText };

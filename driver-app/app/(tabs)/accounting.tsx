@@ -150,9 +150,10 @@ export default function AccountingScreen() {
     return symbols[upper] || currency;
   };
 
-  const formatCurrency = (amount: number, currency: string) => {
+  const formatCurrency = (amount: number | string, currency: string) => {
     const sym = getCurrencySymbol(currency);
-    const formatted = amount.toLocaleString('tr-TR', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+    const num = typeof amount === 'string' ? parseFloat(amount) || 0 : (amount || 0);
+    const formatted = num.toLocaleString('tr-TR', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
     return `${formatted} ${sym}`;
   };
 
@@ -331,7 +332,7 @@ export default function AccountingScreen() {
               <Text style={st.summaryValue}>{pendingCount}</Text>
               <Text style={st.summaryLabel}>Bekleyen</Text>
               {Object.entries(totals).map(([cur, amt]) => (
-                <Text key={cur} style={st.summaryAmount}>{formatCurrency(amt, cur)}</Text>
+                <Text key={cur} style={st.summaryAmount}>{formatCurrency(Number(amt), cur)}</Text>
               ))}
             </View>
             <View style={[st.summaryCard, st.summaryHandedOver]}>
@@ -424,14 +425,16 @@ export default function AccountingScreen() {
 
             <View style={[st.modalAmountCard, { backgroundColor: '#FEF3C7', borderColor: '#FBBF24' }]}>
               <Text style={[st.modalAmountLabel, { color: '#92400E' }]}>Toplam Teslim Edilecek</Text>
-              <Text style={[st.modalAmount, { color: '#D97706' }]}>
-                {Object.entries(
-                  pendingCollections.reduce((acc: Record<string, number>, c) => {
-                    acc[c.currency] = (acc[c.currency] || 0) + c.amount;
-                    return acc;
-                  }, {})
-                ).map(([cur, amt]) => formatCurrency(amt as number, cur)).join(' + ')}
-              </Text>
+              {Object.entries(
+                pendingCollections.reduce((acc: Record<string, number>, c) => {
+                  acc[c.currency] = (acc[c.currency] || 0) + Number(c.amount);
+                  return acc;
+                }, {})
+              ).map(([cur, amt]) => (
+                <Text key={cur} style={[st.modalAmount, { color: '#D97706' }]}>
+                  {formatCurrency(amt as number, cur)}
+                </Text>
+              ))}
               <Text style={st.modalCustomer}>{pendingCollections.length} tahsilat</Text>
             </View>
 
