@@ -377,17 +377,24 @@ router.get('/vehicle-availability', authMiddleware, async (req, res) => {
             }
         });
 
-        const result = vehicles.map(v => ({
-            id: v.id,
-            plateNumber: v.plateNumber,
-            brand: v.brand,
-            model: v.model,
-            color: v.color,
-            vehicleType: v.vehicleType?.name || '-',
-            assignedBookings: bookingsByVehicle[v.id] || [],
-            bookingCount: (bookingsByVehicle[v.id] || []).length,
-            isFree: !(bookingsByVehicle[v.id] || []).length
-        }));
+        const result = vehicles.map(v => {
+            const vBookings = bookingsByVehicle[v.id] || [];
+            const activeBookings = vBookings.filter(b => b.status !== 'COMPLETED' && b.status !== 'NO_SHOW');
+            const completedBookings = vBookings.filter(b => b.status === 'COMPLETED' || b.status === 'NO_SHOW');
+            return {
+                id: v.id,
+                plateNumber: v.plateNumber,
+                brand: v.brand,
+                model: v.model,
+                color: v.color,
+                vehicleType: v.vehicleType?.name || '-',
+                assignedBookings: vBookings,
+                bookingCount: vBookings.length,
+                activeCount: activeBookings.length,
+                completedCount: completedBookings.length,
+                isFree: !activeBookings.length
+            };
+        });
 
         // Sort: busy first, then free
         result.sort((a, b) => b.bookingCount - a.bookingCount);

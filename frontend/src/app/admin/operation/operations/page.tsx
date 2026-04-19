@@ -433,6 +433,9 @@ export default function OperationsPage() {
         message.success("Manuel sefer eklendi. Yolcuları bu sefere sürükleyebilirsiniz.");
     };
 
+    // Transfer detail modal state
+    const [detailModal, setDetailModal] = useState<{ visible: boolean; booking: any } | null>(null);
+
     // Conflict modal state
     const [conflictModal, setConflictModal] = useState<{
         visible: boolean;
@@ -630,7 +633,16 @@ export default function OperationsPage() {
             dataIndex: 'bookingNumber',
             key: 'bookingNumber',
             width: 105,
-            render: (text: string) => <Tag color="blue" style={{ fontSize: 11, fontWeight: 600 }}>{text}</Tag>,
+            render: (text: string, record: any) => (
+                <Tag
+                    color="blue"
+                    style={{ fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
+                    onDoubleClick={() => setDetailModal({ visible: true, booking: record })}
+                    title="Detay için çift tıklayın"
+                >
+                    {text}
+                </Tag>
+            ),
         },
         {
             title: 'YÖN',
@@ -3696,15 +3708,18 @@ export default function OperationsPage() {
                                 allowClear={false}
                             />
                             <Button size="small" icon={<ReloadOutlined />} onClick={() => fetchVehicleAvailability()} loading={vehicleLoading}>Yenile</Button>
-                            <div style={{ marginLeft: 'auto', display: 'flex', gap: 12 }}>
+                            <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                                 <Tag color="green" style={{ fontWeight: 700 }}>
                                     Boş: {vehicleAvailability.filter(v => v.isFree).length}
                                 </Tag>
                                 <Tag color="orange" style={{ fontWeight: 700 }}>
-                                    Dolu: {vehicleAvailability.filter(v => !v.isFree).length}
+                                    Aktif İşi Var: {vehicleAvailability.filter(v => v.activeCount > 0).length}
+                                </Tag>
+                                <Tag color="cyan" style={{ fontWeight: 700 }}>
+                                    Toplam İş: {vehicleAvailability.reduce((s, v) => s + v.bookingCount, 0)} ({vehicleAvailability.reduce((s, v) => s + (v.completedCount || 0), 0)} tamamlanan)
                                 </Tag>
                                 <Tag color="blue" style={{ fontWeight: 700 }}>
-                                    Toplam: {vehicleAvailability.length}
+                                    Toplam Araç: {vehicleAvailability.length}
                                 </Tag>
                             </div>
                         </div>
@@ -3735,20 +3750,33 @@ export default function OperationsPage() {
                                         )
                                     },
                                     {
-                                        title: 'DURUM', key: 'status', width: 100, align: 'center' as const,
-                                        sorter: (a: any, b: any) => a.bookingCount - b.bookingCount,
-                                        render: (_: any, r: any) => r.isFree
-                                            ? <Tag color="success" style={{ fontWeight: 700 }}>✅ Boş</Tag>
-                                            : <Tag color="warning" style={{ fontWeight: 700 }}>{r.bookingCount} İş</Tag>
+                                        title: 'DURUM', key: 'status', width: 140, align: 'center' as const,
+                                        sorter: (a: any, b: any) => a.activeCount - b.activeCount,
+                                        render: (_: any, r: any) => {
+                                            if (r.bookingCount === 0) return <Tag color="success" style={{ fontWeight: 700 }}>✅ Boş</Tag>;
+                                            return (
+                                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                                                    {r.activeCount > 0 && <Tag color="warning" style={{ fontWeight: 700, margin: 0 }}>{r.activeCount} Aktif İş</Tag>}
+                                                    {r.completedCount > 0 && <Tag color="success" style={{ fontWeight: 600, margin: 0, fontSize: 10 }}>{r.completedCount} Tamamlanan</Tag>}
+                                                </div>
+                                            );
+                                        }
                                     },
                                     {
-                                        title: 'İŞ SAYISI', dataIndex: 'bookingCount', key: 'count', width: 90, align: 'center' as const,
+                                        title: 'İŞ SAYISI', key: 'count', width: 110, align: 'center' as const,
                                         sorter: (a: any, b: any) => a.bookingCount - b.bookingCount,
-                                        render: (v: number) => (
-                                            <span style={{
-                                                fontWeight: 700, fontSize: 14,
-                                                color: v === 0 ? '#10b981' : v <= 2 ? '#f59e0b' : '#ef4444'
-                                            }}>{v}</span>
+                                        render: (_: any, r: any) => (
+                                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                                                <span style={{
+                                                    fontWeight: 800, fontSize: 16,
+                                                    color: r.bookingCount === 0 ? '#10b981' : r.activeCount <= 2 ? '#f59e0b' : '#ef4444'
+                                                }}>{r.bookingCount}</span>
+                                                {r.bookingCount > 0 && (
+                                                    <span style={{ fontSize: 9, color: '#6b7280', fontWeight: 600 }}>
+                                                        {r.activeCount} aktif • {r.completedCount} bitti
+                                                    </span>
+                                                )}
+                                            </div>
                                         )
                                     },
                                     {
@@ -3757,13 +3785,19 @@ export default function OperationsPage() {
                                             if (!r.assignedBookings.length) return <Text type="secondary" style={{ fontSize: 11 }}>Atanmış transfer yok</Text>;
                                             return (
                                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                                                    {r.assignedBookings.map((b: any, i: number) => (
-                                                        <Tooltip key={i} title={`${b.passengerName} • ${dayjs(b.pickupTime).format('HH:mm')}`}>
-                                                            <Tag color="processing" style={{ fontSize: 10, margin: 0, cursor: 'pointer' }}>
-                                                                {b.bookingNumber} ({dayjs(b.pickupTime).format('HH:mm')})
-                                                            </Tag>
-                                                        </Tooltip>
-                                                    ))}
+                                                    {r.assignedBookings.map((b: any, i: number) => {
+                                                        const isCompleted = b.status === 'COMPLETED' || b.status === 'NO_SHOW';
+                                                        return (
+                                                            <Tooltip key={i} title={`${b.passengerName} • ${dayjs(b.pickupTime).format('HH:mm')} • ${isCompleted ? 'Tamamlandı' : 'Aktif'}`}>
+                                                                <Tag
+                                                                    color={isCompleted ? 'green' : 'processing'}
+                                                                    style={{ fontSize: 10, margin: 0, cursor: 'pointer', opacity: isCompleted ? 0.7 : 1 }}
+                                                                >
+                                                                    {isCompleted ? '✓ ' : ''}{b.bookingNumber} ({dayjs(b.pickupTime).format('HH:mm')})
+                                                                </Tag>
+                                                            </Tooltip>
+                                                        );
+                                                    })}
                                                 </div>
                                             );
                                         }
@@ -4873,6 +4907,212 @@ export default function OperationsPage() {
                                         >
                                             📦 Havuza Aktar
                                         </Button>
+                                    </div>
+                                </div>
+                            );
+                        })()}
+                    </Modal>
+
+                    {/* ══════ PRIVATE TRANSFER DETAIL MODAL ══════ */}
+                    <Modal
+                        open={!!detailModal?.visible}
+                        onCancel={() => setDetailModal(null)}
+                        footer={null}
+                        width={680}
+                        title={null}
+                        styles={{ body: { padding: 0 } }}
+                    >
+                        {detailModal?.booking && (() => {
+                            const b = detailModal.booking;
+                            const statusMap: Record<string, { color: string; bg: string; label: string }> = {
+                                CONFIRMED: { color: '#1e40af', bg: '#dbeafe', label: 'Onaylı' },
+                                PENDING: { color: '#92400e', bg: '#fef3c7', label: 'Bekliyor' },
+                                IN_PROGRESS: { color: '#155e75', bg: '#cffafe', label: 'Operasyonda' },
+                                COMPLETED: { color: '#166534', bg: '#dcfce7', label: 'Tamamlandı' },
+                                CANCELLED: { color: '#991b1b', bg: '#fee2e2', label: 'İptal' },
+                                NO_SHOW: { color: '#9f1239', bg: '#ffe4e6', label: 'Gelmedi' },
+                            };
+                            const st = statusMap[b.status] || { color: '#6b7280', bg: '#f3f4f6', label: b.status };
+                            const adults = b.adults || 1;
+                            const children = b.children || 0;
+                            const infants = b.infants || 0;
+                            const totalPax = adults + children + infants;
+                            const pickup = b.pickup?.rawLocation || b.pickup?.location || b.metadata?.pickup || '-';
+                            const dropoff = b.dropoff?.rawLocation || b.dropoff?.location || b.metadata?.dropoff || '-';
+                            const flightNo = b.flightNumber || b.metadata?.flightNumber || '';
+                            const flightTime = b.flightTime || b.metadata?.flightTime || '';
+                            const extras = b.metadata?.extraServices || [];
+                            const driverInfo = drivers.find((dr: any) => (dr.user?.id || dr.id) === b.driverId);
+                            const vehicleInfo = vehicles.find((v: any) => v.id === (b.assignedVehicleId || b.metadata?.vehicleId));
+
+                            return (
+                                <div>
+                                    {/* Header */}
+                                    <div style={{
+                                        background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
+                                        padding: '20px 24px',
+                                        color: '#fff',
+                                        borderRadius: '8px 8px 0 0',
+                                    }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                            <div>
+                                                <div style={{ fontSize: 11, opacity: 0.8, marginBottom: 4 }}>Transfer Detayı</div>
+                                                <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: 0.5 }}>{b.bookingNumber || '—'}</div>
+                                            </div>
+                                            <div style={{ display: 'flex', gap: 8 }}>
+                                                <span style={{ background: st.bg, color: st.color, padding: '4px 12px', borderRadius: 20, fontWeight: 700, fontSize: 12 }}>{st.label}</span>
+                                                <span style={{ background: b.transferType === 'SHUTTLE' ? '#dbeafe' : '#f3e8ff', color: b.transferType === 'SHUTTLE' ? '#1e40af' : '#7c3aed', padding: '4px 12px', borderRadius: 20, fontWeight: 700, fontSize: 12 }}>
+                                                    {b.transferType === 'SHUTTLE' ? '🚌 Shuttle' : '🚗 Özel'}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div style={{ padding: '16px 24px 24px' }}>
+                                        {/* Route */}
+                                        <div style={{ background: '#f8fafc', borderRadius: 12, padding: 16, marginBottom: 16, border: '1px solid #e2e8f0' }}>
+                                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                                                <div style={{ width: 28, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, paddingTop: 2 }}>
+                                                    <div style={{ width: 12, height: 12, borderRadius: '50%', background: '#22c55e', border: '2px solid #fff', boxShadow: '0 0 0 2px #22c55e' }} />
+                                                    <div style={{ width: 2, height: 30, background: '#cbd5e1' }} />
+                                                    <div style={{ width: 12, height: 12, borderRadius: '50%', background: '#ef4444', border: '2px solid #fff', boxShadow: '0 0 0 2px #ef4444' }} />
+                                                </div>
+                                                <div style={{ flex: 1 }}>
+                                                    <div style={{ marginBottom: 12 }}>
+                                                        <div style={{ fontSize: 10, color: '#64748b', fontWeight: 600, marginBottom: 2 }}>ALIŞ NOKTASI</div>
+                                                        <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>{pickup}</div>
+                                                    </div>
+                                                    <div>
+                                                        <div style={{ fontSize: 10, color: '#64748b', fontWeight: 600, marginBottom: 2 }}>VARIŞ NOKTASI</div>
+                                                        <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>{dropoff}</div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Date & Flight */}
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 16 }}>
+                                            <div style={{ background: '#eff6ff', borderRadius: 10, padding: '10px 14px' }}>
+                                                <div style={{ fontSize: 10, color: '#64748b', fontWeight: 600 }}>TARİH / SAAT</div>
+                                                <div style={{ fontSize: 15, fontWeight: 800, color: '#1e40af' }}>{b.pickupDateTime ? dayjs(b.pickupDateTime).format('DD.MM.YYYY HH:mm') : '—'}</div>
+                                            </div>
+                                            <div style={{ background: '#f0fdf4', borderRadius: 10, padding: '10px 14px' }}>
+                                                <div style={{ fontSize: 10, color: '#64748b', fontWeight: 600 }}>UÇUŞ</div>
+                                                <div style={{ fontSize: 14, fontWeight: 700, color: '#166534' }}>{flightNo || '—'}</div>
+                                                {flightTime && <div style={{ fontSize: 11, color: '#6b7280' }}>{flightTime}</div>}
+                                            </div>
+                                            <div style={{ background: '#faf5ff', borderRadius: 10, padding: '10px 14px' }}>
+                                                <div style={{ fontSize: 10, color: '#64748b', fontWeight: 600 }}>YÖN</div>
+                                                <div style={{ fontSize: 14, fontWeight: 700, color: '#7c3aed' }}>{b.direction || '—'}</div>
+                                            </div>
+                                        </div>
+
+                                        {/* Passengers */}
+                                        <div style={{ background: '#fefce8', borderRadius: 12, padding: 16, marginBottom: 16, border: '1px solid #fde68a' }}>
+                                            <div style={{ fontSize: 12, fontWeight: 800, color: '#92400e', marginBottom: 10 }}>👥 Yolcu Bilgileri ({totalPax} Kişi)</div>
+                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                                                <div>
+                                                    <div style={{ fontSize: 10, color: '#64748b', fontWeight: 600 }}>MÜŞTERİ ADI</div>
+                                                    <div style={{ fontSize: 14, fontWeight: 700, color: '#1e293b' }}>{b.contactName || b.customer?.name || b.passengerName || '—'}</div>
+                                                </div>
+                                                <div>
+                                                    <div style={{ fontSize: 10, color: '#64748b', fontWeight: 600 }}>TELEFON</div>
+                                                    <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{b.contactPhone || b.customer?.phone || b.passengerPhone || '—'}</div>
+                                                </div>
+                                                <div>
+                                                    <div style={{ fontSize: 10, color: '#64748b', fontWeight: 600 }}>E-POSTA</div>
+                                                    <div style={{ fontSize: 12, color: '#1e293b' }}>{b.contactEmail || b.customer?.email || '—'}</div>
+                                                </div>
+                                                <div>
+                                                    <div style={{ fontSize: 10, color: '#64748b', fontWeight: 600 }}>KİŞİ DETAYI</div>
+                                                    <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>
+                                                        {adults > 0 && <span>🧑 {adults} Yetişkin </span>}
+                                                        {children > 0 && <span>👦 {children} Çocuk </span>}
+                                                        {infants > 0 && <span>👶 {infants} Bebek</span>}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            {b.metadata?.passengers && Array.isArray(b.metadata.passengers) && b.metadata.passengers.length > 0 && (
+                                                <div style={{ marginTop: 12, borderTop: '1px dashed #fde68a', paddingTop: 10 }}>
+                                                    <div style={{ fontSize: 11, fontWeight: 700, color: '#92400e', marginBottom: 6 }}>Yolcu Listesi:</div>
+                                                    {b.metadata.passengers.map((p: any, i: number) => (
+                                                        <div key={i} style={{ display: 'flex', gap: 12, padding: '4px 0', borderBottom: i < b.metadata.passengers.length - 1 ? '1px dotted #fde68a' : 'none' }}>
+                                                            <span style={{ fontWeight: 700, fontSize: 12, color: '#1e293b', minWidth: 20 }}>{i + 1}.</span>
+                                                            <span style={{ fontSize: 12, fontWeight: 600, color: '#1e293b' }}>{p.name || p.fullName || '—'}</span>
+                                                            {p.phone && <span style={{ fontSize: 11, color: '#6b7280' }}>📞 {p.phone}</span>}
+                                                            {p.age && <span style={{ fontSize: 11, color: '#6b7280' }}>({p.age})</span>}
+                                                            {p.type && <span style={{ fontSize: 10, color: '#92400e', background: '#fef3c7', padding: '1px 6px', borderRadius: 4 }}>{p.type}</span>}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Driver & Vehicle */}
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+                                            <div style={{ background: '#f0f9ff', borderRadius: 10, padding: '10px 14px', border: '1px solid #bae6fd' }}>
+                                                <div style={{ fontSize: 10, color: '#64748b', fontWeight: 600 }}>ŞOFÖR</div>
+                                                {driverInfo ? (
+                                                    <div style={{ fontSize: 13, fontWeight: 700, color: '#0c4a6e' }}>👤 {driverInfo.firstName} {driverInfo.lastName}</div>
+                                                ) : (
+                                                    <div style={{ fontSize: 12, color: '#94a3b8' }}>Atanmadı</div>
+                                                )}
+                                            </div>
+                                            <div style={{ background: '#fdf4ff', borderRadius: 10, padding: '10px 14px', border: '1px solid #f0abfc' }}>
+                                                <div style={{ fontSize: 10, color: '#64748b', fontWeight: 600 }}>ARAÇ</div>
+                                                {vehicleInfo ? (
+                                                    <div>
+                                                        <div style={{ fontSize: 13, fontWeight: 700, color: '#86198f' }}>🚗 {vehicleInfo.plateNumber}</div>
+                                                        <div style={{ fontSize: 10, color: '#6b7280' }}>{vehicleInfo.brand} {vehicleInfo.model}</div>
+                                                    </div>
+                                                ) : (
+                                                    <div style={{ fontSize: 12, color: '#94a3b8' }}>Atanmadı</div>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {/* Extras & Payment */}
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+                                            <div style={{ background: '#fff7ed', borderRadius: 10, padding: '10px 14px', border: '1px solid #fed7aa' }}>
+                                                <div style={{ fontSize: 10, color: '#64748b', fontWeight: 600 }}>EKSTRA HİZMETLER</div>
+                                                {extras.length > 0 ? (
+                                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
+                                                        {extras.map((s: any, i: number) => (
+                                                            <Tag key={i} color="volcano" style={{ fontSize: 10, margin: 0 }}>
+                                                                {typeof s === 'string' ? s : `${s.name}${s.quantity ? ` x${s.quantity}` : ''}`}
+                                                            </Tag>
+                                                        ))}
+                                                    </div>
+                                                ) : <span style={{ fontSize: 12, color: '#94a3b8' }}>Yok</span>}
+                                            </div>
+                                            <div style={{ background: '#f0fdf4', borderRadius: 10, padding: '10px 14px', border: '1px solid #bbf7d0' }}>
+                                                <div style={{ fontSize: 10, color: '#64748b', fontWeight: 600 }}>ÜCRET / ÖDEME</div>
+                                                <div style={{ fontSize: 16, fontWeight: 800, color: '#16a34a' }}>
+                                                    {(b.price || b.total || 0).toLocaleString('tr-TR')} {b.currency === 'EUR' ? '€' : b.currency === 'USD' ? '$' : '₺'}
+                                                </div>
+                                                <div style={{ fontSize: 10, color: '#6b7280' }}>
+                                                    {b.paymentStatus === 'PAID' ? '✅ Ödendi' : b.paymentStatus === 'PENDING' ? '⏳ Bekliyor' : (b.paymentStatus || '')}
+                                                    {b.metadata?.paymentMethod && ` • ${b.metadata.paymentMethod}`}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Notes */}
+                                        {(b.specialRequests || b.notes || b.metadata?.notes || b.metadata?.agencyNotes) && (
+                                            <div style={{ background: '#f1f5f9', borderRadius: 10, padding: '10px 14px', border: '1px solid #e2e8f0' }}>
+                                                <div style={{ fontSize: 10, color: '#64748b', fontWeight: 600, marginBottom: 4 }}>NOTLAR</div>
+                                                <div style={{ fontSize: 12, color: '#334155', whiteSpace: 'pre-wrap' }}>
+                                                    {b.specialRequests || b.notes || b.metadata?.notes || b.metadata?.agencyNotes}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Agency */}
+                                        {b.agencyName && (
+                                            <div style={{ marginTop: 12, fontSize: 11, color: '#6b7280' }}>
+                                                🏢 Acente: <strong>{b.agencyName}</strong>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             );
