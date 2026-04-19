@@ -5033,20 +5033,30 @@ export default function OperationsPage() {
                                                     </div>
                                                 </div>
                                             </div>
-                                            {b.metadata?.passengers && Array.isArray(b.metadata.passengers) && b.metadata.passengers.length > 0 && (
-                                                <div style={{ marginTop: 12, borderTop: '1px dashed #fde68a', paddingTop: 10 }}>
-                                                    <div style={{ fontSize: 11, fontWeight: 700, color: '#92400e', marginBottom: 6 }}>Yolcu Listesi:</div>
-                                                    {b.metadata.passengers.map((p: any, i: number) => (
-                                                        <div key={i} style={{ display: 'flex', gap: 12, padding: '4px 0', borderBottom: i < b.metadata.passengers.length - 1 ? '1px dotted #fde68a' : 'none' }}>
-                                                            <span style={{ fontWeight: 700, fontSize: 12, color: '#1e293b', minWidth: 20 }}>{i + 1}.</span>
-                                                            <span style={{ fontSize: 12, fontWeight: 600, color: '#1e293b' }}>{p.name || p.fullName || '—'}</span>
-                                                            {p.phone && <span style={{ fontSize: 11, color: '#6b7280' }}>📞 {p.phone}</span>}
-                                                            {p.age && <span style={{ fontSize: 11, color: '#6b7280' }}>({p.age})</span>}
-                                                            {p.type && <span style={{ fontSize: 10, color: '#92400e', background: '#fef3c7', padding: '1px 6px', borderRadius: 4 }}>{p.type}</span>}
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            )}
+                                            {(() => {
+                                                const passengerList = b.metadata?.passengerDetails || b.metadata?.passengers || [];
+                                                if (!Array.isArray(passengerList) || passengerList.length === 0) return null;
+                                                return (
+                                                    <div style={{ marginTop: 12, borderTop: '1px dashed #fde68a', paddingTop: 10 }}>
+                                                        <div style={{ fontSize: 11, fontWeight: 700, color: '#92400e', marginBottom: 6 }}>Yolcu Listesi:</div>
+                                                        {passengerList.map((p: any, i: number) => {
+                                                            const name = p.name || p.fullName || [p.firstName, p.lastName].filter(Boolean).join(' ') || '—';
+                                                            return (
+                                                                <div key={i} style={{ display: 'flex', gap: 12, padding: '4px 0', borderBottom: i < passengerList.length - 1 ? '1px dotted #fde68a' : 'none', flexWrap: 'wrap' }}>
+                                                                    <span style={{ fontWeight: 700, fontSize: 12, color: '#1e293b', minWidth: 20 }}>{i + 1}.</span>
+                                                                    <span style={{ fontSize: 12, fontWeight: 600, color: '#1e293b' }}>{name}</span>
+                                                                    {p.phone && <span style={{ fontSize: 11, color: '#6b7280' }}>📞 {p.phone}</span>}
+                                                                    {p.email && <span style={{ fontSize: 11, color: '#6b7280' }}>✉️ {p.email}</span>}
+                                                                    {p.age && <span style={{ fontSize: 11, color: '#6b7280' }}>({p.age})</span>}
+                                                                    {p.type && <span style={{ fontSize: 10, color: '#92400e', background: '#fef3c7', padding: '1px 6px', borderRadius: 4 }}>{p.type}</span>}
+                                                                    {p.tcNo && <span style={{ fontSize: 11, color: '#6b7280' }}>🆔 {p.tcNo}</span>}
+                                                                    {p.passportNo && <span style={{ fontSize: 11, color: '#6b7280' }}>🛂 {p.passportNo}</span>}
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                );
+                                            })()}
                                         </div>
 
                                         {/* Driver & Vehicle */}
