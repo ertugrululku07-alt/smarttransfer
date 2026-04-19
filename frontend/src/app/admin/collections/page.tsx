@@ -131,6 +131,7 @@ export default function DriverCollectionsPage() {
     const formatCurrency = (amount: number, currency: string) => {
         const num = typeof amount === 'object' ? parseFloat(String(amount)) : Number(amount);
         if (isNaN(num)) return `0,00 ${currency}`;
+        // Backend now normalizes currency codes using tenant settings
         return new Intl.NumberFormat('tr-TR', {
             style: 'currency',
             currency: currency,

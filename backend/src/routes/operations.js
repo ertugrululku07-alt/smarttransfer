@@ -1538,6 +1538,29 @@ router.post('/migrate-region-codes', authMiddleware, async (req, res) => {
 // ADMIN: DRIVER COLLECTIONS MANAGEMENT
 // ============================================================================
 
+// Helper: Normalize currency code using tenant settings definitions
+const normalizeCurrencyCode = (rawCode, currencyDefinitions = []) => {
+    if (!rawCode) return 'TRY';
+    // Find matching currency definition
+    const definition = currencyDefinitions.find(c => 
+        c.code === rawCode || c.name === rawCode || c.symbol === rawCode
+    );
+    if (definition) {
+        // Return the proper ISO code from definition, or map common variants
+        const isoCode = definition.code || definition.isoCode || rawCode;
+        if (isoCode === 'EURO' || isoCode === 'Euro') return 'EUR';
+        if (isoCode === 'TL' || isoCode === 'TRL') return 'TRY';
+        return isoCode;
+    }
+    // Fallback mappings for common non-ISO codes
+    const upper = String(rawCode).toUpperCase();
+    if (upper === 'EURO') return 'EUR';
+    if (upper === 'TL' || upper === 'TRL') return 'TRY';
+    if (upper === 'USD' || upper === '$') return 'USD';
+    if (upper === 'STERLIN' || upper === 'GBP' || upper === '£') return 'GBP';
+    return rawCode;
+};
+
 // GET /api/operations/driver-collections
 // Admin views all driver collections with handover status
 router.get('/driver-collections', authMiddleware, async (req, res) => {
@@ -1548,6 +1571,13 @@ router.get('/driver-collections', authMiddleware, async (req, res) => {
         if (!tenantId) {
             return res.status(401).json({ success: false, error: 'Tenant context missing' });
         }
+
+        // Fetch tenant currency definitions for proper ISO code mapping
+        const tenant = await prisma.tenant.findUnique({
+            where: { id: tenantId },
+            select: { settings: true }
+        });
+        const currencyDefinitions = tenant?.settings?.definitions?.currencies || [];
 
         const where = { tenantId };
         if (status) where.status = status;
@@ -1569,19 +1599,22 @@ router.get('/driver-collections', authMiddleware, async (req, res) => {
             }
         });
 
+        // Normalize currencies using tenant settings
         const summary = collections.reduce((acc, c) => {
             const key = c.status;
             acc[key] = acc[key] || { count: 0, amounts: {} };
             acc[key].count++;
             const amt = typeof c.amount === 'object' ? parseFloat(c.amount.toString()) : Number(c.amount);
-            acc[key].amounts[c.currency] = (acc[key].amounts[c.currency] || 0) + amt;
+            const normalizedCurrency = normalizeCurrencyCode(c.currency, currencyDefinitions);
+            acc[key].amounts[normalizedCurrency] = (acc[key].amounts[normalizedCurrency] || 0) + amt;
             return acc;
         }, {});
 
-        // Also ensure each collection's amount is a proper number for frontend
+        // Normalize currencies in collections and ensure amount is proper number
         const cleanCollections = collections.map(c => ({
             ...c,
-            amount: typeof c.amount === 'object' ? parseFloat(c.amount.toString()) : Number(c.amount)
+            amount: typeof c.amount === 'object' ? parseFloat(c.amount.toString()) : Number(c.amount),
+            currency: normalizeCurrencyCode(c.currency, currencyDefinitions)
         }));
 
         res.json({ success: true, data: { collections: cleanCollections, summary } });
