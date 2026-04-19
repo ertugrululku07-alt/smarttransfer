@@ -191,6 +191,9 @@ const TransferBookingContent: React.FC = () => {
             
             const cleanDistance = distance ? parseFloat(String(distance).replace(/[^0-9.]/g, '')) : undefined;
 
+            const dropoffLat = searchParams.get('dropoffLat');
+            const dropoffLng = searchParams.get('dropoffLng');
+
             const payload = {
                 pickup,
                 dropoff,
@@ -199,6 +202,8 @@ const TransferBookingContent: React.FC = () => {
                 transferType: 'ONE_WAY',
                 pickupLat,
                 pickupLng,
+                dropoffLat,
+                dropoffLng,
                 distance: cleanDistance,
                 encodedPolyline: encodedPolyline || undefined,
                 shuttleMasterTime: shuttleMasterTime || undefined

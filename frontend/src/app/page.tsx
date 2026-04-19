@@ -244,6 +244,10 @@ const HomePage: React.FC = () => {
       params.set('pickupLat', pickupLocation.lat.toString());
       params.set('pickupLng', pickupLocation.lng.toString());
     }
+    if (dropoffLocation) {
+      params.set('dropoffLat', dropoffLocation.lat.toString());
+      params.set('dropoffLng', dropoffLocation.lng.toString());
+    }
     router.push(`/transfer/search?${params.toString()}`);
   };
 

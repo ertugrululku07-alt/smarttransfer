@@ -131,6 +131,8 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
             encodedPolyline,
             pickupLat,
             pickupLng,
+            dropoffLat,
+            dropoffLng,
             shuttleMasterTime
         } = req.body;
 
@@ -343,6 +345,82 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                     }
                     // Store for use in zone price selection
                     req.pickupZoneIds = pickupZoneIds;
+
+                    // Also check dropoff point proximity to zones
+                    // If dropoff is NEAR a zone (but outside), add it with distance-to-polygon as overage.
+                    // This covers cases like AYT→Mahmutlar where route may not cross the polygon
+                    // but Mahmutlar is close to the Obagöl zone.
+                    if (dropoffLat && dropoffLng) {
+                        const dropoffPoint = turf.point([Number(dropoffLng), Number(dropoffLat)]);
+                        for (const zone of zones) {
+                            if (!zone.polygon || zone.polygon.length < 3) continue;
+                            if (zoneOverages[zone.id] && zoneOverages[zone.id].overage === 0) continue; // Already inside
+                            let polyCoords = zone.polygon.map(p => [p.lng, p.lat]);
+                            if (polyCoords[0][0] !== polyCoords[polyCoords.length - 1][0] || 
+                                polyCoords[0][1] !== polyCoords[polyCoords.length - 1][1]) {
+                                polyCoords.push(polyCoords[0]);
+                            }
+                            try {
+                                const zonePolygon = turf.polygon([polyCoords]);
+                                const area = turf.area(zonePolygon);
+                                if (turf.booleanPointInPolygon(dropoffPoint, zonePolygon)) {
+                                    // Dropoff is inside this zone
+                                    if (!zoneOverages[zone.id]) {
+                                        zoneOverages[zone.id] = { 
+                                            overage: 0, area, zoneName: zone.name || '', zoneCode: zone.code || '',
+                                            distFromStart: null, distFromEnd: 0, hitStart: false, hitEnd: true
+                                        };
+                                    }
+                                    console.log(`[ZoneDropoff] Dropoff point inside zone ${zone.name}`);
+                                } else {
+                                    // Check proximity: distance from dropoff to nearest polygon edge
+                                    const polygonBoundary = turf.polygonToLine(zonePolygon);
+                                    const distToPolygon = turf.pointToLineDistance(dropoffPoint, polygonBoundary, { units: 'kilometers' });
+                                    // Only consider zones within 50km proximity
+                                    if (distToPolygon <= 50) {
+                                        const existingOverage = zoneOverages[zone.id]?.overage ?? Infinity;
+                                        if (!zoneOverages[zone.id] || distToPolygon < existingOverage) {
+                                            zoneOverages[zone.id] = { 
+                                                overage: distToPolygon, area, zoneName: zone.name || '', zoneCode: zone.code || '',
+                                                distFromStart: null, distFromEnd: distToPolygon, hitStart: false, hitEnd: false
+                                            };
+                                            console.log(`[ZoneProximity] Dropoff ${distToPolygon.toFixed(1)}km from zone ${zone.name}`);
+                                        }
+                                    }
+                                }
+                            } catch (e) { /* skip invalid polygon */ }
+                        }
+                    }
+
+                    // Same proximity check for pickup point (for reverse trips)
+                    if (pickupLat && pickupLng) {
+                        const pickupPoint2 = turf.point([Number(pickupLng), Number(pickupLat)]);
+                        for (const zone of zones) {
+                            if (!zone.polygon || zone.polygon.length < 3) continue;
+                            if (zoneOverages[zone.id] && zoneOverages[zone.id].overage === 0) continue;
+                            if (pickupZoneIds.has(zone.id)) continue; // Already matched as pickup zone
+                            let polyCoords = zone.polygon.map(p => [p.lng, p.lat]);
+                            if (polyCoords[0][0] !== polyCoords[polyCoords.length - 1][0] || 
+                                polyCoords[0][1] !== polyCoords[polyCoords.length - 1][1]) {
+                                polyCoords.push(polyCoords[0]);
+                            }
+                            try {
+                                const zonePolygon = turf.polygon([polyCoords]);
+                                if (!turf.booleanPointInPolygon(pickupPoint2, zonePolygon)) {
+                                    const polygonBoundary = turf.polygonToLine(zonePolygon);
+                                    const distToPolygon = turf.pointToLineDistance(pickupPoint2, polygonBoundary, { units: 'kilometers' });
+                                    if (distToPolygon <= 50 && !zoneOverages[zone.id]) {
+                                        const area = turf.area(zonePolygon);
+                                        zoneOverages[zone.id] = { 
+                                            overage: distToPolygon, area, zoneName: zone.name || '', zoneCode: zone.code || '',
+                                            distFromStart: distToPolygon, distFromEnd: null, hitStart: false, hitEnd: false
+                                        };
+                                        console.log(`[ZoneProximity] Pickup ${distToPolygon.toFixed(1)}km from zone ${zone.name}`);
+                                    }
+                                }
+                            } catch (e) { /* skip invalid polygon */ }
+                        }
+                    }
 
                     if (Object.keys(zoneOverages).length > 0) {
                         req.zoneOverages = zoneOverages;
@@ -803,11 +881,17 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                             isRelevant = true;
                         } 
                         if (!isRelevant) {
+                            // Check against both primaryToken AND full address text
                             const pTokens = tokenize(pickupPrimaryToken || '');
                             const dTokens = tokenize(dropoffPrimaryToken || '');
-                            isRelevant = zoneTokens.every(zt => 
-                                pTokens.some(pt => pt === zt || pt.startsWith(zt)) || 
-                                dTokens.some(dt => dt === zt || dt.startsWith(zt))
+                            const pFullTokens = tokenize(pickupTextRaw || '');
+                            const dFullTokens = tokenize(dropoffTextRaw || '');
+                            const allPickup = [...new Set([...pTokens, ...pFullTokens])];
+                            const allDropoff = [...new Set([...dTokens, ...dFullTokens])];
+                            // Zone is relevant if ANY of its tokens match pickup or dropoff
+                            isRelevant = zoneTokens.some(zt => 
+                                allPickup.some(pt => pt === zt || pt.startsWith(zt) || zt.startsWith(pt)) || 
+                                allDropoff.some(dt => dt === zt || dt.startsWith(zt) || zt.startsWith(dt))
                             );
                         }
                         if (isRelevant && originalDropoffHubCode === 'GZP' && zoneName.includes('alanya')) {
