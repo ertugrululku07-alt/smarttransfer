@@ -865,6 +865,8 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                     }
                 }
 
+                console.log(`[ZoneSelect] vt=${vt.name}, finalMatchedZoneId=${finalMatchedZoneId}, usedOverageDistanceKm=${usedOverageDistanceKm}, extraKmPrice=${zonePriceConfig?.extraKmPrice}`);
+
                 if (zonePriceConfig && finalMatchedZoneId) {
                     // ── ZONE RELEVANCE CHECK ──
                     // Verify the matched zone name is semantically related to the actual pickup or dropoff.
@@ -909,24 +911,49 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                 console.log(`[PriceDecision] vt=${vt.name}, zonePriceConfig=${!!zonePriceConfig}, finalMatchedZoneId=${finalMatchedZoneId}, hasAnyZones=${hasAnyZones}, baseLocation=${detectedBaseLocation}, dropoffBase=${detectedDropoffBase}`);
 
                 if (zonePriceConfig) {
-                    calculationMethod = 'ZONE_POLYGON';
-                    
-                    const fixP = Number(zonePriceConfig.fixedPrice) || 0;
-                    let baseRouteCost = 0;
-                    
-                    if (fixP > 0) {
-                        baseRouteCost = fixP;
-                    } else {
-                        const adultP = Number(zonePriceConfig.price) || 0;
-                        const adultCount = Number(passengers) || 1; 
-                        baseRouteCost = adultP * adultCount; 
-                    }
-
                     const extraKmRate = Number(zonePriceConfig.extraKmPrice) || 0;
                     
-                    const overageCost = usedOverageDistanceKm * extraKmRate;
-                    calculatedPrice = Math.round((baseRouteCost + overageCost) * typeMult);
-                    console.log(`[PriceDecision] ZONE price: ${calculatedPrice} (fixP=${fixP}, base=${baseRouteCost}, overage=${usedOverageDistanceKm.toFixed(1)}km × ${extraKmRate}TL = ${overageCost.toFixed(0)})`);
+                    // CRITICAL: If destination is outside polygon (overage > 0) but no extraKmPrice is set,
+                    // this vehicle type does NOT serve outside the polygon.
+                    // Fall through to distance-based pricing if available, otherwise skip entirely.
+                    if (usedOverageDistanceKm > 0.5 && extraKmRate === 0) {
+                        console.log(`[PriceDecision] vt=${vt.name}: OUTSIDE polygon (${usedOverageDistanceKm.toFixed(1)}km overage) but no extraKmPrice set → checking distance-based fallback`);
+                        // Check if this vehicle type has distance-based pricing as fallback
+                        const meta = agencyContractMeta[vt.id];
+                        const openingFee = meta?.openingFee ?? vt.metadata?.openingFee;
+                        const pricePerKmField = meta?.basePricePerKm ?? vt.metadata?.basePricePerKm;
+                        const hasDistanceFallback = (openingFee != null && Number(openingFee) > 0) ||
+                                                     (pricePerKmField != null && Number(pricePerKmField) > 0);
+                        if (hasDistanceFallback) {
+                            // Use distance-based pricing instead of zone pricing
+                            const basePrice = openingFee ? Number(openingFee) : 0;
+                            const pricePerKm = pricePerKmField ? Number(pricePerKmField) : 0;
+                            const dist = distance ? Number(distance) : 50;
+                            calculatedPrice = Math.round((basePrice + (dist * pricePerKm)) * typeMult);
+                            calculationMethod = 'DISTANCE_BASE';
+                            console.log(`[PriceDecision] vt=${vt.name}: Distance fallback: ${calculatedPrice} (${basePrice} + ${dist}km × ${pricePerKm})`);
+                        } else {
+                            console.log(`[PriceDecision] vt=${vt.name}: No extraKmPrice and no distance fallback → SKIP`);
+                            return null; // Cannot serve outside polygon
+                        }
+                    } else {
+                        calculationMethod = 'ZONE_POLYGON';
+                        
+                        const fixP = Number(zonePriceConfig.fixedPrice) || 0;
+                        let baseRouteCost = 0;
+                        
+                        if (fixP > 0) {
+                            baseRouteCost = fixP;
+                        } else {
+                            const adultP = Number(zonePriceConfig.price) || 0;
+                            const adultCount = Number(passengers) || 1; 
+                            baseRouteCost = adultP * adultCount; 
+                        }
+
+                        const overageCost = usedOverageDistanceKm * extraKmRate;
+                        calculatedPrice = Math.round((baseRouteCost + overageCost) * typeMult);
+                        console.log(`[PriceDecision] ZONE price: ${calculatedPrice} (fixP=${fixP}, base=${baseRouteCost}, overage=${usedOverageDistanceKm.toFixed(1)}km × ${extraKmRate}TL = ${overageCost.toFixed(0)})`);
+                    }
                 } else {
                     // Fallback to distance-based pricing:
                     // Check if pickup or dropoff is inside any zone polygon (even if no zone price matched).
