@@ -1256,8 +1256,8 @@ export default function OperationsPage() {
                     });
                 }
 
-                // Exclude PENDING and CANCELLED bookings from operations view
-                data = data.filter((i: any) => i.status !== 'PENDING' && i.status !== 'CANCELLED');
+                // Exclude PENDING, CANCELLED and NO_SHOW bookings from active operations view
+                data = data.filter((i: any) => i.status !== 'PENDING' && i.status !== 'CANCELLED' && i.status !== 'NO_SHOW');
 
                 if (filters.transferType !== 'ALL') {
                     data = data.filter((i: any) => i.transferType === filters.transferType);
@@ -2269,6 +2269,7 @@ export default function OperationsPage() {
     const [completedFilters, setCompletedFilters] = useState({
         dateRange: [dayjs().subtract(7, 'day'), dayjs()] as [any, any],
         transferType: 'ALL' as string,
+        status: 'ALL' as string,
         agency: 'ALL' as string,
         driver: 'ALL' as string,
         vehicle: 'ALL' as string,
@@ -2309,8 +2310,8 @@ export default function OperationsPage() {
                         }
                     };
                 });
-                // Only COMPLETED
-                data = data.filter((i: any) => i.status === 'COMPLETED');
+                // COMPLETED + NO_SHOW (gelmedi)
+                data = data.filter((i: any) => i.status === 'COMPLETED' || i.status === 'NO_SHOW');
                 // Date filter
                 if (completedFilters.dateRange[0] && completedFilters.dateRange[1]) {
                     const start = completedFilters.dateRange[0].startOf('day');
@@ -2335,6 +2336,10 @@ export default function OperationsPage() {
                 // Vehicle
                 if (completedFilters.vehicle !== 'ALL') {
                     data = data.filter((i: any) => i.assignedVehicleId === completedFilters.vehicle);
+                }
+                // Status filter
+                if (completedFilters.status !== 'ALL') {
+                    data = data.filter((i: any) => i.status === completedFilters.status);
                 }
                 // Search
                 if (completedFilters.search.trim()) {
@@ -3803,6 +3808,16 @@ export default function OperationsPage() {
                             </Select>
                             <Select
                                 size="small"
+                                value={completedFilters.status}
+                                onChange={(v) => setCompletedFilters(prev => ({ ...prev, status: v }))}
+                                style={{ width: 130, borderRadius: 6 }}
+                            >
+                                <Option value="ALL">Tüm Durumlar</Option>
+                                <Option value="COMPLETED">✅ Tamamlandı</Option>
+                                <Option value="NO_SHOW">❌ Gelmedi</Option>
+                            </Select>
+                            <Select
+                                size="small"
                                 value={completedFilters.driver}
                                 onChange={(v) => setCompletedFilters(prev => ({ ...prev, driver: v }))}
                                 style={{ width: 160, borderRadius: 6 }}
@@ -4285,6 +4300,23 @@ export default function OperationsPage() {
                                             };
                                             const s = pm[ps] || { color: '#6b7280', label: ps || '—' };
                                             return <span style={{ fontSize: 10, fontWeight: 600, color: s.color }}>{s.label}</span>;
+                                        }
+                                    },
+                                    {
+                                        title: 'DURUM',
+                                        dataIndex: 'status',
+                                        key: 'completionStatus',
+                                        width: 100,
+                                        filters: [
+                                            { text: '✅ Tamamlandı', value: 'COMPLETED' },
+                                            { text: '❌ Gelmedi', value: 'NO_SHOW' },
+                                        ],
+                                        onFilter: (value: any, record: any) => record.status === value,
+                                        render: (val: string) => {
+                                            if (val === 'NO_SHOW') {
+                                                return <Tag color="error" style={{ fontWeight: 700, fontSize: 11, margin: 0 }}>❌ Gelmedi</Tag>;
+                                            }
+                                            return <Tag color="success" style={{ fontWeight: 700, fontSize: 11, margin: 0 }}>✅ Tamamlandı</Tag>;
                                         }
                                     },
                                     {

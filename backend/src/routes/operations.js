@@ -845,7 +845,7 @@ router.get('/shuttle-runs', authMiddleware, async (req, res, next) => {
                 tenantId: tenantId, 
                 productType: 'TRANSFER',
                 startDate: { gte: dayStart, lte: dayEnd },
-                status: { notIn: ['CANCELLED', 'COMPLETED', 'PENDING'] },
+                status: { notIn: ['CANCELLED', 'COMPLETED', 'PENDING', 'NO_SHOW'] },
             },
             include: { customer: true, agency: true },
             orderBy: { startDate: 'asc' }
