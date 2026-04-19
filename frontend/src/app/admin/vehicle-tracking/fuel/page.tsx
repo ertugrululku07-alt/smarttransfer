@@ -85,9 +85,13 @@ const FuelPage: React.FC = () => {
 
     const openAdd = () => { setEditing(null); form.resetFields(); form.setFieldsValue({ date: dayjs() }); setModalVisible(true); };
     const openEdit = (rec: any) => {
-        if (rec.source === 'driver') return; // Driver records can't be edited
         setEditing(rec);
-        form.setFieldsValue({ ...rec, date: rec.date ? dayjs(rec.date) : undefined });
+        form.setFieldsValue({
+            ...rec,
+            km: rec.km || rec.odometer,
+            unitPrice: rec.unitPrice || rec.pricePerLiter,
+            date: (rec.date || rec.createdAt) ? dayjs(rec.date || rec.createdAt) : undefined,
+        });
         setModalVisible(true);
     };
 
@@ -98,7 +102,10 @@ const FuelPage: React.FC = () => {
             setSubmitting(true);
             const payload = { ...values, date: values.date?.toISOString(), totalCost: (values.liters || 0) * (values.unitPrice || 0) };
             if (editing) {
-                await apiClient.put(`/api/vehicle-tracking/${selected.id}/fuel/${editing.id}`, payload);
+                const endpoint = editing.source === 'driver'
+                    ? `/api/vehicle-tracking/${selected.id}/driver-fuel/${editing.id}`
+                    : `/api/vehicle-tracking/${selected.id}/fuel/${editing.id}`;
+                await apiClient.put(endpoint, payload);
                 message.success('Güncellendi');
             } else {
                 await apiClient.post(`/api/vehicle-tracking/${selected.id}/fuel`, payload);
@@ -113,7 +120,10 @@ const FuelPage: React.FC = () => {
     const handleDelete = async (rec: any) => {
         if (!selected) return;
         try {
-            await apiClient.delete(`/api/vehicle-tracking/${selected.id}/fuel/${rec.id}`);
+            const endpoint = rec.source === 'driver'
+                ? `/api/vehicle-tracking/${selected.id}/driver-fuel/${rec.id}`
+                : `/api/vehicle-tracking/${selected.id}/fuel/${rec.id}`;
+            await apiClient.delete(endpoint);
             message.success('Silindi');
             fetchRecords(selected.id);
         } catch { message.error('Silinemedi'); }
@@ -228,20 +238,24 @@ const FuelPage: React.FC = () => {
             render: (v: string) => <Text type="secondary" style={{ fontSize: 11 }}>{v || '—'}</Text>,
         },
         {
-            title: '', width: 80, fixed: 'right' as const,
+            title: 'İşlem', width: 130, fixed: 'right' as const, align: 'center' as const,
             render: (_: any, r: any) => (
                 <Space size={4}>
                     <Tooltip title="Detay">
                         <Button size="small" icon={<EyeOutlined />} onClick={() => setDetailModal(r)} />
                     </Tooltip>
-                    {r.source !== 'driver' && (
-                        <>
-                            <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(r)} />
-                            <Popconfirm title="Sil?" onConfirm={() => handleDelete(r)} okText="Evet" cancelText="Hayır">
-                                <Button size="small" danger icon={<DeleteOutlined />} />
-                            </Popconfirm>
-                        </>
-                    )}
+                    <Tooltip title="Düzenle">
+                        <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(r)} />
+                    </Tooltip>
+                    <Tooltip title="Sil">
+                        <Popconfirm
+                            title={r.source === 'driver' ? 'Şoför yakıt kaydı silinsin mi?' : 'Kayıt silinsin mi?'}
+                            onConfirm={() => handleDelete(r)}
+                            okText="Evet" cancelText="Hayır"
+                        >
+                            <Button size="small" danger icon={<DeleteOutlined />} />
+                        </Popconfirm>
+                    </Tooltip>
                 </Space>
             ),
         },

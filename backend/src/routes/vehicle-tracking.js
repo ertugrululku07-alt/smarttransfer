@@ -437,6 +437,52 @@ router.get('/:vehicleId/all-fuel', authMiddleware, async (req, res) => {
     }
 });
 
+// PUT /api/vehicle-tracking/:vehicleId/driver-fuel/:recordId
+// Update a driver-submitted fuel record (admin edit)
+router.put('/:vehicleId/driver-fuel/:recordId', authMiddleware, async (req, res) => {
+    try {
+        const { vehicleId, recordId } = req.params;
+        const tenantId = req.tenant?.id || req.user?.tenantId;
+        const { liters, odometer, km, pricePerLiter, unitPrice, totalCost, notes, fuelType, date } = req.body;
+
+        const existing = await prisma.fuelRecord.findFirst({ where: { id: recordId, vehicleId, tenantId } });
+        if (!existing) return res.status(404).json({ success: false, error: 'Kayıt bulunamadı' });
+
+        const updateData = {};
+        if (liters !== undefined) updateData.liters = parseFloat(liters);
+        if (odometer !== undefined || km !== undefined) updateData.odometer = parseFloat(odometer ?? km);
+        if (pricePerLiter !== undefined || unitPrice !== undefined) updateData.pricePerLiter = parseFloat(pricePerLiter ?? unitPrice);
+        if (totalCost !== undefined) updateData.totalCost = parseFloat(totalCost);
+        if (notes !== undefined) updateData.notes = notes || null;
+        if (fuelType !== undefined) updateData.fuelType = fuelType;
+        if (date !== undefined) updateData.createdAt = new Date(date);
+
+        await prisma.fuelRecord.update({ where: { id: recordId }, data: updateData });
+        res.json({ success: true });
+    } catch (e) {
+        console.error('Driver fuel update error:', e);
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+// DELETE /api/vehicle-tracking/:vehicleId/driver-fuel/:recordId
+// Delete a driver-submitted fuel record (admin)
+router.delete('/:vehicleId/driver-fuel/:recordId', authMiddleware, async (req, res) => {
+    try {
+        const { vehicleId, recordId } = req.params;
+        const tenantId = req.tenant?.id || req.user?.tenantId;
+
+        const existing = await prisma.fuelRecord.findFirst({ where: { id: recordId, vehicleId, tenantId } });
+        if (!existing) return res.status(404).json({ success: false, error: 'Kayıt bulunamadı' });
+
+        await prisma.fuelRecord.delete({ where: { id: recordId } });
+        res.json({ success: true });
+    } catch (e) {
+        console.error('Driver fuel delete error:', e);
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
 /* ─── TOTAL KM UPDATE ────────────────────────────────── */
 router.patch('/:vehicleId/km', authMiddleware, async (req, res) => {
     try {
