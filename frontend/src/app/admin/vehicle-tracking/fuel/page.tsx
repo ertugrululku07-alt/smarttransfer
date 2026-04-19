@@ -30,6 +30,7 @@ const ANOMALY_LABELS: Record<string, { label: string; color: string }> = {
     'HIGH_CONSUMPTION': { label: 'Yüksek Tüketim', color: 'volcano' },
     'HIGH_FREQUENCY': { label: 'Sık Yakıt Alımı', color: 'gold' },
     'OCR_KM_MISMATCH': { label: 'OCR KM Uyumsuz', color: 'magenta' },
+    'OCR_UNREADABLE': { label: 'OCR Okunamadı', color: 'purple' },
 };
 
 interface Vehicle { id: string; plateNumber: string; brand: string; model: string; }

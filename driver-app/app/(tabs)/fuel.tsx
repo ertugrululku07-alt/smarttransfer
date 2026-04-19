@@ -141,6 +141,7 @@ export default function FuelScreen() {
       'HIGH_CONSUMPTION': 'Anormal yakıt tüketimi',
       'HIGH_FREQUENCY': 'Aynı gün çok fazla yakıt alımı',
       'OCR_KM_MISMATCH': 'Fotoğraftaki KM ile girilen KM uyuşmuyor',
+      'OCR_UNREADABLE': 'Fotoğraftaki KM okunamadı (inceleme gerekli)',
     };
     return labels[code] || code;
   };

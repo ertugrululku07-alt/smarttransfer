@@ -1605,49 +1605,61 @@ router.get('/fuel/vehicle', authMiddleware, ensureDriver, async (req, res) => {
 });
 
 // ── OCR: Extract KM from odometer photo ──
+// Returns { ocrKm, ocrConfidence, ocrRawText, ocrAttempted }
+// ocrAttempted=true and ocrKm=null means OCR ran but couldn't read — flag as unreadable
 async function ocrReadOdometer(imageUrl) {
-    try {
-        // Use fetch to get the image, then use Tesseract.js for OCR
-        const Tesseract = require('tesseract.js');
-        const fullUrl = imageUrl.startsWith('http') ? imageUrl : `https://backend-production-69e7.up.railway.app${imageUrl}`;
-        
-        const { data } = await Tesseract.recognize(fullUrl, 'eng', {
-            tessedit_char_whitelist: '0123456789.',
-        });
-        
-        const rawText = data.text.trim();
-        console.log(`[OCR] Raw text: "${rawText}"`);
-        
-        // Odometer is always a whole number — strip ALL non-digit characters, find longest sequence
-        // First: try combining all digits from the raw text (odometer digits may have spaces/dots between them)
-        const allDigits = rawText.replace(/[^0-9]/g, '');
+    const Tesseract = require('tesseract.js');
+    const fullUrl = imageUrl.startsWith('http') ? imageUrl : `https://backend-production-69e7.up.railway.app${imageUrl}`;
+
+    // Parse digits from raw text and return best candidate
+    const parseKm = (rawText) => {
         const candidates = [];
-        
-        // Candidate 1: all digits combined (e.g. "2 0 3 7 2 7" → "203727")
+        const allDigits = rawText.replace(/[^0-9]/g, '');
         if (allDigits.length >= 3) {
             const val = parseInt(allDigits, 10);
             if (val > 100 && val < 9999999) candidates.push(val);
         }
-        
-        // Candidate 2: individual number groups (in case of multiple numbers in the image)
         const groups = rawText.match(/\d[\d\s.,]*/g) || [];
         for (const g of groups) {
-            const clean = g.replace(/[\s.,]/g, ''); // remove ALL separators — odometer has no decimals
+            const clean = g.replace(/[\s.,]/g, '');
             const val = parseInt(clean, 10);
             if (!isNaN(val) && val > 100 && val < 9999999) candidates.push(val);
         }
-        
-        // Pick the largest reasonable value
         candidates.sort((a, b) => b - a);
-        const ocrKm = candidates.length > 0 ? candidates[0] : null;
-        console.log(`[OCR] Candidates: ${JSON.stringify(candidates)} → ocrKm: ${ocrKm}`);
-        const confidence = data.confidence ? data.confidence / 100 : 0;
-        
-        return { ocrKm, ocrConfidence: confidence, ocrRawText: rawText };
-    } catch (e) {
-        console.error('OCR error:', e.message);
-        return { ocrKm: null, ocrConfidence: 0, ocrRawText: null };
+        return candidates.length > 0 ? candidates[0] : null;
+    };
+
+    // Try multiple PSM modes (Page Segmentation Modes) for best chance at reading digital displays
+    // PSM 6 = single uniform block, PSM 7 = single line, PSM 11 = sparse text
+    const psmModes = [6, 7, 11];
+    let bestResult = { ocrKm: null, ocrConfidence: 0, ocrRawText: '', ocrAttempted: true };
+
+    for (const psm of psmModes) {
+        try {
+            const { data } = await Tesseract.recognize(fullUrl, 'eng', {
+                tessedit_char_whitelist: '0123456789',
+                tessedit_pageseg_mode: String(psm),
+                tessedit_ocr_engine_mode: '1', // LSTM only — better for digital/unusual fonts
+            });
+            const rawText = (data.text || '').trim();
+            const confidence = data.confidence ? data.confidence / 100 : 0;
+            const ocrKm = parseKm(rawText);
+            console.log(`[OCR psm=${psm}] conf=${confidence.toFixed(2)} raw="${rawText.replace(/\s+/g, ' ')}" → km=${ocrKm}`);
+
+            if (ocrKm && confidence > bestResult.ocrConfidence) {
+                bestResult = { ocrKm, ocrConfidence: confidence, ocrRawText: rawText, ocrAttempted: true };
+            } else if (ocrKm && !bestResult.ocrKm) {
+                bestResult = { ocrKm, ocrConfidence: confidence, ocrRawText: rawText, ocrAttempted: true };
+            }
+            // If we have a high-confidence result, stop early
+            if (ocrKm && confidence > 0.7) break;
+        } catch (e) {
+            console.error(`[OCR psm=${psm}] error:`, e.message);
+        }
     }
+
+    console.log(`[OCR] Final: km=${bestResult.ocrKm} conf=${bestResult.ocrConfidence}`);
+    return bestResult;
 }
 
 // ── Haversine distance calculation (km) ──
@@ -1773,16 +1785,22 @@ router.post('/fuel', authMiddleware, ensureDriver, async (req, res) => {
             ocrConfidence = ocrResult.ocrConfidence;
             ocrRawText = ocrResult.ocrRawText;
             
-            // CHECK: OCR KM vs entered KM
             if (ocrKm && ocrKm > 0) {
+                // CHECK: OCR KM vs entered KM
                 const ocrDeviation = Math.abs(ocrKm - odometerVal) / ocrKm;
                 if (ocrDeviation > 0.1) { // >10% mismatch
                     anomalyReasons.push('OCR_KM_MISMATCH');
                     anomalyFlag = anomalyFlag || 'SUSPICIOUS';
                 }
+            } else {
+                // OCR couldn't read any digits — flag for manual review (don't let it pass silently)
+                anomalyReasons.push('OCR_UNREADABLE');
+                anomalyFlag = anomalyFlag || 'REVIEW';
             }
         } catch (e) {
             console.error('OCR processing failed:', e.message);
+            anomalyReasons.push('OCR_UNREADABLE');
+            anomalyFlag = anomalyFlag || 'REVIEW';
         }
         
         const record = await prisma.fuelRecord.create({
