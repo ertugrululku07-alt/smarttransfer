@@ -336,6 +336,107 @@ router.delete('/:vehicleId/maintenance/:entryId', authMiddleware, async (req, re
     } catch (e) { res.status(500).json({ success: false, error: e.message }); }
 });
 
+/* ─── DRIVER FUEL RECORDS (from FuelRecord table) ────── */
+
+// GET /api/vehicle-tracking/:vehicleId/driver-fuel
+// Fetch all driver-submitted fuel records for a vehicle
+router.get('/:vehicleId/driver-fuel', authMiddleware, async (req, res) => {
+    try {
+        const { vehicleId } = req.params;
+        const tenantId = req.tenant?.id || req.user?.tenantId;
+
+        const records = await prisma.fuelRecord.findMany({
+            where: { vehicleId, tenantId },
+            include: {
+                driver: { select: { id: true, fullName: true, avatar: true } }
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+
+        res.json({ success: true, data: records });
+    } catch (e) {
+        console.error('Driver fuel records error:', e);
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+// GET /api/vehicle-tracking/:vehicleId/all-fuel
+// Combined: metadata fuel + driver FuelRecord entries
+router.get('/:vehicleId/all-fuel', authMiddleware, async (req, res) => {
+    try {
+        const { vehicleId } = req.params;
+        const tenantId = req.tenant?.id || req.user?.tenantId;
+
+        // 1. Get metadata-based fuel records
+        const vehicle = await getVehicleWithTracking(vehicleId, tenantId);
+        if (!vehicle) return res.status(404).json({ success: false, error: 'Araç bulunamadı' });
+
+        const metaFuel = (vehicle.metadata.tracking.fuel || []).map(f => ({
+            ...f,
+            source: 'admin',
+            vehicleId,
+            plateNumber: vehicle.plateNumber,
+        }));
+
+        // 2. Get FuelRecord entries
+        const driverRecords = await prisma.fuelRecord.findMany({
+            where: { vehicleId, tenantId },
+            include: {
+                driver: { select: { id: true, fullName: true, avatar: true } }
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+
+        const driverFuel = driverRecords.map(r => ({
+            id: r.id,
+            date: r.createdAt.toISOString(),
+            liters: r.liters,
+            unitPrice: r.pricePerLiter || 0,
+            totalCost: r.totalCost || 0,
+            km: r.odometer,
+            station: null,
+            notes: r.notes,
+            fuelType: r.fuelType,
+            source: 'driver',
+            driverName: r.driver?.fullName || '—',
+            driverId: r.driverId,
+            odometerPhotoUrl: r.odometerPhotoUrl,
+            anomalyFlag: r.anomalyFlag,
+            anomalyReasons: r.anomalyReasons || [],
+            gpsDistanceKm: r.gpsDistanceKm,
+            gpsLocationLat: r.gpsLocationLat,
+            gpsLocationLng: r.gpsLocationLng,
+            previousOdometer: r.previousOdometer,
+            odometerDeltaKm: r.odometerDeltaKm,
+            ocrKm: r.ocrKm,
+            ocrConfidence: r.ocrConfidence,
+            vehicleId,
+            plateNumber: vehicle.plateNumber,
+            createdAt: r.createdAt.toISOString(),
+        }));
+
+        // Merge & sort by date desc
+        const all = [...metaFuel, ...driverFuel].sort((a, b) =>
+            new Date(b.date || b.createdAt).getTime() - new Date(a.date || a.createdAt).getTime()
+        );
+
+        // Stats
+        const totalCost = all.reduce((s, r) => s + (Number(r.totalCost) || 0), 0);
+        const totalLiters = all.reduce((s, r) => s + (Number(r.liters) || 0), 0);
+        const avgPrice = totalLiters > 0 ? totalCost / totalLiters : 0;
+        const anomalyCount = driverFuel.filter(r => r.anomalyFlag).length;
+
+        res.json({
+            success: true,
+            data: all,
+            stats: { totalCost, totalLiters, avgPrice, anomalyCount, total: all.length }
+        });
+    } catch (e) {
+        console.error('All fuel error:', e);
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
 /* ─── TOTAL KM UPDATE ────────────────────────────────── */
 router.patch('/:vehicleId/km', authMiddleware, async (req, res) => {
     try {

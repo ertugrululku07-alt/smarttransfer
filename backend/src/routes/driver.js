@@ -1574,14 +1574,168 @@ router.get('/fuel/vehicle', authMiddleware, ensureDriver, async (req, res) => {
     }
 });
 
+// ── OCR: Extract KM from odometer photo ──
+async function ocrReadOdometer(imageUrl) {
+    try {
+        // Use fetch to get the image, then use Tesseract.js for OCR
+        const Tesseract = require('tesseract.js');
+        const fullUrl = imageUrl.startsWith('http') ? imageUrl : `https://backend-production-69e7.up.railway.app${imageUrl}`;
+        
+        const { data } = await Tesseract.recognize(fullUrl, 'eng', {
+            tessedit_char_whitelist: '0123456789.',
+        });
+        
+        const rawText = data.text.trim();
+        // Extract the longest numeric sequence (likely the odometer)
+        const numbers = rawText.match(/\d[\d\s.,]*/g) || [];
+        const candidates = numbers
+            .map(n => parseFloat(n.replace(/[\s,]/g, '').replace(/\.(?=\d{3})/g, '')))
+            .filter(n => !isNaN(n) && n > 100 && n < 9999999) // reasonable KM range
+            .sort((a, b) => b - a); // largest first
+        
+        const ocrKm = candidates.length > 0 ? candidates[0] : null;
+        const confidence = data.confidence ? data.confidence / 100 : 0;
+        
+        return { ocrKm, ocrConfidence: confidence, ocrRawText: rawText };
+    } catch (e) {
+        console.error('OCR error:', e.message);
+        return { ocrKm: null, ocrConfidence: 0, ocrRawText: null };
+    }
+}
+
+// ── Haversine distance calculation (km) ──
+function haversineKm(lat1, lon1, lat2, lon2) {
+    const R = 6371; // Earth radius km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) ** 2 +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+              Math.sin(dLon / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+// Calculate GPS distance from DriverLocationHistory between two timestamps
+async function calcGpsDistance(driverId, fromDate, toDate) {
+    const points = await prisma.driverLocationHistory.findMany({
+        where: {
+            driverId,
+            timestamp: { gte: fromDate, lte: toDate }
+        },
+        orderBy: { timestamp: 'asc' },
+        select: { latitude: true, longitude: true }
+    });
+    
+    let totalKm = 0;
+    for (let i = 1; i < points.length; i++) {
+        const d = haversineKm(
+            points[i - 1].latitude, points[i - 1].longitude,
+            points[i].latitude, points[i].longitude
+        );
+        // Skip GPS jumps > 5km in a single interval (noise)
+        if (d < 5) totalKm += d;
+    }
+    return Math.round(totalKm * 10) / 10; // 1 decimal
+}
+
 // POST /api/driver/fuel
-// Record a fuel purchase
+// Record a fuel purchase with anomaly detection
 router.post('/fuel', authMiddleware, ensureDriver, async (req, res) => {
     try {
-        const { vehicleId, plateNumber, odometer, liters, pricePerLiter, totalCost, currency, notes, fuelType } = req.body;
+        const { vehicleId, plateNumber, odometer, liters, pricePerLiter, totalCost, currency, notes, fuelType, odometerPhotoUrl, gpsLocationLat, gpsLocationLng } = req.body;
         
         if (!vehicleId || !odometer || !liters) {
             return res.status(400).json({ success: false, error: 'Araç, KM ve litre bilgisi zorunludur' });
+        }
+        if (!odometerPhotoUrl) {
+            return res.status(400).json({ success: false, error: 'KM saati fotoğrafı zorunludur' });
+        }
+        
+        const odometerVal = parseFloat(odometer);
+        const litersVal = parseFloat(liters);
+        const anomalyReasons = [];
+        let anomalyFlag = null;
+        let previousOdometer = null;
+        let odometerDeltaKm = null;
+        let gpsDistanceKm = null;
+        
+        // ── 1. Get previous fuel record for this vehicle ──
+        const prevRecord = await prisma.fuelRecord.findFirst({
+            where: { vehicleId, driverId: req.user.id },
+            orderBy: { createdAt: 'desc' }
+        });
+        
+        if (prevRecord) {
+            previousOdometer = prevRecord.odometer;
+            odometerDeltaKm = odometerVal - prevRecord.odometer;
+            
+            // ── CHECK: KM decrease ──
+            if (odometerVal < prevRecord.odometer) {
+                anomalyReasons.push('KM_DECREASE');
+                anomalyFlag = 'SUSPICIOUS';
+            }
+            
+            // ── CHECK: GPS distance vs odometer delta ──
+            gpsDistanceKm = await calcGpsDistance(
+                req.user.id,
+                prevRecord.createdAt,
+                new Date()
+            );
+            
+            if (odometerDeltaKm > 0 && gpsDistanceKm > 0) {
+                const deviation = Math.abs(odometerDeltaKm - gpsDistanceKm) / gpsDistanceKm;
+                // >50% deviation is suspicious
+                if (deviation > 0.5 && odometerDeltaKm > gpsDistanceKm * 1.5) {
+                    anomalyReasons.push('GPS_DISTANCE_MISMATCH');
+                    anomalyFlag = 'SUSPICIOUS';
+                }
+            }
+            
+            // ── CHECK: Fuel consumption ──
+            if (odometerDeltaKm > 0 && litersVal > 0) {
+                const consumption = (litersVal / odometerDeltaKm) * 100; // lt/100km
+                // Normal range: 5-25 lt/100km for most vehicles
+                if (consumption > 30) {
+                    anomalyReasons.push('HIGH_CONSUMPTION');
+                    anomalyFlag = anomalyFlag || 'SUSPICIOUS';
+                }
+            }
+            
+            // ── CHECK: Frequency (same vehicle, same day) ──
+            const todayStart = new Date();
+            todayStart.setHours(0, 0, 0, 0);
+            const todayCount = await prisma.fuelRecord.count({
+                where: {
+                    vehicleId,
+                    driverId: req.user.id,
+                    createdAt: { gte: todayStart }
+                }
+            });
+            if (todayCount >= 3) {
+                anomalyReasons.push('HIGH_FREQUENCY');
+                anomalyFlag = anomalyFlag || 'SUSPICIOUS';
+            }
+        }
+        
+        // ── OCR: Read KM from photo (async, non-blocking) ──
+        let ocrKm = null;
+        let ocrConfidence = null;
+        let ocrRawText = null;
+        try {
+            const ocrResult = await ocrReadOdometer(odometerPhotoUrl);
+            ocrKm = ocrResult.ocrKm;
+            ocrConfidence = ocrResult.ocrConfidence;
+            ocrRawText = ocrResult.ocrRawText;
+            
+            // CHECK: OCR KM vs entered KM
+            if (ocrKm && ocrKm > 0) {
+                const ocrDeviation = Math.abs(ocrKm - odometerVal) / ocrKm;
+                if (ocrDeviation > 0.1) { // >10% mismatch
+                    anomalyReasons.push('OCR_KM_MISMATCH');
+                    anomalyFlag = anomalyFlag || 'SUSPICIOUS';
+                }
+            }
+        } catch (e) {
+            console.error('OCR processing failed:', e.message);
         }
         
         const record = await prisma.fuelRecord.create({
@@ -1590,17 +1744,51 @@ router.post('/fuel', authMiddleware, ensureDriver, async (req, res) => {
                 driverId: req.user.id,
                 vehicleId,
                 plateNumber: plateNumber || '',
-                odometer: parseFloat(odometer),
-                liters: parseFloat(liters),
+                odometer: odometerVal,
+                liters: litersVal,
                 pricePerLiter: pricePerLiter ? parseFloat(pricePerLiter) : null,
                 totalCost: totalCost ? parseFloat(totalCost) : null,
                 currency: currency || 'TRY',
                 notes: notes || null,
-                fuelType: fuelType || 'Dizel'
+                fuelType: fuelType || 'Dizel',
+                odometerPhotoUrl,
+                gpsDistanceKm,
+                gpsLocationLat: gpsLocationLat ? parseFloat(gpsLocationLat) : null,
+                gpsLocationLng: gpsLocationLng ? parseFloat(gpsLocationLng) : null,
+                ocrKm,
+                ocrConfidence,
+                ocrRawText,
+                anomalyFlag,
+                anomalyReasons,
+                previousOdometer,
+                odometerDeltaKm
             }
         });
         
-        res.json({ success: true, data: record });
+        // Notify admin if suspicious
+        if (anomalyFlag) {
+            const io = req.app.get('io');
+            if (io) {
+                io.to(`tenant_${req.user.tenantId}`).emit('fuel_anomaly', {
+                    recordId: record.id,
+                    driverId: req.user.id,
+                    driverName: req.user.fullName,
+                    plateNumber: plateNumber || '',
+                    anomalyFlag,
+                    anomalyReasons,
+                    odometer: odometerVal,
+                    previousOdometer,
+                    gpsDistanceKm,
+                    odometerDeltaKm
+                });
+            }
+        }
+        
+        res.json({
+            success: true,
+            data: record,
+            warnings: anomalyReasons.length > 0 ? anomalyReasons : undefined
+        });
     } catch (error) {
         console.error('Fuel record error:', error);
         res.status(500).json({ success: false, error: 'Server error' });

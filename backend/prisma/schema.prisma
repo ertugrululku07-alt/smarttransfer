@@ -1811,6 +1811,25 @@ model FuelRecord {
   notes         String?
   fuelType      String  @default("Dizel") // Dizel, Benzin, LPG
 
+  // Odometer photo for verification
+  odometerPhotoUrl String?
+
+  // GPS-based validation
+  gpsDistanceKm    Float?  // GPS-calculated distance since last fuel record
+  gpsLocationLat   Float?  // GPS lat at time of fuel entry
+  gpsLocationLng   Float?  // GPS lng at time of fuel entry
+
+  // OCR verification
+  ocrKm            Float?   // KM read from photo via OCR
+  ocrConfidence    Float?   // OCR confidence score 0-1
+  ocrRawText       String?  // Raw OCR text for debugging
+
+  // Anomaly detection
+  anomalyFlag      String?  // null=OK, SUSPICIOUS, REJECTED
+  anomalyReasons   String[] @default([]) // Array of reason codes
+  previousOdometer Float?   // Previous fuel record odometer for reference
+  odometerDeltaKm  Float?   // Difference between this and previous odometer
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

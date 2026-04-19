@@ -1,12 +1,15 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   StyleSheet, View, Text, FlatList, TouchableOpacity, RefreshControl,
-  Alert, TextInput, ScrollView, ActivityIndicator, KeyboardAvoidingView, Platform
+  Alert, TextInput, ScrollView, ActivityIndicator, KeyboardAvoidingView, Platform,
+  Image
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
 import { Ionicons } from '@expo/vector-icons';
 import { Brand } from '../../constants/theme';
+import * as ImagePicker from 'expo-image-picker';
+import * as Location from 'expo-location';
 
 const API_URL = 'https://backend-production-69e7.up.railway.app/api';
 
@@ -30,6 +33,12 @@ interface FuelRecord {
   currency: string;
   fuelType: string;
   notes?: string;
+  odometerPhotoUrl?: string;
+  anomalyFlag?: string;
+  anomalyReasons?: string[];
+  gpsDistanceKm?: number;
+  previousOdometer?: number;
+  odometerDeltaKm?: number;
   createdAt: string;
 }
 
@@ -49,6 +58,8 @@ export default function FuelScreen() {
   const [pricePerLiter, setPricePerLiter] = useState('');
   const [fuelType, setFuelType] = useState('Dizel');
   const [notes, setNotes] = useState('');
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
+  const [photoUploading, setPhotoUploading] = useState(false);
 
   useEffect(() => {
     fetchVehicle();
@@ -85,6 +96,55 @@ export default function FuelScreen() {
     }
   };
 
+  const takePhoto = async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('İzin Gerekli', 'Kamera izni gereklidir');
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ['images'],
+      quality: 0.7,
+      allowsEditing: false,
+    });
+    if (!result.canceled && result.assets[0]) {
+      setPhotoUri(result.assets[0].uri);
+    }
+  };
+
+  const uploadPhoto = async (uri: string): Promise<string | null> => {
+    setPhotoUploading(true);
+    try {
+      const formData = new FormData();
+      const filename = uri.split('/').pop() || 'odometer.jpg';
+      formData.append('file', { uri, name: filename, type: 'image/jpeg' } as any);
+      const res = await fetch(`${API_URL}/upload`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData,
+      });
+      const json = await res.json();
+      if (json.success) return json.data.url;
+      return null;
+    } catch (e) {
+      console.error('Photo upload error:', e);
+      return null;
+    } finally {
+      setPhotoUploading(false);
+    }
+  };
+
+  const getAnomalyLabel = (code: string) => {
+    const labels: Record<string, string> = {
+      'KM_DECREASE': 'KM düşüşü tespit edildi',
+      'GPS_DISTANCE_MISMATCH': 'GPS mesafesi ile KM uyumsuz',
+      'HIGH_CONSUMPTION': 'Anormal yakıt tüketimi',
+      'HIGH_FREQUENCY': 'Aynı gün çok fazla yakıt alımı',
+      'OCR_KM_MISMATCH': 'Fotoğraftaki KM ile girilen KM uyuşmuyor',
+    };
+    return labels[code] || code;
+  };
+
   const submitFuel = async () => {
     if (!vehicle) {
       Alert.alert('Uyarı', 'Atanmış araç bulunamadı');
@@ -92,6 +152,10 @@ export default function FuelScreen() {
     }
     if (!odometer || !liters) {
       Alert.alert('Uyarı', 'KM ve litre bilgisi zorunludur');
+      return;
+    }
+    if (!photoUri) {
+      Alert.alert('Uyarı', 'KM saati fotoğrafı zorunludur.\nLütfen fotoğraf çekin.');
       return;
     }
     const odometerVal = parseFloat(odometer);
@@ -107,6 +171,25 @@ export default function FuelScreen() {
 
     setSaving(true);
     try {
+      // Upload photo
+      const photoUrl = await uploadPhoto(photoUri);
+      if (!photoUrl) {
+        Alert.alert('Hata', 'Fotoğraf yüklenemedi, tekrar deneyin');
+        setSaving(false);
+        return;
+      }
+
+      // Get current GPS location
+      let gpsLat: number | undefined;
+      let gpsLng: number | undefined;
+      try {
+        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+        gpsLat = loc.coords.latitude;
+        gpsLng = loc.coords.longitude;
+      } catch (e) {
+        // GPS optional — continue without
+      }
+
       const body: any = {
         vehicleId: vehicle.id,
         plateNumber: vehicle.plateNumber,
@@ -114,6 +197,9 @@ export default function FuelScreen() {
         liters: litersVal,
         fuelType,
         notes: notes || undefined,
+        odometerPhotoUrl: photoUrl,
+        gpsLocationLat: gpsLat,
+        gpsLocationLng: gpsLng,
       };
       if (pricePerLiter) {
         body.pricePerLiter = parseFloat(pricePerLiter);
@@ -127,11 +213,20 @@ export default function FuelScreen() {
       });
       const json = await res.json();
       if (json.success) {
-        Alert.alert('Başarılı', 'Yakıt alımı kaydedildi');
+        if (json.warnings && json.warnings.length > 0) {
+          Alert.alert(
+            '⚠️ Kayıt Edildi — Uyarılar Var',
+            json.warnings.map((w: string) => '• ' + getAnomalyLabel(w)).join('\n') +
+            '\n\nKayıt sisteme işlendi ancak yönetim tarafından incelenecektir.',
+          );
+        } else {
+          Alert.alert('Başarılı', 'Yakıt alımı kaydedildi ✓');
+        }
         setOdometer('');
         setLiters('');
         setPricePerLiter('');
         setNotes('');
+        setPhotoUri(null);
         fetchRecords();
       } else {
         Alert.alert('Hata', json.error || 'Kayıt başarısız');
@@ -153,18 +248,44 @@ export default function FuelScreen() {
   };
 
   const renderRecord = ({ item }: { item: FuelRecord }) => (
-    <View style={s.recordCard}>
+    <View style={[s.recordCard, item.anomalyFlag && s.recordCardWarning]}>
       <View style={s.recordTop}>
         <View style={s.recordDateBox}>
           <Ionicons name="calendar" size={13} color={Brand.primary} />
           <Text style={s.recordDate}>{formatDate(item.createdAt)}</Text>
           <Text style={s.recordTime}>{formatTime(item.createdAt)}</Text>
         </View>
-        <View style={s.fuelTypeBadge}>
-          <Ionicons name="flame" size={11} color="#D97706" />
-          <Text style={s.fuelTypeText}>{item.fuelType}</Text>
+        <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+          {item.anomalyFlag && (
+            <View style={s.anomalyBadge}>
+              <Ionicons name="warning" size={10} color="#DC2626" />
+              <Text style={s.anomalyBadgeText}>Şüpheli</Text>
+            </View>
+          )}
+          <View style={s.fuelTypeBadge}>
+            <Ionicons name="flame" size={11} color="#D97706" />
+            <Text style={s.fuelTypeText}>{item.fuelType}</Text>
+          </View>
         </View>
       </View>
+
+      {/* Anomaly Details */}
+      {item.anomalyFlag && item.anomalyReasons && item.anomalyReasons.length > 0 && (
+        <View style={s.anomalyBox}>
+          {item.anomalyReasons.map((r, i) => (
+            <View key={i} style={s.anomalyRow}>
+              <Ionicons name="alert-circle" size={12} color="#DC2626" />
+              <Text style={s.anomalyText}>{getAnomalyLabel(r)}</Text>
+            </View>
+          ))}
+          {item.gpsDistanceKm != null && item.odometerDeltaKm != null && (
+            <Text style={s.anomalyDetail}>
+              GPS mesafe: {item.gpsDistanceKm} km • KM farkı: {item.odometerDeltaKm} km
+            </Text>
+          )}
+        </View>
+      )}
+
       <View style={s.recordStats}>
         <View style={s.recordStat}>
           <Text style={s.recordStatLabel}>KM</Text>
@@ -336,6 +457,26 @@ export default function FuelScreen() {
                     </Text>
                   </View>
                 ) : null}
+
+                {/* Odometer Photo (Required) */}
+                <Text style={s.inputLabel}>KM Saati Fotoğrafı *</Text>
+                {photoUri ? (
+                  <View style={s.photoPreviewBox}>
+                    <Image source={{ uri: photoUri }} style={s.photoPreview} />
+                    <TouchableOpacity style={s.photoRetakeBtn} onPress={takePhoto}>
+                      <Ionicons name="camera-reverse" size={16} color="#fff" />
+                      <Text style={s.photoRetakeText}>Yeniden Çek</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <TouchableOpacity style={s.photoBtn} onPress={takePhoto} activeOpacity={0.7}>
+                    <View style={s.photoBtnIcon}>
+                      <Ionicons name="camera" size={28} color="#4F46E5" />
+                    </View>
+                    <Text style={s.photoBtnTitle}>Fotoğraf Çek</Text>
+                    <Text style={s.photoBtnSub}>KM saatinin fotoğrafını çekin</Text>
+                  </TouchableOpacity>
+                )}
 
                 {/* Notes */}
                 <Text style={s.inputLabel}>Not (opsiyonel)</Text>
@@ -522,6 +663,44 @@ const s = StyleSheet.create({
   recordStatValue: { fontSize: 14, fontWeight: '800', color: '#1E293B' },
   recordStatDivider: { width: 1, height: 24, backgroundColor: '#E2E8F0' },
   recordNotes: { fontSize: 11, color: '#64748B', marginTop: 8, fontStyle: 'italic' },
+
+  // Photo
+  photoBtn: {
+    backgroundColor: '#EEF2FF', borderRadius: 14, borderWidth: 2, borderColor: '#C7D2FE',
+    borderStyle: 'dashed', padding: 24, alignItems: 'center', gap: 6,
+  },
+  photoBtnIcon: {
+    width: 52, height: 52, borderRadius: 16, backgroundColor: '#fff',
+    justifyContent: 'center', alignItems: 'center', marginBottom: 4,
+    shadowColor: '#4F46E5', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1, shadowRadius: 6, elevation: 2,
+  },
+  photoBtnTitle: { fontSize: 14, fontWeight: '700', color: '#4F46E5' },
+  photoBtnSub: { fontSize: 11, color: '#94A3B8' },
+  photoPreviewBox: { borderRadius: 14, overflow: 'hidden', position: 'relative' },
+  photoPreview: { width: '100%', height: 180, borderRadius: 14 },
+  photoRetakeBtn: {
+    position: 'absolute', bottom: 10, right: 10,
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 10,
+    paddingVertical: 6, paddingHorizontal: 12,
+  },
+  photoRetakeText: { color: '#fff', fontSize: 11, fontWeight: '700' },
+
+  // Anomaly
+  recordCardWarning: { borderColor: '#FCA5A5', borderWidth: 1.5, backgroundColor: '#FFF7F7' },
+  anomalyBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 3,
+    backgroundColor: '#FEE2E2', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 3,
+  },
+  anomalyBadgeText: { fontSize: 9, fontWeight: '800', color: '#DC2626' },
+  anomalyBox: {
+    backgroundColor: '#FEF2F2', borderRadius: 10, padding: 10, marginBottom: 10,
+    borderWidth: 1, borderColor: '#FECACA', gap: 4,
+  },
+  anomalyRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  anomalyText: { fontSize: 11, color: '#B91C1C', fontWeight: '600' },
+  anomalyDetail: { fontSize: 10, color: '#9CA3AF', marginTop: 4, fontStyle: 'italic' },
 
   // Empty
   emptyState: { padding: 40, alignItems: 'center' },
