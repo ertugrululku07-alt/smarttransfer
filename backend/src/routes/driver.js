@@ -1506,6 +1506,12 @@ router.get('/fuel/vehicle', authMiddleware, ensureDriver, async (req, res) => {
         const driverId = req.user.id;
         const tenantId = req.user.tenantId;
 
+        // Also get the personnel record for this user (admin may store personnelId instead of userId)
+        const personnelRecord = await prisma.personnel.findFirst({ where: { userId: driverId }, select: { id: true } });
+        const personnelId = personnelRecord?.id || null;
+
+        console.log(`[Fuel Vehicle] Looking for vehicle. userId=${driverId} personnelId=${personnelId} tenantId=${tenantId}`);
+
         const formatVehicle = (v) => ({
             id: v.id,
             plateNumber: v.plateNumber,
@@ -1516,31 +1522,49 @@ router.get('/fuel/vehicle', authMiddleware, ensureDriver, async (req, res) => {
             vehicleType: v.vehicleType?.name || '-'
         });
         
+        // Helper: normalize ID for comparison (case-insensitive, strip whitespace/dashes)
+        const cleanId = (id) => id ? id.replace(/[-\s]/g, '').toLowerCase() : '';
+        const userIdClean = cleanId(driverId);
+        const personnelIdClean = personnelId ? cleanId(personnelId) : null;
+        
         // 1. PRIMARY: Check vehicle.metadata.driverId (admin "Şöför Ata" assignment)
         const allVehicles = await prisma.vehicle.findMany({
             where: { tenantId, status: 'ACTIVE' },
             include: { vehicleType: true }
         });
         
-        const assignedVehicle = allVehicles.find(v => 
-            v.metadata?.driverId === driverId
-        );
+        console.log(`[Fuel Vehicle] Found ${allVehicles.length} active vehicles. Checking metadata.driverId...`);
+        allVehicles.forEach(v => {
+            console.log(`  Vehicle ${v.plateNumber}: metadata.driverId=${v.metadata?.driverId} | ownerId=${v.ownerId}`);
+        });
+        
+        const assignedVehicle = allVehicles.find(v => {
+            const vDriverId = cleanId(v.metadata?.driverId);
+            return vDriverId && (
+                vDriverId === userIdClean || 
+                (personnelIdClean && vDriverId === personnelIdClean)
+            );
+        });
         
         if (assignedVehicle) {
+            console.log(`[Fuel Vehicle] FOUND via metadata.driverId: ${assignedVehicle.plateNumber}`);
             return res.json({ success: true, data: formatVehicle(assignedVehicle) });
         }
 
         // 2. Check vehicle ownership
         const ownedVehicle = allVehicles.find(v => v.ownerId === driverId);
         if (ownedVehicle) {
+            console.log(`[Fuel Vehicle] FOUND via ownerId: ${ownedVehicle.plateNumber}`);
             return res.json({ success: true, data: formatVehicle(ownedVehicle) });
         }
         
         // 3. Check driver's user metadata for assigned vehicle
         const user = await prisma.user.findUnique({ where: { id: driverId } });
+        console.log(`[Fuel Vehicle] User metadata.assignedVehicleId=${user?.metadata?.assignedVehicleId}`);
         if (user?.metadata?.assignedVehicleId) {
             const v = allVehicles.find(veh => veh.id === user.metadata.assignedVehicleId);
             if (v) {
+                console.log(`[Fuel Vehicle] FOUND via user.metadata: ${v.plateNumber}`);
                 return res.json({ success: true, data: formatVehicle(v) });
             }
         }
@@ -1560,17 +1584,19 @@ router.get('/fuel/vehicle', authMiddleware, ensureDriver, async (req, res) => {
             take: 10
         });
         
+        console.log(`[Fuel Vehicle] Found ${recentBookings.length} recent bookings`);
         for (const b of recentBookings) {
             const vId = b.metadata?.vehicleId || b.metadata?.assignedVehicleId;
             if (vId) {
                 const v = allVehicles.find(veh => veh.id === vId);
                 if (v) {
+                    console.log(`[Fuel Vehicle] FOUND via booking ${b.id}: ${v.plateNumber}`);
                     return res.json({ success: true, data: formatVehicle(v) });
                 }
             }
         }
         
-        console.log(`[Fuel Vehicle] No vehicle found for driver ${driverId}`);
+        console.log(`[Fuel Vehicle] NO VEHICLE FOUND for driver ${driverId}. Vehicles metadata: ${JSON.stringify(allVehicles.map(v => ({ plate: v.plateNumber, metaDriverId: v.metadata?.driverId })))}`);
         res.json({ success: true, data: null });
     } catch (error) {
         console.error('Fuel vehicle error:', error);
