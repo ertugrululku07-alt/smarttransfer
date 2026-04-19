@@ -95,6 +95,7 @@ model Tenant {
   zones           Zone[]
   activityLogs    ActivityLog[]
   speedViolations SpeedViolation[]
+  fuelRecords     FuelRecord[]
 
   @@index([status])
   @@index([slug])
@@ -190,6 +191,7 @@ model User {
   driverCollections      DriverCollection[]      @relation("DriverCollections")
   handoversReceived      DriverCollection[]      @relation("HandoverRecipient")
   locationHistory        DriverLocationHistory[] @relation("DriverLocations")
+  fuelRecords            FuelRecord[]            @relation("DriverFuelRecords")
   customerChats          ChatSession[]           @relation("CustomerChats")
   agentChats             ChatSession[]           @relation("AgentChats")
   // Financial Snapshot
@@ -1785,6 +1787,36 @@ model DriverLocationHistory {
   createdAt DateTime @default(now())
 
   @@index([driverId, timestamp])
+}
+
+// ============================================================================
+// FUEL TRACKING
+// ============================================================================
+
+model FuelRecord {
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+
+  driverId String
+  driver   User @relation("DriverFuelRecords", fields: [driverId], references: [id])
+
+  vehicleId    String
+  plateNumber  String
+  odometer     Float    // KM reading
+  liters       Float    // Liters refueled
+  pricePerLiter Float?  // Optional price/liter
+  totalCost     Float?  // Optional total cost
+  currency      String  @default("TRY")
+  notes         String?
+  fuelType      String  @default("Dizel") // Dizel, Benzin, LPG
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId, driverId])
+  @@index([vehicleId])
+  @@index([createdAt])
 }
 
 // ============================================================================

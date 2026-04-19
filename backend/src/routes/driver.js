@@ -216,30 +216,53 @@ router.get('/bookings/:id', authMiddleware, ensureDriver, async (req, res) => {
 });
 
 // GET /api/driver/history
-// List completed bookings
+// List completed bookings with optional date filtering
 router.get('/history', authMiddleware, ensureDriver, async (req, res) => {
     try {
         const driverId = req.user.id;
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 20;
         const skip = (page - 1) * limit;
+        const { startDate, endDate } = req.query;
 
-        const bookings = await prisma.booking.findMany({
-            where: {
-                driverId: driverId,
-                status: { in: ['COMPLETED', 'CANCELLED'] }
-            },
-            include: {
-                product: true
-            },
-            orderBy: {
-                startDate: 'desc'
-            },
-            take: limit,
-            skip: skip
+        const where = {
+            driverId: driverId,
+            status: { in: ['COMPLETED', 'CANCELLED', 'NO_SHOW'] }
+        };
+
+        // Date filtering
+        if (startDate || endDate) {
+            where.startDate = {};
+            if (startDate) {
+                where.startDate.gte = new Date(new Date(startDate).setHours(0, 0, 0, 0));
+            }
+            if (endDate) {
+                where.startDate.lte = new Date(new Date(endDate).setHours(23, 59, 59, 999));
+            }
+        }
+
+        const [bookings, total] = await Promise.all([
+            prisma.booking.findMany({
+                where,
+                include: { product: true },
+                orderBy: { startDate: 'desc' },
+                take: limit,
+                skip: skip
+            }),
+            prisma.booking.count({ where })
+        ]);
+
+        res.json({
+            success: true,
+            data: bookings,
+            pagination: {
+                page,
+                limit,
+                total,
+                totalPages: Math.ceil(total / limit),
+                hasMore: skip + bookings.length < total
+            }
         });
-
-        res.json({ success: true, data: bookings });
     } catch (error) {
         console.error('Driver history error:', error);
         res.status(500).json({ success: false, error: 'Server error' });
@@ -1451,6 +1474,164 @@ router.get('/:id/route', authMiddleware, async (req, res) => {
 
     } catch (error) {
         console.error('Fetch driver route error:', error);
+        res.status(500).json({ success: false, error: 'Server error' });
+    }
+});
+
+// ============================================================================
+// FUEL TRACKING
+// ============================================================================
+
+// GET /api/driver/fuel/vehicle
+// Get driver's assigned vehicle info
+router.get('/fuel/vehicle', authMiddleware, ensureDriver, async (req, res) => {
+    try {
+        const driverId = req.user.id;
+        
+        // Find a vehicle assigned to this driver (via bookings or direct ownership)
+        // First check if driver has a vehicle via vehicles relation
+        const ownedVehicle = await prisma.vehicle.findFirst({
+            where: { ownerId: driverId, status: 'ACTIVE' },
+            include: { vehicleType: true }
+        });
+        
+        if (ownedVehicle) {
+            return res.json({
+                success: true,
+                data: {
+                    id: ownedVehicle.id,
+                    plateNumber: ownedVehicle.plateNumber,
+                    brand: ownedVehicle.brand,
+                    model: ownedVehicle.model,
+                    year: ownedVehicle.year,
+                    color: ownedVehicle.color,
+                    vehicleType: ownedVehicle.vehicleType?.name || '-'
+                }
+            });
+        }
+        
+        // Check driver metadata for assigned vehicle
+        const user = await prisma.user.findUnique({ where: { id: driverId } });
+        if (user?.metadata?.assignedVehicleId) {
+            const v = await prisma.vehicle.findUnique({
+                where: { id: user.metadata.assignedVehicleId },
+                include: { vehicleType: true }
+            });
+            if (v) {
+                return res.json({
+                    success: true,
+                    data: {
+                        id: v.id,
+                        plateNumber: v.plateNumber,
+                        brand: v.brand,
+                        model: v.model,
+                        year: v.year,
+                        color: v.color,
+                        vehicleType: v.vehicleType?.name || '-'
+                    }
+                });
+            }
+        }
+        
+        // Fallback: check recent bookings' metadata for vehicleId
+        const recentBookings = await prisma.booking.findMany({
+            where: {
+                driverId,
+                startDate: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) }
+            },
+            orderBy: { startDate: 'desc' },
+            take: 10
+        });
+        
+        for (const b of recentBookings) {
+            const vId = b.metadata?.vehicleId || b.metadata?.assignedVehicleId;
+            if (vId) {
+                const v = await prisma.vehicle.findUnique({
+                    where: { id: vId },
+                    include: { vehicleType: true }
+                });
+                if (v) {
+                    return res.json({
+                        success: true,
+                        data: {
+                            id: v.id,
+                            plateNumber: v.plateNumber,
+                            brand: v.brand,
+                            model: v.model,
+                            year: v.year,
+                            color: v.color,
+                            vehicleType: v.vehicleType?.name || '-'
+                        }
+                    });
+                }
+            }
+        }
+        
+        res.json({ success: true, data: null });
+    } catch (error) {
+        console.error('Fuel vehicle error:', error);
+        res.status(500).json({ success: false, error: 'Server error' });
+    }
+});
+
+// POST /api/driver/fuel
+// Record a fuel purchase
+router.post('/fuel', authMiddleware, ensureDriver, async (req, res) => {
+    try {
+        const { vehicleId, plateNumber, odometer, liters, pricePerLiter, totalCost, currency, notes, fuelType } = req.body;
+        
+        if (!vehicleId || !odometer || !liters) {
+            return res.status(400).json({ success: false, error: 'Araç, KM ve litre bilgisi zorunludur' });
+        }
+        
+        const record = await prisma.fuelRecord.create({
+            data: {
+                tenantId: req.user.tenantId,
+                driverId: req.user.id,
+                vehicleId,
+                plateNumber: plateNumber || '',
+                odometer: parseFloat(odometer),
+                liters: parseFloat(liters),
+                pricePerLiter: pricePerLiter ? parseFloat(pricePerLiter) : null,
+                totalCost: totalCost ? parseFloat(totalCost) : null,
+                currency: currency || 'TRY',
+                notes: notes || null,
+                fuelType: fuelType || 'Dizel'
+            }
+        });
+        
+        res.json({ success: true, data: record });
+    } catch (error) {
+        console.error('Fuel record error:', error);
+        res.status(500).json({ success: false, error: 'Server error' });
+    }
+});
+
+// GET /api/driver/fuel
+// List fuel records for the driver
+router.get('/fuel', authMiddleware, ensureDriver, async (req, res) => {
+    try {
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 20;
+        const skip = (page - 1) * limit;
+        
+        const [records, total] = await Promise.all([
+            prisma.fuelRecord.findMany({
+                where: { driverId: req.user.id },
+                orderBy: { createdAt: 'desc' },
+                take: limit,
+                skip
+            }),
+            prisma.fuelRecord.count({ where: { driverId: req.user.id } })
+        ]);
+        
+        res.json({
+            success: true,
+            data: records,
+            pagination: { page, limit, total, totalPages: Math.ceil(total / limit) }
+        });
+    } catch (error) {
+        console.error('Fuel list error:', error);
         res.status(500).json({ success: false, error: 'Server error' });
     }
 });

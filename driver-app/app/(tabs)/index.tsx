@@ -199,7 +199,7 @@ export default function DashboardScreen() {
       // suppressed the foreground service. Calling it again forces OS to re-awaken it.
       await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
         accuracy: Location.Accuracy.High,
-        timeInterval: 15000,       // 15 seconds — throttled in task handler to 25s min
+        timeInterval: 4000,        // 4 seconds
         distanceInterval: 5,        // At least 5m movement to trigger
         showsBackgroundLocationIndicator: true,
         activityType: Location.ActivityType.AutomotiveNavigation,
@@ -249,8 +249,8 @@ export default function DashboardScreen() {
         } catch (e) {
           // Silent fail — background service is fallback
         }
-        // Wait 10s before next sync
-        await new Promise(resolve => setTimeout(resolve, 10000));
+        // Wait 4s before next sync
+        await new Promise(resolve => setTimeout(resolve, 4000));
       }
     };
 
@@ -417,7 +417,9 @@ export default function DashboardScreen() {
       <View style={st.actionsGrid}>
         <ActionButton icon="list" label="İş Listesi" color="#4361ee" bg="#eef2ff" onPress={() => router.push('/(tabs)/explore')} />
         <ActionButton icon="time" label="Geçmiş" color="#7c3aed" bg="#f5f3ff" onPress={() => router.push('/history')} />
-        <ActionButton icon="chatbubbles" label="Mesajlar" color="#059669" bg="#ecfdf5" onPress={() => router.push('/messages')} badgeCount={unreadCount} />
+        <ActionButton icon="wallet" label="Muhasebe" color="#D97706" bg="#FFFBEB" onPress={() => router.push('/(tabs)/accounting')} />
+        <ActionButton icon="speedometer" label="Yakıt Takip" color="#059669" bg="#ecfdf5" onPress={() => router.push('/(tabs)/fuel')} />
+        <ActionButton icon="chatbubbles" label="Mesajlar" color="#0ea5e9" bg="#f0f9ff" onPress={() => router.push('/messages')} badgeCount={unreadCount} />
         <ActionButton icon="person" label="Profil" color="#e11d48" bg="#fff1f2" onPress={() => router.push('/(tabs)/profile')} />
       </View>
 

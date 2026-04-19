@@ -139,10 +139,56 @@ export default function AccountingScreen() {
     }
   };
 
-  const formatCurrency = (amount: number, currency: string) => {
+  const getCurrencySymbol = (currency: string) => {
     const symbols: Record<string, string> = { TRY: '₺', EUR: '€', USD: '$', GBP: '£' };
-    const sym = symbols[currency] || currency;
+    return symbols[currency] || currency;
+  };
+
+  const formatCurrency = (amount: number, currency: string) => {
+    const sym = getCurrencySymbol(currency);
     return `${sym}${amount.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  };
+
+  // Bulk handover
+  const [bulkModal, setBulkModal] = useState(false);
+  const [bulkPerson, setBulkPerson] = useState<string | null>(null);
+  const [bulkNotes, setBulkNotes] = useState('');
+  const [bulkLoading, setBulkLoading] = useState(false);
+
+  const pendingCollections = collections.filter(c => c.status === 'PENDING');
+
+  const openBulkModal = () => {
+    setBulkPerson(null);
+    setBulkNotes('');
+    setBulkModal(true);
+    fetchPersonnel();
+  };
+
+  const submitBulkHandover = async () => {
+    if (!bulkPerson) {
+      Alert.alert('Uyarı', 'Lütfen teslim alacak personel seçin');
+      return;
+    }
+    setBulkLoading(true);
+    try {
+      let successCount = 0;
+      for (const c of pendingCollections) {
+        const res = await fetch(`${API_URL}/driver/collections/${c.id}/handover`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ handedOverTo: bulkPerson, handoverNotes: bulkNotes || 'Toplu teslim' })
+        });
+        const json = await res.json();
+        if (json.success) successCount++;
+      }
+      Alert.alert('Başarılı', `${successCount} tahsilat toplu olarak teslim edildi`);
+      setBulkModal(false);
+      fetchCollections();
+    } catch (e) {
+      Alert.alert('Hata', 'Bağlantı hatası');
+    } finally {
+      setBulkLoading(false);
+    }
   };
 
   const formatDate = (dateStr: string) => {
@@ -184,7 +230,6 @@ export default function AccountingScreen() {
         <View style={st.cardHeader}>
           <View style={st.cardAmountSection}>
             <Text style={st.cardAmount}>{formatCurrency(item.amount, item.currency)}</Text>
-            <Text style={st.cardCurrency}>{item.currency}</Text>
           </View>
           <View style={[st.statusChip, { backgroundColor: config.bg, borderColor: config.border }]}>
             <Ionicons name={config.icon} size={12} color={config.color} />
@@ -300,30 +345,38 @@ export default function AccountingScreen() {
         </SafeAreaView>
       </View>
 
-      {/* ── FILTER TABS ── */}
+      {/* ── FILTER TABS + BULK BUTTON ── */}
       <View style={st.tabBar}>
-        {[
-          { key: 'ALL', label: 'Tümü', icon: 'apps' as const },
-          { key: 'PENDING', label: 'Bekleyen', icon: 'time' as const },
-          { key: 'HANDED_OVER', label: 'Teslim', icon: 'checkmark-done' as const },
-        ].map((tab) => {
-          const active = filter === tab.key;
-          return (
-            <TouchableOpacity
-              key={tab.key}
-              style={[st.tab, active && st.tabActive]}
-              onPress={() => setFilter(tab.key as any)}
-              activeOpacity={0.7}
-            >
-              <Ionicons
-                name={tab.icon}
-                size={14}
-                color={active ? '#4F46E5' : '#94A3B8'}
-              />
-              <Text style={[st.tabText, active && st.tabTextActive]}>{tab.label}</Text>
-            </TouchableOpacity>
-          );
-        })}
+        <View style={{ flexDirection: 'row', gap: 8, flex: 1 }}>
+          {[
+            { key: 'ALL', label: 'Tümü', icon: 'apps' as const },
+            { key: 'PENDING', label: 'Bekleyen', icon: 'time' as const },
+            { key: 'HANDED_OVER', label: 'Teslim', icon: 'checkmark-done' as const },
+          ].map((tab) => {
+            const active = filter === tab.key;
+            return (
+              <TouchableOpacity
+                key={tab.key}
+                style={[st.tab, active && st.tabActive]}
+                onPress={() => setFilter(tab.key as any)}
+                activeOpacity={0.7}
+              >
+                <Ionicons
+                  name={tab.icon}
+                  size={14}
+                  color={active ? '#4F46E5' : '#94A3B8'}
+                />
+                <Text style={[st.tabText, active && st.tabTextActive]}>{tab.label}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+        {pendingCollections.length > 1 && (
+          <TouchableOpacity style={st.bulkBtn} onPress={openBulkModal} activeOpacity={0.8}>
+            <Ionicons name="layers" size={14} color="#fff" />
+            <Text style={st.bulkBtnText}>Toplu Teslim ({pendingCollections.length})</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* ── COLLECTIONS LIST ── */}
@@ -344,6 +397,103 @@ export default function AccountingScreen() {
           </View>
         }
       />
+
+      {/* ── BULK HANDOVER MODAL ── */}
+      <Modal visible={bulkModal} animationType="slide" transparent>
+        <View style={st.modalOverlay}>
+          <View style={st.modalCard}>
+            <View style={st.modalHandle} />
+            <View style={st.modalHeader}>
+              <View style={st.modalHeaderLeft}>
+                <View style={[st.modalIconBox, { backgroundColor: '#FEF3C7' }]}>
+                  <Ionicons name="layers" size={18} color="#D97706" />
+                </View>
+                <Text style={st.modalTitle}>Toplu Teslim</Text>
+              </View>
+              <TouchableOpacity style={st.modalCloseBtn} onPress={() => setBulkModal(false)}>
+                <Ionicons name="close" size={20} color="#64748b" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={[st.modalAmountCard, { backgroundColor: '#FEF3C7', borderColor: '#FBBF24' }]}>
+              <Text style={[st.modalAmountLabel, { color: '#92400E' }]}>Toplam Teslim Edilecek</Text>
+              <Text style={[st.modalAmount, { color: '#D97706' }]}>
+                {Object.entries(
+                  pendingCollections.reduce((acc: Record<string, number>, c) => {
+                    acc[c.currency] = (acc[c.currency] || 0) + c.amount;
+                    return acc;
+                  }, {})
+                ).map(([cur, amt]) => formatCurrency(amt as number, cur)).join(' + ')}
+              </Text>
+              <Text style={st.modalCustomer}>{pendingCollections.length} tahsilat</Text>
+            </View>
+
+            <Text style={st.modalSectionLabel}>
+              <Ionicons name="people" size={13} color="#64748B" /> Teslim Alacak Personel
+            </Text>
+            <ScrollView style={st.personnelList} showsVerticalScrollIndicator={false}>
+              {personnel.length === 0 ? (
+                <View style={st.personnelEmpty}>
+                  <ActivityIndicator color="#4F46E5" />
+                  <Text style={st.personnelEmptyText}>Personel yükleniyor...</Text>
+                </View>
+              ) : (
+                personnel.map((p) => {
+                  const isActive = bulkPerson === p.id;
+                  return (
+                    <TouchableOpacity key={p.id} style={[st.personnelItem, isActive && st.personnelItemActive]} onPress={() => setBulkPerson(p.id)} activeOpacity={0.7}>
+                      <View style={[st.personnelAvatar, isActive && st.personnelAvatarActive]}>
+                        <Text style={[st.personnelAvatarText, isActive && { color: '#fff' }]}>{p.fullName.charAt(0)}</Text>
+                      </View>
+                      <View style={st.personnelInfo}>
+                        <Text style={[st.personnelName, isActive && st.personnelNameActive]}>{p.fullName}</Text>
+                        <Text style={st.personnelEmail}>{p.email}</Text>
+                      </View>
+                      <Ionicons name={isActive ? 'checkmark-circle' : 'ellipse-outline'} size={22} color={isActive ? '#4F46E5' : '#D1D5DB'} />
+                    </TouchableOpacity>
+                  );
+                })
+              )}
+            </ScrollView>
+
+            <Text style={st.modalSectionLabel}>
+              <Ionicons name="chatbox-ellipses" size={13} color="#64748B" /> Not (opsiyonel)
+            </Text>
+            <TextInput
+              style={st.modalInput}
+              placeholder="Toplu teslim notu..."
+              placeholderTextColor="#94A3B8"
+              value={bulkNotes}
+              onChangeText={setBulkNotes}
+              multiline
+              numberOfLines={2}
+            />
+
+            <View style={st.modalBtnRow}>
+              <TouchableOpacity style={st.modalCancelBtn} onPress={() => setBulkModal(false)}>
+                <Text style={st.modalCancelText}>İptal</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[st.modalSubmitBtn, (!bulkPerson || bulkLoading) && st.modalSubmitDisabled]}
+                onPress={submitBulkHandover}
+                disabled={bulkLoading || !bulkPerson}
+                activeOpacity={0.8}
+              >
+                <View style={[st.modalSubmitGradient, { backgroundColor: (!bulkPerson || bulkLoading) ? '#94A3B8' : '#D97706' }]}>
+                  {bulkLoading ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    <>
+                      <Ionicons name="checkmark-circle" size={18} color="#fff" />
+                      <Text style={st.modalSubmitText}>Hepsini Teslim Et</Text>
+                    </>
+                  )}
+                </View>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* ── HANDOVER MODAL ── */}
       <Modal visible={handoverModal} animationType="slide" transparent>
@@ -515,6 +665,7 @@ const st = StyleSheet.create({
   tabBar: {
     flexDirection: 'row', paddingHorizontal: 16, paddingVertical: 10, gap: 8,
     backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#F1F5F9',
+    alignItems: 'center', flexWrap: 'wrap',
   },
   tab: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
@@ -526,6 +677,12 @@ const st = StyleSheet.create({
   },
   tabText: { color: '#94A3B8', fontWeight: '600', fontSize: 13 },
   tabTextActive: { color: '#4F46E5' },
+  bulkBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    paddingVertical: 8, paddingHorizontal: 12, borderRadius: 12,
+    backgroundColor: '#D97706',
+  },
+  bulkBtnText: { color: '#fff', fontWeight: '700', fontSize: 11 },
 
   // ── LIST ──
   list: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 30 },
