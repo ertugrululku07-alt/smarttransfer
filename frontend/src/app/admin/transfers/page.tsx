@@ -363,6 +363,7 @@ const TransfersPage: React.FC = () => {
     const [autoApprove, setAutoApprove] = useState<'off'|'operation'|'pool'>('off');
     const autoApproveRef = useRef<'off'|'operation'|'pool'>('off');
     const [dragColIdx, setDragColIdx] = useState<number|null>(null);
+    const [pageSize, setPageSize] = useState<number>(15);
 
     // Inline cell editing state
     const [editingCell, setEditingCell] = useState<{ id: string; field: string; value: any } | null>(null);
@@ -858,32 +859,19 @@ const TransfersPage: React.FC = () => {
           }},
     ];
 
-    // Sort columns by colOrder, then filter by visibility
-    const sortedColumns = [...colOrder, ...ALL_COL_KEYS.filter(k => !colOrder.includes(k))]
+    // Column ordering - use effective order (from user preferences or default)
+    const effectiveColOrder = colOrder.length > 0 ? colOrder : ALL_COL_KEYS;
+
+    // Sort columns by effectiveColOrder, then filter by visibility
+    const sortedColumns = [...effectiveColOrder]
         .filter(k => visibleCols.includes(k))
         .map(k => ALL_COLUMNS.find(c => c.key === k))
         .filter(Boolean);
     const totalWidth = sortedColumns.reduce((sum: number, col: any) => sum + (col.width || 100), 0);
     const activeFilterCount = Object.values(colFilters).filter(f=>f.text||(f.statuses?.length)||f.dateRange||f.minPrice!=null||f.maxPrice!=null).length;
 
-    // Column drag handlers for reorder in col manager
-    const handleColDragStart = (idx: number) => { setDragColIdx(idx); };
-    const handleColDragOver = (e: React.DragEvent, idx: number) => {
-        e.preventDefault();
-        if (dragColIdx === null || dragColIdx === idx) return;
-        const newOrder = [...colOrder];
-        const dragged = newOrder.splice(dragColIdx, 1)[0];
-        newOrder.splice(idx, 0, dragged);
-        setColOrder(newOrder);
-        setDragColIdx(idx);
-    };
-    const handleColDragEnd = () => {
-        setDragColIdx(null);
-        savePreferences({ colOrder });
-    };
-
     // Reorder-capable keys (action stays fixed at left)
-    const reorderableKeys = colOrder.filter(k => k !== 'action');
+    const reorderableKeys = effectiveColOrder.filter(k => k !== 'action');
 
     const colManagerContent = (
         <div style={{width:280}}>
@@ -895,14 +883,26 @@ const TransfersPage: React.FC = () => {
                 {reorderableKeys.map((key, idx) => (
                     <div key={key}
                         draggable
-                        onDragStart={() => handleColDragStart(colOrder.indexOf(key))}
-                        onDragOver={(e) => handleColDragOver(e, colOrder.indexOf(key))}
-                        onDragEnd={handleColDragEnd}
+                        onDragStart={() => setDragColIdx(idx)}
+                        onDragOver={(e) => {
+                            e.preventDefault();
+                            if (dragColIdx === null || dragColIdx === idx) return;
+                            // Swap positions
+                            const newOrder = [...effectiveColOrder];
+                            const [removed] = newOrder.splice(dragColIdx, 1);
+                            newOrder.splice(idx, 0, removed);
+                            setColOrder(newOrder);
+                            setDragColIdx(idx);
+                        }}
+                        onDragEnd={() => {
+                            setDragColIdx(null);
+                            savePreferences({ colOrder: effectiveColOrder });
+                        }}
                         style={{
                             display:'flex',alignItems:'center',justifyContent:'space-between',
                             padding:'6px 8px', borderRadius:6, cursor:'grab',
-                            background: dragColIdx === colOrder.indexOf(key) ? '#eef2ff' : 'transparent',
-                            border: dragColIdx === colOrder.indexOf(key) ? '1px dashed #6366f1' : '1px solid transparent',
+                            background: dragColIdx === idx ? '#eef2ff' : 'transparent',
+                            border: dragColIdx === idx ? '1px dashed #6366f1' : '1px solid transparent',
                             transition: 'all 0.15s'
                         }}
                     >
@@ -1017,9 +1017,13 @@ const TransfersPage: React.FC = () => {
                         components={tableComponents}
                         tableLayout="fixed"
                         childrenColumnName="nested_children_disabled"
-                        pagination={{pageSize:15,showSizeChanger:true,
-                            showTotal:(total,range)=>`${range[0]}-${range[1]} / ${total} kayıt`,
-                            pageSizeOptions:['10','15','25','50','100']}}
+                        pagination={{
+                            pageSize: pageSize,
+                            showSizeChanger: true,
+                            onShowSizeChange: (current, size) => setPageSize(size),
+                            showTotal: (total, range) => `${range[0]}-${range[1]} / ${total} kayıt`,
+                            pageSizeOptions: ['10', '15', '25', '50', '100']
+                        }}
                         rowClassName={rowClassName} size="middle" showSorterTooltip={false}
                     />
                 </Card>
