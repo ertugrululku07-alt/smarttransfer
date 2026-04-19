@@ -140,13 +140,20 @@ export default function AccountingScreen() {
   };
 
   const getCurrencySymbol = (currency: string) => {
-    const symbols: Record<string, string> = { TRY: '₺', EUR: '€', USD: '$', GBP: '£' };
-    return symbols[currency] || currency;
+    const upper = (currency || '').toUpperCase().trim();
+    const symbols: Record<string, string> = {
+      TRY: '₺', TL: '₺',
+      EUR: '€', EURO: '€',
+      USD: '$', DOLLAR: '$',
+      GBP: '£', POUND: '£',
+    };
+    return symbols[upper] || currency;
   };
 
   const formatCurrency = (amount: number, currency: string) => {
     const sym = getCurrencySymbol(currency);
-    return `${sym}${amount.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const formatted = amount.toLocaleString('tr-TR', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+    return `${formatted} ${sym}`;
   };
 
   // Bulk handover

@@ -23,10 +23,20 @@ router.get('/dashboard', authMiddleware, ensureDriver, async (req, res) => {
 
         const driverId = req.user.id;
 
+        const tenantId = req.user.tenantId;
+        const driverFilter = {
+            tenantId,
+            OR: [
+                { driverId: driverId },
+                { metadata: { path: ['driverId'], equals: driverId } },
+                { metadata: { path: ['assignedDriverId'], equals: driverId } }
+            ]
+        };
+
         const [todayJobs, completedJobs] = await Promise.all([
             prisma.booking.count({
                 where: {
-                    driverId: driverId,
+                    ...driverFilter,
                     startDate: {
                         gte: today,
                         lt: tomorrow
@@ -36,7 +46,7 @@ router.get('/dashboard', authMiddleware, ensureDriver, async (req, res) => {
             }),
             prisma.booking.count({
                 where: {
-                    driverId: driverId,
+                    ...driverFilter,
                     status: 'COMPLETED'
                 }
             })
@@ -220,13 +230,20 @@ router.get('/bookings/:id', authMiddleware, ensureDriver, async (req, res) => {
 router.get('/history', authMiddleware, ensureDriver, async (req, res) => {
     try {
         const driverId = req.user.id;
+        const tenantId = req.user.tenantId;
         const page = parseInt(req.query.page) || 1;
-        const limit = parseInt(req.query.limit) || 20;
+        const limit = parseInt(req.query.limit) || 10;
         const skip = (page - 1) * limit;
         const { startDate, endDate } = req.query;
 
+        // Search by driverId OR metadata.driverId to capture all assignments
         const where = {
-            driverId: driverId,
+            tenantId,
+            OR: [
+                { driverId: driverId },
+                { metadata: { path: ['driverId'], equals: driverId } },
+                { metadata: { path: ['assignedDriverId'], equals: driverId } }
+            ],
             status: { in: ['COMPLETED', 'CANCELLED', 'NO_SHOW'] }
         };
 
@@ -244,7 +261,7 @@ router.get('/history', authMiddleware, ensureDriver, async (req, res) => {
         const [bookings, total] = await Promise.all([
             prisma.booking.findMany({
                 where,
-                include: { product: true },
+                include: { product: true, customer: { select: { firstName: true, lastName: true } } },
                 orderBy: { startDate: 'desc' },
                 take: limit,
                 skip: skip
@@ -1487,56 +1504,56 @@ router.get('/:id/route', authMiddleware, async (req, res) => {
 router.get('/fuel/vehicle', authMiddleware, ensureDriver, async (req, res) => {
     try {
         const driverId = req.user.id;
+        const tenantId = req.user.tenantId;
+
+        const formatVehicle = (v) => ({
+            id: v.id,
+            plateNumber: v.plateNumber,
+            brand: v.brand,
+            model: v.model,
+            year: v.year,
+            color: v.color,
+            vehicleType: v.vehicleType?.name || '-'
+        });
         
-        // Find a vehicle assigned to this driver (via bookings or direct ownership)
-        // First check if driver has a vehicle via vehicles relation
-        const ownedVehicle = await prisma.vehicle.findFirst({
-            where: { ownerId: driverId, status: 'ACTIVE' },
+        // 1. PRIMARY: Check vehicle.metadata.driverId (admin "Şöför Ata" assignment)
+        const allVehicles = await prisma.vehicle.findMany({
+            where: { tenantId, status: 'ACTIVE' },
             include: { vehicleType: true }
         });
         
+        const assignedVehicle = allVehicles.find(v => 
+            v.metadata?.driverId === driverId
+        );
+        
+        if (assignedVehicle) {
+            return res.json({ success: true, data: formatVehicle(assignedVehicle) });
+        }
+
+        // 2. Check vehicle ownership
+        const ownedVehicle = allVehicles.find(v => v.ownerId === driverId);
         if (ownedVehicle) {
-            return res.json({
-                success: true,
-                data: {
-                    id: ownedVehicle.id,
-                    plateNumber: ownedVehicle.plateNumber,
-                    brand: ownedVehicle.brand,
-                    model: ownedVehicle.model,
-                    year: ownedVehicle.year,
-                    color: ownedVehicle.color,
-                    vehicleType: ownedVehicle.vehicleType?.name || '-'
-                }
-            });
+            return res.json({ success: true, data: formatVehicle(ownedVehicle) });
         }
         
-        // Check driver metadata for assigned vehicle
+        // 3. Check driver's user metadata for assigned vehicle
         const user = await prisma.user.findUnique({ where: { id: driverId } });
         if (user?.metadata?.assignedVehicleId) {
-            const v = await prisma.vehicle.findUnique({
-                where: { id: user.metadata.assignedVehicleId },
-                include: { vehicleType: true }
-            });
+            const v = allVehicles.find(veh => veh.id === user.metadata.assignedVehicleId);
             if (v) {
-                return res.json({
-                    success: true,
-                    data: {
-                        id: v.id,
-                        plateNumber: v.plateNumber,
-                        brand: v.brand,
-                        model: v.model,
-                        year: v.year,
-                        color: v.color,
-                        vehicleType: v.vehicleType?.name || '-'
-                    }
-                });
+                return res.json({ success: true, data: formatVehicle(v) });
             }
         }
         
-        // Fallback: check recent bookings' metadata for vehicleId
+        // 4. Fallback: check recent bookings' metadata for vehicleId
         const recentBookings = await prisma.booking.findMany({
             where: {
-                driverId,
+                tenantId,
+                OR: [
+                    { driverId },
+                    { metadata: { path: ['driverId'], equals: driverId } },
+                    { metadata: { path: ['assignedDriverId'], equals: driverId } }
+                ],
                 startDate: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) }
             },
             orderBy: { startDate: 'desc' },
@@ -1546,27 +1563,14 @@ router.get('/fuel/vehicle', authMiddleware, ensureDriver, async (req, res) => {
         for (const b of recentBookings) {
             const vId = b.metadata?.vehicleId || b.metadata?.assignedVehicleId;
             if (vId) {
-                const v = await prisma.vehicle.findUnique({
-                    where: { id: vId },
-                    include: { vehicleType: true }
-                });
+                const v = allVehicles.find(veh => veh.id === vId);
                 if (v) {
-                    return res.json({
-                        success: true,
-                        data: {
-                            id: v.id,
-                            plateNumber: v.plateNumber,
-                            brand: v.brand,
-                            model: v.model,
-                            year: v.year,
-                            color: v.color,
-                            vehicleType: v.vehicleType?.name || '-'
-                        }
-                    });
+                    return res.json({ success: true, data: formatVehicle(v) });
                 }
             }
         }
         
+        console.log(`[Fuel Vehicle] No vehicle found for driver ${driverId}`);
         res.json({ success: true, data: null });
     } catch (error) {
         console.error('Fuel vehicle error:', error);

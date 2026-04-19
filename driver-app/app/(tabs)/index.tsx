@@ -417,8 +417,6 @@ export default function DashboardScreen() {
       <View style={st.actionsGrid}>
         <ActionButton icon="list" label="İş Listesi" color="#4361ee" bg="#eef2ff" onPress={() => router.push('/(tabs)/explore')} />
         <ActionButton icon="time" label="Geçmiş" color="#7c3aed" bg="#f5f3ff" onPress={() => router.push('/history')} />
-        <ActionButton icon="wallet" label="Muhasebe" color="#D97706" bg="#FFFBEB" onPress={() => router.push('/(tabs)/accounting')} />
-        <ActionButton icon="speedometer" label="Yakıt Takip" color="#059669" bg="#ecfdf5" onPress={() => router.push('/(tabs)/fuel')} />
         <ActionButton icon="chatbubbles" label="Mesajlar" color="#0ea5e9" bg="#f0f9ff" onPress={() => router.push('/messages')} badgeCount={unreadCount} />
         <ActionButton icon="person" label="Profil" color="#e11d48" bg="#fff1f2" onPress={() => router.push('/(tabs)/profile')} />
       </View>

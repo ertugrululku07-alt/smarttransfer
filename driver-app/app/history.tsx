@@ -27,7 +27,7 @@ export default function HistoryScreen() {
     // Date filter state
     const [filterMode, setFilterMode] = useState<'all' | 'single' | 'range'>('all');
     const [singleDate, setSingleDate] = useState(new Date());
-    const [rangeStart, setRangeStart] = useState(() => { const d = new Date(); d.setDate(d.getDate() - 7); return d; });
+    const [rangeStart, setRangeStart] = useState(() => { const d = new Date(); d.setDate(d.getDate() - 30); return d; });
     const [rangeEnd, setRangeEnd] = useState(new Date());
 
     // Picker visibility
@@ -48,13 +48,13 @@ export default function HistoryScreen() {
         setLoading(true);
         try {
             const dateParams = buildDateParams();
-            const res = await fetch(`${API_URL}/driver/history?page=${requestPage}&limit=20${dateParams}`, {
+            const res = await fetch(`${API_URL}/driver/history?page=${requestPage}&limit=10${dateParams}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const json = await res.json();
             if (json.success) {
                 const pagination = json.pagination || {};
-                setHasMore(pagination.hasMore !== undefined ? pagination.hasMore : json.data.length >= 20);
+                setHasMore(pagination.hasMore !== undefined ? pagination.hasMore : json.data.length >= 10);
                 setTotal(pagination.total || json.data.length);
                 setJobs(prev => reset ? json.data : [...prev, ...json.data]);
                 setPage(requestPage + 1);
