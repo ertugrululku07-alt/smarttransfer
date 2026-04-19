@@ -364,6 +364,8 @@ const TransfersPage: React.FC = () => {
     const autoApproveRef = useRef<'off'|'operation'|'pool'>('off');
     const [dragColIdx, setDragColIdx] = useState<number|null>(null);
     const [pageSize, setPageSize] = useState<number>(15);
+    const colOrderRef = useRef<string[]>(ALL_COL_KEYS);
+    useEffect(() => { colOrderRef.current = colOrder; }, [colOrder]);
 
     // Inline cell editing state
     const [editingCell, setEditingCell] = useState<{ id: string; field: string; value: any } | null>(null);
@@ -870,8 +872,8 @@ const TransfersPage: React.FC = () => {
     const totalWidth = sortedColumns.reduce((sum: number, col: any) => sum + (col.width || 100), 0);
     const activeFilterCount = Object.values(colFilters).filter(f=>f.text||(f.statuses?.length)||f.dateRange||f.minPrice!=null||f.maxPrice!=null).length;
 
-    // Reorder-capable keys (action stays fixed at left)
-    const reorderableKeys = effectiveColOrder.filter(k => k !== 'action');
+    // Reorder-capable keys (action stays fixed at left) - use ref for live updates
+    const reorderableKeys = (colOrderRef.current.length > 0 ? colOrderRef.current : ALL_COL_KEYS).filter(k => k !== 'action');
 
     const colManagerContent = (
         <div style={{width:280}}>
@@ -887,16 +889,20 @@ const TransfersPage: React.FC = () => {
                         onDragOver={(e) => {
                             e.preventDefault();
                             if (dragColIdx === null || dragColIdx === idx) return;
-                            // Swap positions
-                            const newOrder = [...effectiveColOrder];
+                            // Use colOrderRef for fresh value
+                            const currentOrder = colOrderRef.current.length > 0 ? colOrderRef.current : ALL_COL_KEYS;
+                            const newOrder = [...currentOrder];
                             const [removed] = newOrder.splice(dragColIdx, 1);
                             newOrder.splice(idx, 0, removed);
                             setColOrder(newOrder);
+                            colOrderRef.current = newOrder; // Update ref immediately
                             setDragColIdx(idx);
                         }}
                         onDragEnd={() => {
                             setDragColIdx(null);
-                            savePreferences({ colOrder: effectiveColOrder });
+                            // Save using ref (has latest value)
+                            const finalOrder = colOrderRef.current.length > 0 ? colOrderRef.current : ALL_COL_KEYS;
+                            savePreferences({ colOrder: finalOrder });
                         }}
                         style={{
                             display:'flex',alignItems:'center',justifyContent:'space-between',
