@@ -30,10 +30,53 @@ dayjs.locale('tr');
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
 
-// ─── Resizable Column Header ─────────────────────────────────────────────────
-const ResizableTitle = (props: any) => {
-    const { onResize, width, ...restProps } = props;
-    if (!width) return <th {...restProps} />;
+// ─── Draggable + Resizable Column Header ────────────────────────────────────
+// Global drag state for column reorder (shared across all headers)
+let __dragColKey: string | null = null;
+
+const DraggableResizableTitle = (props: any) => {
+    const { onResize, width, colKey, onColDrop, ...restProps } = props;
+
+    const handleDragStart = (e: React.DragEvent) => {
+        if (!colKey || colKey === 'action') return;
+        __dragColKey = colKey;
+        e.dataTransfer.effectAllowed = 'move';
+        (e.currentTarget as HTMLElement).style.opacity = '0.5';
+    };
+    const handleDragOver = (e: React.DragEvent) => {
+        e.preventDefault();
+        if (!colKey || colKey === 'action' || !__dragColKey || __dragColKey === colKey) return;
+        e.dataTransfer.dropEffect = 'move';
+        (e.currentTarget as HTMLElement).style.borderLeft = '3px solid #6366f1';
+    };
+    const handleDragLeave = (e: React.DragEvent) => {
+        (e.currentTarget as HTMLElement).style.borderLeft = '';
+    };
+    const handleDrop = (e: React.DragEvent) => {
+        e.preventDefault();
+        (e.currentTarget as HTMLElement).style.borderLeft = '';
+        if (!__dragColKey || __dragColKey === colKey || !colKey || colKey === 'action') return;
+        onColDrop?.(__dragColKey, colKey);
+        __dragColKey = null;
+    };
+    const handleDragEnd = (e: React.DragEvent) => {
+        (e.currentTarget as HTMLElement).style.opacity = '1';
+        __dragColKey = null;
+    };
+
+    const draggable = colKey && colKey !== 'action';
+
+    if (!width) return (
+        <th {...restProps}
+            draggable={draggable}
+            onDragStart={handleDragStart}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            onDragEnd={handleDragEnd}
+            style={{ ...restProps.style, cursor: draggable ? 'grab' : undefined }}
+        />
+    );
     return (
         <Resizable
             width={width}
@@ -47,7 +90,15 @@ const ResizableTitle = (props: any) => {
             onResize={onResize}
             draggableOpts={{ enableUserSelectHack: false }}
         >
-            <th {...restProps} style={{ ...restProps.style, position: 'relative' }} />
+            <th {...restProps}
+                draggable={draggable}
+                onDragStart={handleDragStart}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                onDragEnd={handleDragEnd}
+                style={{ ...restProps.style, position: 'relative', cursor: draggable ? 'grab' : undefined }}
+            />
         </Resizable>
     );
 };
@@ -474,9 +525,24 @@ const TransfersPage: React.FC = () => {
         setColWidths(prev => ({ ...prev, [key]: Math.max(50, size.width) }));
     }, []);
 
-    // Table components — enables resizable headers
+    // Handle column drop (reorder)
+    const handleColDrop = useCallback((dragKey: string, dropKey: string) => {
+        const currentOrder = colOrderRef.current.length > 0 ? [...colOrderRef.current] : [...ALL_COL_KEYS];
+        const dragIdx = currentOrder.indexOf(dragKey);
+        const dropIdx = currentOrder.indexOf(dropKey);
+        if (dragIdx === -1 || dropIdx === -1) return;
+        const [removed] = currentOrder.splice(dragIdx, 1);
+        currentOrder.splice(dropIdx, 0, removed);
+        colOrderRef.current = currentOrder;
+        setColOrder(currentOrder);
+        savePreferences({ colOrder: currentOrder });
+    }, []);
+
+    // Table components — enables resizable + draggable headers
     const tableComponents = {
-        header: { cell: ResizableTitle },
+        header: {
+            cell: (cellProps: any) => <DraggableResizableTitle {...cellProps} onColDrop={handleColDrop} />
+        },
     };
 
     const savePreferences = (updates: any) => {
@@ -734,6 +800,7 @@ const TransfersPage: React.FC = () => {
             onTitleChange={handleTitleChange} onFilter={handleApplyFilter} onClearFilter={handleClearFilter} />,
         onHeaderCell: (col: any) => ({
             width: col.width,
+            colKey: key,
             onResize: handleResize(key),
         }),
     });
