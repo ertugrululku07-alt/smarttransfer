@@ -1256,8 +1256,8 @@ export default function OperationsPage() {
                     });
                 }
 
-                // NEW: Exclude PENDING bookings (they haven't been confirmed onto operations yet)
-                data = data.filter((i: any) => i.status !== 'PENDING');
+                // Exclude PENDING and CANCELLED bookings from operations view
+                data = data.filter((i: any) => i.status !== 'PENDING' && i.status !== 'CANCELLED');
 
                 if (filters.transferType !== 'ALL') {
                     data = data.filter((i: any) => i.transferType === filters.transferType);
@@ -1751,16 +1751,34 @@ export default function OperationsPage() {
     };
 
     // ---- Operations Mode (Private / Shuttle) ----
-    const [operationsMode, setOperationsMode] = useState<'private' | 'shuttle' | 'completed'>('private');
+    const [operationsMode, setOperationsMode] = useState<'private' | 'shuttle' | 'completed' | 'vehicles'>('private');
+
+    // ---- Vehicle Availability State ----
+    const [vehicleAvailability, setVehicleAvailability] = useState<any[]>([]);
+    const [vehicleLoading, setVehicleLoading] = useState(false);
+    const [vehicleDate, setVehicleDate] = useState(dayjs());
+
+    const fetchVehicleAvailability = async (date?: dayjs.Dayjs) => {
+        setVehicleLoading(true);
+        try {
+            const d = (date || vehicleDate).format('YYYY-MM-DD');
+            const res = await apiClient.get(`/api/operations/vehicle-availability?date=${d}`);
+            if (res.data.success) setVehicleAvailability(res.data.data);
+        } catch { message.error('Araç verileri alınamadı'); }
+        finally { setVehicleLoading(false); }
+    };
 
     // Sync mode change → automatically update the transferType filter
-    const handleModeChange = (mode: 'private' | 'shuttle' | 'completed') => {
+    const handleModeChange = (mode: 'private' | 'shuttle' | 'completed' | 'vehicles') => {
         setOperationsMode(mode);
         if (mode === 'private') {
             setFilters(prev => ({ ...prev, transferType: 'PRIVATE' }));
         }
         if (mode === 'completed') {
             fetchCompletedBookings();
+        }
+        if (mode === 'vehicles') {
+            fetchVehicleAvailability();
         }
     };
 
@@ -2432,6 +2450,12 @@ export default function OperationsPage() {
                     .completed-row-private:hover td {
                         background: #f3e8ff !important;
                     }
+                    .vehicle-row-busy td {
+                        background: #fef9ec !important;
+                    }
+                    .vehicle-row-busy:hover td {
+                        background: #fef3c7 !important;
+                    }
                 `}</style>
 
                 <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 64px)', overflow: 'hidden' }}>
@@ -2448,11 +2472,12 @@ export default function OperationsPage() {
                             <Space size={8} wrap>
                                 <Segmented
                                     value={operationsMode}
-                                    onChange={(v) => handleModeChange(v as 'private' | 'shuttle' | 'completed')}
+                                    onChange={(v) => handleModeChange(v as 'private' | 'shuttle' | 'completed' | 'vehicles')}
                                     options={[
                                         { label: '🚗 Özel Transferler', value: 'private' },
                                         { label: '🚌 Shuttle Seferleri', value: 'shuttle' },
                                         { label: '✅ Tamamlanan Operasyonlar', value: 'completed' },
+                                        { label: '🚚 Araç Listesi', value: 'vehicles' },
                                     ]}
                                     style={{ fontWeight: 600, fontSize: 13, background: '#f0f4ff' }}
                                 />
@@ -2662,7 +2687,7 @@ export default function OperationsPage() {
                         </div>
 
                         {/* Row 2: Compact filters (hidden in completed mode — has own filter bar) */}
-                        <Row gutter={[8, 8]} align="middle" style={{ display: operationsMode === 'completed' ? 'none' : undefined }}>
+                        <Row gutter={[8, 8]} align="middle" style={{ display: (operationsMode === 'completed' || operationsMode === 'vehicles') ? 'none' : undefined }}>
                             <Col xs={12} sm={8} md={5} lg={4}>
                                 <RangePicker
                                     size="small"
@@ -3645,6 +3670,104 @@ export default function OperationsPage() {
                         </DndContext>
                     </div>
                 )}
+
+                    {/* ── VEHICLE AVAILABILITY PANEL ── */}
+                    {operationsMode === 'vehicles' && (
+                    <div style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
+                        {/* Vehicle Filter Bar */}
+                        <div style={{
+                            background: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)',
+                            borderBottom: '1px solid #93c5fd',
+                            padding: '12px 20px',
+                            display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap'
+                        }}>
+                            <Text strong style={{ color: '#1e40af' }}>🚚 Araç Doluluk Durumu</Text>
+                            <DatePicker
+                                value={vehicleDate}
+                                onChange={(d) => { if (d) { setVehicleDate(d); fetchVehicleAvailability(d); } }}
+                                format="DD.MM.YYYY"
+                                size="small"
+                                style={{ width: 140 }}
+                                allowClear={false}
+                            />
+                            <Button size="small" icon={<ReloadOutlined />} onClick={() => fetchVehicleAvailability()} loading={vehicleLoading}>Yenile</Button>
+                            <div style={{ marginLeft: 'auto', display: 'flex', gap: 12 }}>
+                                <Tag color="green" style={{ fontWeight: 700 }}>
+                                    Boş: {vehicleAvailability.filter(v => v.isFree).length}
+                                </Tag>
+                                <Tag color="orange" style={{ fontWeight: 700 }}>
+                                    Dolu: {vehicleAvailability.filter(v => !v.isFree).length}
+                                </Tag>
+                                <Tag color="blue" style={{ fontWeight: 700 }}>
+                                    Toplam: {vehicleAvailability.length}
+                                </Tag>
+                            </div>
+                        </div>
+
+                        {/* Vehicle Table */}
+                        <div style={{ flex: 1, overflow: 'auto', padding: '12px 20px' }}>
+                            <Table
+                                dataSource={vehicleAvailability}
+                                rowKey="id"
+                                size="small"
+                                loading={vehicleLoading}
+                                pagination={false}
+                                scroll={{ y: 'calc(100vh - 320px)' }}
+                                rowClassName={(r: any) => r.isFree ? '' : 'vehicle-row-busy'}
+                                columns={[
+                                    {
+                                        title: 'PLAKA', dataIndex: 'plateNumber', key: 'plate', width: 110, fixed: 'left' as const,
+                                        sorter: (a: any, b: any) => a.plateNumber.localeCompare(b.plateNumber),
+                                        render: (v: string) => <Tag color="blue" style={{ fontWeight: 700, fontSize: 11, margin: 0 }}>{v}</Tag>
+                                    },
+                                    {
+                                        title: 'ARAÇ', key: 'vehicle', width: 160,
+                                        render: (_: any, r: any) => (
+                                            <div style={{ lineHeight: 1.3 }}>
+                                                <div style={{ fontWeight: 700, fontSize: 12, color: '#1e1b4b' }}>{r.brand} {r.model}</div>
+                                                <div style={{ fontSize: 10, color: '#6b7280' }}>{r.vehicleType} • {r.color}</div>
+                                            </div>
+                                        )
+                                    },
+                                    {
+                                        title: 'DURUM', key: 'status', width: 100, align: 'center' as const,
+                                        sorter: (a: any, b: any) => a.bookingCount - b.bookingCount,
+                                        render: (_: any, r: any) => r.isFree
+                                            ? <Tag color="success" style={{ fontWeight: 700 }}>✅ Boş</Tag>
+                                            : <Tag color="warning" style={{ fontWeight: 700 }}>{r.bookingCount} İş</Tag>
+                                    },
+                                    {
+                                        title: 'İŞ SAYISI', dataIndex: 'bookingCount', key: 'count', width: 90, align: 'center' as const,
+                                        sorter: (a: any, b: any) => a.bookingCount - b.bookingCount,
+                                        render: (v: number) => (
+                                            <span style={{
+                                                fontWeight: 700, fontSize: 14,
+                                                color: v === 0 ? '#10b981' : v <= 2 ? '#f59e0b' : '#ef4444'
+                                            }}>{v}</span>
+                                        )
+                                    },
+                                    {
+                                        title: 'ATANAN TRANSFERLER', key: 'bookings', width: 400,
+                                        render: (_: any, r: any) => {
+                                            if (!r.assignedBookings.length) return <Text type="secondary" style={{ fontSize: 11 }}>Atanmış transfer yok</Text>;
+                                            return (
+                                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                                                    {r.assignedBookings.map((b: any, i: number) => (
+                                                        <Tooltip key={i} title={`${b.passengerName} • ${dayjs(b.pickupTime).format('HH:mm')}`}>
+                                                            <Tag color="processing" style={{ fontSize: 10, margin: 0, cursor: 'pointer' }}>
+                                                                {b.bookingNumber} ({dayjs(b.pickupTime).format('HH:mm')})
+                                                            </Tag>
+                                                        </Tooltip>
+                                                    ))}
+                                                </div>
+                                            );
+                                        }
+                                    },
+                                ]}
+                            />
+                        </div>
+                    </div>
+                    )}
 
                     {/* ── COMPLETED OPERATIONS PANEL ── */}
                     {operationsMode === 'completed' && (

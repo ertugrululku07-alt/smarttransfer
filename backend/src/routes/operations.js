@@ -317,6 +317,82 @@ router.get('/driver-availability', authMiddleware, async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// GET /api/operations/vehicle-availability?date=YYYY-MM-DD
+// Returns all vehicles with their assigned booking count for the given date
+// ---------------------------------------------------------------------------
+router.get('/vehicle-availability', authMiddleware, async (req, res) => {
+    try {
+        const { date } = req.query;
+        if (!date) {
+            return res.status(400).json({ success: false, error: 'date zorunlu' });
+        }
+
+        const tenantId = req.tenant?.id;
+        const TZ_OFFSET_MS = 3 * 60 * 60 * 1000;
+        const dayStart = new Date(new Date(`${date}T00:00:00.000Z`).getTime() - TZ_OFFSET_MS);
+        const dayEnd = new Date(new Date(`${date}T23:59:59.999Z`).getTime() - TZ_OFFSET_MS);
+
+        // Fetch all active vehicles
+        const vehicles = await prisma.vehicle.findMany({
+            where: { tenantId, status: 'ACTIVE' },
+            include: { vehicleType: { select: { name: true } } }
+        });
+
+        // Fetch all bookings on that date (confirmed/in-progress, not cancelled/pending)
+        const bookings = await prisma.booking.findMany({
+            where: {
+                productType: 'TRANSFER',
+                startDate: { gte: dayStart, lte: dayEnd },
+                status: { notIn: ['CANCELLED', 'PENDING'] }
+            },
+            select: {
+                id: true,
+                bookingNumber: true,
+                metadata: true,
+                startDate: true,
+                contactName: true,
+                status: true
+            }
+        });
+
+        // Group bookings by vehicle
+        const bookingsByVehicle = {};
+        bookings.forEach(b => {
+            const vId = b.metadata?.assignedVehicleId || b.metadata?.vehicleId;
+            if (vId) {
+                if (!bookingsByVehicle[vId]) bookingsByVehicle[vId] = [];
+                bookingsByVehicle[vId].push({
+                    bookingNumber: b.bookingNumber,
+                    passengerName: b.contactName,
+                    pickupTime: b.startDate,
+                    status: b.status
+                });
+            }
+        });
+
+        const result = vehicles.map(v => ({
+            id: v.id,
+            plateNumber: v.plateNumber,
+            brand: v.brand,
+            model: v.model,
+            color: v.color,
+            vehicleType: v.vehicleType?.name || '-',
+            assignedBookings: bookingsByVehicle[v.id] || [],
+            bookingCount: (bookingsByVehicle[v.id] || []).length,
+            isFree: !(bookingsByVehicle[v.id] || []).length
+        }));
+
+        // Sort: busy first, then free
+        result.sort((a, b) => b.bookingCount - a.bookingCount);
+
+        res.json({ success: true, data: result });
+    } catch (error) {
+        console.error('vehicle-availability error:', error);
+        res.status(500).json({ success: false, error: 'Araç müsaitlik bilgisi alınamadı' });
+    }
+});
+
+// ---------------------------------------------------------------------------
 // POST /api/operations/ai-suggest
 // Body: { bookingId }
 // Returns AI-powered driver + vehicle suggestion
