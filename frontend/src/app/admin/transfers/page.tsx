@@ -367,6 +367,13 @@ const TransfersPage: React.FC = () => {
     const colOrderRef = useRef<string[]>(ALL_COL_KEYS);
     useEffect(() => { colOrderRef.current = colOrder; }, [colOrder]);
 
+    // Cancel modal state
+    const [cancelModalOpen, setCancelModalOpen] = useState(false);
+    const [cancelTargetId, setCancelTargetId] = useState<string|null>(null);
+    const [cancelReason, setCancelReason] = useState<string|null>(null);
+    const [cancelNote, setCancelNote] = useState<string>('');
+    const [cancelSaving, setCancelSaving] = useState(false);
+
     // Inline cell editing state
     const [editingCell, setEditingCell] = useState<{ id: string; field: string; value: any } | null>(null);
     const [cellSaving, setCellSaving] = useState(false);
@@ -545,6 +552,32 @@ const TransfersPage: React.FC = () => {
                 if (selectedBooking?.id === id) setDetailModalVisible(false);
             }
         } catch { message.error('İşlem başarısız'); }
+    };
+
+    const openCancelModal = (id: string) => {
+        setCancelTargetId(id);
+        setCancelReason(null);
+        setCancelNote('');
+        setCancelModalOpen(true);
+    };
+
+    const handleConfirmCancel = async () => {
+        if (!cancelTargetId || !cancelReason) { message.warning('Lütfen iptal sebebi seçin'); return; }
+        setCancelSaving(true);
+        try {
+            const res = await apiClient.put(`/api/transfer/bookings/${cancelTargetId}/status`, {
+                status: 'CANCELLED',
+                cancellationReason: cancelReason,
+                cancellationNote: cancelNote
+            });
+            if (res.data.success) {
+                message.success('Rezervasyon iptal edildi');
+                setCancelModalOpen(false);
+                fetchBookings();
+                if (selectedBooking?.id === cancelTargetId) setDetailModalVisible(false);
+            }
+        } catch { message.error('İptal işlemi başarısız'); }
+        finally { setCancelSaving(false); }
     };
 
     const handleConfirmPool = async () => {
@@ -844,7 +877,7 @@ const TransfersPage: React.FC = () => {
                   items.push({key:'op',label:'Onayla & Operasyona',icon:<SafetyCertificateOutlined style={{color:'#10b981'}}/>,onClick:()=>handleUpdateStatus(record.id,'CONFIRMED','IN_OPERATION')});
                   items.push({key:'pool',label:'Onayla & Havuza',icon:<TeamOutlined style={{color:'#06b6d4'}}/>,onClick:()=>{setActivePoolBooking(record);setPoolPriceInput(record.price||0);setPoolModalOpen(true);}});
                   items.push({type:'divider'} as any);
-                  items.push({key:'cancel',label:'İptal Et',icon:<CloseCircleOutlined style={{color:'#ef4444'}}/>,danger:true,onClick:()=>handleUpdateStatus(record.id,'CANCELLED')});
+                  items.push({key:'cancel',label:'İptal Et',icon:<CloseCircleOutlined style={{color:'#ef4444'}}/>,danger:true,onClick:()=>openCancelModal(record.id)});
               }
               if (record.status==='CONFIRMED' && !['IN_OPERATION','IN_POOL'].includes(record.operationalStatus||'')) {
                   items.push({type:'divider'} as any);
@@ -872,8 +905,8 @@ const TransfersPage: React.FC = () => {
     const totalWidth = sortedColumns.reduce((sum: number, col: any) => sum + (col.width || 100), 0);
     const activeFilterCount = Object.values(colFilters).filter(f=>f.text||(f.statuses?.length)||f.dateRange||f.minPrice!=null||f.maxPrice!=null).length;
 
-    // Reorder-capable keys (action stays fixed at left) - use ref for live updates
-    const reorderableKeys = (colOrderRef.current.length > 0 ? colOrderRef.current : ALL_COL_KEYS).filter(k => k !== 'action');
+    // Reorder-capable keys (action stays fixed at left)
+    const reorderableKeys = effectiveColOrder.filter(k => k !== 'action');
 
     const colManagerContent = (
         <div style={{width:280}}>
@@ -889,20 +922,21 @@ const TransfersPage: React.FC = () => {
                         onDragOver={(e) => {
                             e.preventDefault();
                             if (dragColIdx === null || dragColIdx === idx) return;
-                            // Use colOrderRef for fresh value
-                            const currentOrder = colOrderRef.current.length > 0 ? colOrderRef.current : ALL_COL_KEYS;
-                            const newOrder = [...currentOrder];
-                            const [removed] = newOrder.splice(dragColIdx, 1);
-                            newOrder.splice(idx, 0, removed);
+                            // Reorder within reorderableKeys, then prepend fixed keys
+                            const currentReorderable = colOrderRef.current.length > 0
+                                ? colOrderRef.current.filter(k => k !== 'action')
+                                : ALL_COL_KEYS.filter(k => k !== 'action');
+                            const newReorderable = [...currentReorderable];
+                            const [removed] = newReorderable.splice(dragColIdx, 1);
+                            newReorderable.splice(idx, 0, removed);
+                            const newOrder = ['action', ...newReorderable];
+                            colOrderRef.current = newOrder;
                             setColOrder(newOrder);
-                            colOrderRef.current = newOrder; // Update ref immediately
                             setDragColIdx(idx);
                         }}
                         onDragEnd={() => {
                             setDragColIdx(null);
-                            // Save using ref (has latest value)
-                            const finalOrder = colOrderRef.current.length > 0 ? colOrderRef.current : ALL_COL_KEYS;
-                            savePreferences({ colOrder: finalOrder });
+                            savePreferences({ colOrder: colOrderRef.current });
                         }}
                         style={{
                             display:'flex',alignItems:'center',justifyContent:'space-between',
@@ -1185,6 +1219,44 @@ const TransfersPage: React.FC = () => {
                             )}
                         </Space>
                     )}
+                </Modal>
+
+                {/* Cancel Modal */}
+                <Modal
+                    title={<Space><CloseCircleOutlined style={{color:'#ef4444'}}/>Rezervasyon İptal</Space>}
+                    open={cancelModalOpen}
+                    onCancel={() => setCancelModalOpen(false)}
+                    onOk={handleConfirmCancel}
+                    okText="İptal Et" cancelText="Vazgeç"
+                    okButtonProps={{ danger: true, loading: cancelSaving, disabled: !cancelReason }}
+                    width={420}
+                >
+                    <div style={{display:'flex',flexDirection:'column',gap:16,marginTop:12}}>
+                        <div>
+                            <Text strong style={{display:'block',marginBottom:6}}>İptal Sebebi <span style={{color:'#ef4444'}}>*</span></Text>
+                            <Select
+                                style={{width:'100%'}}
+                                placeholder="Sebep seçin..."
+                                value={cancelReason}
+                                onChange={(v) => setCancelReason(v)}
+                                options={[
+                                    {value:'customer_request', label:'Müşteri İsteği'},
+                                    {value:'wrong_booking',    label:'Yanlış Rezervasyon'},
+                                    {value:'no_operation',     label:'Operasyon Yapılamıyor'},
+                                    {value:'other',            label:'Diğer'},
+                                ]}
+                            />
+                        </div>
+                        <div>
+                            <Text strong style={{display:'block',marginBottom:6}}>Açıklama</Text>
+                            <Input.TextArea
+                                rows={3} placeholder="İptal detayı (opsiyonel)..."
+                                value={cancelNote}
+                                onChange={e => setCancelNote(e.target.value)}
+                                style={{borderRadius:8}}
+                            />
+                        </div>
+                    </div>
                 </Modal>
 
                 {/* Pool Modal */}
