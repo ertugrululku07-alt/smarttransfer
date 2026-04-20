@@ -780,17 +780,6 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                     let currentIsPickupZone = false;
 
                     for (const [zoneId, zoneData] of Object.entries(req.zoneOverages)) {
-                        // Correct overage based on hub detection:
-                        // Hub side distance is "expected" (part of zone price), overage is always non-hub side.
-                        let zoneOverage = zoneData.overage;
-                        if (originalPickupHubCode && zoneData.distFromEnd != null) {
-                            // Pickup is hub → overage is dropoff side (distance from route end to polygon)
-                            zoneOverage = zoneData.distFromEnd;
-                        } else if (originalDropoffHubCode && zoneData.distFromStart != null) {
-                            // Dropoff is hub → overage is pickup side (distance from route start to polygon)
-                            zoneOverage = zoneData.distFromStart;
-                        }
-                        console.log(`[ZoneOverageCorrection] zone=${zoneData.zoneName}, raw=${zoneData.overage?.toFixed?.(1)}, corrected=${zoneOverage?.toFixed?.(1)}, distFromStart=${zoneData.distFromStart?.toFixed?.(1)}, distFromEnd=${zoneData.distFromEnd?.toFixed?.(1)}, pickupHub=${originalPickupHubCode}, dropoffHub=${originalDropoffHubCode}`);
                         const zoneArea = zoneData.area;
                         const isPickupZone = pickupZoneIds.has(zoneId);
 
@@ -824,6 +813,22 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                         }
 
                         if (candidateConfig) {
+                            // Correct overage calculation based on which end is the HUB for THIS specific pricing configuration
+                            let zoneOverage = zoneData.overage; 
+                            
+                            // If the hub location for this price is the PICKUP point, we expect the destination to be the ZONE.
+                            // Therefore, any overage should be measured on the DROPOFF side (distFromEnd)
+                            if (candidateConfig.baseLocation === originalPickupHubCode && zoneData.distFromEnd != null) {
+                                zoneOverage = zoneData.distFromEnd;
+                            } 
+                            // If the hub location for this price is the DROPOFF point, we expect the start to be the ZONE.
+                            // Therefore, any overage should be measured on the PICKUP side (distFromStart)
+                            else if (candidateConfig.baseLocation === originalDropoffHubCode && zoneData.distFromStart != null) {
+                                zoneOverage = zoneData.distFromStart;
+                            }
+
+                            console.log(`[ZoneOverageCorrection] zone=${zoneData.zoneName}, raw=${zoneData.overage?.toFixed?.(1)}, corrected=${zoneOverage?.toFixed?.(1)}, configBase=${candidateConfig.baseLocation}`);
+
                             // Priority: 1) pickup zone with smallest area, 2) lowest overage with smallest area
                             const isBetter = 
                                 // New candidate is a pickup zone but current is not
