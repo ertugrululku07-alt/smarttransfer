@@ -590,17 +590,35 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                         : route.pickupPolygon;
 
                     if (Array.isArray(polygon) && polygon.length > 2) {
-                        // Point in Polygon Algorithm (Ray Casting)
-                        let inside = false;
-                        for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-                            const xi = polygon[i].lng, yi = polygon[i].lat;
-                            const xj = polygon[j].lng, yj = polygon[j].lat;
-
-                            const intersect = ((yi > userLat) !== (yj > userLat))
-                                && (userLng < (xj - xi) * (userLat - yi) / (yj - yi) + xi);
-                            if (intersect) inside = !inside;
+                        try {
+                            const pt = turf.point([userLng, userLat]);
+                            
+                            // Close the polygon if not already closed
+                            let polyCoords = polygon.map(p => [p.lng, p.lat]);
+                            if (polyCoords[0][0] !== polyCoords[polyCoords.length - 1][0] || polyCoords[0][1] !== polyCoords[polyCoords.length - 1][1]) {
+                                polyCoords.push([...polyCoords[0]]);
+                            }
+                            
+                            const poly = turf.polygon([polyCoords]);
+                            let inside = turf.booleanPointInPolygon(pt, poly);
+                            
+                            if (inside) {
+                                isPickupMatch = true;
+                                route._overageKm = 0;
+                            } else {
+                                // Calculate distance to boundary
+                                const polygonBoundary = turf.polygonToLine(poly);
+                                const distToBoundary = turf.pointToLineDistance(pt, polygonBoundary, { units: 'kilometers' });
+                                
+                                // Hardcoded 50km overage limit for shuttles
+                                if (distToBoundary <= 50) {
+                                    isPickupMatch = true;
+                                    route._overageKm = distToBoundary;
+                                }
+                            }
+                        } catch (err) {
+                            console.error('Turf boundary calculation error for shuttle route:', err.message);
                         }
-                        isPickupMatch = inside;
                     }
                 }
 
@@ -734,23 +752,39 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
 
         const shuttleResults = matchingShuttles.map(s => {
             const baseShuttlePrice = Number(s.pricePerSeat) * Number(passengers);
-            const markedUpShuttlePrice = baseShuttlePrice * (1 + (agencyMarkup / 100));
-            console.log(`[Shuttle] route=${s.fromName}→${s.toName}, pricePerSeat=${s.pricePerSeat}, passengers=${passengers}, total=${markedUpShuttlePrice}`);
+            
+            // Apply overage price
+            let totalShuttlePrice = baseShuttlePrice;
+            let overageCharge = 0;
+            if (s._overageKm > 0 && s.extraKmPrice) {
+                overageCharge = s._overageKm * Number(s.extraKmPrice) * Number(passengers);
+                totalShuttlePrice += overageCharge;
+            }
+
+            const markedUpShuttlePrice = totalShuttlePrice * (1 + (agencyMarkup / 100));
+            console.log(`[Shuttle] route=${s.fromName}→${s.toName}, basePricePerSeat=${s.pricePerSeat}, overageKm=${s._overageKm?.toFixed(1)}, overageCharge=${overageCharge.toFixed(2)}, passengers=${passengers}, total=${markedUpShuttlePrice.toFixed(2)}`);
+
+            const vehicleData = s.vehicleType || s.vehicle || {};
+            const vehicleName = vehicleData.name || vehicleData.brand || 'Shuttle Bus';
+            const vehicleImage = vehicleData.image || vehicleData.metadata?.imageUrl || '/vehicles/sprinter.png';
+            const hasWifi = vehicleData.features?.includes('WiFi') || vehicleData.metadata?.hasWifi;
 
             return {
                 id: `shuttle_${s.id}`,
-                vehicleType: `${s.vehicle?.brand || 'Shuttle'} (Paylaşımlı)`, // More descriptive
+                vehicleType: `${vehicleName} (Paylaşımlı)`, // More descriptive
                 vehicleClass: 'SHUTTLE',
                 vendor: 'SmartShuttle',
                 capacity: s.maxSeats,
                 luggage: 1, // Per person
                 price: Number(markedUpShuttlePrice.toFixed(2)),
-                basePrice: baseShuttlePrice, // Store original B2B cost
+                basePrice: totalShuttlePrice, // Store original B2B cost including overage
+                overageKm: s._overageKm > 0 ? Number(s._overageKm.toFixed(1)) : 0,
+                overageCharge: overageCharge,
                 currency: s.currency || tenantDefaultCurrency, // Use route's own currency
-                features: ['Belirli Kalkış Saatleri', 'Ekonomik', 'Paylaşımlı Yolculuk', ...(s.vehicle?.metadata?.hasWifi ? ['WiFi'] : [])],
+                features: ['Belirli Kalkış Saatleri', 'Ekonomik', 'Paylaşımlı Yolculuk', ...(hasWifi ? ['WiFi'] : [])],
                 cancellationPolicy: '24 saat öncesine kadar ücretsiz iptal',
                 estimatedDuration: 'Değişken', // Depends on stops
-                image: s.vehicle?.metadata?.imageUrl || '/vehicles/sprinter.png',
+                image: vehicleImage,
                 isShuttle: true,
                 departureTimes: s.departureTimes, // Pass departure times to frontend
                 matchedMasterTime: s._matchedMasterTime,

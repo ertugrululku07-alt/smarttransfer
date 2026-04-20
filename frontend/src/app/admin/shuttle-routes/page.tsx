@@ -49,14 +49,17 @@ const { RangePicker } = DatePicker;
 const { Title, Text } = Typography;
 
 interface ShuttleRoute {
-  id: number;
-  vehicleId: number;
+  id: string;
+  vehicleId?: string | null;
+  vehicleTypeId?: string | null;
   vehicle?: { name: string; plateNumber: string; brand?: string; model?: string };
+  vehicleType?: { id: string; name: string; capacity: number; category?: string };
   fromName: string;
   toName: string;
   scheduleType: 'DAILY' | 'WEEKLY' | 'CUSTOM';
   departureTimes: string[];
   pricePerSeat: number;
+  extraKmPrice?: number | null;
   currency?: string;
   maxSeats: number;
   isActive: boolean;
@@ -70,13 +73,11 @@ interface ShuttleRoute {
   metadata?: any;
 }
 
-interface Vehicle {
-  id: number;
+interface VehicleType {
+  id: string;
   name: string;
-  plateNumber: string;
-  vehicleType: string;
   capacity: number;
-  usageType?: string | string[] | null;
+  category: string;
 }
 
 interface Zone {
@@ -109,7 +110,7 @@ const AdminShuttleRoutesPage: React.FC = () => {
   const [form] = Form.useForm();
   const [editingRoute, setEditingRoute] = useState<ShuttleRoute | null>(null);
   const [shuttleRoutes, setShuttleRoutes] = useState<ShuttleRoute[]>([]);
-  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [vehicleTypes, setVehicleTypes] = useState<VehicleType[]>([]);
   const [currencies, setCurrencies] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -145,13 +146,13 @@ const AdminShuttleRoutesPage: React.FC = () => {
     }
   };
 
-  const fetchVehicles = async () => {
+  const fetchVehicleTypes = async () => {
     try {
-      const response = await apiClient.get('/api/vehicles');
-      setVehicles(response.data.data);
+      const response = await apiClient.get('/api/vehicle-types');
+      setVehicleTypes(response.data.data);
     } catch (error) {
-      message.error('Araçlar alınırken hata oluştu.');
-      console.error('Error fetching vehicles:', error);
+      message.error('Araç tipleri alınırken hata oluştu.');
+      console.error('Error fetching vehicle types:', error);
     }
   };
 
@@ -193,7 +194,7 @@ const AdminShuttleRoutesPage: React.FC = () => {
 
   useEffect(() => {
     fetchShuttleRoutes();
-    fetchVehicles();
+    fetchVehicleTypes();
     fetchCurrencies();
     fetchZones();
   }, []);
@@ -233,7 +234,7 @@ const AdminShuttleRoutesPage: React.FC = () => {
       }
 
       form.setFieldsValue({
-        vehicleId: route.vehicleId,
+        vehicleTypeId: route.vehicleTypeId || route.vehicleId || undefined,
         fromName: route.fromName,
         fromZoneId: matchedZone?.id || undefined,
         toName: route.toName,
@@ -241,6 +242,7 @@ const AdminShuttleRoutesPage: React.FC = () => {
         scheduleType: route.scheduleType,
         departureTimes: route.departureTimes,
         pricePerSeat: route.pricePerSeat,
+        extraKmPrice: route.extraKmPrice,
         currency: route.currency || currencies.find((c: any) => c.isDefault)?.code || 'EUR',
         maxSeats: route.maxSeats,
         pickupLeadHours: route.pickupLeadHours ? Number(route.pickupLeadHours) : undefined,
@@ -321,12 +323,13 @@ const AdminShuttleRoutesPage: React.FC = () => {
       }
 
       const payload = {
-        vehicleId: values.vehicleId,
+        vehicleTypeId: values.vehicleTypeId,
         fromName: resolvedFromName,
         toName: resolvedToName,
         scheduleType: values.scheduleType,
         departureTimes: formattedDepartureTimes.sort(),
         pricePerSeat: Number(values.pricePerSeat),
+        extraKmPrice: values.extraKmPrice ? Number(values.extraKmPrice) : null,
         currency: values.currency || currencies.find((c: any) => c.isDefault)?.code || 'EUR',
         maxSeats: Number(values.maxSeats),
         isActive: values.isActive ?? true,
@@ -378,7 +381,7 @@ const AdminShuttleRoutesPage: React.FC = () => {
     }
   };
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (id: string) => {
     setLoading(true);
     try {
       await apiClient.delete(`/api/shuttle-routes/${id}`);
@@ -392,7 +395,7 @@ const AdminShuttleRoutesPage: React.FC = () => {
     }
   };
 
-  const shuttleVehicles = vehicles.filter((v) => Array.isArray(v.usageType) ? v.usageType.includes('SHUTTLE') : v.usageType === 'SHUTTLE');
+
   const activeCount = shuttleRoutes.filter(r => r.isActive).length;
 
   const columns: any[] = [
@@ -401,9 +404,9 @@ const AdminShuttleRoutesPage: React.FC = () => {
       key: 'route',
       width: 320,
       render: (_: any, record: ShuttleRoute) => {
-        const vehicle = record.vehicle;
-        const vehicleName = vehicle ? `${(vehicle as any).brand || ''} ${(vehicle as any).model || ''}`.trim() : 'N/A';
-        const plate = vehicle ? (vehicle as any).plateNumber : '';
+        const vehicleData = record.vehicleType || record.vehicle;
+        const vehicleName = vehicleData ? (vehicleData.name || (vehicleData as any).brand) : 'Sabit Shuttle';
+        const typeInfo = record.vehicleType ? `${record.vehicleType.category || ''} (${record.vehicleType.capacity || record.maxSeats} ${record.vehicleType.capacity ? 'Kişilik' : ''})` : '';
         return (
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
             <div style={{
@@ -436,7 +439,7 @@ const AdminShuttleRoutesPage: React.FC = () => {
               </div>
               <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 3, display: 'flex', alignItems: 'center', gap: 4 }}>
                 <CarOutlined style={{ fontSize: 11 }} />
-                {vehicleName} {plate ? <Tag style={{ margin: 0, fontSize: 11, lineHeight: '18px', padding: '0 5px', borderRadius: 4, fontFamily: 'monospace' }}>{plate}</Tag> : null}
+                {vehicleName} {typeInfo ? <Tag style={{ margin: 0, fontSize: 10, lineHeight: '18px', padding: '0 5px', borderRadius: 4, background: '#f8fafc' }}>{typeInfo}</Tag> : null}
               </div>
             </div>
           </div>
@@ -761,14 +764,14 @@ const AdminShuttleRoutesPage: React.FC = () => {
           <Form form={form} layout="vertical" name="shuttle_route_form" requiredMark={false}>
 
             <Form.Item
-              name="vehicleId"
-              label={<span style={{ fontWeight: 600, color: '#334155' }}>🚐 Araç</span>}
-              rules={[{ required: true, message: 'Lütfen bir araç seçin!' }]}
+              name="vehicleTypeId"
+              label={<span style={{ fontWeight: 600, color: '#334155' }}>🚐 Araç Tipi</span>}
+              rules={[{ required: true, message: 'Lütfen bir araç tipi seçin!' }]}
             >
-              <Select placeholder="Sabit hatlı shuttle aracı seçin" size="large" style={{ borderRadius: 10 }}>
-                {shuttleVehicles.map((vehicle) => (
-                  <Option key={vehicle.id} value={vehicle.id}>
-                    {vehicle.name} ({vehicle.plateNumber}) — {vehicle.vehicleType}
+              <Select placeholder="Sabit hatlı shuttle araç tipi seçin" size="large" style={{ borderRadius: 10 }}>
+                {vehicleTypes.filter(vt => vt.category === 'VAN' || vt.category === 'MINIBUS' || vt.category === 'BUS').map((type) => (
+                  <Option key={type.id} value={type.id}>
+                    {type.name} ({type.capacity} Kişilik, {type.category})
                   </Option>
                 ))}
               </Select>
@@ -908,7 +911,7 @@ const AdminShuttleRoutesPage: React.FC = () => {
 
             {/* ===== PRICING ===== */}
             <Row gutter={16}>
-              <Col span={12}>
+              <Col span={8}>
                 <Form.Item label={<span style={{ fontWeight: 600, color: '#334155' }}><DollarOutlined style={{ color: '#6366f1' }} /> Kişi Başı Fiyat</span>} required>
                   <Input.Group compact>
                     <Form.Item name="pricePerSeat" noStyle rules={[{ required: true, message: 'Fiyat girin' }]}>
@@ -924,7 +927,12 @@ const AdminShuttleRoutesPage: React.FC = () => {
                   </Input.Group>
                 </Form.Item>
               </Col>
-              <Col span={12}>
+              <Col span={8}>
+                <Form.Item name="extraKmPrice" label={<span style={{ fontWeight: 600, color: '#334155' }}>📏 Aşım Ücreti (TL/km)</span>}>
+                  <Input type="number" min={0} step={0.01} placeholder="Örn: 10.00" />
+                </Form.Item>
+              </Col>
+              <Col span={8}>
                 <Form.Item name="maxSeats" label={<span style={{ fontWeight: 600, color: '#334155' }}>👤 Maks. Koltuk</span>} rules={[{ required: true, message: 'Sayı girin' }]}>
                   <Input type="number" min={1} placeholder="14" />
                 </Form.Item>

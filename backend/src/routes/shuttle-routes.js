@@ -22,7 +22,8 @@ router.get('/', async (req, res) => {
 
         const routes = await prisma.shuttleRoute.findMany({
             include: {
-                vehicle: true
+                vehicle: true,
+                vehicleType: true
             },
             orderBy: {
                 createdAt: 'desc'
@@ -43,19 +44,21 @@ router.post('/', authMiddleware, async (req, res) => {
     try {
         const data = req.body;
         // Basic validation
-        if (!data.vehicleId || !data.fromName || !data.toName) {
+        if ((!data.vehicleId && !data.vehicleTypeId) || !data.fromName || !data.toName) {
             return res.status(400).json({ success: false, error: 'Zorunlu alanlar eksik' });
         }
 
         const route = await prisma.shuttleRoute.create({
             data: {
                 tenantId: req.tenant?.id || null,
-                vehicleId: data.vehicleId,
+                vehicleId: data.vehicleId || null,
+                vehicleTypeId: data.vehicleTypeId || null,
                 fromName: data.fromName,
                 toName: data.toName,
                 scheduleType: data.scheduleType || 'DAILY',
                 departureTimes: data.departureTimes || [],
                 pricePerSeat: data.pricePerSeat,
+                extraKmPrice: data.extraKmPrice != null ? data.extraKmPrice : null,
                 currency: data.currency || 'EUR',
                 maxSeats: data.maxSeats,
                 isActive: data.isActive !== false,
@@ -105,12 +108,14 @@ router.post('/', authMiddleware, async (req, res) => {
 
             await prisma.shuttleRoute.create({
                 data: {
-                    vehicleId: data.vehicleId,     // Same vehicle
+                    vehicleId: data.vehicleId || null,
+                    vehicleTypeId: data.vehicleTypeId || null,
                     fromName: data.toName,         // Swap from Name
                     toName: data.fromName,         // Swap to Name
                     scheduleType: data.scheduleType || 'DAILY', // Same schedule type
                     departureTimes: data.returnDepartureTimes, // Use return times
                     pricePerSeat: data.pricePerSeat, // Same price
+                    extraKmPrice: data.extraKmPrice != null ? data.extraKmPrice : null,
                     currency: data.currency || 'EUR',
                     maxSeats: data.maxSeats,         // Same capacity
                     isActive: data.isActive !== false,
@@ -146,12 +151,14 @@ router.put('/:id', authMiddleware, async (req, res) => {
         const route = await prisma.shuttleRoute.update({
             where: { id },
             data: {
-                vehicleId: data.vehicleId,
+                vehicleId: data.vehicleId || null,
+                vehicleTypeId: data.vehicleTypeId || null,
                 fromName: data.fromName,
                 toName: data.toName,
                 scheduleType: data.scheduleType,
                 departureTimes: data.departureTimes,
                 pricePerSeat: data.pricePerSeat,
+                extraKmPrice: data.extraKmPrice != null ? data.extraKmPrice : null,
                 currency: data.currency,
                 maxSeats: data.maxSeats,
                 isActive: data.isActive,
@@ -170,12 +177,14 @@ router.put('/:id', authMiddleware, async (req, res) => {
         if (data.isBidirectional && data.returnDepartureTimes && data.returnDepartureTimes.length > 0) {
             await prisma.shuttleRoute.create({
                 data: {
-                    vehicleId: data.vehicleId,
+                    vehicleId: data.vehicleId || null,
+                    vehicleTypeId: data.vehicleTypeId || null,
                     fromName: data.toName,
                     toName: data.fromName,
                     scheduleType: data.scheduleType || 'DAILY',
                     departureTimes: data.returnDepartureTimes,
                     pricePerSeat: data.pricePerSeat,
+                    extraKmPrice: data.extraKmPrice != null ? data.extraKmPrice : null,
                     currency: data.currency || 'EUR',
                     maxSeats: data.maxSeats,
                     isActive: data.isActive !== false,

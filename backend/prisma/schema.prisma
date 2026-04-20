@@ -523,6 +523,7 @@ model VehicleType {
   zonePrices     VehicleTypeZonePrice[]
   contractPrices AgencyContractPrice[]
   contractMeta   AgencyContractMeta[]
+  shuttleRoutes  ShuttleRoute[]
 
   @@unique([tenantId, slug])
 }
@@ -1211,9 +1212,13 @@ model ShuttleRoute {
   id       String  @id @default(uuid())
   tenantId String?
 
-  // Vehicle Relation
-  vehicleId String
-  vehicle   Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  // Vehicle Relation (Legacy fallback)
+  vehicleId String?
+  vehicle   Vehicle? @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  // Vehicle Type Relation (New primary behavior)
+  vehicleTypeId String?
+  vehicleType   VehicleType? @relation(fields: [vehicleTypeId], references: [id], onDelete: Cascade)
 
   // Route Info
   fromName String
@@ -1230,6 +1235,7 @@ model ShuttleRoute {
 
   // Pricing & Capacity
   pricePerSeat    Decimal @db.Decimal(10, 2)
+  extraKmPrice    Decimal? @db.Decimal(10, 2) // Price for route overage per km
   currency        String  @default("EUR")
   maxSeats        Int
   pickupLeadHours Decimal? @db.Decimal(4, 1) // Hours before departure to pick up passenger
