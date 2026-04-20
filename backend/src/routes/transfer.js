@@ -2091,27 +2091,42 @@ router.patch('/bookings/:id', authMiddleware, async (req, res) => {
             data: updateData
         });
 
-        // Emit socket event if driver assigned
-        if (driverId) {
-            const io = req.app.get('io');
-            if (io) {
-                io.to(`user_${driverId}`).emit('operation_assigned', {
+        // Emit socket events for driver changes
+        const io = req.app.get('io');
+        const previousDriverId = req._auditPreviousState?.driverId;
+        const newDriverId = updated.driverId;
+
+        if (io) {
+            // If the driver changed from A to B, or was unassigned from A
+            if (previousDriverId && previousDriverId !== newDriverId) {
+                console.log(`[Socket] Emitting operation_unassigned to driver ${previousDriverId}`);
+                io.to(`user_${previousDriverId}`).emit('operation_unassigned', {
+                    bookingId: id
+                });
+            }
+
+            // If a new driver was assigned, or we are specifically just pushing an update to the already assigned driver
+            if (newDriverId && (driverId !== undefined || newDriverId !== previousDriverId)) {
+                console.log(`[Socket] Emitting operation_assigned to driver ${newDriverId}`);
+                io.to(`user_${newDriverId}`).emit('operation_assigned', {
                     bookingId: id,
                     bookingNumber: updated.bookingNumber,
                     pickup: updated.metadata?.pickup || 'Konum Belirtilmemiş',
                     start: updated.startDate
                 });
             }
+        }
 
-            // Send Expo Push Notification (works when app is closed/background)
+        // Send Expo Push Notification (works when app is closed/background) only for new assignments
+        if (newDriverId && newDriverId !== previousDriverId) {
             try {
-                const driver = await prisma.user.findUnique({ where: { id: driverId } });
-                console.log(`[Push] driverId=${driverId} found=${!!driver} pushToken=${driver?.pushToken}`);
+                const driver = await prisma.user.findUnique({ where: { id: newDriverId } });
+                console.log(`[Push] driverId=${newDriverId} found=${!!driver} pushToken=${driver?.pushToken}`);
 
                 // If not found by userId, try finding via personnel
                 let resolvedDriver = driver;
                 if (!resolvedDriver) {
-                    const personnel = await prisma.personnel.findFirst({ where: { id: driverId }, include: { user: true } });
+                    const personnel = await prisma.personnel.findFirst({ where: { id: newDriverId }, include: { user: true } });
                     resolvedDriver = personnel?.user || null;
                     if (resolvedDriver) console.log(`[Push] Resolved via personnel: userId=${resolvedDriver.id} pushToken=${resolvedDriver.pushToken}`);
                 }
@@ -2153,7 +2168,7 @@ router.patch('/bookings/:id', authMiddleware, async (req, res) => {
                             channelId: 'operations'
                         })
                     });
-                    console.log(`Push notification sent to driver ${driverId}`);
+                    console.log(`Push notification sent to driver ${newDriverId}`);
                 }
             } catch (pushErr) {
                 console.error('Push notification error (non-fatal):', pushErr.message);

@@ -85,9 +85,11 @@ export default function DashboardScreen() {
     };
     socket.on('booking_status_update', handleStatusUpdate);
     socket.on('operation_assigned', handleStatusUpdate);
+    socket.on('operation_unassigned', handleStatusUpdate);
     return () => {
       socket.off('booking_status_update', handleStatusUpdate);
       socket.off('operation_assigned', handleStatusUpdate);
+      socket.off('operation_unassigned', handleStatusUpdate);
     };
   }, [socket]);
 

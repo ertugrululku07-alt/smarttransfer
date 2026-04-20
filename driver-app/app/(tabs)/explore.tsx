@@ -89,7 +89,14 @@ export default function JobListScreen() {
     const handleUpdate = () => { setTimeout(() => fetchJobs(), 500); };
     socket.on('booking_status_update', handleUpdate);
     socket.on('booking_acknowledged', handleUpdate);
-    return () => { socket.off('booking_status_update', handleUpdate); socket.off('booking_acknowledged', handleUpdate); };
+    socket.on('operation_assigned', handleUpdate);
+    socket.on('operation_unassigned', handleUpdate);
+    return () => { 
+      socket.off('booking_status_update', handleUpdate); 
+      socket.off('booking_acknowledged', handleUpdate); 
+      socket.off('operation_assigned', handleUpdate);
+      socket.off('operation_unassigned', handleUpdate);
+    };
   }, [socket]);
 
   const fetchJobs = async () => {
