@@ -496,11 +496,15 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
             for (const k of keys) {
                 const isGZP = k.includes('gazipaşa') || k.includes('gazipasa') || k.includes('gzp');
                 const isAYT = k.includes('antalya havalimanı') || k.includes('antalya airport') || k.includes('havalimanı') || k.includes('havalimani') || k.includes('airport') || k === 'ayt';
-                const textToSearch = (isGZP || isAYT) ? pickupTextRaw : pickupPrimaryToken;
-                if (textToSearch.includes(k)) {
+                // Always search full address text for all hubs — scoring handles disambiguation
+                const matchInPrimary = pickupPrimaryToken.includes(k);
+                const matchInFull = pickupTextRaw.includes(k);
+                if (matchInPrimary || matchInFull) {
                     let score = 1;
                     if (isGZP) score = 4;
                     else if (isAYT) score = 3;
+                    // Bonus: keyword found in primary token (first address segment) = stronger match
+                    if (matchInPrimary) score += 2;
                     if (k === pickupPrimaryToken) score += 1;
                     if (score > bestPickupScore || (score === bestPickupScore && k.length > bestPickupLength)) {
                         detectedBaseLocation = hub.code;
@@ -525,11 +529,15 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
             for (const k of keys) {
                 const isGZP = k.includes('gazipaşa') || k.includes('gazipasa') || k.includes('gzp');
                 const isAYT = k.includes('antalya havalimanı') || k.includes('antalya airport') || k.includes('havalimanı') || k.includes('havalimani') || k.includes('airport') || k === 'ayt';
-                const textToSearch = (isGZP || isAYT) ? dropoffTextRaw : dropoffPrimaryToken;
-                if (textToSearch.includes(k)) {
+                // Always search full address text for all hubs — scoring handles disambiguation
+                const matchInPrimary = dropoffPrimaryToken.includes(k);
+                const matchInFull = dropoffTextRaw.includes(k);
+                if (matchInPrimary || matchInFull) {
                     let score = 1;
                     if (isGZP) score = 4;
                     else if (isAYT) score = 3;
+                    // Bonus: keyword found in primary token (first address segment) = stronger match
+                    if (matchInPrimary) score += 2;
                     if (k === dropoffPrimaryToken) score += 1;
                     if (score > bestDropoffScore || (score === bestDropoffScore && k.length > bestDropoffMatchLength)) {
                         detectedDropoffBase = hub.code;
