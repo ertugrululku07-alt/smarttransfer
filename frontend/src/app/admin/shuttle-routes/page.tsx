@@ -234,7 +234,7 @@ const AdminShuttleRoutesPage: React.FC = () => {
       }
 
       form.setFieldsValue({
-        vehicleTypeId: route.vehicleTypeId || route.vehicleId || undefined,
+        vehicleTypeId: route.vehicleTypeId || undefined,
         fromName: route.fromName,
         fromZoneId: matchedZone?.id || undefined,
         toName: route.toName,
@@ -242,7 +242,7 @@ const AdminShuttleRoutesPage: React.FC = () => {
         scheduleType: route.scheduleType,
         departureTimes: route.departureTimes,
         pricePerSeat: route.pricePerSeat,
-        extraKmPrice: route.extraKmPrice,
+        extraKmPrice: route.extraKmPrice !== null ? Number(route.extraKmPrice) : undefined,
         currency: route.currency || currencies.find((c: any) => c.isDefault)?.code || 'EUR',
         maxSeats: route.maxSeats,
         pickupLeadHours: route.pickupLeadHours ? Number(route.pickupLeadHours) : undefined,
@@ -322,14 +322,17 @@ const AdminShuttleRoutesPage: React.FC = () => {
         pickupLocation = { lat: avgLat, lng: avgLng, address: resolvedFromName };
       }
 
+        const parsedPrice = Number(String(values.pricePerSeat).replace(',', '.'));
+        const parsedExtraKm = values.extraKmPrice !== undefined && values.extraKmPrice !== null && values.extraKmPrice !== '' ? Number(String(values.extraKmPrice).replace(',', '.')) : null;
+
       const payload = {
         vehicleTypeId: values.vehicleTypeId,
         fromName: resolvedFromName,
         toName: resolvedToName,
         scheduleType: values.scheduleType,
         departureTimes: formattedDepartureTimes.sort(),
-        pricePerSeat: Number(values.pricePerSeat),
-        extraKmPrice: values.extraKmPrice ? Number(values.extraKmPrice) : null,
+        pricePerSeat: isNaN(parsedPrice) ? 0 : parsedPrice,
+        extraKmPrice: parsedExtraKm !== null && !isNaN(parsedExtraKm) ? parsedExtraKm : null,
         currency: values.currency || currencies.find((c: any) => c.isDefault)?.code || 'EUR',
         maxSeats: Number(values.maxSeats),
         isActive: values.isActive ?? true,
@@ -769,9 +772,9 @@ const AdminShuttleRoutesPage: React.FC = () => {
               rules={[{ required: true, message: 'Lütfen bir araç tipi seçin!' }]}
             >
               <Select placeholder="Sabit hatlı shuttle araç tipi seçin" size="large" style={{ borderRadius: 10 }}>
-                {vehicleTypes.filter(vt => vt.category === 'VAN' || vt.category === 'MINIBUS' || vt.category === 'BUS').map((type) => (
+                {vehicleTypes.map((type) => (
                   <Option key={type.id} value={type.id}>
-                    {type.name} ({type.capacity} Kişilik, {type.category})
+                    {type.name} ({type.capacity} Kişilik{type.category ? `, ${type.category}` : ''})
                   </Option>
                 ))}
               </Select>
