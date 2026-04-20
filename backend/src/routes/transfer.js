@@ -899,9 +899,32 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                         const zoneTokens = tokenize(zoneName);
                         
                         let isRelevant = false;
+
+                        // RULE 1: If the zone code matches a detected hub, always relevant
                         if (zoneCode && (zoneCode === originalPickupHubCode || zoneCode === originalDropoffHubCode)) {
                             isRelevant = true;
-                        } 
+                        }
+
+                        // RULE 2: If the pickup or dropoff point is INSIDE the zone polygon (overage=0),
+                        // or the route polyline directly enters the zone (hitStart/hitEnd),
+                        // the zone is always relevant — no text matching needed.
+                        if (!isRelevant) {
+                            const pickupInsideZone = req.pickupZoneIds && req.pickupZoneIds.has(finalMatchedZoneId);
+                            const routeEntersZone = zoneData?.hitStart || zoneData?.hitEnd;
+                            const dropoffInsideZone = zoneData?.overage === 0 || zoneData?.distFromEnd === 0;
+                            if (pickupInsideZone || routeEntersZone || dropoffInsideZone) {
+                                isRelevant = true;
+                            }
+                        }
+
+                        // RULE 3: If within close proximity (< 20km overage), treat as relevant
+                        // This prevents rejecting nearby bookings like "Mahmutlar" which is just outside "Alanya" polygon
+                        if (!isRelevant && usedOverageDistanceKm <= 20) {
+                            isRelevant = true;
+                            console.log(`[ZoneRelevance] vt=${vt.name}: Within 20km proximity (${usedOverageDistanceKm.toFixed(1)}km), marking as relevant`);
+                        }
+
+                        // RULE 4: Text-based matching as last resort for more distant zones (> 20km)
                         if (!isRelevant) {
                             // Check against both primaryToken AND full address text
                             const pTokens = tokenize(pickupPrimaryToken || '');
@@ -916,10 +939,13 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                                 allDropoff.some(dt => dt === zt || dt.startsWith(zt) || zt.startsWith(dt))
                             );
                         }
+
+                        // EXCEPTION: GZP airport destination should never use Alanya zone pricing
                         if (isRelevant && originalDropoffHubCode === 'GZP' && zoneName.includes('alanya')) {
                             isRelevant = false;
                         }
                         if (!isRelevant) {
+                            console.log(`[ZoneRelevance] vt=${vt.name}: Zone "${zoneName}" rejected as irrelevant for pickup="${pickupPrimaryToken}" dropoff="${dropoffPrimaryToken}"`);
                             zonePriceConfig = null;
                             finalMatchedZoneId = null;
                         }
@@ -934,8 +960,7 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                     const extraKmRate = Number(zonePriceConfig.extraKmPrice) || 0;
                     
                     // CRITICAL: If destination is outside polygon (overage > 0) but no extraKmPrice is set,
-                    // this vehicle type does NOT serve outside the polygon.
-                    // Fall through to distance-based pricing if available, otherwise skip entirely.
+                    // check for distance-based fallback. If none, use base zone price without overage fee.
                     if (usedOverageDistanceKm > 0.5 && extraKmRate === 0) {
                         console.log(`[PriceDecision] vt=${vt.name}: OUTSIDE polygon (${usedOverageDistanceKm.toFixed(1)}km overage) but no extraKmPrice set → checking distance-based fallback`);
                         // Check if this vehicle type has distance-based pricing as fallback
@@ -953,8 +978,12 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                             calculationMethod = 'DISTANCE_BASE';
                             console.log(`[PriceDecision] vt=${vt.name}: Distance fallback: ${calculatedPrice} (${basePrice} + ${dist}km × ${pricePerKm})`);
                         } else {
-                            console.log(`[PriceDecision] vt=${vt.name}: No extraKmPrice and no distance fallback → SKIP`);
-                            return null; // Cannot serve outside polygon
+                            // Revert to using the zone price but with 0 extra fee
+                            calculationMethod = 'ZONE_POLYGON';
+                            const fixP = Number(zonePriceConfig.fixedPrice) || 0;
+                            let baseRouteCost = fixP > 0 ? fixP : (Number(zonePriceConfig.price) || 0) * (Number(passengers) || 1);
+                            calculatedPrice = Math.round(baseRouteCost * typeMult);
+                            console.log(`[PriceDecision] vt=${vt.name}: No fallback, just using base zone price (no overage fee)`);
                         }
                     } else {
                         calculationMethod = 'ZONE_POLYGON';

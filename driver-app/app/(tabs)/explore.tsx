@@ -84,13 +84,34 @@ export default function JobListScreen() {
 
   useEffect(() => { fetchJobs(); }, [filter]);
 
+  // Periodic polling to ensure job list stays in sync (every 30 seconds)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchJobs();
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [filter]);
+
   useEffect(() => {
     if (!socket) return;
     const handleUpdate = () => { setTimeout(() => fetchJobs(), 500); };
     const handleUnassigned = (data: any) => {
+      // Immediately remove from local state for instant UI feedback
       if (data?.bookingId) {
-        setJobs(prev => prev.filter(j => j.id !== data.bookingId));
+        setJobs(prev => {
+          const filtered = prev.filter(j => j.id !== data.bookingId);
+          // Also remove from shuttle groups
+          return filtered.map(j => {
+            if (j._isShuttleGroup && j.bookings) {
+              const updatedBookings = j.bookings.filter((b: any) => b.id !== data.bookingId);
+              if (updatedBookings.length === 0) return null;
+              return { ...j, bookings: updatedBookings };
+            }
+            return j;
+          }).filter(Boolean);
+        });
       }
+      // Also re-fetch to confirm server state
       setTimeout(() => fetchJobs(), 500);
     };
 
@@ -98,11 +119,13 @@ export default function JobListScreen() {
     socket.on('booking_acknowledged', handleUpdate);
     socket.on('operation_assigned', handleUpdate);
     socket.on('operation_unassigned', handleUnassigned);
+    socket.on('shuttle_runs_updated', handleUpdate);
     return () => { 
       socket.off('booking_status_update', handleUpdate); 
       socket.off('booking_acknowledged', handleUpdate); 
       socket.off('operation_assigned', handleUpdate);
       socket.off('operation_unassigned', handleUnassigned);
+      socket.off('shuttle_runs_updated', handleUpdate);
     };
   }, [socket]);
 
@@ -550,6 +573,7 @@ export default function JobListScreen() {
         data={jobs}
         renderItem={renderItem}
         keyExtractor={(item: any) => item.groupKey || item.id}
+        extraData={jobs}
         contentContainerStyle={st.list}
         refreshControl={<RefreshControl refreshing={loading} onRefresh={fetchJobs} />}
         ListEmptyComponent={

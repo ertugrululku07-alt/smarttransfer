@@ -777,6 +777,23 @@ export default function OperationsPage() {
                 if (status === 'POOL') {
                     return <Tag color="gold" style={{ fontSize: 10, margin: 0 }}>📦 Havuzda</Tag>;
                 }
+
+                // Determine display status: show operational sub-status from metadata
+                const isAcknowledged = record.metadata?.acknowledgedAt;
+                const opStatus = record.metadata?.operationalStatus || record.operationalStatus;
+                let displayColor = map[status];
+                let displayLabel = label[status] || status;
+                
+                // Show "Okundu" if driver acknowledged but status is still CONFIRMED
+                if (isAcknowledged && (status === 'CONFIRMED' || status === 'PENDING') && opStatus === 'DRIVER_READ') {
+                    displayColor = 'cyan';
+                    displayLabel = '👁 Okundu';
+                }
+                // Show "Şöför Atandı" if driver is assigned but hasn't acknowledged yet
+                else if (opStatus === 'DRIVER_ASSIGNED' && (status === 'CONFIRMED' || status === 'PENDING') && !isAcknowledged) {
+                    displayColor = 'geekblue';
+                    displayLabel = '🚗 Şöför Atandı';
+                }
                 
                 // Check if currently editing this cell
                 const isEditing = editingCell?.id === record.id && editingCell?.field === 'status';
@@ -824,7 +841,7 @@ export default function OperationsPage() {
                         title="Düzenlemek için çift tıklayın"
                         style={{ cursor: 'text', minHeight: 20 }}
                     >
-                        <Tag color={map[status]} style={{ fontSize: 10, margin: 0 }}>{label[status] || status}</Tag>
+                        <Tag color={displayColor} style={{ fontSize: 10, margin: 0 }}>{displayLabel}</Tag>
                     </div>
                 );
             }
@@ -1343,11 +1360,14 @@ export default function OperationsPage() {
         if (!socket) return;
 
         const handleStatusUpdate = (data: { bookingId: string, status: string, driverId?: string }) => {
+            // Immediate optimistic update for private bookings
             setBookings(prev => prev.map(b =>
                 b.id === data.bookingId
                     ? { ...b, status: data.status, driverId: data.driverId || b.driverId }
                     : b
             ));
+            // Also re-fetch private bookings to pick up full metadata changes
+            fetchBookingsRef.current();
             fetchShuttleRunsRef.current(true);
         };
 
@@ -1365,7 +1385,24 @@ export default function OperationsPage() {
             fetchShuttleRunsRef.current(true);
         };
 
-        const handleAcknowledged = () => {
+        const handleAcknowledged = (data: { bookingId: string, acknowledgedAt?: string }) => {
+            // Immediately update private bookings state with acknowledge info
+            if (data?.bookingId) {
+                setBookings(prev => prev.map(b =>
+                    b.id === data.bookingId
+                        ? {
+                            ...b,
+                            metadata: {
+                                ...(b.metadata || {}),
+                                acknowledgedAt: data.acknowledgedAt || new Date().toISOString(),
+                                operationalStatus: 'DRIVER_READ'
+                            },
+                            operationalStatus: 'DRIVER_READ'
+                        }
+                        : b
+                ));
+            }
+            // Also refresh shuttle runs
             fetchShuttleRunsRef.current(true);
         };
 
