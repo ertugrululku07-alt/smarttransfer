@@ -23,7 +23,7 @@ async function analyzeStorage() {
 /**
  * Deletes records older than the specified number of days from high-growth tables.
  */
-async function pruneOldLogs(days = 30) {
+async function pruneOldLogs(days = 2) {
   const thresholdDate = new Date();
   thresholdDate.setDate(thresholdDate.getDate() - days);
 
@@ -80,7 +80,7 @@ async function reclaimSpace() {
 /**
  * Main function to run the cleanup process.
  */
-async function runCleanup(days = 30) {
+async function runCleanup(days = 2) {
   console.log('Starting Database Cleanup Job...');
   try {
     await analyzeStorage();
@@ -97,7 +97,7 @@ async function runCleanup(days = 30) {
 
 // Run if called directly
 if (require.main === module) {
-  const days = process.argv[2] ? parseInt(process.argv[2]) : 30;
+  const days = process.argv[2] ? parseInt(process.argv[2]) : 2;
   runCleanup(days);
 }
 

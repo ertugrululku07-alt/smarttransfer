@@ -646,18 +646,23 @@ router.post('/sync', authMiddleware, async (req, res) => {
         // 1a. Always persist lastSeen + location to DB (survives server restarts)
         if (req.body.lat && req.body.lng) {
             try {
+                // Sadece araç hareket halindeyse logla (DB şişmesini önle)
+                const speedVal = req.body.speed ? parseFloat(req.body.speed) : 0;
+
                 // Also save current single ping to history if not part of queue
                 if (!locationQueue || locationQueue.length === 0) {
-                    await prisma.driverLocationHistory.create({
-                        data: {
-                            driverId: driverId,
-                            latitude: parseFloat(req.body.lat),
-                            longitude: parseFloat(req.body.lng),
-                            speed: req.body.speed ? parseFloat(req.body.speed) : 0,
-                            heading: req.body.heading ? parseFloat(req.body.heading) : 0,
-                            timestamp: new Date()
-                        }
-                    });
+                    if (speedVal > 0) {
+                        await prisma.driverLocationHistory.create({
+                            data: {
+                                driverId: driverId,
+                                latitude: parseFloat(req.body.lat),
+                                longitude: parseFloat(req.body.lng),
+                                speed: speedVal,
+                                heading: req.body.heading ? parseFloat(req.body.heading) : 0,
+                                timestamp: new Date()
+                            }
+                        });
+                    }
                 }
             } catch (err) {
                 console.error('Failed to save single point to DriverLocationHistory:', err);
