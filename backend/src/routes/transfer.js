@@ -794,12 +794,15 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                         const zoneArea = zoneData.area;
                         const isPickupZone = pickupZoneIds.has(zoneId);
 
-                        // CRITICAL FIX: If this zone's code matches a hub (e.g., AYT), 
-                        // skip it during zone price selection if we are searching for a price TO/FROM that hub.
-                        // We want to match the REGIONAL zone (Alanya), not the Airport itself.
-                        if (zoneData.zoneCode && (zoneData.zoneCode === originalPickupHubCode || zoneData.zoneCode === originalDropoffHubCode)) {
-                            console.log(`[ZoneMatch] Skipping hub zone: ${zoneData.zoneName}`);
-                            continue;
+                        // CRITICAL FIX: To prevent an airport's own small polygon from overriding 
+                        // the regional zone's pricing when traveling to/from the airport.
+                        // We ONLY skip the zone if it is an actual Airport Hub (AYT, GZP).
+                        // If it's a regional hub (like ALY - Alanya), we MUST NOT skip it!
+                        if (zoneData.zoneCode && (zoneData.zoneCode === 'AYT' || zoneData.zoneCode === 'GZP')) {
+                            if (zoneData.zoneCode === originalPickupHubCode || zoneData.zoneCode === originalDropoffHubCode) {
+                                console.log(`[ZoneMatch] Skipping airport hub zone: ${zoneData.zoneName} to allow regional zone matching.`);
+                                continue;
+                            }
                         }
 
                         // Zone pricing ONLY applies when the pickup is from a known, registered hub.
