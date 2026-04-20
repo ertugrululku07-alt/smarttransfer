@@ -87,15 +87,22 @@ export default function JobListScreen() {
   useEffect(() => {
     if (!socket) return;
     const handleUpdate = () => { setTimeout(() => fetchJobs(), 500); };
+    const handleUnassigned = (data: any) => {
+      if (data?.bookingId) {
+        setJobs(prev => prev.filter(j => j.id !== data.bookingId));
+      }
+      setTimeout(() => fetchJobs(), 500);
+    };
+
     socket.on('booking_status_update', handleUpdate);
     socket.on('booking_acknowledged', handleUpdate);
     socket.on('operation_assigned', handleUpdate);
-    socket.on('operation_unassigned', handleUpdate);
+    socket.on('operation_unassigned', handleUnassigned);
     return () => { 
       socket.off('booking_status_update', handleUpdate); 
       socket.off('booking_acknowledged', handleUpdate); 
       socket.off('operation_assigned', handleUpdate);
-      socket.off('operation_unassigned', handleUpdate);
+      socket.off('operation_unassigned', handleUnassigned);
     };
   }, [socket]);
 
@@ -119,7 +126,14 @@ export default function JobListScreen() {
         body: JSON.stringify({ status })
       });
       const json = await res.json();
-      if (json.success) setTimeout(() => fetchJobs(), 300);
+      if (json.success) {
+        if (status === 'COMPLETED' || status === 'CANCELLED') {
+           setJobs(prev => prev.filter(j => j.id !== bookingId)); // Optimistic remove
+        } else {
+           setJobs(prev => prev.map(j => j.id === bookingId ? { ...j, status } : j)); // Optimistic update
+        }
+        setTimeout(() => fetchJobs(), 1000);
+      }
       else Alert.alert('Hata', 'Durum güncellenemedi');
     } catch { Alert.alert('Hata', 'Bağlantı hatası'); }
   };
@@ -163,10 +177,10 @@ export default function JobListScreen() {
         return;
       }
       // 2. Update status to IN_PROGRESS
+      setJobs(prev => prev.map(j => j.id === paymentModal.bookingId ? { ...j, status: 'IN_PROGRESS' } : j)); // Optimistic UI
       await updateStatus(paymentModal.bookingId, 'IN_PROGRESS');
       Alert.alert('Başarılı', `${amount} ${collectedCurrency} ödeme alındı, müşteri alındı olarak işaretlendi.`);
       setPaymentModal({ visible: false, bookingId: null, expectedAmount: 0, expectedCurrency: 'TRY' });
-      fetchJobs();
     } catch {
       Alert.alert('Hata', 'Bağlantı hatası');
     } finally {
@@ -181,7 +195,11 @@ export default function JobListScreen() {
         headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
       });
       const json = await res.json();
-      if (json.success) { Alert.alert('Okundu', 'Transfer okundu olarak işaretlendi.'); fetchJobs(); }
+      if (json.success) { 
+        Alert.alert('Okundu', 'Transfer okundu olarak işaretlendi.'); 
+        setJobs(prev => prev.map(j => j.id === bookingId ? { ...j, metadata: { ...j.metadata, driverAcknowledgedAt: new Date().toISOString() } } : j));
+        setTimeout(() => fetchJobs(), 1000); 
+      }
     } catch { Alert.alert('Hata', 'Bağlantı hatası'); }
   };
 
@@ -214,9 +232,10 @@ export default function JobListScreen() {
       const json = await res.json();
       if (json.success) {
         Alert.alert('No-Show', 'Müşteri gelmedi olarak bildirildi.');
+        setJobs(prev => prev.filter(j => j.id !== noShowModal.bookingId)); // Optimistic remove
         setNoShowModal({ visible: false, bookingId: null });
         setNoShowReason(''); setNoShowDesc(''); setNoShowPhoto(null);
-        fetchJobs();
+        setTimeout(() => fetchJobs(), 1000);
       }
     } catch { Alert.alert('Hata', 'Bağlantı hatası'); }
   };

@@ -2039,7 +2039,15 @@ router.patch('/bookings/:id', authMiddleware, async (req, res) => {
         if (flightNumber !== undefined) newMetadata.flightNumber = flightNumber;
         if (flightTime !== undefined) newMetadata.flightTime = flightTime;
         if (internalNotes !== undefined) newMetadata.internalNotes = internalNotes;
-        if (operationalStatus !== undefined) newMetadata.operationalStatus = operationalStatus;
+        if (operationalStatus !== undefined) {
+            newMetadata.operationalStatus = operationalStatus;
+            if (operationalStatus === 'POOL' || operationalStatus === 'IN_POOL') {
+                 updateData.driverId = null;
+                 updateData.assignedVehicleId = null;
+                 newMetadata.driverId = null;
+                 newMetadata.assignedVehicleId = null;
+            }
+        }
 
         // Handle return to reservation flow
         if (returnToReservation) {
