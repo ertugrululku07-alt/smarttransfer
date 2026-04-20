@@ -883,6 +883,8 @@ export default function OperationsTable({
                     ON_THE_WAY:          { color: '#7c3aed', bg: '#ede9fe', label: 'Yolda' },
                     IN_OPERATION:        { color: '#1d4ed8', bg: '#bfdbfe', label: 'Operasyonda' },
                     OPERASYONDA:         { color: '#1d4ed8', bg: '#bfdbfe', label: 'Operasyonda' },
+                    DRIVER_ASSIGNED:     { color: '#7c3aed', bg: '#ede9fe', label: 'Şöför Atandı' },
+                    DRIVER_READ:         { color: '#0891b2', bg: '#cffafe', label: 'Şöför Okudu' },
                     COMPLETED:           { color: '#15803d', bg: '#dcfce7', label: 'Tamamlandı' },
                     CANCELLED:           { color: '#dc2626', bg: '#fee2e2', label: 'İptal' },
                     NO_SHOW:             { color: '#be123c', bg: '#ffe4e6', label: 'No-Show' },
@@ -912,6 +914,8 @@ export default function OperationsTable({
                                 { value: 'PENDING', label: '⏳ Beklemede' },
                                 { value: 'CONFIRMED', label: '✓ Onaylandı' },
                                 { value: 'IN_OPERATION', label: '🔄 Operasyonda' },
+                                { value: 'DRIVER_ASSIGNED', label: '👤 Şöför Atandı' },
+                                { value: 'DRIVER_READ', label: '👁 Şöför Okudu' },
                                 { value: 'CANCELLED', label: '✗ İptal' },
                                 { value: 'POOL', label: '📦 Havuza Gönder' },
                             ]}
@@ -954,8 +958,9 @@ export default function OperationsTable({
                             placeholder="Şoför seç"
                             variant="borderless"
                             showSearch
+                            allowClear
                             value={record.driverId || undefined}
-                            onChange={(driverId) => onDriverChange(record.id, driverId)}
+                            onChange={(driverId) => onDriverChange(record.id, driverId || null)}
                             options={options}
                         />
                         <Tooltip title="AI Öneri">
@@ -989,8 +994,9 @@ export default function OperationsTable({
                         placeholder="Araç seç"
                         variant="borderless"
                         showSearch
+                        allowClear
                         value={record.vehicleId || undefined}
-                        onChange={(vehicleId) => onVehicleChange(record.id, vehicleId)}
+                        onChange={(vehicleId) => onVehicleChange(record.id, vehicleId || null)}
                         options={options}
                     />
                 );

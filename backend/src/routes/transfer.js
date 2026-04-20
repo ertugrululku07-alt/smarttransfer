@@ -2032,6 +2032,16 @@ router.patch('/bookings/:id', authMiddleware, async (req, res) => {
         if (driverId !== undefined) {
             updateData.driverId = driverId; // Update real column
             newMetadata.driverId = driverId; // Keep in metadata for legacy compatibility if needed
+            // Otomatik durum güncelleme: Şöför atandığında -> DRIVER_ASSIGNED, kaldırıldığında -> IN_OPERATION
+            if (driverId) {
+                const currentOpStatus = newMetadata.operationalStatus;
+                if (!currentOpStatus || currentOpStatus === 'IN_OPERATION' || currentOpStatus === 'OPERASYONDA') {
+                    newMetadata.operationalStatus = 'DRIVER_ASSIGNED';
+                }
+            } else {
+                // Şoför kaldırıldı -> tekrar operasyonda
+                newMetadata.operationalStatus = 'IN_OPERATION';
+            }
         }
 
         const updated = await prisma.booking.update({

@@ -582,6 +582,8 @@ export default function OperationsPage() {
         // Operasyonel alt durumlar
         OPERASYONDA: 'Operasyonda',
         IN_OPERATION: 'Operasyonda',
+        DRIVER_ASSIGNED: 'Şöför Atandı',
+        DRIVER_READ: 'Şöför Okudu',
         HAVUZDA: 'Havuzda',
     };
     const DEFAULT_COLORS: Record<string, string> = {
@@ -593,6 +595,8 @@ export default function OperationsPage() {
         CANCELLED: '#fff1f0',
         OPERASYONDA: '#91caff',
         IN_OPERATION: '#91caff',
+        DRIVER_ASSIGNED: '#d8b4fe',
+        DRIVER_READ: '#a5f3fc',
         HAVUZDA: '#fff0f6',
     };
     const [statusColors, setStatusColors] = useState<Record<string, string>>(DEFAULT_COLORS);
@@ -866,9 +870,10 @@ export default function OperationsPage() {
                             style={{ width: 110, fontSize: 11 }}
                             variant="borderless"
                             showSearch
+                            allowClear
                             optionFilterProp="children"
                             value={record.driverId || undefined}
-                            onChange={(driverId) => handleDriverChange(record.id, driverId)}
+                            onChange={(driverId) => handleDriverChange(record.id, driverId || null)}
                             options={options}
                         />
                         <Tooltip title="AI Öneri">
@@ -927,9 +932,10 @@ export default function OperationsPage() {
                         placeholder={isShuttle ? 'Shuttle' : 'Araç Seç'}
                         size="small"
                         value={record.assignedVehicleId || undefined}
-                        onChange={(vehicleId) => handleVehicleChange(record.id, vehicleId)}
+                        onChange={(vehicleId) => handleVehicleChange(record.id, vehicleId || null)}
                         variant="borderless"
                         showSearch
+                        allowClear
                         optionFilterProp="children"
                         options={options}
                     />

@@ -1156,7 +1156,9 @@ router.put('/bookings/:id/acknowledge', authMiddleware, ensureDriver, async (req
                 metadata: {
                     ...meta,
                     acknowledgedAt: new Date().toISOString(),
-                    acknowledgedBy: req.user.id
+                    acknowledgedBy: req.user.id,
+                    // Şoför okundu işaretlediğinde durumu güncelle
+                    operationalStatus: 'DRIVER_READ'
                 }
             }
         });
