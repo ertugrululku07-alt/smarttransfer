@@ -649,9 +649,30 @@ router.post('/sync', authMiddleware, async (req, res) => {
                 // Sadece araç hareket halindeyse logla (DB şişmesini önle)
                 const speedVal = req.body.speed ? parseFloat(req.body.speed) : 0;
 
+                // --- GPS YÜKÜNÜ ENGELLEMEK IÇIN SEYRELTME (THROTTLING) ---
+                // Araç hareket etse bile "geçmiş rotaya" sadece 60 saniyede bir kayıt atılır.
+                // Anlık yönetim haritası bu durumdan etkilenmez çünkü güncel konum Soket üzerinden saniyede bir zaten akmaktadır.
+                const MIN_LOG_INTERVAL_MS = 60 * 1000; // 60 saniye
+                let shouldLogToDB = false;
+                
+                const driverMapInfo = req.app.get('onlineDrivers')?.[driverId];
+                
+                if (speedVal > 0) {
+                    if (!driverMapInfo) {
+                        shouldLogToDB = true;
+                    } else {
+                        const lastSaved = driverMapInfo.lastHistorySavedTs || 0;
+                        if (Date.now() - lastSaved >= MIN_LOG_INTERVAL_MS) {
+                            shouldLogToDB = true;
+                        }
+                    }
+                }
+
                 // Also save current single ping to history if not part of queue
                 if (!locationQueue || locationQueue.length === 0) {
-                    if (speedVal > 0) {
+                    if (shouldLogToDB) {
+                        if (driverMapInfo) driverMapInfo.lastHistorySavedTs = Date.now();
+                        
                         await prisma.driverLocationHistory.create({
                             data: {
                                 driverId: driverId,
