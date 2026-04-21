@@ -602,7 +602,7 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                 const userLat = Number(req.body.pickupLat);
                 const userLng = Number(req.body.pickupLng);
 
-                // 1a. Polygon Check (Priority — from zone-based routes)
+                // 1a. Polygon Check (STRICT — pickup MUST be inside the drawn polygon)
                 if (route.pickupPolygon) {
                     const polygon = typeof route.pickupPolygon === 'string'
                         ? JSON.parse(route.pickupPolygon)
@@ -619,21 +619,16 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                             }
                             
                             const poly = turf.polygon([polyCoords]);
-                            let inside = turf.booleanPointInPolygon(pt, poly);
+                            const inside = turf.booleanPointInPolygon(pt, poly);
                             
                             if (inside) {
                                 isPickupMatch = true;
                                 route._overageKm = 0;
                             } else {
-                                // Calculate distance to boundary
-                                const polygonBoundary = turf.polygonToLine(poly);
-                                const distToBoundary = turf.pointToLineDistance(pt, polygonBoundary, { units: 'kilometers' });
-                                
-                                // Hardcoded 50km overage limit for shuttles
-                                if (distToBoundary <= 50) {
-                                    isPickupMatch = true;
-                                    route._overageKm = distToBoundary;
-                                }
+                                // STRICT: pickup is outside the polygon → reject this shuttle route immediately.
+                                // No tolerance/overage — user explicitly wants shuttle NOT listed if outside polygon.
+                                console.log(`[ShuttlePickupReject] Pickup (${userLat},${userLng}) is OUTSIDE route polygon for "${route.fromName}→${route.toName}"`);
+                                return false;
                             }
                         } catch (err) {
                             console.error('Turf boundary calculation error for shuttle route:', err.message);
