@@ -684,7 +684,7 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
             // 1e. Zone Polygon matching for Pickup (Priority over text if polygon exists)
             if (pickupLat && pickupLng && !route.pickupPolygon) {
                 let pZone = null;
-                const pHubCode = route.metadata?.fromHubCode || originalPickupHubCode;
+                const pHubCode = route.metadata?.fromHubCode;
                 if (pHubCode) {
                     pZone = zones.find(z => z.code && z.code.toUpperCase() === pHubCode.toUpperCase());
                 } else {
@@ -746,7 +746,7 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
             // 2b. Zone Polygon matching for Dropoff (Priority over text if polygon exists)
             if (dropoffLat && dropoffLng) {
                 let dZone = null;
-                const dHubCode = routeToHubCode || originalDropoffHubCode;
+                const dHubCode = routeToHubCode;
                 if (dHubCode) {
                     dZone = zones.find(z => z.code && z.code.toUpperCase() === dHubCode.toUpperCase());
                 } else {
