@@ -17,6 +17,7 @@ import {
 import dayjs from 'dayjs';
 import 'dayjs/locale/tr';
 import apiClient from '@/lib/api-client';
+import CallCenterBookingWizard from './CallCenterBookingWizard';
 import { useSocket } from '@/app/context/SocketContext';
 import AdminGuard from '../AdminGuard';
 import AdminLayout from '../AdminLayout';
@@ -1390,63 +1391,12 @@ const TransfersPage: React.FC = () => {
                     </div>
                 </Modal>
 
-                {/* Create Transfer Modal */}
-                <Modal
-                    title={<Space><CarOutlined style={{color:'#6366f1'}}/>Yeni Transfer Oluştur</Space>}
+                {/* New Call-Center 2-Step Booking Wizard */}
+                <CallCenterBookingWizard
                     open={createModalVisible}
-                    onCancel={() => { setCreateModalVisible(false); createForm.resetFields(); }}
-                    onOk={() => createForm.submit()}
-                    okText="Oluştur" cancelText="İptal"
-                    width={720}
-                    okButtonProps={{ style: { background: '#6366f1' } }}
-                >
-                    <Form form={createForm} layout="vertical" onFinish={async (values) => {
-                        try {
-                            const res = await apiClient.post(`/api/transfer/bookings/admin`, {
-                                ...values,
-                                pickupDateTime: values.pickupDateTime.toISOString()
-                            });
-                            if (res.data.success) {
-                                message.success('Yeni transfer oluşturuldu!');
-                                setCreateModalVisible(false);
-                                createForm.resetFields();
-                                fetchBookings();
-                            }
-                        } catch { message.error('Rezervasyon oluşturulamadı'); }
-                    }}>
-                        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:12}}>
-                            <Form.Item name="passengerName" label="Ad Soyad" rules={[{required:true, message:'Zorunlu'}]}><Input/></Form.Item>
-                            <Form.Item name="passengerPhone" label="Telefon" rules={[{required:true, message:'Zorunlu'}]}><Input/></Form.Item>
-                            <Form.Item name="passengerEmail" label="E-posta"><Input/></Form.Item>
-                            <div style={{display:'flex', gap:8}}>
-                                <Form.Item name="adults" label="Yetişkin" initialValue={1} style={{flex:1, marginBottom:0}}><InputNumber min={1} style={{width:'100%'}}/></Form.Item>
-                                <Form.Item name="children" label="Çocuk" initialValue={0} style={{flex:1, marginBottom:0}}><InputNumber min={0} style={{width:'100%'}}/></Form.Item>
-                                <Form.Item name="infants" label="Bebek" initialValue={0} style={{flex:1, marginBottom:0}}><InputNumber min={0} style={{width:'100%'}}/></Form.Item>
-                            </div>
-                            
-                            <Divider style={{gridColumn:'1 / -1', margin:'4px 0'}}>Transfer Detayları</Divider>
-                            
-                            <Form.Item name="pickup" label="Nereden (Alış Yeri)" rules={[{required:true, message:'Zorunlu'}]}><HereLocationSearchInput placeholder="Havaalanı, Otel, Adres..." country="TUR" /></Form.Item>
-                            <Form.Item name="dropoff" label="Nereye (Bırakış Yeri)" rules={[{required:true, message:'Zorunlu'}]}><HereLocationSearchInput placeholder="Havaalanı, Otel, Adres..." country="TUR" /></Form.Item>
-                            <Form.Item name="pickupDateTime" label="Tarih & Saat" rules={[{required:true, message:'Zorunlu'}]}><DatePicker showTime format="DD.MM.YYYY HH:mm" style={{width:'100%'}}/></Form.Item>
-                            <Form.Item name="flightNumber" label="Uçuş Kodu / PNR"><Input/></Form.Item>
-                            
-                            <Divider style={{gridColumn:'1 / -1', margin:'4px 0'}}>Araç ve Fiyat</Divider>
-                            
-                            <Form.Item name="vehicleType" label="Araç Tipi" rules={[{required:true, message:'Zorunlu'}]} initialValue="Standart">
-                                <Select>
-                                    <Select.Option value="Standart">Standart</Select.Option>
-                                    <Select.Option value="VIP Minibüs">VIP Minibüs</Select.Option>
-                                    <Select.Option value="Vito">Vito</Select.Option>
-                                    <Select.Option value="Sprinter">Sprinter</Select.Option>
-                                    <Select.Option value="Sedan">Sedan</Select.Option>
-                                </Select>
-                            </Form.Item>
-                            <Form.Item name="price" label="Tahsilat / Toplam Ücret (₺)" rules={[{required:true, message:'Zorunlu'}]}><InputNumber min={0} style={{width:'100%'}}/></Form.Item>
-                            <Form.Item name="notes" label="Ek Açıklama / Notlar" style={{gridColumn:'1 / -1'}}><Input.TextArea rows={2}/></Form.Item>
-                        </div>
-                    </Form>
-                </Modal>
+                    onClose={() => setCreateModalVisible(false)}
+                    onSuccess={() => fetchBookings()}
+                />
 
                  {/* Dynamic + Print Styles */}
                 <style>{`

@@ -2302,7 +2302,18 @@ router.patch('/bookings/:id', authMiddleware, async (req, res) => {
  */
 router.post('/bookings/admin', authMiddleware, async (req, res) => {
     try {
-        const { passengerName, passengerPhone, passengerEmail, pickup, dropoff, pickupDateTime, vehicleType, flightNumber, price, notes, adults, children, infants } = req.body;
+        const {
+            passengerName, passengerPhone, passengerEmail,
+            pickup, dropoff, pickupDateTime,
+            vehicleType, flightNumber, price, notes,
+            adults, children, infants,
+            paymentMethod,
+            pickupLat, pickupLng, dropoffLat, dropoffLng,
+            distance, duration,
+            isShuttle, shuttleRouteId, shuttleMasterTime,
+            currency,
+            passengerDetails
+        } = req.body;
 
         const tenantId = req.tenant?.id;
         if (!tenantId) return res.status(500).json({ success: false, error: 'Tenant context missing' });
@@ -2324,7 +2335,18 @@ router.post('/bookings/admin', authMiddleware, async (req, res) => {
             passengerName,
             creationSource: 'ADMIN_MANUAL',
             pickupRegionCode: pickupRegionCode || null,
-            dropoffRegionCode: dropoffRegionCode || null
+            dropoffRegionCode: dropoffRegionCode || null,
+            paymentMethod: paymentMethod || 'PAY_IN_VEHICLE',
+            pickupLat: pickupLat != null ? Number(pickupLat) : null,
+            pickupLng: pickupLng != null ? Number(pickupLng) : null,
+            dropoffLat: dropoffLat != null ? Number(dropoffLat) : null,
+            dropoffLng: dropoffLng != null ? Number(dropoffLng) : null,
+            distance: distance || null,
+            duration: duration || null,
+            isShuttle: !!isShuttle,
+            shuttleRouteId: shuttleRouteId || null,
+            shuttleMasterTime: shuttleMasterTime || null,
+            passengerDetails: Array.isArray(passengerDetails) ? passengerDetails : []
         };
 
         const booking = await prisma.booking.create({
@@ -2336,7 +2358,7 @@ router.post('/bookings/admin', authMiddleware, async (req, res) => {
                 paymentStatus: 'PENDING',
                 startDate: new Date(pickupDateTime),
                 endDate: new Date(pickupDateTime),
-                currency: 'TRY',
+                currency: currency || 'TRY',
                 total: Number(price || 0),
                 subtotal: Number(price || 0),
                 contactName: passengerName || 'Misafir',
