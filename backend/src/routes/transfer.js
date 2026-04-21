@@ -701,6 +701,82 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
 
             if (!isDropoffMatch) return false;
 
+            // ── DROPOFF ZONE POLYGON OVERAGE CHECK ──
+            // If the dropoff matched via hub code, check whether the actual dropoff
+            // point falls INSIDE the hub's corresponding zone polygon.
+            // If it is OUTSIDE, calculate distance-to-boundary as km overage.
+            if (dropoffLat && dropoffLng) {
+                const dHubCode = routeToHubCode || originalDropoffHubCode;
+                if (dHubCode) {
+                    const dZone = zones.find(z => z.code && z.code.toUpperCase() === dHubCode.toUpperCase());
+                    if (dZone && dZone.polygon && dZone.polygon.length >= 3) {
+                        try {
+                            const dPoly = typeof dZone.polygon === 'string' ? JSON.parse(dZone.polygon) : dZone.polygon;
+                            let dPolyCoords = dPoly.map(p => [p.lng, p.lat]);
+                            if (dPolyCoords[0][0] !== dPolyCoords[dPolyCoords.length - 1][0] ||
+                                dPolyCoords[0][1] !== dPolyCoords[dPolyCoords.length - 1][1]) {
+                                dPolyCoords.push([...dPolyCoords[0]]);
+                            }
+                            const zonePoly = turf.polygon([dPolyCoords]);
+                            const dropPt = turf.point([Number(dropoffLng), Number(dropoffLat)]);
+
+                            if (turf.booleanPointInPolygon(dropPt, zonePoly)) {
+                                // Dropoff is inside zone polygon — no overage on this side
+                                console.log(`[ShuttleDropoff] Inside zone "${dZone.name}" polygon → no dropoff overage`);
+                            } else {
+                                // Dropoff is OUTSIDE zone polygon — calculate overage
+                                const dBoundary = turf.polygonToLine(zonePoly);
+                                const dDist = turf.pointToLineDistance(dropPt, dBoundary, { units: 'kilometers' });
+                                if (dDist <= 50) {
+                                    route._overageKm = Math.max(route._overageKm || 0, dDist);
+                                    console.log(`[ShuttleDropoffOverage] ${dDist.toFixed(1)}km outside zone "${dZone.name}" → overageKm=${route._overageKm.toFixed(1)}`);
+                                } else {
+                                    console.log(`[ShuttleDropoffOverage] ${dDist.toFixed(1)}km outside zone "${dZone.name}" → exceeds 50km limit, rejecting`);
+                                    return false;
+                                }
+                            }
+                        } catch (err) {
+                            console.error('Shuttle dropoff zone polygon check error:', err.message);
+                        }
+                    }
+                }
+            }
+
+            // ── PICKUP ZONE POLYGON OVERAGE CHECK ──
+            // Similarly, if the pickup matched via hub/text (no route pickupPolygon),
+            // check the pickup point against the pickup hub's zone polygon.
+            if (pickupLat && pickupLng && !route.pickupPolygon) {
+                const pHubCode = (route.metadata?.fromHubCode) || originalPickupHubCode;
+                if (pHubCode) {
+                    const pZone = zones.find(z => z.code && z.code.toUpperCase() === pHubCode.toUpperCase());
+                    if (pZone && pZone.polygon && pZone.polygon.length >= 3) {
+                        try {
+                            const pPoly = typeof pZone.polygon === 'string' ? JSON.parse(pZone.polygon) : pZone.polygon;
+                            let pPolyCoords = pPoly.map(p => [p.lng, p.lat]);
+                            if (pPolyCoords[0][0] !== pPolyCoords[pPolyCoords.length - 1][0] ||
+                                pPolyCoords[0][1] !== pPolyCoords[pPolyCoords.length - 1][1]) {
+                                pPolyCoords.push([...pPolyCoords[0]]);
+                            }
+                            const pickupZonePoly = turf.polygon([pPolyCoords]);
+                            const pickPt = turf.point([Number(pickupLng), Number(pickupLat)]);
+
+                            if (!turf.booleanPointInPolygon(pickPt, pickupZonePoly)) {
+                                const pBoundary = turf.polygonToLine(pickupZonePoly);
+                                const pDist = turf.pointToLineDistance(pickPt, pBoundary, { units: 'kilometers' });
+                                if (pDist <= 50) {
+                                    route._overageKm = Math.max(route._overageKm || 0, pDist);
+                                    console.log(`[ShuttlePickupOverage] ${pDist.toFixed(1)}km outside zone "${pZone.name}" → overageKm=${route._overageKm.toFixed(1)}`);
+                                } else {
+                                    return false;
+                                }
+                            }
+                        } catch (err) {
+                            console.error('Shuttle pickup zone polygon check error:', err.message);
+                        }
+                    }
+                }
+            }
+
             // Schedule Check
             let passesSchedule = false;
             if (route.scheduleType === 'DAILY') passesSchedule = true;
