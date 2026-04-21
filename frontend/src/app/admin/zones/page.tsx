@@ -9,12 +9,23 @@ import {
   PlusOutlined, EditOutlined, DeleteOutlined,
   EnvironmentOutlined, SearchOutlined,
   CodeOutlined, AimOutlined, SwapOutlined,
-  UnorderedListOutlined, AppstoreOutlined, CheckCircleFilled, CloseCircleFilled
+  UnorderedListOutlined, AppstoreOutlined, CheckCircleFilled, CloseCircleFilled,
+  GlobalOutlined
 } from '@ant-design/icons';
 import AdminGuard from '../AdminGuard';
 import AdminLayout from '../AdminLayout';
 import apiClient from '@/lib/api-client';
 import AdminMapPickerModal from '../components/AdminMapPickerModal';
+import dynamic from 'next/dynamic';
+
+const AllZonesMap = dynamic(() => import('../components/AllZonesMap'), {
+    ssr: false,
+    loading: () => (
+        <div style={{ height: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8fafc', borderRadius: 16 }}>
+            <Spin size="large" />
+        </div>
+    )
+});
 
 const { Text } = Typography;
 
@@ -36,7 +47,7 @@ const ZonesPage: React.FC = () => {
   const [editingZone, setEditingZone] = useState<Zone | null>(null);
   const [form] = Form.useForm();
   const [currentPolygon, setCurrentPolygon] = useState<{lat: number, lng: number}[]>([]);
-  const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
+  const [viewMode, setViewMode] = useState<'list' | 'grid' | 'map'>('list');
 
   const fetchData = async () => {
     setLoading(true);
@@ -139,6 +150,21 @@ const ZonesPage: React.FC = () => {
           }}
         >
           <AppstoreOutlined style={{ fontSize: 14 }} />
+        </button>
+      </Tooltip>
+      <Tooltip title="Harita Görünümü">
+        <button
+          onClick={() => setViewMode('map')}
+          style={{
+            border: 'none', cursor: 'pointer', padding: '6px 12px', borderRadius: 8,
+            display: 'flex', alignItems: 'center', gap: 6,
+            background: viewMode === 'map' ? '#fff' : 'transparent',
+            boxShadow: viewMode === 'map' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+            color: viewMode === 'map' ? '#6366f1' : '#94a3b8',
+            fontWeight: 600, fontSize: 13, transition: 'all 0.2s',
+          }}
+        >
+          <GlobalOutlined style={{ fontSize: 14 }} />
         </button>
       </Tooltip>
     </div>
@@ -547,6 +573,11 @@ const ZonesPage: React.FC = () => {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: 16 }}>
               {zones.map(zone => renderZoneCard(zone))}
             </div>
+          )}
+
+          {/* ── MAP VIEW ── */}
+          {zones.length > 0 && viewMode === 'map' && (
+            <AllZonesMap zones={zones} height={640} />
           )}
 
           {/* ── UNIFIED ZONE MODAL ── */}

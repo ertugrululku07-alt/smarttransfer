@@ -1,0 +1,194 @@
+'use client';
+
+import React, { useEffect, useRef } from 'react';
+import { MapContainer, TileLayer, Polygon, Tooltip, useMap } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+
+interface Zone {
+    id: string;
+    name: string;
+    code: string | null;
+    color: string | null;
+    polygon: { lat: number; lng: number }[] | null;
+}
+
+interface AllZonesMapProps {
+    zones: Zone[];
+    height?: number | string;
+}
+
+// Auto-fit bounds to show all polygons
+const FitBounds: React.FC<{ zones: Zone[] }> = ({ zones }) => {
+    const map = useMap();
+    const fitted = useRef(false);
+
+    useEffect(() => {
+        const allPoints: [number, number][] = [];
+        zones.forEach(z => {
+            if (z.polygon && z.polygon.length >= 3) {
+                z.polygon.forEach(p => allPoints.push([p.lat, p.lng]));
+            }
+        });
+        if (allPoints.length > 0) {
+            const bounds = L.latLngBounds(allPoints);
+            map.fitBounds(bounds, { padding: [40, 40], maxZoom: 12 });
+            fitted.current = true;
+        }
+    }, [zones, map]);
+
+    return null;
+};
+
+// Fix gray tiles in modals / late renders
+const MapInvalidator: React.FC = () => {
+    const map = useMap();
+    useEffect(() => {
+        const timeouts = [100, 300, 600, 1000].map(ms =>
+            setTimeout(() => map.invalidateSize(), ms)
+        );
+        return () => timeouts.forEach(clearTimeout);
+    }, [map]);
+    return null;
+};
+
+const AllZonesMap: React.FC<AllZonesMapProps> = ({ zones, height = 600 }) => {
+    const apiKey = process.env.NEXT_PUBLIC_HERE_API_KEY || 'RH04HVBUK6By3GfYWwVlCOG4Or1IzV-rRjygQRHbIvo';
+    const tileUrl = `https://maps.hereapi.com/v3/base/mc/{z}/{x}/{y}/png8?apiKey=${apiKey}&size=256&style=explore.day`;
+    const attribution = '&copy; <a href="https://here.com">HERE</a>';
+
+    const zonesWithPolygon = zones.filter(z => z.polygon && z.polygon.length >= 3);
+    const zonesWithoutPolygon = zones.filter(z => !z.polygon || z.polygon.length < 3);
+
+    // Default center: Antalya
+    const defaultCenter: [number, number] = [36.89, 30.69];
+
+    return (
+        <div style={{ position: 'relative' }}>
+            <div style={{
+                borderRadius: 16, overflow: 'hidden',
+                border: '1px solid #e2e8f0',
+                boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
+            }}>
+                <MapContainer
+                    center={defaultCenter}
+                    zoom={9}
+                    style={{ width: '100%', height: typeof height === 'number' ? `${height}px` : height }}
+                    zoomControl={true}
+                >
+                    <TileLayer attribution={attribution} url={tileUrl} />
+                    <MapInvalidator />
+                    <FitBounds zones={zones} />
+
+                    {zonesWithPolygon.map(zone => {
+                        const color = zone.color || '#3388ff';
+                        const positions: [number, number][] = zone.polygon!.map(p => [p.lat, p.lng]);
+                        return (
+                            <Polygon
+                                key={zone.id}
+                                positions={positions}
+                                pathOptions={{
+                                    color,
+                                    fillColor: color,
+                                    fillOpacity: 0.22,
+                                    weight: 2.5,
+                                    opacity: 0.85,
+                                }}
+                            >
+                                <Tooltip direction="center" permanent
+                                    className="zone-label-tooltip"
+                                >
+                                    <div style={{
+                                        display: 'flex', flexDirection: 'column',
+                                        alignItems: 'center', gap: 2,
+                                        pointerEvents: 'none',
+                                    }}>
+                                        <span style={{
+                                            fontWeight: 800, fontSize: 13,
+                                            color: '#1a1a2e',
+                                            textShadow: '0 1px 3px rgba(255,255,255,0.9), 0 0 6px rgba(255,255,255,0.8)',
+                                            letterSpacing: '-0.3px',
+                                        }}>
+                                            {zone.name}
+                                        </span>
+                                        {zone.code && (
+                                            <span style={{
+                                                fontWeight: 700, fontSize: 10,
+                                                color: '#fff',
+                                                background: color,
+                                                padding: '1px 7px', borderRadius: 4,
+                                                letterSpacing: '0.5px',
+                                            }}>
+                                                {zone.code}
+                                            </span>
+                                        )}
+                                    </div>
+                                </Tooltip>
+                            </Polygon>
+                        );
+                    })}
+                </MapContainer>
+            </div>
+
+            {/* Legend */}
+            <div style={{
+                position: 'absolute', top: 12, right: 12, zIndex: 1000,
+                background: 'rgba(255,255,255,0.95)', borderRadius: 12,
+                padding: '12px 16px', boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+                maxHeight: '50%', overflowY: 'auto', minWidth: 180,
+                backdropFilter: 'blur(10px)',
+            }}>
+                <div style={{ fontSize: 11, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
+                    Bölgeler ({zonesWithPolygon.length}/{zones.length})
+                </div>
+                {zonesWithPolygon.map(z => (
+                    <div key={z.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0' }}>
+                        <div style={{
+                            width: 14, height: 14, borderRadius: 4,
+                            background: z.color || '#3388ff',
+                            border: '2px solid rgba(255,255,255,0.8)',
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
+                            flexShrink: 0,
+                        }} />
+                        <span style={{ fontSize: 12, fontWeight: 600, color: '#1e293b' }}>{z.name}</span>
+                        {z.code && <span style={{ fontSize: 10, color: '#94a3b8', fontFamily: 'monospace' }}>{z.code}</span>}
+                    </div>
+                ))}
+                {zonesWithoutPolygon.length > 0 && (
+                    <>
+                        <div style={{ borderTop: '1px solid #f1f5f9', margin: '8px 0 6px' }} />
+                        <div style={{ fontSize: 10, fontWeight: 700, color: '#dc2626', marginBottom: 4 }}>
+                            Poligonu Yok ({zonesWithoutPolygon.length})
+                        </div>
+                        {zonesWithoutPolygon.map(z => (
+                            <div key={z.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 0' }}>
+                                <div style={{
+                                    width: 10, height: 10, borderRadius: 3,
+                                    border: '2px dashed #fca5a5', flexShrink: 0,
+                                }} />
+                                <span style={{ fontSize: 11, color: '#94a3b8' }}>{z.name}</span>
+                            </div>
+                        ))}
+                    </>
+                )}
+            </div>
+
+            {/* Global tooltip style override */}
+            <style jsx global>{`
+                .zone-label-tooltip {
+                    background: rgba(255,255,255,0.88) !important;
+                    border: none !important;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.1) !important;
+                    border-radius: 8px !important;
+                    padding: 4px 10px !important;
+                    white-space: nowrap !important;
+                }
+                .zone-label-tooltip::before {
+                    display: none !important;
+                }
+            `}</style>
+        </div>
+    );
+};
+
+export default AllZonesMap;
