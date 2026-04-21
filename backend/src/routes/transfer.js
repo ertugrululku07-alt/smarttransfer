@@ -732,19 +732,12 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                             const dropPt = turf.point([Number(dropoffLng), Number(dropoffLat)]);
 
                             if (turf.booleanPointInPolygon(dropPt, zonePoly)) {
-                                // Dropoff is inside zone polygon — no overage on this side
-                                console.log(`[ShuttleDropoff] Inside zone "${dZone.name}" polygon → no dropoff overage`);
+                                // Dropoff is inside zone polygon
+                                console.log(`[ShuttleDropoff] Inside zone "${dZone.name}" polygon`);
                             } else {
-                                // Dropoff is OUTSIDE zone polygon — calculate overage
-                                const dBoundary = turf.polygonToLine(zonePoly);
-                                const dDist = turf.pointToLineDistance(dropPt, dBoundary, { units: 'kilometers' });
-                                if (dDist <= 50) {
-                                    route._overageKm = Math.max(route._overageKm || 0, dDist);
-                                    console.log(`[ShuttleDropoffOverage] ${dDist.toFixed(1)}km outside zone "${dZone.name}" → overageKm=${route._overageKm.toFixed(1)}`);
-                                } else {
-                                    console.log(`[ShuttleDropoffOverage] ${dDist.toFixed(1)}km outside zone "${dZone.name}" → exceeds 50km limit, rejecting`);
-                                    return false;
-                                }
+                                // Dropoff is OUTSIDE zone polygon — reject shuttle completely
+                                console.log(`[ShuttleDropoffReject] Dropoff point is outside zone "${dZone.name}" polygon → rejecting shuttle`);
+                                return false;
                             }
                         } catch (err) {
                             console.error('Shuttle dropoff zone polygon check error:', err.message);
@@ -772,14 +765,9 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                             const pickPt = turf.point([Number(pickupLng), Number(pickupLat)]);
 
                             if (!turf.booleanPointInPolygon(pickPt, pickupZonePoly)) {
-                                const pBoundary = turf.polygonToLine(pickupZonePoly);
-                                const pDist = turf.pointToLineDistance(pickPt, pBoundary, { units: 'kilometers' });
-                                if (pDist <= 50) {
-                                    route._overageKm = Math.max(route._overageKm || 0, pDist);
-                                    console.log(`[ShuttlePickupOverage] ${pDist.toFixed(1)}km outside zone "${pZone.name}" → overageKm=${route._overageKm.toFixed(1)}`);
-                                } else {
-                                    return false;
-                                }
+                                // Pickup is OUTSIDE zone polygon — reject shuttle completely
+                                console.log(`[ShuttlePickupReject] Pickup point is outside zone "${pZone.name}" polygon → rejecting shuttle`);
+                                return false;
                             }
                         } catch (err) {
                             console.error('Shuttle pickup zone polygon check error:', err.message);
@@ -850,14 +838,9 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
             
             // Apply overage price
             let totalShuttlePrice = baseShuttlePrice;
-            let overageCharge = 0;
-            if (s._overageKm > 0 && s.extraKmPrice) {
-                overageCharge = s._overageKm * Number(s.extraKmPrice) * Number(passengers);
-                totalShuttlePrice += overageCharge;
-            }
 
             const markedUpShuttlePrice = totalShuttlePrice * (1 + (agencyMarkup / 100));
-            console.log(`[Shuttle] route=${s.fromName}→${s.toName}, basePricePerSeat=${s.pricePerSeat}, overageKm=${s._overageKm?.toFixed(1)}, overageCharge=${overageCharge.toFixed(2)}, passengers=${passengers}, total=${markedUpShuttlePrice.toFixed(2)}`);
+            console.log(`[Shuttle] route=${s.fromName}→${s.toName}, basePricePerSeat=${s.pricePerSeat}, passengers=${passengers}, total=${markedUpShuttlePrice.toFixed(2)}`);
 
             const vehicleData = s.vehicleType || s.vehicle || {};
             const vehicleName = vehicleData.name || vehicleData.brand || 'Shuttle Bus';
@@ -873,8 +856,8 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                 luggage: 1, // Per person
                 price: roundPrice(markedUpShuttlePrice),
                 basePrice: totalShuttlePrice, // Store original B2B cost including overage
-                overageKm: s._overageKm > 0 ? Number(s._overageKm.toFixed(1)) : 0,
-                overageCharge: overageCharge,
+                overageKm: 0,
+                overageCharge: 0,
                 currency: s.currency || tenantDefaultCurrency, // Use route's own currency
                 features: ['Belirli Kalkış Saatleri', 'Ekonomik', 'Paylaşımlı Yolculuk', ...(hasWifi ? ['WiFi'] : [])],
                 cancellationPolicy: '24 saat öncesine kadar ücretsiz iptal',
