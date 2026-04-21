@@ -61,6 +61,7 @@ interface TransferResult {
     departureTimes?: string[];
     matchedMasterTime?: string;
     timeOffsetMin?: number;
+    pickupLeadHours?: number | null;
 }
 
 const TransferSearchContent: React.FC = () => {
@@ -71,6 +72,7 @@ const TransferSearchContent: React.FC = () => {
     const [results, setResults] = useState<TransferResult[]>([]);
     const [error, setError] = useState<string | null>(null);
     const [routeStats, setRouteStats] = useState<{ distance: string | number; duration: string | number } | null>(null);
+    const [durationMin, setDurationMin] = useState<number | null>(null);
     const [isEditModalVisible, setIsEditModalVisible] = useState(false);
     const [form] = Form.useForm();
 
@@ -121,6 +123,7 @@ const TransferSearchContent: React.FC = () => {
                         encodedPolyline = route.encodedPolyline;
                         if (encodedPolyline) sessionStorage.setItem('lastEncodedPolyline', encodedPolyline);
                         setRouteStats({ distance: route.distanceKm, duration: route.durationMin });
+                        if (typeof route.durationMin === 'number') setDurationMin(route.durationMin);
                     }
                 } catch (e) {
                     console.error('Distance calculation failed:', e);
@@ -402,11 +405,33 @@ const TransferSearchContent: React.FC = () => {
                                             <Text type="secondary" style={{ display: 'block', marginBottom: 16 }}>by {result.vendor}</Text>
                                             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%', marginBottom: 16 }}>
                                                 {result.isShuttle && <Tag color="purple">Paylaşımlı Shuttle</Tag>}
-                                                {result.matchedMasterTime && <Tag color="blue" style={{fontWeight:600}}>{result.matchedMasterTime} Yolculuğu</Tag>}
+                                                {result.isShuttle && result.matchedMasterTime ? (() => {
+                                                    // Calculate real home-pickup time: searchTime - travelDuration - pickupLeadHours
+                                                    const timeStr = time || '12:00';
+                                                    const [sh, sm] = timeStr.split(':').map(Number);
+                                                    const searchMin = (sh || 0) * 60 + (sm || 0);
+                                                    const travelMin = durationMin || 0;
+                                                    const leadMin = (result.pickupLeadHours || 0) * 60;
+                                                    let total = searchMin - travelMin - leadMin;
+                                                    while (total < 0) total += 24 * 60;
+                                                    const hh = String(Math.floor(total / 60) % 24).padStart(2, '0');
+                                                    const mm = String(total % 60).padStart(2, '0');
+                                                    const displayTime = (durationMin && result.pickupLeadHours) ? `${hh}:${mm}` : result.matchedMasterTime;
+                                                    return (
+                                                        <Tag color="blue" style={{ fontWeight: 600 }}>
+                                                            {displayTime} Yolculuğu
+                                                            {displayTime !== result.matchedMasterTime && (
+                                                                <span style={{ fontSize: 10, fontWeight: 400, marginLeft: 6, opacity: 0.8 }}>
+                                                                    (sefer: {result.matchedMasterTime})
+                                                                </span>
+                                                            )}
+                                                        </Tag>
+                                                    );
+                                                })() : (result.matchedMasterTime && <Tag color="blue" style={{fontWeight:600}}>{result.matchedMasterTime} Yolculuğu</Tag>)}
                                                 <Space><UserOutlined /> {result.capacity} Yolcu</Space>
                                                 <Space><SafetyCertificateOutlined /> {result.luggage} Bavul</Space>
                                                 {result.features?.includes('WiFi') && <Space><WifiOutlined /> WiFi</Space>}
-                                                <Space><ClockCircleOutlined /> Süre: {result.estimatedDuration}</Space>
+                                                <Space><ClockCircleOutlined /> Süre: {result.isShuttle && typeof routeStats?.duration === 'string' ? routeStats.duration : result.estimatedDuration}</Space>
                                             </div>
                                             <Tag icon={<CheckCircleOutlined />} color="green">Ücretsiz İptal</Tag>
                                         </Col>
