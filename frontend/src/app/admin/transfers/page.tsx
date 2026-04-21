@@ -588,19 +588,26 @@ const TransfersPage: React.FC = () => {
     useEffect(() => {
         if (!socket || !isConnected) return;
         const handleNewBooking = (data: any) => {
-            console.log("Socket: New booking received, reloading list...");
+            console.log("Socket: New booking received, reloading list...", data);
             fetchBookings();
             // Auto-approve if enabled
             const mode = autoApproveRef.current;
-            if (mode !== 'off' && data?.bookingId) {
+            const bookingId = data?.id || data?.bookingId;
+            if (mode !== 'off' && bookingId) {
                 const subStatus = mode === 'operation' ? 'IN_OPERATION' : 'IN_POOL';
+                console.log(`[AutoApprove] mode=${mode}, bookingId=${bookingId}, subStatus=${subStatus}`);
                 setTimeout(() => {
-                    apiClient.put(`/api/transfer/bookings/${data.bookingId}/status`, { status: 'CONFIRMED', subStatus })
+                    apiClient.put(`/api/transfer/bookings/${bookingId}/status`, { status: 'CONFIRMED', subStatus })
                         .then(() => {
                             message.info(`Otomatik: ${mode === 'operation' ? 'Operasyona aktarıldı' : 'Havuza aktarıldı'}`);
                             fetchBookings();
-                        }).catch(() => {});
+                        }).catch((err) => {
+                            console.error('[AutoApprove] Failed:', err);
+                            message.error('Otomatik aktarım başarısız');
+                        });
                 }, 1500);
+            } else if (mode !== 'off') {
+                console.warn('[AutoApprove] No bookingId in socket payload:', data);
             }
         };
         socket.on('new_booking', handleNewBooking);
@@ -1225,6 +1232,35 @@ const TransfersPage: React.FC = () => {
                                         </Descriptions.Item>
                                         <Descriptions.Item label="Notlar" span={2}>{selectedBooking.notes||'-'}</Descriptions.Item>
                                     </Descriptions>
+                                    {(() => {
+                                        const md = selectedBooking.metadata || {};
+                                        const list = md.passengerDetails || md.passengers || md.passengersList || [];
+                                        if (!Array.isArray(list) || list.length === 0) return null;
+                                        return (
+                                            <div style={{ border: '1px solid #f0f0f0', borderRadius: 8, padding: 12, background: '#fafafa' }}>
+                                                <Text strong style={{ display: 'block', marginBottom: 8 }}>Diğer Yolcular:</Text>
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                                    {list.map((p: any, i: number) => {
+                                                        const name = p.name || p.fullName || [p.firstName, p.lastName].filter(Boolean).join(' ') || '—';
+                                                        const nationality = p.nationality || p.country || p.uyruk || null;
+                                                        return (
+                                                            <div key={i} style={{ display: 'flex', gap: 12, padding: '6px 10px', background: '#fff', border: '1px solid #f0f0f0', borderRadius: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                                                                <Tag color="blue" style={{ margin: 0, fontWeight: 700 }}>{i + 1}</Tag>
+                                                                <span style={{ fontWeight: 600 }}>{name}</span>
+                                                                {p.phone && <span style={{ color: '#64748b', fontSize: 12 }}>📞 {p.phone}</span>}
+                                                                {p.email && <span style={{ color: '#64748b', fontSize: 12 }}>✉️ {p.email}</span>}
+                                                                {nationality && <Tag color="geekblue" style={{ margin: 0 }}>🌍 {nationality}</Tag>}
+                                                                {p.tcNo && <span style={{ color: '#64748b', fontSize: 12 }}>🆔 {p.tcNo}</span>}
+                                                                {p.passportNo && <span style={{ color: '#64748b', fontSize: 12 }}>🛂 {p.passportNo}</span>}
+                                                                {p.age && <span style={{ color: '#64748b', fontSize: 12 }}>({p.age})</span>}
+                                                                {p.type && <Tag style={{ margin: 0 }}>{p.type}</Tag>}
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
                                     <div style={{textAlign:'right'}}>
                                         <Text type="secondary">Toplam Tutar</Text>
                                         <Title level={3} style={{margin:0,background:'linear-gradient(135deg,#6366f1,#8b5cf6)',WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent'}}>₺{selectedBooking.price?.toLocaleString('tr-TR')}</Title>
