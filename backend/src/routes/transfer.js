@@ -119,6 +119,17 @@ async function loadTenantHubs(tenantId) {
  * Search available transfers (Mock algorithm, real future impl would use Google Distance Matrix)
  */
 router.post('/search', optionalAuthMiddleware, async (req, res) => {
+    // ── Custom price rounding: round kuruş to nearest quarter ──
+    // 0-24 → .00, 25-50 → .50, 51-75 → .75, 76-99 → next .00
+    const roundPrice = (price) => {
+        const whole = Math.floor(price);
+        const kurus = Math.round((price - whole) * 100);
+        if (kurus <= 24) return whole;
+        if (kurus <= 50) return whole + 0.50;
+        if (kurus <= 75) return whole + 0.75;
+        return whole + 1;
+    };
+
     try {
         const {
             pickup,
@@ -860,7 +871,7 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                 vendor: 'SmartShuttle',
                 capacity: s.maxSeats,
                 luggage: 1, // Per person
-                price: Number(markedUpShuttlePrice.toFixed(2)),
+                price: roundPrice(markedUpShuttlePrice),
                 basePrice: totalShuttlePrice, // Store original B2B cost including overage
                 overageKm: s._overageKm > 0 ? Number(s._overageKm.toFixed(1)) : 0,
                 overageCharge: overageCharge,
@@ -1150,11 +1161,11 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                         const perPersonPrice = Number(contractPrice.price) || 0;
                         baseContractValue = ((perPersonPrice * Number(passengers)) + extra) * typeMult;
                     }
-                    finalPrice = Math.round(baseContractValue * (1 + (agencyMarkup / 100)));
+                    finalPrice = roundPrice(baseContractValue * (1 + (agencyMarkup / 100)));
                     console.log(`[Trace] VT:${vt.name} CONTRACT price: ${finalPrice} (base: ${baseContractValue}, markup: ${agencyMarkup}%)`);
                 } else {
                     // Standard pricing: apply agency markup on calculated price
-                    finalPrice = Math.round(calculatedPrice * (1 + (agencyMarkup / 100)));
+                    finalPrice = roundPrice(calculatedPrice * (1 + (agencyMarkup / 100)));
                     console.log(`[Trace] VT:${vt.name} STANDARD price: ${finalPrice} (calc: ${calculatedPrice}, markup: ${agencyMarkup}%)`);
                 }
 
