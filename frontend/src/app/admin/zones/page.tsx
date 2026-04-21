@@ -577,7 +577,12 @@ const ZonesPage: React.FC = () => {
 
           {/* ── MAP VIEW ── */}
           {zones.length > 0 && viewMode === 'map' && (
-            <AllZonesMap zones={zones} height={640} />
+            <AllZonesMap
+              zones={zones}
+              height={640}
+              onEditZone={(zone) => handleEditZone(zone as any)}
+              onNewZone={handleNewZone}
+            />
           )}
 
           {/* ── UNIFIED ZONE MODAL ── */}

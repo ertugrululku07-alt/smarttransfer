@@ -16,6 +16,8 @@ interface Zone {
 interface AllZonesMapProps {
     zones: Zone[];
     height?: number | string;
+    onEditZone?: (zone: Zone) => void;
+    onNewZone?: () => void;
 }
 
 // Auto-fit bounds to show all polygons
@@ -52,7 +54,7 @@ const MapInvalidator: React.FC = () => {
     return null;
 };
 
-const AllZonesMap: React.FC<AllZonesMapProps> = ({ zones, height = 600 }) => {
+const AllZonesMap: React.FC<AllZonesMapProps> = ({ zones, height = 600, onEditZone, onNewZone }) => {
     const apiKey = process.env.NEXT_PUBLIC_HERE_API_KEY || 'RH04HVBUK6By3GfYWwVlCOG4Or1IzV-rRjygQRHbIvo';
     const tileUrl = `https://maps.hereapi.com/v3/base/mc/{z}/{x}/{y}/png8?apiKey=${apiKey}&size=256&style=explore.day`;
     const attribution = '&copy; <a href="https://here.com">HERE</a>';
@@ -94,6 +96,15 @@ const AllZonesMap: React.FC<AllZonesMapProps> = ({ zones, height = 600 }) => {
                                     weight: 2.5,
                                     opacity: 0.85,
                                 }}
+                                eventHandlers={{
+                                    click: () => onEditZone?.(zone),
+                                    mouseover: (e) => {
+                                        e.target.setStyle({ fillOpacity: 0.4, weight: 4 });
+                                    },
+                                    mouseout: (e) => {
+                                        e.target.setStyle({ fillOpacity: 0.22, weight: 2.5 });
+                                    },
+                                }}
                             >
                                 <Tooltip direction="center" permanent
                                     className="zone-label-tooltip"
@@ -101,7 +112,7 @@ const AllZonesMap: React.FC<AllZonesMapProps> = ({ zones, height = 600 }) => {
                                     <div style={{
                                         display: 'flex', flexDirection: 'column',
                                         alignItems: 'center', gap: 2,
-                                        pointerEvents: 'none',
+                                        cursor: onEditZone ? 'pointer' : 'default',
                                     }}>
                                         <span style={{
                                             fontWeight: 800, fontSize: 13,
@@ -120,6 +131,11 @@ const AllZonesMap: React.FC<AllZonesMapProps> = ({ zones, height = 600 }) => {
                                                 letterSpacing: '0.5px',
                                             }}>
                                                 {zone.code}
+                                            </span>
+                                        )}
+                                        {onEditZone && (
+                                            <span style={{ fontSize: 9, color: '#94a3b8', marginTop: 1 }}>
+                                                ✏️ tıkla → düzenle
                                             </span>
                                         )}
                                     </div>
@@ -142,7 +158,16 @@ const AllZonesMap: React.FC<AllZonesMapProps> = ({ zones, height = 600 }) => {
                     Bölgeler ({zonesWithPolygon.length}/{zones.length})
                 </div>
                 {zonesWithPolygon.map(z => (
-                    <div key={z.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0' }}>
+                    <div key={z.id}
+                        onClick={() => onEditZone?.(z)}
+                        style={{
+                            display: 'flex', alignItems: 'center', gap: 8, padding: '5px 6px',
+                            borderRadius: 6, cursor: onEditZone ? 'pointer' : 'default',
+                            transition: 'background 0.15s',
+                        }}
+                        onMouseEnter={e => { if (onEditZone) e.currentTarget.style.background = '#f1f5f9'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                    >
                         <div style={{
                             width: 14, height: 14, borderRadius: 4,
                             background: z.color || '#3388ff',
@@ -150,8 +175,9 @@ const AllZonesMap: React.FC<AllZonesMapProps> = ({ zones, height = 600 }) => {
                             boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
                             flexShrink: 0,
                         }} />
-                        <span style={{ fontSize: 12, fontWeight: 600, color: '#1e293b' }}>{z.name}</span>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: '#1e293b', flex: 1 }}>{z.name}</span>
                         {z.code && <span style={{ fontSize: 10, color: '#94a3b8', fontFamily: 'monospace' }}>{z.code}</span>}
+                        {onEditZone && <span style={{ fontSize: 11, color: '#94a3b8' }}>✏️</span>}
                     </div>
                 ))}
                 {zonesWithoutPolygon.length > 0 && (
@@ -161,14 +187,43 @@ const AllZonesMap: React.FC<AllZonesMapProps> = ({ zones, height = 600 }) => {
                             Poligonu Yok ({zonesWithoutPolygon.length})
                         </div>
                         {zonesWithoutPolygon.map(z => (
-                            <div key={z.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 0' }}>
+                            <div key={z.id}
+                                onClick={() => onEditZone?.(z)}
+                                style={{
+                                    display: 'flex', alignItems: 'center', gap: 6, padding: '4px 6px',
+                                    borderRadius: 6, cursor: onEditZone ? 'pointer' : 'default',
+                                    transition: 'background 0.15s',
+                                }}
+                                onMouseEnter={e => { if (onEditZone) e.currentTarget.style.background = '#fef2f2'; }}
+                                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                            >
                                 <div style={{
                                     width: 10, height: 10, borderRadius: 3,
                                     border: '2px dashed #fca5a5', flexShrink: 0,
                                 }} />
-                                <span style={{ fontSize: 11, color: '#94a3b8' }}>{z.name}</span>
+                                <span style={{ fontSize: 11, color: '#94a3b8', flex: 1 }}>{z.name}</span>
+                                {onEditZone && <span style={{ fontSize: 11, color: '#dc2626' }}>✏️</span>}
                             </div>
                         ))}
+                    </>
+                )}
+                {onNewZone && (
+                    <>
+                        <div style={{ borderTop: '1px solid #f1f5f9', margin: '8px 0 6px' }} />
+                        <button
+                            onClick={onNewZone}
+                            style={{
+                                width: '100%', padding: '8px 10px', borderRadius: 8,
+                                border: '2px dashed #c7d2fe', background: '#eef2ff',
+                                color: '#6366f1', fontWeight: 700, fontSize: 12,
+                                cursor: 'pointer', transition: 'all 0.15s',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                            }}
+                            onMouseEnter={e => { e.currentTarget.style.background = '#e0e7ff'; e.currentTarget.style.borderColor = '#a5b4fc'; }}
+                            onMouseLeave={e => { e.currentTarget.style.background = '#eef2ff'; e.currentTarget.style.borderColor = '#c7d2fe'; }}
+                        >
+                            + Yeni Bölge Çiz
+                        </button>
                     </>
                 )}
             </div>
