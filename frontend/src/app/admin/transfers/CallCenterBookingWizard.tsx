@@ -232,8 +232,8 @@ const CallCenterBookingWizard: React.FC<Props> = ({ open, onClose, onSuccess }) 
                 closable={false}
                 styles={{
                     body: { padding: 0 },
-                    content: { borderRadius: 20, overflow: 'hidden', padding: 0 },
                 }}
+                className="cc-wizard-modal"
             >
                 {/* ─── HEADER ─── */}
                 <div style={{
@@ -976,6 +976,14 @@ const CallCenterBookingWizard: React.FC<Props> = ({ open, onClose, onSuccess }) 
                 title={mapOpen === 'pickup' ? 'Alis Konumunu Secin' : 'Birakis Konumunu Secin'}
                 country="TUR"
             />
+
+            <style jsx global>{`
+                .cc-wizard-modal .ant-modal-content {
+                    border-radius: 20px !important;
+                    overflow: hidden !important;
+                    padding: 0 !important;
+                }
+            `}</style>
         </>
     );
 };
