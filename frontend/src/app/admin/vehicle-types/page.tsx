@@ -34,7 +34,8 @@ import {
     message,
     Upload,
     Spin,
-    Tooltip
+    Tooltip,
+    Table
 } from 'antd';
 import type { UploadChangeParam } from 'antd/es/upload';
 import type { UploadFile, UploadProps } from 'antd/es/upload/interface';
@@ -49,7 +50,10 @@ import {
     ShoppingOutlined,
     DragOutlined,
     StarOutlined,
-    ToolOutlined
+    ToolOutlined,
+    UnorderedListOutlined,
+    AppstoreOutlined,
+    CheckCircleFilled
 } from '@ant-design/icons';
 import apiClient, { getImageUrl } from '../../../lib/api-client';
 import AdminGuard from '../AdminGuard';
@@ -306,6 +310,7 @@ const VehicleTypesPage: React.FC = () => {
     const [form] = Form.useForm();
     const [uploadLoading, setUploadLoading] = useState(false);
     const [imageUrl, setImageUrl] = useState<string>();
+    const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
 
     const sensors = useSensors(
         useSensor(PointerSensor, {
@@ -457,6 +462,227 @@ const VehicleTypesPage: React.FC = () => {
 
     const totalVehicles = vehicleTypes.reduce((s, v) => s + (v.vehicleCount || 0), 0);
 
+    // ── View Toggle Button ──
+    const ViewToggle = () => (
+        <div style={{
+            display: 'flex', gap: 2, padding: 3, borderRadius: 10,
+            background: '#f1f5f9', border: '1px solid #e2e8f0',
+        }}>
+            <Tooltip title="Liste Görünümü">
+                <button
+                    onClick={() => setViewMode('list')}
+                    style={{
+                        border: 'none', cursor: 'pointer', padding: '6px 12px', borderRadius: 8,
+                        display: 'flex', alignItems: 'center', gap: 6,
+                        background: viewMode === 'list' ? '#fff' : 'transparent',
+                        boxShadow: viewMode === 'list' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                        color: viewMode === 'list' ? '#6366f1' : '#94a3b8',
+                        fontWeight: 600, fontSize: 13, transition: 'all 0.2s',
+                    }}
+                >
+                    <UnorderedListOutlined style={{ fontSize: 14 }} />
+                </button>
+            </Tooltip>
+            <Tooltip title="Kart Görünümü">
+                <button
+                    onClick={() => setViewMode('grid')}
+                    style={{
+                        border: 'none', cursor: 'pointer', padding: '6px 12px', borderRadius: 8,
+                        display: 'flex', alignItems: 'center', gap: 6,
+                        background: viewMode === 'grid' ? '#fff' : 'transparent',
+                        boxShadow: viewMode === 'grid' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                        color: viewMode === 'grid' ? '#6366f1' : '#94a3b8',
+                        fontWeight: 600, fontSize: 13, transition: 'all 0.2s',
+                    }}
+                >
+                    <AppstoreOutlined style={{ fontSize: 14 }} />
+                </button>
+            </Tooltip>
+        </div>
+    );
+
+    // ── List View Columns ──
+    const listColumns = [
+        {
+            title: '#',
+            dataIndex: 'order',
+            key: 'order',
+            width: 50,
+            align: 'center' as const,
+            render: (order: number) => (
+                <div style={{
+                    width: 28, height: 28, borderRadius: 8,
+                    background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 12, fontWeight: 800, color: '#64748b', margin: '0 auto',
+                }}>
+                    {order || '-'}
+                </div>
+            ),
+        },
+        {
+            title: 'ARAÇ TİPİ',
+            key: 'name',
+            render: (_: any, record: VehicleType) => {
+                const catStyle = getCategoryStyle(record.category);
+                return (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                        <div style={{
+                            width: 48, height: 48, borderRadius: 12,
+                            background: record.image
+                                ? `url(${getImageUrl(record.image)}) center/cover no-repeat`
+                                : catStyle.gradient,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            flexShrink: 0, border: '2px solid #f0f0f0',
+                        }}>
+                            {!record.image && <CarOutlined style={{ fontSize: 20, color: 'rgba(255,255,255,0.7)' }} />}
+                        </div>
+                        <div>
+                            <div style={{ fontSize: 14, fontWeight: 700, color: '#1a1a2e', lineHeight: 1.3 }}>{record.name}</div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3 }}>
+                                <Tag style={{
+                                    borderRadius: 6, fontWeight: 700, fontSize: 10, margin: 0,
+                                    background: catStyle.bg, color: catStyle.color, border: 'none',
+                                    padding: '1px 8px',
+                                }}>
+                                    {record.categoryDisplay}
+                                </Tag>
+                            </div>
+                        </div>
+                    </div>
+                );
+            },
+        },
+        {
+            title: 'YOLCU',
+            dataIndex: 'capacity',
+            key: 'capacity',
+            width: 80,
+            align: 'center' as const,
+            render: (capacity: number) => (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'center' }}>
+                    <UserOutlined style={{ fontSize: 13, color: '#6366f1' }} />
+                    <span style={{ fontSize: 14, fontWeight: 700, color: '#1e293b' }}>{capacity}</span>
+                </div>
+            ),
+        },
+        {
+            title: 'BAGAJ',
+            dataIndex: 'luggage',
+            key: 'luggage',
+            width: 80,
+            align: 'center' as const,
+            render: (luggage: number) => (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'center' }}>
+                    <ShoppingOutlined style={{ fontSize: 13, color: '#0891b2' }} />
+                    <span style={{ fontSize: 14, fontWeight: 700, color: '#1e293b' }}>{luggage}</span>
+                </div>
+            ),
+        },
+        {
+            title: 'ARAÇ SAYISI',
+            dataIndex: 'vehicleCount',
+            key: 'vehicleCount',
+            width: 110,
+            align: 'center' as const,
+            render: (count: number) => (
+                <div style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                    padding: '4px 12px', borderRadius: 20,
+                    background: count > 0 ? '#f0fdf4' : '#f8fafc',
+                    border: `1px solid ${count > 0 ? '#bbf7d0' : '#f1f5f9'}`,
+                }}>
+                    <CarOutlined style={{ fontSize: 12, color: count > 0 ? '#16a34a' : '#94a3b8' }} />
+                    <span style={{ fontSize: 13, fontWeight: 700, color: count > 0 ? '#16a34a' : '#94a3b8' }}>
+                        {count}
+                    </span>
+                </div>
+            ),
+        },
+        {
+            title: 'ÖZELLİKLER',
+            dataIndex: 'features',
+            key: 'features',
+            render: (features: string[]) => features && features.length > 0 ? (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                    {features.slice(0, 3).map((f, i) => (
+                        <Tag key={i} style={{
+                            borderRadius: 6, fontSize: 10, fontWeight: 600, margin: 0,
+                            background: '#f1f5f9', color: '#64748b', border: 'none', padding: '2px 8px',
+                        }}>
+                            {f}
+                        </Tag>
+                    ))}
+                    {features.length > 3 && (
+                        <Tag style={{
+                            borderRadius: 6, fontSize: 10, fontWeight: 600, margin: 0,
+                            background: '#e0e7ff', color: '#6366f1', border: 'none', padding: '2px 8px',
+                        }}>
+                            +{features.length - 3}
+                        </Tag>
+                    )}
+                </div>
+            ) : <span style={{ color: '#cbd5e1', fontSize: 12 }}>—</span>,
+        },
+        {
+            title: 'KM FİYATLAMA',
+            key: 'pricing',
+            width: 150,
+            render: (_: any, record: VehicleType) => {
+                const has = record.metadata?.openingFee || record.metadata?.basePricePerKm;
+                return has ? (
+                    <div style={{
+                        padding: '4px 10px', borderRadius: 8,
+                        background: '#fffbeb', border: '1px solid #fef3c7',
+                        fontSize: 11, color: '#92400e', fontWeight: 500,
+                        display: 'flex', alignItems: 'center', gap: 4,
+                    }}>
+                        <ToolOutlined style={{ fontSize: 11 }} />
+                        <span>
+                            {record.metadata?.openingFee != null && `${record.metadata.openingFee}`}
+                            {record.metadata?.openingFee != null && record.metadata?.basePricePerKm != null && ' | '}
+                            {record.metadata?.basePricePerKm != null && `${record.metadata.basePricePerKm}/km`}
+                        </span>
+                    </div>
+                ) : <span style={{ color: '#cbd5e1', fontSize: 12 }}>—</span>;
+            },
+        },
+        {
+            title: '',
+            key: 'actions',
+            width: 100,
+            render: (_: any, record: VehicleType) => (
+                <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
+                    <Tooltip title="Düzenle">
+                        <Button
+                            size="small" type="text"
+                            icon={<EditOutlined />}
+                            onClick={() => handleEdit(record)}
+                            style={{ borderRadius: 8, color: '#64748b', width: 34, height: 34 }}
+                        />
+                    </Tooltip>
+                    <Popconfirm
+                        title="Araç tipini silmek istediğinize emin misiniz?"
+                        description={record.vehicleCount > 0 ? "Bu tipe bağlı araçlar var." : "Bu işlem geri alınamaz."}
+                        onConfirm={() => handleDelete(record.id)}
+                        okText="Evet, Sil"
+                        cancelText="Vazgeç"
+                        okButtonProps={{ danger: true }}
+                        disabled={record.vehicleCount > 0}
+                    >
+                        <Tooltip title={record.vehicleCount > 0 ? 'Bağlı araçlar mevcut' : 'Sil'}>
+                            <Button
+                                size="small" type="text" danger
+                                icon={<DeleteOutlined />}
+                                disabled={record.vehicleCount > 0}
+                                style={{ borderRadius: 8, width: 34, height: 34 }}
+                            />
+                        </Tooltip>
+                    </Popconfirm>
+                </div>
+            ),
+        },
+    ];
+
     return (
         <AdminGuard>
             <AdminLayout selectedKey="vehicle-types">
@@ -472,20 +698,23 @@ const VehicleTypesPage: React.FC = () => {
                                 {vehicleTypes.length} araç tipi, {totalVehicles} kayıtlı araç
                             </Text>
                         </div>
-                        <Button
-                            type="primary"
-                            icon={<PlusOutlined />}
-                            onClick={handleAdd}
-                            size="large"
-                            style={{
-                                background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-                                border: 'none', borderRadius: 12, fontWeight: 600,
-                                height: 44, paddingInline: 24,
-                                boxShadow: '0 4px 14px rgba(99,102,241,0.3)',
-                            }}
-                        >
-                            Yeni Araç Tipi
-                        </Button>
+                        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                            <ViewToggle />
+                            <Button
+                                type="primary"
+                                icon={<PlusOutlined />}
+                                onClick={handleAdd}
+                                size="large"
+                                style={{
+                                    background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                                    border: 'none', borderRadius: 12, fontWeight: 600,
+                                    height: 44, paddingInline: 24,
+                                    boxShadow: '0 4px 14px rgba(99,102,241,0.3)',
+                                }}
+                            >
+                                Yeni Araç Tipi
+                            </Button>
+                        </div>
                     </div>
 
                     {/* ── Summary Stats ── */}
@@ -518,8 +747,8 @@ const VehicleTypesPage: React.FC = () => {
                         </div>
                     )}
 
-                    {/* ── Drag hint ── */}
-                    {vehicleTypes.length > 1 && (
+                    {/* ── Drag hint (only in grid mode) ── */}
+                    {vehicleTypes.length > 1 && viewMode === 'grid' && (
                         <div style={{
                             display: 'flex', alignItems: 'center', gap: 8,
                             padding: '10px 16px', borderRadius: 12,
@@ -567,8 +796,31 @@ const VehicleTypesPage: React.FC = () => {
                         </div>
                     )}
 
-                    {/* ── Vehicle Type Cards Grid ── */}
-                    {vehicleTypes.length > 0 && (
+                    {/* ── LIST VIEW ── */}
+                    {vehicleTypes.length > 0 && viewMode === 'list' && (
+                        <div style={{
+                            background: '#fff', borderRadius: 16, overflow: 'hidden',
+                            border: '1px solid #f0f0f0',
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                        }}>
+                            <Table
+                                dataSource={vehicleTypes}
+                                columns={listColumns}
+                                rowKey="id"
+                                pagination={false}
+                                size="middle"
+                                rowClassName={() => 'vt-list-row'}
+                            />
+                            <style jsx global>{`
+                                .vt-list-row td { border-bottom: 1px solid #f8fafc !important; padding: 12px 16px !important; }
+                                .vt-list-row:hover td { background: #fafafe !important; }
+                                .vt-list-row:last-child td { border-bottom: none !important; }
+                            `}</style>
+                        </div>
+                    )}
+
+                    {/* ── GRID VIEW (with drag & drop) ── */}
+                    {vehicleTypes.length > 0 && viewMode === 'grid' && (
                         <DndContext
                             sensors={sensors}
                             collisionDetection={closestCenter}

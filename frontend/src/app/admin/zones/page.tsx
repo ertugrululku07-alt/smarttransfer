@@ -3,12 +3,13 @@
 import React, { useEffect, useState } from 'react';
 import {
   Typography, Button, Modal, Form, Input, ColorPicker,
-  message, Popconfirm, Spin, Tag, Badge, Alert, Row, Col, Divider
+  message, Popconfirm, Spin, Tag, Badge, Alert, Row, Col, Divider, Table, Switch, Tooltip
 } from 'antd';
 import {
   PlusOutlined, EditOutlined, DeleteOutlined,
   EnvironmentOutlined, SearchOutlined,
-  CodeOutlined, AimOutlined, SwapOutlined
+  CodeOutlined, AimOutlined, SwapOutlined,
+  UnorderedListOutlined, AppstoreOutlined, CheckCircleFilled, CloseCircleFilled
 } from '@ant-design/icons';
 import AdminGuard from '../AdminGuard';
 import AdminLayout from '../AdminLayout';
@@ -35,6 +36,7 @@ const ZonesPage: React.FC = () => {
   const [editingZone, setEditingZone] = useState<Zone | null>(null);
   const [form] = Form.useForm();
   const [currentPolygon, setCurrentPolygon] = useState<{lat: number, lng: number}[]>([]);
+  const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
 
   const fetchData = async () => {
     setLoading(true);
@@ -103,7 +105,214 @@ const ZonesPage: React.FC = () => {
     } catch (err) { console.error(err); message.error('Kaydedilirken hata oluştu'); }
   };
 
-  // ── Zone Card ──
+  // ── View Toggle Button ──
+  const ViewToggle = () => (
+    <div style={{
+      display: 'flex', gap: 2, padding: 3, borderRadius: 10,
+      background: '#f1f5f9', border: '1px solid #e2e8f0',
+    }}>
+      <Tooltip title="Liste Görünümü">
+        <button
+          onClick={() => setViewMode('list')}
+          style={{
+            border: 'none', cursor: 'pointer', padding: '6px 12px', borderRadius: 8,
+            display: 'flex', alignItems: 'center', gap: 6,
+            background: viewMode === 'list' ? '#fff' : 'transparent',
+            boxShadow: viewMode === 'list' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+            color: viewMode === 'list' ? '#6366f1' : '#94a3b8',
+            fontWeight: 600, fontSize: 13, transition: 'all 0.2s',
+          }}
+        >
+          <UnorderedListOutlined style={{ fontSize: 14 }} />
+        </button>
+      </Tooltip>
+      <Tooltip title="Kart Görünümü">
+        <button
+          onClick={() => setViewMode('grid')}
+          style={{
+            border: 'none', cursor: 'pointer', padding: '6px 12px', borderRadius: 8,
+            display: 'flex', alignItems: 'center', gap: 6,
+            background: viewMode === 'grid' ? '#fff' : 'transparent',
+            boxShadow: viewMode === 'grid' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+            color: viewMode === 'grid' ? '#6366f1' : '#94a3b8',
+            fontWeight: 600, fontSize: 13, transition: 'all 0.2s',
+          }}
+        >
+          <AppstoreOutlined style={{ fontSize: 14 }} />
+        </button>
+      </Tooltip>
+    </div>
+  );
+
+  // ── List View Columns ──
+  const listColumns = [
+    {
+      title: '',
+      dataIndex: 'color',
+      key: 'color',
+      width: 6,
+      render: (color: string) => (
+        <div style={{ width: 4, height: 40, borderRadius: 4, background: color || '#3388ff' }} />
+      ),
+    },
+    {
+      title: 'BÖLGE ADI',
+      dataIndex: 'name',
+      key: 'name',
+      render: (name: string, record: Zone) => (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{
+            width: 38, height: 38, borderRadius: 10,
+            background: `${record.color || '#3388ff'}14`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            border: `1.5px solid ${record.color || '#3388ff'}30`,
+            flexShrink: 0,
+          }}>
+            <EnvironmentOutlined style={{ fontSize: 16, color: record.color || '#3388ff' }} />
+          </div>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: '#1a1a2e', lineHeight: 1.3 }}>{name}</div>
+            <div style={{ fontSize: 11, color: '#94a3b8' }}>
+              {new Date(record.createdAt).toLocaleDateString('tr-TR')}
+            </div>
+          </div>
+        </div>
+      ),
+    },
+    {
+      title: 'KOD',
+      dataIndex: 'code',
+      key: 'code',
+      width: 100,
+      render: (code: string | null) => code ? (
+        <Tag style={{
+          borderRadius: 6, fontWeight: 700, fontSize: 11, margin: 0,
+          background: '#e0e7ff', color: '#4f46e5', border: 'none', fontFamily: 'monospace',
+          padding: '2px 10px',
+        }}>
+          {code}
+        </Tag>
+      ) : <span style={{ color: '#cbd5e1', fontSize: 12 }}>—</span>,
+    },
+    {
+      title: 'ANAHTAR KELİMELER',
+      dataIndex: 'keywords',
+      key: 'keywords',
+      render: (keywords: string | null) => keywords ? (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+          {keywords.split(',').filter(Boolean).slice(0, 3).map((kw, i) => (
+            <Tag key={i} style={{
+              borderRadius: 6, fontSize: 11, fontWeight: 500, margin: 0,
+              background: '#f1f5f9', color: '#475569', border: 'none', padding: '1px 8px',
+            }}>
+              {kw.trim()}
+            </Tag>
+          ))}
+          {keywords.split(',').filter(Boolean).length > 3 && (
+            <Tag style={{
+              borderRadius: 6, fontSize: 11, fontWeight: 600, margin: 0,
+              background: '#e0e7ff', color: '#6366f1', border: 'none', padding: '1px 8px',
+            }}>
+              +{keywords.split(',').filter(Boolean).length - 3}
+            </Tag>
+          )}
+        </div>
+      ) : <span style={{ color: '#cbd5e1', fontSize: 12 }}>—</span>,
+    },
+    {
+      title: 'POLİGON',
+      dataIndex: 'polygon',
+      key: 'polygon',
+      width: 110,
+      align: 'center' as const,
+      render: (polygon: any[] | null) => {
+        const has = polygon && polygon.length >= 3;
+        return (
+          <div style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6,
+            padding: '4px 12px', borderRadius: 20,
+            background: has ? '#f0fdf4' : '#fef2f2',
+            border: `1px solid ${has ? '#bbf7d0' : '#fecaca'}`,
+          }}>
+            {has ? (
+              <CheckCircleFilled style={{ fontSize: 12, color: '#16a34a' }} />
+            ) : (
+              <CloseCircleFilled style={{ fontSize: 12, color: '#dc2626' }} />
+            )}
+            <span style={{ fontSize: 12, fontWeight: 600, color: has ? '#16a34a' : '#dc2626' }}>
+              {has ? `${polygon!.length} nokta` : 'Yok'}
+            </span>
+          </div>
+        );
+      },
+    },
+    {
+      title: 'RENK',
+      dataIndex: 'color',
+      key: 'colorDisplay',
+      width: 90,
+      align: 'center' as const,
+      render: (color: string | null) => (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'center' }}>
+          <div style={{
+            width: 18, height: 18, borderRadius: 6,
+            background: color || '#3388ff',
+            border: '2px solid #fff', boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
+          }} />
+          <span style={{ fontSize: 11, fontWeight: 500, color: '#64748b', fontFamily: 'monospace' }}>
+            {(color || '#3388ff').slice(0, 7)}
+          </span>
+        </div>
+      ),
+    },
+    {
+      title: 'KALIKIŞ',
+      key: 'isDeparture',
+      width: 80,
+      align: 'center' as const,
+      render: (_: any, record: Zone) => {
+        const is = !!record.code;
+        return (
+          <div style={{
+            display: 'inline-flex', alignItems: 'center', gap: 4,
+            padding: '3px 10px', borderRadius: 20,
+            background: is ? '#eff6ff' : '#f8fafc',
+            border: `1px solid ${is ? '#bfdbfe' : '#f1f5f9'}`,
+          }}>
+            <SwapOutlined style={{ fontSize: 11, color: is ? '#2563eb' : '#94a3b8' }} />
+            <span style={{ fontSize: 11, fontWeight: 600, color: is ? '#2563eb' : '#94a3b8' }}>
+              {is ? 'Evet' : 'Hayır'}
+            </span>
+          </div>
+        );
+      },
+    },
+    {
+      title: '',
+      key: 'actions',
+      width: 100,
+      render: (_: any, record: Zone) => (
+        <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
+          <Tooltip title="Düzenle">
+            <Button
+              size="small" type="text"
+              icon={<EditOutlined />}
+              onClick={() => handleEditZone(record)}
+              style={{ borderRadius: 8, color: '#64748b', width: 34, height: 34 }}
+            />
+          </Tooltip>
+          <Popconfirm title="Bu bölgeyi silmek istediğinize emin misiniz?" description="Fiyatlar etkilenebilir."
+            onConfirm={() => handleDeleteZone(record.id)} okText="Sil" cancelText="Vazgeç" okButtonProps={{ danger: true }}>
+            <Tooltip title="Sil">
+              <Button size="small" type="text" danger icon={<DeleteOutlined />} style={{ borderRadius: 8, width: 34, height: 34 }} />
+            </Tooltip>
+          </Popconfirm>
+        </div>
+      ),
+    },
+  ];
+
+  // ── Zone Card (Grid) ──
   const renderZoneCard = (zone: Zone) => {
     const color = zone.color || '#3388ff';
     const hasPolygon = zone.polygon && zone.polygon.length >= 3;
@@ -240,15 +449,18 @@ const ZonesPage: React.FC = () => {
                 {zones.filter(z => z.polygon && z.polygon.length >= 3).length > 0 && ` • ${zones.filter(z => z.polygon && z.polygon.length >= 3).length} poligon alanı`}
               </Text>
             </div>
-            <Button type="primary" icon={<PlusOutlined />} onClick={handleNewZone} size="large"
-              style={{
-                background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-                border: 'none', borderRadius: 12, fontWeight: 600,
-                height: 44, paddingInline: 24,
-                boxShadow: '0 4px 14px rgba(99,102,241,0.3)',
-              }}>
-              Yeni Bölge
-            </Button>
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+              <ViewToggle />
+              <Button type="primary" icon={<PlusOutlined />} onClick={handleNewZone} size="large"
+                style={{
+                  background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                  border: 'none', borderRadius: 12, fontWeight: 600,
+                  height: 44, paddingInline: 24,
+                  boxShadow: '0 4px 14px rgba(99,102,241,0.3)',
+                }}>
+                Yeni Bölge
+              </Button>
+            </div>
           </div>
 
           {/* Info box */}
@@ -296,8 +508,42 @@ const ZonesPage: React.FC = () => {
             </div>
           )}
 
-          {/* Zone Grid */}
-          {zones.length > 0 && (
+          {/* ── LIST VIEW ── */}
+          {zones.length > 0 && viewMode === 'list' && (
+            <div style={{
+              background: '#fff', borderRadius: 16, overflow: 'hidden',
+              border: '1px solid #f0f0f0',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+            }}>
+              <Table
+                dataSource={zones}
+                columns={listColumns}
+                rowKey="id"
+                pagination={false}
+                size="middle"
+                style={{ }}
+                rowClassName={() => 'zone-list-row'}
+              />
+              <style jsx global>{`
+                .zone-list-row td { border-bottom: 1px solid #f8fafc !important; padding: 12px 16px !important; }
+                .zone-list-row:hover td { background: #fafafe !important; }
+                .zone-list-row:last-child td { border-bottom: none !important; }
+                .ant-table-thead > tr > th {
+                  background: #f8fafc !important;
+                  border-bottom: 1px solid #f0f0f0 !important;
+                  font-size: 11px !important;
+                  font-weight: 700 !important;
+                  color: #94a3b8 !important;
+                  text-transform: uppercase !important;
+                  letter-spacing: 0.5px !important;
+                  padding: 10px 16px !important;
+                }
+              `}</style>
+            </div>
+          )}
+
+          {/* ── GRID VIEW ── */}
+          {zones.length > 0 && viewMode === 'grid' && (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: 16 }}>
               {zones.map(zone => renderZoneCard(zone))}
             </div>
