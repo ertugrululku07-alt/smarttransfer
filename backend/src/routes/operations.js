@@ -1419,50 +1419,122 @@ router.patch('/shuttle-runs/update', authMiddleware, async (req, res) => {
 
 // ---------------------------------------------------------------------------
 // POST /api/operations/shuttle-runs/optimize-route
-// Body: { bookingIds: string[], destinationAddress: string }
-// Geocodes pickup addresses and sorts by distance to destination (farthest first)
-// Returns optimized order of booking IDs
+// Body: { bookingIds: string[], destinationAddress: string, tripType: string }
+// Uses predefined zone coordinates to sort by distance to destination airport
+// DEP = farthest from airport first, ARV = nearest to airport first
 // ---------------------------------------------------------------------------
 router.post('/shuttle-runs/optimize-route', authMiddleware, async (req, res) => {
     try {
-        const { bookingIds, destinationAddress } = req.body;
+        const { bookingIds, destinationAddress, tripType } = req.body;
         
         if (!bookingIds || !Array.isArray(bookingIds) || bookingIds.length === 0) {
             return res.status(400).json({ success: false, error: 'bookingIds dizisi zorunlu' });
         }
 
-        const { getRouteDuration } = require('../services/RouteService');
-        
-        // Geocode helper (same as RouteService)
-        const geocodeAddress = (address) => {
-            return new Promise((resolve, reject) => {
-                const https = require('https');
-                const query = encodeURIComponent(address);
-                const options = {
-                    hostname: 'nominatim.openstreetmap.org',
-                    path: `/search?q=${query}&format=json&limit=1`,
-                    method: 'GET',
-                    headers: { 'User-Agent': 'SmartTransfer/1.0 (contact@smartransfer.com)' }
-                };
-                const req = https.request(options, (res) => {
-                    let data = '';
-                    res.on('data', chunk => data += chunk);
-                    res.on('end', () => {
-                        try {
-                            const results = JSON.parse(data);
-                            if (results && results.length > 0) {
-                                resolve({ lat: parseFloat(results[0].lat), lng: parseFloat(results[0].lon) });
-                            } else {
-                                resolve(null); // Could not geocode
-                            }
-                        } catch (e) { resolve(null); }
-                    });
-                });
-                req.on('error', () => resolve(null));
-                req.setTimeout(8000, () => { req.destroy(); resolve(null); });
-                req.end();
-            });
+        // ── Known zone coordinates (approximate, along the Turkish Riviera coast) ──
+        const ZONE_COORDS = {
+            // West of Antalya
+            OLP:   { lat: 36.3950, lng: 30.4000 },  // Olympos
+            CRL:   { lat: 36.4280, lng: 30.4750 },  // Çıralı
+            TKV:   { lat: 36.5260, lng: 30.5180 },  // Tekirova
+            CMY:   { lat: 36.5350, lng: 30.5400 },  // Çamyuva
+            KRS:   { lat: 36.5600, lng: 30.5500 },  // Kiriş
+            KMR:   { lat: 36.5981, lng: 30.5590 },  // Kemer
+            GYN:   { lat: 36.6350, lng: 30.5270 },  // Göynük
+            BLD:   { lat: 36.6700, lng: 30.5050 },  // Beldibi
+            // Antalya area
+            KNY:   { lat: 36.8650, lng: 30.6430 },  // Konyaaltı
+            ANT:   { lat: 36.8841, lng: 30.7056 },  // Antalya Merkez
+            LRA:   { lat: 36.8580, lng: 30.7639 },  // Lara
+            KND:   { lat: 36.8500, lng: 30.8200 },  // Kundu
+            AYT:   { lat: 36.8987, lng: 30.8005 },  // Antalya Airport
+            // East of Antalya Airport
+            BLK:   { lat: 36.8630, lng: 31.0550 },  // Belek
+            KDR:   { lat: 36.8700, lng: 31.0100 },  // Kadriye
+            SDE:   { lat: 36.7667, lng: 31.3894 },  // Side
+            SRGN:  { lat: 36.7630, lng: 31.4300 },  // Sorgun
+            MNV:   { lat: 36.7860, lng: 31.4430 },  // Manavgat
+            MNGVT: { lat: 36.7860, lng: 31.4430 },  // Manavgat alias
+            TDR:   { lat: 36.7530, lng: 31.4700 },  // Titreyengöl
+            KZLGC: { lat: 36.7200, lng: 31.5500 },  // Kızılağaç
+            OKR:   { lat: 36.6800, lng: 31.6300 },  // Okurcalar
+            AVS:   { lat: 36.6450, lng: 31.7600 },  // Avsallar
+            AVSL:  { lat: 36.6450, lng: 31.7600 },  // Avsallar alias
+            INC:   { lat: 36.6300, lng: 31.8000 },  // İncekum
+            TRKLR: { lat: 36.6100, lng: 31.8600 },  // Türkler
+            TRK:   { lat: 36.6100, lng: 31.8600 },  // Türkler alias
+            PYNL:  { lat: 36.5950, lng: 31.9200 },  // Payallar
+            KNKL:  { lat: 36.5920, lng: 31.9500 },  // Konaklı
+            KNK:   { lat: 36.5920, lng: 31.9500 },  // Konaklı alias
+            OBA:   { lat: 36.5450, lng: 32.0100 },  // Oba
+            ALY:   { lat: 36.5437, lng: 32.0004 },  // Alanya
+            TSMR:  { lat: 36.5400, lng: 32.0300 },  // Tosmur
+            KST:   { lat: 36.5300, lng: 32.0600 },  // Kestel
+            MHM:   { lat: 36.5100, lng: 32.0900 },  // Mahmutlar
+            KRG:   { lat: 36.4780, lng: 32.1500 },  // Kargıcak
+            DMTS:  { lat: 36.4580, lng: 32.2000 },  // Demirtaş
+            GZP:   { lat: 36.2992, lng: 32.3006 },  // Gazipaşa Airport
         };
+
+        // ── Zone keyword detection (most specific sub-zones checked first) ──
+        const ZONE_KEYWORDS = [
+            { code: 'MHM',   kw: ['mahmutlar'] },
+            { code: 'KRG',   kw: ['kargıcak', 'kargicak'] },
+            { code: 'DMTS',  kw: ['demirtaş', 'demirtas'] },
+            { code: 'KST',   kw: ['kestel'] },
+            { code: 'TSMR',  kw: ['tosmur'] },
+            { code: 'OBA',   kw: ['oba,', 'oba/','oba '] },  // word-boundary safe
+            { code: 'KNKL',  kw: ['konaklı', 'konakli'] },
+            { code: 'PYNL',  kw: ['payallar'] },
+            { code: 'TRKLR', kw: ['türkler', 'turkler'] },
+            { code: 'INC',   kw: ['incekum', 'i\u0307ncekum'] },
+            { code: 'AVS',   kw: ['avsallar'] },
+            { code: 'OKR',   kw: ['okurcalar'] },
+            { code: 'KZLGC', kw: ['kızılağaç', 'kizilağaç', 'kizilağac', 'kızılağac'] },
+            { code: 'TDR',   kw: ['titreyengöl', 'titreyengol'] },
+            { code: 'SRGN',  kw: ['sorgun'] },
+            { code: 'SDE',   kw: ['side,', 'side/', 'side '] },  // word-boundary safe
+            { code: 'MNGVT', kw: ['manavgat'] },
+            { code: 'BLK',   kw: ['belek'] },
+            { code: 'KDR',   kw: ['kadriye'] },
+            { code: 'KND',   kw: ['kundu'] },
+            { code: 'LRA',   kw: ['lara,', 'lara/', 'lara '] },
+            { code: 'KNY',   kw: ['konyaaltı', 'konyaalti'] },
+            { code: 'KMR',   kw: ['kemer'] },
+            { code: 'GYN',   kw: ['göynük', 'goynuk'] },
+            { code: 'BLD',   kw: ['beldibi'] },
+            { code: 'TKV',   kw: ['tekirova'] },
+            { code: 'CMY',   kw: ['çamyuva', 'camyuva'] },
+            { code: 'KRS',   kw: ['kiriş', 'kiris'] },
+            { code: 'CRL',   kw: ['çıralı', 'cirali'] },
+            { code: 'OLP',   kw: ['olympos', 'olimpos'] },
+            // Broad zones last
+            { code: 'ALY',   kw: ['alanya'] },
+            { code: 'ANT',   kw: ['antalya merkez'] },
+        ];
+
+        const trLower = (s) => (s || '').toLocaleLowerCase('tr');
+
+        // Detect the most specific zone from address text
+        function detectZoneFromAddress(addr) {
+            const text = trLower(addr);
+            for (const z of ZONE_KEYWORDS) {
+                if (z.kw.some(k => text.includes(trLower(k)))) {
+                    return z.code;
+                }
+            }
+            return null;
+        }
+
+        // Detect airport IATA code from text
+        function detectAirport(text) {
+            const t = trLower(text);
+            if (t.includes('antalya') && (t.includes('havaliman') || t.includes('airport'))) return 'AYT';
+            if (t.includes('gazipaşa') || t.includes('gazipasa')) return 'GZP';
+            if (/\bayt\b/i.test(text)) return 'AYT';
+            if (/\bgzp\b/i.test(text)) return 'GZP';
+            return null;
+        }
 
         // Haversine distance in km
         const haversine = (lat1, lng1, lat2, lng2) => {
@@ -1475,60 +1547,101 @@ router.post('/shuttle-runs/optimize-route', authMiddleware, async (req, res) => 
             return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
         };
 
-        // 1. Get bookings with metadata (pickup is stored in metadata)
+        // 1. Get bookings
         const bookings = await prisma.booking.findMany({
             where: { id: { in: bookingIds } },
-            select: { id: true, metadata: true }
+            select: { id: true, metadata: true, startDate: true }
         });
 
-        // 2. Geocode destination - try multiple formats
-        console.log('[optimize-route] Destination address:', destinationAddress);
-        let destCoords = null;
-        
-        // Try the provided address first
-        if (destinationAddress) {
-            destCoords = await geocodeAddress(destinationAddress);
-        }
-        
-        // Fallback attempts
-        if (!destCoords) {
-            console.log('[optimize-route] Trying fallback: Gazipaşa Havalimanı, Alanya');
-            destCoords = await geocodeAddress('Gazipaşa Havalimanı, Alanya, Antalya, Türkiye');
-        }
-        if (!destCoords) {
-            console.log('[optimize-route] Trying fallback: Gazipasa Airport');
-            destCoords = await geocodeAddress('Gazipasa Airport, Alanya, Turkey');
-        }
-        if (!destCoords) {
-            // Last resort: use known coords for Gazipaşa Airport
-            console.log('[optimize-route] Using hardcoded Gazipaşa Airport coords');
-            destCoords = { lat: 36.2992, lng: 32.3006 };
-        }
+        // 2. Detect destination airport
+        let airportCode = detectAirport(destinationAddress || '');
 
-        // 3. Geocode each booking's pickup and calculate distance
+        // Fallback: detect from bookings' dropoff/pickup region codes
+        if (!airportCode) {
+            const isDEP = (tripType || '').toUpperCase() !== 'ARV';
+            for (const b of bookings) {
+                const m = b.metadata || {};
+                const code = isDEP ? m.dropoffRegionCode : m.pickupRegionCode;
+                if (code === 'AYT' || code === 'GZP') { airportCode = code; break; }
+                const fromAddr = isDEP ? (m.dropoff || '') : (m.pickup || '');
+                const det = detectAirport(fromAddr);
+                if (det) { airportCode = det; break; }
+            }
+        }
+        if (!airportCode) airportCode = 'AYT'; // Default
+
+        const destCoords = ZONE_COORDS[airportCode] || ZONE_COORDS['AYT'];
+        console.log(`[optimize-route] Airport: ${airportCode} (${destCoords.lat},${destCoords.lng}), TripType: ${tripType || 'DEP'}, Bookings: ${bookings.length}`);
+
+        // 3. For each booking, determine coordinates from zone
         const results = [];
         for (const booking of bookings) {
             const m = booking.metadata || {};
             const pickupAddr = m.pickup || m.pickupLocation || m.pickupAddress || '';
-            
-            // Add delay between requests to respect Nominatim rate limits (1 req/sec)
-            if (results.length > 0) {
-                await new Promise(r => setTimeout(r, 1100));
+            const regionCode = m.pickupRegionCode;
+
+            let coords = null;
+            let resolvedZone = null;
+
+            // Priority 1: detect specific sub-zone from pickup address text
+            const addrZone = detectZoneFromAddress(pickupAddr);
+            if (addrZone && ZONE_COORDS[addrZone]) {
+                coords = ZONE_COORDS[addrZone];
+                resolvedZone = addrZone;
             }
-            
-            const coords = await geocodeAddress(pickupAddr);
-            const distanceKm = coords ? haversine(coords.lat, coords.lng, destCoords.lat, destCoords.lng) : 0;
-            
+
+            // Priority 2: use pickupRegionCode from metadata
+            if (!coords && regionCode && ZONE_COORDS[regionCode]) {
+                coords = ZONE_COORDS[regionCode];
+                resolvedZone = regionCode;
+            }
+
+            // Priority 3: try to detect from dropoff address for ARV
+            if (!coords) {
+                const dropoffAddr = m.dropoff || '';
+                const dropZone = detectZoneFromAddress(dropoffAddr);
+                if (dropZone && ZONE_COORDS[dropZone] && dropZone !== airportCode) {
+                    coords = ZONE_COORDS[dropZone];
+                    resolvedZone = dropZone;
+                }
+            }
+
+            const distanceKm = coords
+                ? haversine(coords.lat, coords.lng, destCoords.lat, destCoords.lng)
+                : -1; // unknown = will be placed at end
+
             results.push({
                 bookingId: booking.id,
                 pickup: pickupAddr,
-                coords,
-                distanceKm: Math.round(distanceKm * 10) / 10
+                zone: resolvedZone,
+                distanceKm: Math.round(distanceKm * 10) / 10,
+                pickupDateTime: booking.startDate,
             });
         }
 
-        // 4. Sort by distance to destination: farthest first (picked up first on the way)
-        results.sort((a, b) => b.distanceKm - a.distanceKm);
+        // 4. Sort: DEP = farthest first (picked up first on the way to airport)
+        //          ARV = nearest first (dropped off first after leaving airport)
+        const isARV = (tripType || '').toUpperCase() === 'ARV';
+        results.sort((a, b) => {
+            // Unknown zones go to end
+            if (a.distanceKm < 0 && b.distanceKm < 0) return 0;
+            if (a.distanceKm < 0) return 1;
+            if (b.distanceKm < 0) return -1;
+
+            const diff = isARV
+                ? a.distanceKm - b.distanceKm   // nearest first
+                : b.distanceKm - a.distanceKm;  // farthest first
+
+            if (Math.abs(diff) < 0.5) {
+                // Same zone → sort by pickup time
+                const tA = a.pickupDateTime ? new Date(a.pickupDateTime).getTime() : 0;
+                const tB = b.pickupDateTime ? new Date(b.pickupDateTime).getTime() : 0;
+                return tA - tB;
+            }
+            return diff;
+        });
+
+        console.log(`[optimize-route] Sorted order:`, results.map(r => `${r.zone || '?'}(${r.distanceKm}km)`).join(' → '));
 
         // 5. Update sort order in metadata
         let sortOrder = 1;
@@ -1553,15 +1666,17 @@ router.post('/shuttle-runs/optimize-route', authMiddleware, async (req, res) => 
             io.to('admin_monitoring').emit('shuttle_runs_updated', { optimized: true });
         }
 
-        res.json({ 
-            success: true, 
-            optimizedOrder: results.map(r => ({
+        res.json({
+            success: true,
+            optimizedOrder: results.map((r, idx) => ({
                 bookingId: r.bookingId,
                 pickup: r.pickup,
+                zone: r.zone,
                 distanceKm: r.distanceKm,
-                sortOrder: results.indexOf(r) + 1
+                sortOrder: idx + 1
             })),
-            destination: destinationAddress || 'Gazipaşa Alanya Havalimanı'
+            destination: airportCode,
+            tripType: tripType || 'DEP'
         });
     } catch (error) {
         console.error('shuttle-runs/optimize-route error:', error);

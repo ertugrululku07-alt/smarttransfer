@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Table, Tag, Button, Space, Typography, message, Input, Select, Tooltip, Popover, ColorPicker } from 'antd';
-import { CarOutlined, EnvironmentOutlined, MessageOutlined, SearchOutlined, FilterFilled, SortAscendingOutlined, SortDescendingOutlined, BgColorsOutlined, HolderOutlined, DownOutlined, RightOutlined, UserOutlined, PhoneOutlined, IdcardOutlined } from '@ant-design/icons';
+import { Table, Tag, Button, Space, Typography, message, Input, Select, Tooltip, Popover, ColorPicker, Dropdown } from 'antd';
+import { CarOutlined, EnvironmentOutlined, MessageOutlined, SearchOutlined, FilterFilled, SortAscendingOutlined, SortDescendingOutlined, BgColorsOutlined, HolderOutlined, DownOutlined, RightOutlined, UserOutlined, PhoneOutlined, IdcardOutlined, MoreOutlined, EyeOutlined, UndoOutlined, StopOutlined, InboxOutlined, CheckCircleOutlined, DollarOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { Resizable } from 'react-resizable';
 import 'react-resizable/css/styles.css';
@@ -146,6 +146,7 @@ interface OperationsTableProps {
     onOpenLocationModal?: (location: string, name: string) => void;
     onPoolTransfer?: (booking: any) => void;
     onOpenBookingDetail?: (booking: any) => void;
+    onCancelBooking?: (booking: any) => void;
 }
 
 const DEFAULT_STATUS_COLORS: Record<string, string> = {
@@ -180,6 +181,7 @@ export default function OperationsTable({
     onOpenLocationModal,
     onPoolTransfer,
     onOpenBookingDetail,
+    onCancelBooking,
 }: OperationsTableProps) {
     const [editingCell, setEditingCell] = useState<{ id: string; field: string; value: any } | null>(null);
     const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
@@ -1246,31 +1248,68 @@ export default function OperationsTable({
             title: renderColumnHeader('actions', 'İŞLEM'),
             key: 'actions',
             width: columnWidths.actions,
-            ellipsis: true,
+            ellipsis: false,
             render: (_: any, record: any) => {
-                if (record.status === 'COMPLETED') {
+                const isCompleted = record.status === 'COMPLETED';
+                const isCancelled = record.status === 'CANCELLED';
+                const isPayInVehicle = record.metadata?.paymentMethod === 'PAY_IN_VEHICLE';
+                const isAgencyBooking = !!record.agencyId;
+
+                if (isCompleted) {
                     return (
-                        <span style={{ fontSize: 10, color: '#16a34a', fontWeight: 700 }}>✓ Tamamlandı</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <Tag color="success" style={{ fontSize: 10, margin: 0 }}>✓ Tamamlandı</Tag>
+                            <Dropdown menu={{ items: [
+                                { key: 'detail', icon: <EyeOutlined />, label: 'Detay', onClick: () => onOpenBookingDetail?.(record) },
+                            ]}} trigger={['click']} placement="bottomRight">
+                                <Button type="text" size="small" icon={<MoreOutlined style={{ fontSize: 16 }} />} style={{ padding: '0 2px', color: '#94a3b8' }} />
+                            </Dropdown>
+                        </div>
+                    );
+                }
+                if (isCancelled) {
+                    return (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <Tag color="error" style={{ fontSize: 10, margin: 0 }}>✕ İptal</Tag>
+                            <Dropdown menu={{ items: [
+                                { key: 'detail', icon: <EyeOutlined />, label: 'Detay', onClick: () => onOpenBookingDetail?.(record) },
+                                { key: 'restore', icon: <UndoOutlined />, label: 'Geri Al', onClick: () => onReturnToReservation?.(record) },
+                            ]}} trigger={['click']} placement="bottomRight">
+                                <Button type="text" size="small" icon={<MoreOutlined style={{ fontSize: 16 }} />} style={{ padding: '0 2px', color: '#94a3b8' }} />
+                            </Dropdown>
+                        </div>
                     );
                 }
 
+                const menuItems: any[] = [
+                    { key: 'detail', icon: <EyeOutlined style={{ color: '#6366f1' }} />, label: <span style={{ fontWeight: 600 }}>Detay Görüntüle</span>, onClick: () => onOpenBookingDetail?.(record) },
+                    { type: 'divider' },
+                    { key: 'pool', icon: <InboxOutlined style={{ color: '#f59e0b' }} />, label: <span style={{ fontWeight: 600 }}>Havuza Gönder</span>, onClick: () => onPoolTransfer?.(record) },
+                    { key: 'return', icon: <UndoOutlined style={{ color: '#3b82f6' }} />, label: <span style={{ fontWeight: 600 }}>Geri Al (Rezervasyona)</span>, onClick: () => onReturnToReservation?.(record) },
+                ];
+                if (isAgencyBooking && isPayInVehicle) {
+                    menuItems.push({ key: 'complete', icon: <DollarOutlined style={{ color: '#16a34a' }} />, label: <span style={{ fontWeight: 600 }}>Tamamla (Tahsilat)</span>, onClick: () => onOpenCompleteModal?.(record) });
+                }
+                menuItems.push(
+                    { type: 'divider' },
+                    { key: 'message', icon: <MessageOutlined style={{ color: '#6366f1' }} />, label: <span style={{ fontWeight: 600 }}>Mesaj Gönder</span>, onClick: () => onOpenMessageModal?.(record) },
+                    { type: 'divider' },
+                    { key: 'cancel', icon: <StopOutlined style={{ color: '#ef4444' }} />, label: <span style={{ fontWeight: 600, color: '#ef4444' }}>İptal Et</span>, onClick: () => onCancelBooking?.(record) },
+                );
+
                 return (
-                    <Space size={4}>
-                        <Tooltip title="Mesaj Gönder">
-                            <Button type="text" size="small" icon={<MessageOutlined />}
-                                onClick={() => onOpenMessageModal?.(record)}
-                                style={{ padding: '0 4px', color: '#6366f1', fontSize: 13 }}
-                            />
-                        </Tooltip>
-                        <Tooltip title="Rezervasyona geri al">
-                            <Button size="small" danger type="link"
-                                style={{ fontSize: 10, fontWeight: 700, padding: '0 4px' }}
-                                onClick={() => onReturnToReservation?.(record)}
-                            >
-                                ↩ Geri Al
-                            </Button>
-                        </Tooltip>
-                    </Space>
+                    <Dropdown menu={{ items: menuItems }} trigger={['click']} placement="bottomRight">
+                        <Button
+                            type="text"
+                            size="small"
+                            icon={<MoreOutlined style={{ fontSize: 18 }} />}
+                            style={{
+                                width: 32, height: 32, borderRadius: 8,
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                color: '#475569', transition: 'all 0.15s',
+                            }}
+                        />
+                    </Dropdown>
                 );
             }
         },

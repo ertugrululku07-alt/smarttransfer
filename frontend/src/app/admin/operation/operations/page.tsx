@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
     Table, Card, Tag, Button, Space, Typography, message,
     Row, Col, DatePicker, Select, Input, Checkbox, Popover, Badge,
-    Avatar, Tooltip, Modal, Segmented, Spin
+    Avatar, Tooltip, Modal, Segmented, Spin, Dropdown
 } from 'antd';
 import { Resizable } from 'react-resizable';
 import 'react-resizable/css/styles.css';
@@ -36,7 +36,18 @@ import {
     CaretUpOutlined,
     CaretDownOutlined,
     SettingOutlined,
-    DeleteOutlined
+    DeleteOutlined,
+    MoreOutlined,
+    StopOutlined,
+    InboxOutlined,
+    DollarOutlined,
+    WhatsAppOutlined,
+    MailOutlined,
+    PrinterOutlined,
+    PhoneOutlined,
+    GlobalOutlined,
+    CloseCircleOutlined,
+    SendOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import 'dayjs/locale/tr';
@@ -306,6 +317,33 @@ export default function OperationsPage() {
             message.error('İşlem başarısız: ' + (e?.response?.data?.error || e.message));
         } finally {
             setReturnSaving(false);
+        }
+    };
+
+    // ── Cancel booking modal state ──
+    const [cancelModal, setCancelModal] = useState<{ booking: any; reason: string } | null>(null);
+    const [cancelSaving, setCancelSaving] = useState(false);
+
+    const handleCancelBooking = async () => {
+        if (!cancelModal) return;
+        if (!cancelModal.reason.trim()) {
+            message.error('Lütfen iptal sebebini yazın');
+            return;
+        }
+        setCancelSaving(true);
+        try {
+            await apiClient.patch(`/api/transfer/bookings/${cancelModal.booking.id}`, {
+                status: 'CANCELLED',
+                operationalStatus: 'CANCELLED',
+                cancelReason: cancelModal.reason
+            });
+            message.success('Rezervasyon iptal edildi');
+            setCancelModal(null);
+            fetchBookings();
+        } catch (e: any) {
+            message.error('İptal başarısız: ' + (e?.response?.data?.error || e.message));
+        } finally {
+            setCancelSaving(false);
         }
     };
 
@@ -1118,44 +1156,65 @@ export default function OperationsPage() {
                 const isAgencyBooking = !!record.agencyId;
                 const isCompleted = record.status === 'COMPLETED';
                 const isCancelled = record.status === 'CANCELLED';
-                const isInOperation = record.operationalStatus === 'IN_OPERATION' || record.metadata?.operationalStatus === 'IN_OPERATION';
 
-                if (isCompleted || isCancelled) {
+                if (isCompleted) {
                     return (
-                        <Tag color={isCompleted ? 'success' : 'error'} style={{ fontSize: 11 }}>
-                            {isCompleted ? '✅ Tamamlandı' : '❌ İptal'}
-                        </Tag>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <Tag color="success" style={{ fontSize: 10, margin: 0 }}>✓ Tamamlandı</Tag>
+                            <Dropdown menu={{ items: [
+                                { key: 'detail', icon: <EyeOutlined />, label: 'Detay', onClick: () => setDetailModal({ visible: true, booking: record }) },
+                            ]}} trigger={['click']} placement="bottomRight">
+                                <Button type="text" size="small" icon={<MoreOutlined style={{ fontSize: 16 }} />} style={{ padding: '0 2px', color: '#94a3b8' }} />
+                            </Dropdown>
+                        </div>
+                    );
+                }
+                if (isCancelled) {
+                    return (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <Tag color="error" style={{ fontSize: 10, margin: 0 }}>✕ İptal</Tag>
+                            <Dropdown menu={{ items: [
+                                { key: 'detail', icon: <EyeOutlined />, label: 'Detay', onClick: () => setDetailModal({ visible: true, booking: record }) },
+                                { key: 'restore', icon: <UndoOutlined />, label: 'Geri Al', onClick: () => setReturnModal({ booking: record, reason: '' }) },
+                            ]}} trigger={['click']} placement="bottomRight">
+                                <Button type="text" size="small" icon={<MoreOutlined style={{ fontSize: 16 }} />} style={{ padding: '0 2px', color: '#94a3b8' }} />
+                            </Dropdown>
+                        </div>
                     );
                 }
 
+                const menuItems: any[] = [
+                    { key: 'detail', icon: <EyeOutlined style={{ color: '#6366f1' }} />, label: <span style={{ fontWeight: 600 }}>Detay Görüntüle</span>, onClick: () => setDetailModal({ visible: true, booking: record }) },
+                    { type: 'divider' },
+                    { key: 'pool', icon: <InboxOutlined style={{ color: '#f59e0b' }} />, label: <span style={{ fontWeight: 600 }}>Havuza Gönder</span>, onClick: () => {
+                        const totalCollected = (record.total || 0) - (record.discount || 0);
+                        setPoolTransferModal({ booking: record, price: record.metadata?.price || record.price || 0, currency: record.metadata?.currency || defaultCurrency, collectedAmount: totalCollected });
+                    }},
+                    { key: 'return', icon: <UndoOutlined style={{ color: '#3b82f6' }} />, label: <span style={{ fontWeight: 600 }}>Geri Al (Rezervasyona)</span>, onClick: () => setReturnModal({ booking: record, reason: '' }) },
+                ];
+                if (isAgencyBooking && isPayInVehicle) {
+                    menuItems.push({ key: 'complete', icon: <DollarOutlined style={{ color: '#16a34a' }} />, label: <span style={{ fontWeight: 600 }}>Tamamla (Tahsilat)</span>, onClick: () => handleOpenCompleteModal(record) });
+                }
+                menuItems.push(
+                    { type: 'divider' },
+                    { key: 'message', icon: <MessageOutlined style={{ color: '#6366f1' }} />, label: <span style={{ fontWeight: 600 }}>Mesaj Gönder</span>, onClick: () => handleOpenMessageModal(record.driverId) },
+                    { type: 'divider' },
+                    { key: 'cancel', icon: <StopOutlined style={{ color: '#ef4444' }} />, label: <span style={{ fontWeight: 600, color: '#ef4444' }}>İptal Et</span>, onClick: () => setCancelModal({ booking: record, reason: '' }) },
+                );
+
                 return (
-                    <Space orientation="vertical" size={2}>
-                        {isAgencyBooking && isPayInVehicle && (
-                            <Tooltip title="Transferi tamamla">
-                                <Button
-                                    type="primary"
-                                    size="small"
-                                    style={{
-                                        background: 'linear-gradient(135deg, #16a34a, #22c55e)',
-                                        border: 'none', fontSize: 10, fontWeight: 600, padding: '2px 8px'
-                                    }}
-                                    onClick={() => handleOpenCompleteModal(record)}
-                                >
-                                    💵 Tamamla
-                                </Button>
-                            </Tooltip>
-                        )}
-                        <Tooltip title="Rezervasyona geri al">
-                            <Button
-                                size="small"
-                                danger
-                                style={{ fontSize: 9, fontWeight: 600, borderRadius: 4, padding: '2px 6px' }}
-                                onClick={() => setReturnModal({ booking: record, reason: '' })}
-                            >
-                                ↩ Geri Al
-                            </Button>
-                        </Tooltip>
-                    </Space>
+                    <Dropdown menu={{ items: menuItems }} trigger={['click']} placement="bottomRight">
+                        <Button
+                            type="text"
+                            size="small"
+                            icon={<MoreOutlined style={{ fontSize: 18 }} />}
+                            style={{
+                                width: 32, height: 32, borderRadius: 8,
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                color: '#475569', transition: 'all 0.15s',
+                            }}
+                        />
+                    </Dropdown>
                 );
             }
         },
@@ -2982,6 +3041,7 @@ export default function OperationsPage() {
                                 });
                             }}
                             onOpenBookingDetail={(booking) => setDetailModal({ visible: true, booking })}
+                            onCancelBooking={(booking) => setCancelModal({ booking, reason: '' })}
                         />
                     </div>
                     )}
@@ -3173,7 +3233,8 @@ export default function OperationsPage() {
                                                                 const dest = run.toName || run.routeName || 'Gazipaşa Alanya Havalimanı';
                                                                 const res = await apiClient.post('/api/operations/shuttle-runs/optimize-route', {
                                                                     bookingIds,
-                                                                    destinationAddress: dest
+                                                                    destinationAddress: dest,
+                                                                    tripType: run.tripType || 'DEP',
                                                                 });
                                                                 if (res.data.success) {
                                                                     message.success({ content: `Güzergah optimize edildi! ${res.data.optimizedOrder.length} yolcu sıralandı`, key: 'optimize' });
@@ -4962,7 +5023,7 @@ export default function OperationsPage() {
                         open={!!detailModal?.visible}
                         onCancel={() => setDetailModal(null)}
                         footer={null}
-                        width={680}
+                        width={780}
                         title={null}
                         styles={{ body: { padding: 0 } }}
                     >
@@ -4988,31 +5049,68 @@ export default function OperationsPage() {
                             const extras = b.metadata?.extraServices || [];
                             const driverInfo = drivers.find((dr: any) => (dr.user?.id || dr.id) === b.driverId);
                             const vehicleInfo = vehicles.find((v: any) => v.id === (b.assignedVehicleId || b.metadata?.vehicleId));
+                            const paymentMethodLabel: Record<string, string> = { PAY_IN_VEHICLE: 'Araçta Ödeme', CREDIT_CARD: 'Kredi Kartı', BANK_TRANSFER: 'Havale/EFT', AGENCY: 'Acente' };
+                            const currSymbol = (c: string) => c === 'EUR' ? '€' : c === 'USD' ? '$' : c === 'GBP' ? '£' : '₺';
+                            const distance = b.metadata?.distance || '';
+                            const duration = b.metadata?.duration || '';
+                            const createdAt = b.createdAt ? dayjs(b.createdAt).format('DD.MM.YYYY HH:mm') : '';
+
+                            // Build full passenger list
+                            const passengerList = b.metadata?.passengerDetails || b.metadata?.passengers || [];
+                            const allPassengers: { num: number; name: string; phone?: string; email?: string; nationality?: string; tcNo?: string; passportNo?: string; type: string }[] = [];
+                            allPassengers.push({
+                                num: 1,
+                                name: b.contactName || b.customer?.name || b.passengerName || '—',
+                                phone: b.contactPhone || b.customer?.phone || b.passengerPhone || '',
+                                email: b.contactEmail || b.customer?.email || '',
+                                nationality: b.metadata?.nationality || b.nationality || '',
+                                tcNo: b.metadata?.tcNo || '',
+                                passportNo: b.metadata?.passportNo || '',
+                                type: 'Yetişkin',
+                            });
+                            if (Array.isArray(passengerList)) {
+                                passengerList.slice(allPassengers.length > 0 && passengerList.length > 0 && (passengerList[0]?.name === allPassengers[0]?.name || passengerList[0]?.fullName === allPassengers[0]?.name) ? 1 : 0).forEach((p: any, i: number) => {
+                                    const pType = p.type === 'child' ? 'Çocuk' : p.type === 'infant' ? 'Bebek' : 'Yetişkin';
+                                    allPassengers.push({
+                                        num: allPassengers.length + 1,
+                                        name: p.name || p.fullName || [p.firstName, p.lastName].filter(Boolean).join(' ') || '—',
+                                        phone: p.phone || p.telephone || '',
+                                        email: p.email || '',
+                                        nationality: p.nationality || p.country || '',
+                                        tcNo: p.tcNo || p.idNumber || '',
+                                        passportNo: p.passportNo || '',
+                                        type: pType,
+                                    });
+                                });
+                            }
 
                             return (
                                 <div>
                                     {/* Header */}
                                     <div style={{
                                         background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
-                                        padding: '20px 24px',
+                                        padding: '20px 28px',
                                         color: '#fff',
-                                        borderRadius: '8px 8px 0 0',
                                     }}>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                             <div>
                                                 <div style={{ fontSize: 11, opacity: 0.8, marginBottom: 4 }}>Transfer Detayı</div>
-                                                <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: 0.5 }}>{b.bookingNumber || '—'}</div>
+                                                <div style={{ fontSize: 22, fontWeight: 900, letterSpacing: 0.5 }}>{b.bookingNumber || '—'}</div>
+                                                {createdAt && <div style={{ fontSize: 11, opacity: 0.7, marginTop: 4 }}>Oluşturulma: {createdAt}</div>}
                                             </div>
-                                            <div style={{ display: 'flex', gap: 8 }}>
-                                                <span style={{ background: st.bg, color: st.color, padding: '4px 12px', borderRadius: 20, fontWeight: 700, fontSize: 12 }}>{st.label}</span>
-                                                <span style={{ background: b.transferType === 'SHUTTLE' ? '#dbeafe' : '#f3e8ff', color: b.transferType === 'SHUTTLE' ? '#1e40af' : '#7c3aed', padding: '4px 12px', borderRadius: 20, fontWeight: 700, fontSize: 12 }}>
-                                                    {b.transferType === 'SHUTTLE' ? '🚌 Shuttle' : '🚗 Özel'}
+                                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                                                <span style={{ background: st.bg, color: st.color, padding: '4px 14px', borderRadius: 20, fontWeight: 700, fontSize: 12 }}>{st.label}</span>
+                                                <span style={{ background: b.transferType === 'SHUTTLE' ? '#dbeafe' : '#f3e8ff', color: b.transferType === 'SHUTTLE' ? '#1e40af' : '#7c3aed', padding: '4px 14px', borderRadius: 20, fontWeight: 700, fontSize: 12 }}>
+                                                    {b.transferType === 'SHUTTLE' ? 'Shuttle' : 'Özel'}
+                                                </span>
+                                                <span style={{ background: 'rgba(255,255,255,0.2)', color: '#fff', padding: '4px 14px', borderRadius: 20, fontWeight: 700, fontSize: 12 }}>
+                                                    {b.direction || '—'}
                                                 </span>
                                             </div>
                                         </div>
                                     </div>
 
-                                    <div style={{ padding: '16px 24px 24px' }}>
+                                    <div style={{ padding: '20px 28px 28px', maxHeight: 'calc(80vh - 100px)', overflowY: 'auto' }}>
                                         {/* Route */}
                                         <div style={{ background: '#f8fafc', borderRadius: 12, padding: 16, marginBottom: 16, border: '1px solid #e2e8f0' }}>
                                             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
@@ -5032,74 +5130,84 @@ export default function OperationsPage() {
                                                     </div>
                                                 </div>
                                             </div>
+                                            {(distance || duration) && (
+                                                <div style={{ display: 'flex', gap: 16, marginTop: 10, paddingTop: 8, borderTop: '1px dashed #e2e8f0' }}>
+                                                    {distance && <span style={{ fontSize: 11, color: '#64748b' }}>Mesafe: <strong>{distance}</strong></span>}
+                                                    {duration && <span style={{ fontSize: 11, color: '#64748b' }}>Süre: <strong>{duration}</strong></span>}
+                                                </div>
+                                            )}
                                         </div>
 
-                                        {/* Date & Flight */}
-                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 16 }}>
+                                        {/* Date, Flight, PAX summary */}
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 10, marginBottom: 16 }}>
                                             <div style={{ background: '#eff6ff', borderRadius: 10, padding: '10px 14px' }}>
                                                 <div style={{ fontSize: 10, color: '#64748b', fontWeight: 600 }}>TARİH / SAAT</div>
-                                                <div style={{ fontSize: 15, fontWeight: 800, color: '#1e40af' }}>{b.pickupDateTime ? dayjs(b.pickupDateTime).format('DD.MM.YYYY HH:mm') : '—'}</div>
+                                                <div style={{ fontSize: 14, fontWeight: 800, color: '#1e40af' }}>{b.pickupDateTime ? dayjs(b.pickupDateTime).format('DD.MM.YYYY') : '—'}</div>
+                                                <div style={{ fontSize: 16, fontWeight: 900, color: '#4f46e5' }}>{b.pickupDateTime ? dayjs(b.pickupDateTime).format('HH:mm') : ''}</div>
                                             </div>
                                             <div style={{ background: '#f0fdf4', borderRadius: 10, padding: '10px 14px' }}>
                                                 <div style={{ fontSize: 10, color: '#64748b', fontWeight: 600 }}>UÇUŞ</div>
                                                 <div style={{ fontSize: 14, fontWeight: 700, color: '#166534' }}>{flightNo || '—'}</div>
-                                                {flightTime && <div style={{ fontSize: 11, color: '#6b7280' }}>{flightTime}</div>}
+                                                {flightTime && <div style={{ fontSize: 12, color: '#6b7280', fontWeight: 600 }}>{flightTime}</div>}
                                             </div>
-                                            <div style={{ background: '#faf5ff', borderRadius: 10, padding: '10px 14px' }}>
-                                                <div style={{ fontSize: 10, color: '#64748b', fontWeight: 600 }}>YÖN</div>
-                                                <div style={{ fontSize: 14, fontWeight: 700, color: '#7c3aed' }}>{b.direction || '—'}</div>
+                                            <div style={{ background: '#fefce8', borderRadius: 10, padding: '10px 14px' }}>
+                                                <div style={{ fontSize: 10, color: '#64748b', fontWeight: 600 }}>YOLCU</div>
+                                                <div style={{ fontSize: 20, fontWeight: 900, color: '#92400e' }}>{totalPax}</div>
+                                                <div style={{ fontSize: 10, color: '#a16207', fontWeight: 600 }}>
+                                                    {adults > 0 && `${adults}Y `}{children > 0 && `${children}Ç `}{infants > 0 && `${infants}B`}
+                                                </div>
+                                            </div>
+                                            <div style={{ background: '#f0fdf4', borderRadius: 10, padding: '10px 14px', border: '1px solid #bbf7d0' }}>
+                                                <div style={{ fontSize: 10, color: '#64748b', fontWeight: 600 }}>ÜCRET</div>
+                                                <div style={{ fontSize: 18, fontWeight: 900, color: '#16a34a' }}>
+                                                    {(b.price || b.total || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} {currSymbol(b.currency || 'TRY')}
+                                                </div>
+                                                <div style={{ fontSize: 10, color: '#6b7280' }}>
+                                                    {paymentMethodLabel[b.metadata?.paymentMethod] || b.metadata?.paymentMethod || ''}
+                                                </div>
                                             </div>
                                         </div>
 
-                                        {/* Passengers */}
+                                        {/* ALL PASSENGERS TABLE */}
                                         <div style={{ background: '#fefce8', borderRadius: 12, padding: 16, marginBottom: 16, border: '1px solid #fde68a' }}>
-                                            <div style={{ fontSize: 12, fontWeight: 800, color: '#92400e', marginBottom: 10 }}>👥 Yolcu Bilgileri ({totalPax} Kişi)</div>
-                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                                                <div>
-                                                    <div style={{ fontSize: 10, color: '#64748b', fontWeight: 600 }}>MÜŞTERİ ADI</div>
-                                                    <div style={{ fontSize: 14, fontWeight: 700, color: '#1e293b' }}>{b.contactName || b.customer?.name || b.passengerName || '—'}</div>
-                                                </div>
-                                                <div>
-                                                    <div style={{ fontSize: 10, color: '#64748b', fontWeight: 600 }}>TELEFON</div>
-                                                    <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{b.contactPhone || b.customer?.phone || b.passengerPhone || '—'}</div>
-                                                </div>
-                                                <div>
-                                                    <div style={{ fontSize: 10, color: '#64748b', fontWeight: 600 }}>E-POSTA</div>
-                                                    <div style={{ fontSize: 12, color: '#1e293b' }}>{b.contactEmail || b.customer?.email || '—'}</div>
-                                                </div>
-                                                <div>
-                                                    <div style={{ fontSize: 10, color: '#64748b', fontWeight: 600 }}>KİŞİ DETAYI</div>
-                                                    <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>
-                                                        {adults > 0 && <span>🧑 {adults} Yetişkin </span>}
-                                                        {children > 0 && <span>👦 {children} Çocuk </span>}
-                                                        {infants > 0 && <span>👶 {infants} Bebek</span>}
-                                                    </div>
-                                                </div>
+                                            <div style={{ fontSize: 13, fontWeight: 800, color: '#92400e', marginBottom: 12 }}>
+                                                <UserOutlined style={{ marginRight: 6 }} />Yolcu Bilgileri ({allPassengers.length} Kişi)
                                             </div>
-                                            {(() => {
-                                                const passengerList = b.metadata?.passengerDetails || b.metadata?.passengers || [];
-                                                if (!Array.isArray(passengerList) || passengerList.length === 0) return null;
-                                                return (
-                                                    <div style={{ marginTop: 12, borderTop: '1px dashed #fde68a', paddingTop: 10 }}>
-                                                        <div style={{ fontSize: 11, fontWeight: 700, color: '#92400e', marginBottom: 6 }}>Yolcu Listesi:</div>
-                                                        {passengerList.map((p: any, i: number) => {
-                                                            const name = p.name || p.fullName || [p.firstName, p.lastName].filter(Boolean).join(' ') || '—';
+                                            <div style={{ overflowX: 'auto' }}>
+                                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                                                    <thead>
+                                                        <tr style={{ background: '#fef3c7', borderBottom: '2px solid #fde68a' }}>
+                                                            <th style={{ padding: '6px 10px', textAlign: 'left', fontWeight: 700, fontSize: 10, color: '#92400e' }}>#</th>
+                                                            <th style={{ padding: '6px 10px', textAlign: 'left', fontWeight: 700, fontSize: 10, color: '#92400e' }}>AD SOYAD</th>
+                                                            <th style={{ padding: '6px 10px', textAlign: 'left', fontWeight: 700, fontSize: 10, color: '#92400e' }}>TİP</th>
+                                                            <th style={{ padding: '6px 10px', textAlign: 'left', fontWeight: 700, fontSize: 10, color: '#92400e' }}>UYRUK</th>
+                                                            <th style={{ padding: '6px 10px', textAlign: 'left', fontWeight: 700, fontSize: 10, color: '#92400e' }}>TELEFON</th>
+                                                            <th style={{ padding: '6px 10px', textAlign: 'left', fontWeight: 700, fontSize: 10, color: '#92400e' }}>KİMLİK</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {allPassengers.map((p) => {
+                                                            const typeColors: Record<string, string> = { 'Yetişkin': '#16a34a', 'Çocuk': '#d97706', 'Bebek': '#dc2626' };
                                                             return (
-                                                                <div key={i} style={{ display: 'flex', gap: 12, padding: '4px 0', borderBottom: i < passengerList.length - 1 ? '1px dotted #fde68a' : 'none', flexWrap: 'wrap' }}>
-                                                                    <span style={{ fontWeight: 700, fontSize: 12, color: '#1e293b', minWidth: 20 }}>{i + 1}.</span>
-                                                                    <span style={{ fontSize: 12, fontWeight: 600, color: '#1e293b' }}>{name}</span>
-                                                                    {p.phone && <span style={{ fontSize: 11, color: '#6b7280' }}>📞 {p.phone}</span>}
-                                                                    {p.email && <span style={{ fontSize: 11, color: '#6b7280' }}>✉️ {p.email}</span>}
-                                                                    {p.age && <span style={{ fontSize: 11, color: '#6b7280' }}>({p.age})</span>}
-                                                                    {p.type && <span style={{ fontSize: 10, color: '#92400e', background: '#fef3c7', padding: '1px 6px', borderRadius: 4 }}>{p.type}</span>}
-                                                                    {p.tcNo && <span style={{ fontSize: 11, color: '#6b7280' }}>🆔 {p.tcNo}</span>}
-                                                                    {p.passportNo && <span style={{ fontSize: 11, color: '#6b7280' }}>🛂 {p.passportNo}</span>}
-                                                                </div>
+                                                                <tr key={p.num} style={{ borderBottom: '1px solid #fde68a' }}>
+                                                                    <td style={{ padding: '6px 10px', fontWeight: 800, color: '#92400e' }}>{p.num}</td>
+                                                                    <td style={{ padding: '6px 10px', fontWeight: 700, color: '#1e293b' }}>{p.name}</td>
+                                                                    <td style={{ padding: '6px 10px' }}>
+                                                                        <span style={{ background: `${typeColors[p.type] || '#6b7280'}18`, color: typeColors[p.type] || '#6b7280', padding: '2px 8px', borderRadius: 4, fontWeight: 700, fontSize: 10 }}>{p.type}</span>
+                                                                    </td>
+                                                                    <td style={{ padding: '6px 10px', color: '#475569' }}>{p.nationality ? <><GlobalOutlined style={{ marginRight: 4, fontSize: 10 }} />{p.nationality}</> : '—'}</td>
+                                                                    <td style={{ padding: '6px 10px', color: '#475569' }}>{p.phone || '—'}</td>
+                                                                    <td style={{ padding: '6px 10px', color: '#475569', fontSize: 11 }}>
+                                                                        {p.tcNo && <span>TC: {p.tcNo} </span>}
+                                                                        {p.passportNo && <span>PP: {p.passportNo}</span>}
+                                                                        {!p.tcNo && !p.passportNo && '—'}
+                                                                    </td>
+                                                                </tr>
                                                             );
                                                         })}
-                                                    </div>
-                                                );
-                                            })()}
+                                                    </tbody>
+                                                </table>
+                                            </div>
                                         </div>
 
                                         {/* Driver & Vehicle */}
@@ -5107,7 +5215,7 @@ export default function OperationsPage() {
                                             <div style={{ background: '#f0f9ff', borderRadius: 10, padding: '10px 14px', border: '1px solid #bae6fd' }}>
                                                 <div style={{ fontSize: 10, color: '#64748b', fontWeight: 600 }}>ŞOFÖR</div>
                                                 {driverInfo ? (
-                                                    <div style={{ fontSize: 13, fontWeight: 700, color: '#0c4a6e' }}>👤 {driverInfo.firstName} {driverInfo.lastName}</div>
+                                                    <div style={{ fontSize: 13, fontWeight: 700, color: '#0c4a6e' }}>{driverInfo.firstName} {driverInfo.lastName}</div>
                                                 ) : (
                                                     <div style={{ fontSize: 12, color: '#94a3b8' }}>Atanmadı</div>
                                                 )}
@@ -5116,7 +5224,7 @@ export default function OperationsPage() {
                                                 <div style={{ fontSize: 10, color: '#64748b', fontWeight: 600 }}>ARAÇ</div>
                                                 {vehicleInfo ? (
                                                     <div>
-                                                        <div style={{ fontSize: 13, fontWeight: 700, color: '#86198f' }}>🚗 {vehicleInfo.plateNumber}</div>
+                                                        <div style={{ fontSize: 13, fontWeight: 700, color: '#86198f' }}>{vehicleInfo.plateNumber}</div>
                                                         <div style={{ fontSize: 10, color: '#6b7280' }}>{vehicleInfo.brand} {vehicleInfo.model}</div>
                                                     </div>
                                                 ) : (
@@ -5125,52 +5233,204 @@ export default function OperationsPage() {
                                             </div>
                                         </div>
 
-                                        {/* Extras & Payment */}
-                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
-                                            <div style={{ background: '#fff7ed', borderRadius: 10, padding: '10px 14px', border: '1px solid #fed7aa' }}>
-                                                <div style={{ fontSize: 10, color: '#64748b', fontWeight: 600 }}>EKSTRA HİZMETLER</div>
-                                                {extras.length > 0 ? (
-                                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
-                                                        {extras.map((s: any, i: number) => (
-                                                            <Tag key={i} color="volcano" style={{ fontSize: 10, margin: 0 }}>
-                                                                {typeof s === 'string' ? s : `${s.name}${s.quantity ? ` x${s.quantity}` : ''}`}
-                                                            </Tag>
-                                                        ))}
-                                                    </div>
-                                                ) : <span style={{ fontSize: 12, color: '#94a3b8' }}>Yok</span>}
+                                        {/* Extras */}
+                                        <div style={{ background: '#fff7ed', borderRadius: 10, padding: '12px 14px', border: '1px solid #fed7aa', marginBottom: 16 }}>
+                                            <div style={{ fontSize: 10, color: '#64748b', fontWeight: 600, marginBottom: 6 }}>EKSTRA HİZMETLER</div>
+                                            {extras.length > 0 ? (
+                                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                                                    {extras.map((s: any, i: number) => (
+                                                        <Tag key={i} color="volcano" style={{ fontSize: 11, margin: 0, padding: '2px 10px' }}>
+                                                            {typeof s === 'string' ? s : `${s.name}${s.quantity ? ` x${s.quantity}` : ''}${s.price ? ` — ${s.price} ${currSymbol(b.currency || 'TRY')}` : ''}`}
+                                                        </Tag>
+                                                    ))}
+                                                </div>
+                                            ) : <span style={{ fontSize: 12, color: '#94a3b8' }}>Ekstra hizmet yok</span>}
+                                        </div>
+
+                                        {/* Payment details */}
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 16 }}>
+                                            <div style={{ background: '#f8fafc', borderRadius: 10, padding: '10px 14px', border: '1px solid #e2e8f0' }}>
+                                                <div style={{ fontSize: 10, color: '#64748b', fontWeight: 600 }}>ÖDEME YÖNTEMİ</div>
+                                                <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>{paymentMethodLabel[b.metadata?.paymentMethod] || b.metadata?.paymentMethod || '—'}</div>
                                             </div>
-                                            <div style={{ background: '#f0fdf4', borderRadius: 10, padding: '10px 14px', border: '1px solid #bbf7d0' }}>
-                                                <div style={{ fontSize: 10, color: '#64748b', fontWeight: 600 }}>ÜCRET / ÖDEME</div>
-                                                <div style={{ fontSize: 16, fontWeight: 800, color: '#16a34a' }}>
-                                                    {(b.price || b.total || 0).toLocaleString('tr-TR')} {b.currency === 'EUR' ? '€' : b.currency === 'USD' ? '$' : '₺'}
+                                            <div style={{ background: '#f8fafc', borderRadius: 10, padding: '10px 14px', border: '1px solid #e2e8f0' }}>
+                                                <div style={{ fontSize: 10, color: '#64748b', fontWeight: 600 }}>ÖDEME DURUMU</div>
+                                                <div style={{ fontSize: 13, fontWeight: 700, color: b.paymentStatus === 'PAID' ? '#16a34a' : '#d97706' }}>
+                                                    {b.paymentStatus === 'PAID' ? 'Ödendi' : b.paymentStatus === 'PENDING' ? 'Bekliyor' : (b.paymentStatus || '—')}
                                                 </div>
-                                                <div style={{ fontSize: 10, color: '#6b7280' }}>
-                                                    {b.paymentStatus === 'PAID' ? '✅ Ödendi' : b.paymentStatus === 'PENDING' ? '⏳ Bekliyor' : (b.paymentStatus || '')}
-                                                    {b.metadata?.paymentMethod && ` • ${b.metadata.paymentMethod}`}
-                                                </div>
+                                            </div>
+                                            <div style={{ background: '#f8fafc', borderRadius: 10, padding: '10px 14px', border: '1px solid #e2e8f0' }}>
+                                                <div style={{ fontSize: 10, color: '#64748b', fontWeight: 600 }}>KAYNAK</div>
+                                                <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>{b.metadata?.creationSource === 'ADMIN_MANUAL' ? 'Call Center' : b.agencyName || 'Online'}</div>
                                             </div>
                                         </div>
 
                                         {/* Notes */}
-                                        {(b.specialRequests || b.notes || b.metadata?.notes || b.metadata?.agencyNotes) && (
-                                            <div style={{ background: '#f1f5f9', borderRadius: 10, padding: '10px 14px', border: '1px solid #e2e8f0' }}>
-                                                <div style={{ fontSize: 10, color: '#64748b', fontWeight: 600, marginBottom: 4 }}>NOTLAR</div>
-                                                <div style={{ fontSize: 12, color: '#334155', whiteSpace: 'pre-wrap' }}>
-                                                    {b.specialRequests || b.notes || b.metadata?.notes || b.metadata?.agencyNotes}
-                                                </div>
+                                        {(b.specialRequests || b.notes || b.metadata?.notes || b.metadata?.agencyNotes || b.internalNotes) && (
+                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
+                                                {(b.specialRequests || b.notes || b.metadata?.agencyNotes) && (
+                                                    <div style={{ background: '#fffbeb', borderRadius: 10, padding: '10px 14px', border: '1px solid #fde68a' }}>
+                                                        <div style={{ fontSize: 10, color: '#92400e', fontWeight: 600, marginBottom: 4 }}>MÜŞTERİ / ACENTE NOTU</div>
+                                                        <div style={{ fontSize: 12, color: '#334155', whiteSpace: 'pre-wrap' }}>{b.specialRequests || b.notes || b.metadata?.agencyNotes}</div>
+                                                    </div>
+                                                )}
+                                                {(b.internalNotes || b.metadata?.notes) && (
+                                                    <div style={{ background: '#f0fdf4', borderRadius: 10, padding: '10px 14px', border: '1px solid #bbf7d0' }}>
+                                                        <div style={{ fontSize: 10, color: '#166534', fontWeight: 600, marginBottom: 4 }}>OPERASYON NOTU</div>
+                                                        <div style={{ fontSize: 12, color: '#334155', whiteSpace: 'pre-wrap' }}>{b.internalNotes || b.metadata?.notes}</div>
+                                                    </div>
+                                                )}
                                             </div>
                                         )}
 
                                         {/* Agency */}
                                         {b.agencyName && (
-                                            <div style={{ marginTop: 12, fontSize: 11, color: '#6b7280' }}>
-                                                🏢 Acente: <strong>{b.agencyName}</strong>
+                                            <div style={{ background: '#f8fafc', borderRadius: 10, padding: '10px 14px', border: '1px solid #e2e8f0', marginBottom: 16 }}>
+                                                <div style={{ fontSize: 10, color: '#64748b', fontWeight: 600 }}>ACENTE</div>
+                                                <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>{b.agencyName}</div>
                                             </div>
                                         )}
+
+                                        {/* Cancel reason if cancelled */}
+                                        {b.status === 'CANCELLED' && (b.metadata?.cancelReason || b.cancelReason) && (
+                                            <div style={{ background: '#fef2f2', borderRadius: 10, padding: '10px 14px', border: '1px solid #fecaca', marginBottom: 16 }}>
+                                                <div style={{ fontSize: 10, color: '#991b1b', fontWeight: 600, marginBottom: 4 }}>İPTAL SEBEBİ</div>
+                                                <div style={{ fontSize: 12, color: '#7f1d1d', whiteSpace: 'pre-wrap' }}>{b.metadata?.cancelReason || b.cancelReason}</div>
+                                            </div>
+                                        )}
+
+                                        {/* ── ACTION BAR: Düzenle + Yazdır/Gönder ── */}
+                                        <div style={{ borderTop: '2px solid #e2e8f0', paddingTop: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+                                            <Space size={8}>
+                                                <Button
+                                                    type="primary"
+                                                    icon={<EditOutlined />}
+                                                    onClick={() => {
+                                                        setDetailModal(null);
+                                                        // Open inline edit by double-clicking on booking number (navigate to the row)
+                                                        message.info('Tablodan çift tıklayarak düzenleyebilirsiniz');
+                                                    }}
+                                                    style={{ borderRadius: 8, fontWeight: 700, background: '#6366f1', border: 'none' }}
+                                                >
+                                                    Düzenle
+                                                </Button>
+                                            </Space>
+                                            <Space size={8}>
+                                                <Dropdown menu={{ items: [
+                                                    { key: 'print', icon: <PrinterOutlined />, label: 'Yazdır', onClick: () => {
+                                                        const printWindow = window.open('', '_blank');
+                                                        if (printWindow) {
+                                                            printWindow.document.write(`<html><head><title>${b.bookingNumber}</title><style>body{font-family:Arial,sans-serif;padding:20px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ddd;padding:8px;text-align:left}th{background:#f3f4f6;font-size:12px}h2{color:#4f46e5}</style></head><body>`);
+                                                            printWindow.document.write(`<h2>Transfer Detayı — ${b.bookingNumber}</h2>`);
+                                                            printWindow.document.write(`<p><strong>Tarih:</strong> ${b.pickupDateTime ? dayjs(b.pickupDateTime).format('DD.MM.YYYY HH:mm') : '—'}</p>`);
+                                                            printWindow.document.write(`<p><strong>Alış:</strong> ${pickup}</p>`);
+                                                            printWindow.document.write(`<p><strong>Varış:</strong> ${dropoff}</p>`);
+                                                            printWindow.document.write(`<p><strong>Uçuş:</strong> ${flightNo || '—'} ${flightTime ? `(${flightTime})` : ''}</p>`);
+                                                            printWindow.document.write(`<p><strong>Ücret:</strong> ${(b.price || b.total || 0).toLocaleString('tr-TR')} ${currSymbol(b.currency || 'TRY')}</p>`);
+                                                            printWindow.document.write(`<h3>Yolcular</h3><table><tr><th>#</th><th>Ad Soyad</th><th>Tip</th><th>Uyruk</th><th>Telefon</th></tr>`);
+                                                            allPassengers.forEach(p => {
+                                                                printWindow.document.write(`<tr><td>${p.num}</td><td>${p.name}</td><td>${p.type}</td><td>${p.nationality || '—'}</td><td>${p.phone || '—'}</td></tr>`);
+                                                            });
+                                                            printWindow.document.write(`</table>`);
+                                                            if (driverInfo) printWindow.document.write(`<p><strong>Şoför:</strong> ${driverInfo.firstName} ${driverInfo.lastName}</p>`);
+                                                            if (vehicleInfo) printWindow.document.write(`<p><strong>Araç:</strong> ${vehicleInfo.plateNumber} — ${vehicleInfo.brand || ''} ${vehicleInfo.model || ''}</p>`);
+                                                            printWindow.document.write(`</body></html>`);
+                                                            printWindow.document.close();
+                                                            printWindow.print();
+                                                        }
+                                                    }},
+                                                    { type: 'divider' },
+                                                    { key: 'email', icon: <MailOutlined style={{ color: '#2563eb' }} />, label: 'Mail Gönder', onClick: () => {
+                                                        const subject = encodeURIComponent(`Transfer Bilgileri — ${b.bookingNumber}`);
+                                                        const body = encodeURIComponent(
+                                                            `Transfer: ${b.bookingNumber}\nTarih: ${b.pickupDateTime ? dayjs(b.pickupDateTime).format('DD.MM.YYYY HH:mm') : ''}\nAlış: ${pickup}\nVarış: ${dropoff}\nYolcu: ${b.contactName || '—'}\nTelefon: ${b.contactPhone || '—'}\nÜcret: ${(b.price || b.total || 0)} ${b.currency || 'TRY'}\nUçuş: ${flightNo || '—'}`
+                                                        );
+                                                        const email = b.contactEmail || b.customer?.email || '';
+                                                        window.open(`mailto:${email}?subject=${subject}&body=${body}`, '_blank');
+                                                    }},
+                                                    { key: 'whatsapp', icon: <WhatsAppOutlined style={{ color: '#25d366' }} />, label: 'WhatsApp Gönder', onClick: () => {
+                                                        const phone = (b.contactPhone || b.customer?.phone || b.passengerPhone || '').replace(/[^0-9+]/g, '');
+                                                        const text = encodeURIComponent(
+                                                            `Merhaba ${b.contactName || ''},\n\nTransfer bilgileriniz:\n📋 Kod: ${b.bookingNumber}\n📅 Tarih: ${b.pickupDateTime ? dayjs(b.pickupDateTime).format('DD.MM.YYYY HH:mm') : ''}\n📍 Alış: ${pickup}\n📍 Varış: ${dropoff}\n✈️ Uçuş: ${flightNo || '—'}\n💰 Ücret: ${(b.price || b.total || 0)} ${b.currency || 'TRY'}\n\nİyi yolculuklar!`
+                                                        );
+                                                        window.open(`https://wa.me/${phone}?text=${text}`, '_blank');
+                                                    }},
+                                                ]}} trigger={['click']}>
+                                                    <Button icon={<SendOutlined />} style={{ borderRadius: 8, fontWeight: 700 }}>
+                                                        Gönder
+                                                    </Button>
+                                                </Dropdown>
+                                            </Space>
+                                        </div>
                                     </div>
                                 </div>
                             );
                         })()}
+                    </Modal>
+
+                    {/* ══════ CANCEL BOOKING MODAL ══════ */}
+                    <Modal
+                        open={!!cancelModal}
+                        onCancel={() => setCancelModal(null)}
+                        title={
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                <span style={{
+                                    width: 36, height: 36, borderRadius: 10,
+                                    background: 'linear-gradient(135deg, #ef4444, #dc2626)',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    fontSize: 18, color: '#fff'
+                                }}><CloseCircleOutlined /></span>
+                                <div>
+                                    <div style={{ fontWeight: 800, fontSize: 16, color: '#991b1b' }}>Rezervasyonu İptal Et</div>
+                                    <div style={{ fontSize: 12, color: '#94a3b8', fontWeight: 400 }}>{cancelModal?.booking?.contactName} — {cancelModal?.booking?.bookingNumber}</div>
+                                </div>
+                            </div>
+                        }
+                        okText="İptal Et"
+                        cancelText="Vazgeç"
+                        confirmLoading={cancelSaving}
+                        onOk={handleCancelBooking}
+                        okButtonProps={{
+                            danger: true,
+                            style: { fontWeight: 700, height: 40, borderRadius: 10 },
+                            disabled: !cancelModal?.reason?.trim()
+                        }}
+                    >
+                        {cancelModal && (
+                            <div style={{ marginTop: 16 }}>
+                                <div style={{
+                                    background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10,
+                                    padding: '12px 16px', marginBottom: 20, fontSize: 13, color: '#991b1b'
+                                }}>
+                                    <strong>Dikkat!</strong> Bu işlem geri alınamaz. Rezervasyon iptal edilecektir.
+                                </div>
+
+                                <div style={{
+                                    background: '#f8fafc', borderRadius: 10, padding: '12px 16px',
+                                    marginBottom: 16, border: '1px solid #e2e8f0'
+                                }}>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: 12 }}>
+                                        <div><span style={{ color: '#64748b' }}>Müşteri:</span> <strong>{cancelModal.booking?.contactName || '—'}</strong></div>
+                                        <div><span style={{ color: '#64748b' }}>Tarih:</span> <strong>{cancelModal.booking?.pickupDateTime ? dayjs(cancelModal.booking.pickupDateTime).format('DD.MM.YYYY HH:mm') : '—'}</strong></div>
+                                        <div><span style={{ color: '#64748b' }}>Alış:</span> <strong>{cancelModal.booking?.pickup?.rawLocation || cancelModal.booking?.pickup?.location || '—'}</strong></div>
+                                        <div><span style={{ color: '#64748b' }}>Ücret:</span> <strong>{(cancelModal.booking?.price || cancelModal.booking?.total || 0).toLocaleString('tr-TR')} {cancelModal.booking?.currency || 'TRY'}</strong></div>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label style={{ fontWeight: 700, fontSize: 13, color: '#374151', display: 'block', marginBottom: 8 }}>
+                                        İptal Sebebi <span style={{ color: '#ef4444' }}>*</span>
+                                    </label>
+                                    <Input.TextArea
+                                        rows={3}
+                                        value={cancelModal.reason}
+                                        onChange={e => setCancelModal(prev => prev ? { ...prev, reason: e.target.value } : null)}
+                                        placeholder="İptal sebebini yazınız... (zorunlu)"
+                                        style={{ borderRadius: 10, border: '2px solid #fecaca', fontSize: 13 }}
+                                    />
+                                </div>
+                            </div>
+                        )}
                     </Modal>
 
                     {/* ══════ POOL TRANSFER PRICE MODAL ══════ */}
