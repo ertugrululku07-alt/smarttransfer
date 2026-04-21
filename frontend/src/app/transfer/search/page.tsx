@@ -406,25 +406,41 @@ const TransferSearchContent: React.FC = () => {
                                             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%', marginBottom: 16 }}>
                                                 {result.isShuttle && <Tag color="purple">Paylaşımlı Shuttle</Tag>}
                                                 {result.isShuttle && result.matchedMasterTime ? (() => {
-                                                    // Calculate real home-pickup time: searchTime - travelDuration - pickupLeadHours
+                                                    // Calculate raw home-pickup time: searchTime - travelDuration - pickupLeadHours
                                                     const timeStr = time || '12:00';
                                                     const [sh, sm] = timeStr.split(':').map(Number);
                                                     const searchMin = (sh || 0) * 60 + (sm || 0);
                                                     const travelMin = durationMin || 0;
                                                     const leadMin = (result.pickupLeadHours || 0) * 60;
-                                                    let total = searchMin - travelMin - leadMin;
-                                                    while (total < 0) total += 24 * 60;
-                                                    const hh = String(Math.floor(total / 60) % 24).padStart(2, '0');
-                                                    const mm = String(total % 60).padStart(2, '0');
-                                                    const displayTime = (durationMin && result.pickupLeadHours) ? `${hh}:${mm}` : result.matchedMasterTime;
+                                                    let rawTotal = searchMin - travelMin - leadMin;
+                                                    while (rawTotal < 0) rawTotal += 24 * 60;
+
+                                                    // Snap to nearest scheduled departure time from route's schedule
+                                                    let displayTime = result.matchedMasterTime;
+                                                    if (durationMin && result.pickupLeadHours && Array.isArray(result.departureTimes) && result.departureTimes.length > 0) {
+                                                        let bestTime = result.departureTimes[0];
+                                                        let bestDiff = Infinity;
+                                                        for (const dt of result.departureTimes) {
+                                                            const [dh, dm] = dt.split(':').map(Number);
+                                                            const dtMin = (dh || 0) * 60 + (dm || 0);
+                                                            // Circular distance (handle midnight wrap)
+                                                            const rawDiff = Math.abs(dtMin - rawTotal);
+                                                            const diff = Math.min(rawDiff, 24 * 60 - rawDiff);
+                                                            if (diff < bestDiff) {
+                                                                bestDiff = diff;
+                                                                bestTime = dt;
+                                                            }
+                                                        }
+                                                        displayTime = bestTime;
+                                                    } else if (durationMin && result.pickupLeadHours) {
+                                                        const hh = String(Math.floor(rawTotal / 60) % 24).padStart(2, '0');
+                                                        const mm = String(rawTotal % 60).padStart(2, '0');
+                                                        displayTime = `${hh}:${mm}`;
+                                                    }
+
                                                     return (
                                                         <Tag color="blue" style={{ fontWeight: 600 }}>
                                                             {displayTime} Yolculuğu
-                                                            {displayTime !== result.matchedMasterTime && (
-                                                                <span style={{ fontSize: 10, fontWeight: 400, marginLeft: 6, opacity: 0.8 }}>
-                                                                    (sefer: {result.matchedMasterTime})
-                                                                </span>
-                                                            )}
                                                         </Tag>
                                                     );
                                                 })() : (result.matchedMasterTime && <Tag color="blue" style={{fontWeight:600}}>{result.matchedMasterTime} Yolculuğu</Tag>)}
