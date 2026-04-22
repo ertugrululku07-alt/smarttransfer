@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { MapContainer, TileLayer, Polygon, Tooltip, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -18,6 +18,7 @@ interface AllZonesMapProps {
     height?: number | string;
     onEditZone?: (zone: Zone) => void;
     onNewZone?: () => void;
+    onMoveZone?: (zoneId: string, newPolygon: { lat: number; lng: number }[]) => void;
 }
 
 // Auto-fit bounds to show all polygons
@@ -76,7 +77,135 @@ const ZONE_PALETTE = [
     '#64748b', // slate
 ];
 
-const AllZonesMap: React.FC<AllZonesMapProps> = ({ zones, height = 600, onEditZone, onNewZone }) => {
+// ── Draggable zone polygon: supports click-to-edit AND drag-to-move ──
+const DraggableZoneLayer: React.FC<{
+    zone: Zone;
+    color: string;
+    dashArray: string;
+    onEditZone?: (zone: Zone) => void;
+    onMoveZone?: (zoneId: string, newPolygon: { lat: number; lng: number }[]) => void;
+}> = ({ zone, color, dashArray, onEditZone, onMoveZone }) => {
+    const map = useMap();
+    const [positions, setPositions] = useState<[number, number][]>(
+        zone.polygon!.map(p => [p.lat, p.lng])
+    );
+    const posRef = useRef(positions);
+    const dragRef = useRef({ active: false, moved: false, lat: 0, lng: 0 });
+
+    // Sync when zone data changes externally (e.g. after save)
+    useEffect(() => {
+        const p: [number, number][] = zone.polygon!.map(pt => [pt.lat, pt.lng]);
+        setPositions(p);
+        posRef.current = p;
+    }, [zone.polygon]);
+
+    const onMouseDown = useCallback((e: any) => {
+        dragRef.current = { active: true, moved: false, lat: e.latlng.lat, lng: e.latlng.lng };
+        map.dragging.disable();
+
+        const onMove = (me: any) => {
+            if (!dragRef.current.active) return;
+            const dLat = me.latlng.lat - dragRef.current.lat;
+            const dLng = me.latlng.lng - dragRef.current.lng;
+            dragRef.current.lat = me.latlng.lat;
+            dragRef.current.lng = me.latlng.lng;
+
+            if (Math.abs(dLat) > 0.00002 || Math.abs(dLng) > 0.00002) {
+                dragRef.current.moved = true;
+                const next: [number, number][] = posRef.current.map(([la, ln]) => [la + dLat, ln + dLng]);
+                posRef.current = next;
+                setPositions(next);
+            }
+        };
+
+        const onUp = () => {
+            map.dragging.enable();
+            map.off('mousemove', onMove);
+            map.off('mouseup', onUp);
+
+            if (dragRef.current.moved && onMoveZone) {
+                const newPoly = posRef.current.map(([la, ln]) => ({ lat: la, lng: ln }));
+                onMoveZone(zone.id, newPoly);
+            }
+            // Reset active but keep moved flag for click handler
+            dragRef.current.active = false;
+        };
+
+        map.on('mousemove', onMove);
+        map.on('mouseup', onUp);
+    }, [map, zone.id, onMoveZone]);
+
+    const onClick = useCallback(() => {
+        // Only open edit if we didn't just drag
+        if (!dragRef.current.moved) {
+            onEditZone?.(zone);
+        }
+        dragRef.current.moved = false;
+    }, [zone, onEditZone]);
+
+    return (
+        <Polygon
+            positions={positions}
+            pathOptions={{
+                color,
+                fillColor: color,
+                fillOpacity: 0.15,
+                weight: 3,
+                opacity: 0.9,
+                dashArray: dashArray || undefined,
+            }}
+            eventHandlers={{
+                mousedown: onMouseDown,
+                click: onClick,
+                mouseover: (e: any) => {
+                    e.target.bringToFront();
+                    e.target.setStyle({ fillOpacity: 0.35, weight: 4, dashArray: '' });
+                    if (e.target._path) e.target._path.style.cursor = 'grab';
+                },
+                mouseout: (e: any) => {
+                    if (!dragRef.current.active) {
+                        e.target.setStyle({ fillOpacity: 0.15, weight: 3, dashArray: dashArray || undefined });
+                    }
+                },
+            }}
+        >
+            <Tooltip direction="center" permanent className="zone-label-tooltip">
+                <div style={{
+                    display: 'flex', flexDirection: 'column',
+                    alignItems: 'center', gap: 2,
+                    cursor: 'grab',
+                }}>
+                    <span style={{
+                        fontWeight: 800, fontSize: 13,
+                        color: '#1a1a2e',
+                        textShadow: '0 1px 3px rgba(255,255,255,0.9), 0 0 6px rgba(255,255,255,0.8)',
+                        letterSpacing: '-0.3px',
+                    }}>
+                        {zone.name}
+                    </span>
+                    {zone.code && (
+                        <span style={{
+                            fontWeight: 700, fontSize: 10,
+                            color: '#fff',
+                            background: color,
+                            padding: '1px 7px', borderRadius: 4,
+                            letterSpacing: '0.5px',
+                        }}>
+                            {zone.code}
+                        </span>
+                    )}
+                    {onEditZone && (
+                        <span style={{ fontSize: 9, color: '#94a3b8', marginTop: 1 }}>
+                            ✏️ tıkla → düzenle
+                        </span>
+                    )}
+                </div>
+            </Tooltip>
+        </Polygon>
+    );
+};
+
+const AllZonesMap: React.FC<AllZonesMapProps> = ({ zones, height = 600, onEditZone, onNewZone, onMoveZone }) => {
     const apiKey = process.env.NEXT_PUBLIC_HERE_API_KEY || 'RH04HVBUK6By3GfYWwVlCOG4Or1IzV-rRjygQRHbIvo';
     const tileUrl = `https://maps.hereapi.com/v3/base/mc/{z}/{x}/{y}/png8?apiKey=${apiKey}&size=256&style=explore.day`;
     const attribution = '&copy; <a href="https://here.com">HERE</a>';
@@ -117,68 +246,17 @@ const AllZonesMap: React.FC<AllZonesMapProps> = ({ zones, height = 600, onEditZo
 
                     {zonesWithPolygon.map((zone, idx) => {
                         const color = getZoneColor(zone, idx);
-                        const positions: [number, number][] = zone.polygon!.map(p => [p.lat, p.lng]);
-                        // Alternate dash patterns so adjacent zones are visually distinct
                         const dashPatterns = ['', '8 4', '4 4', '12 6', '6 3 2 3'];
                         const dashArray = dashPatterns[idx % dashPatterns.length];
                         return (
-                            <Polygon
+                            <DraggableZoneLayer
                                 key={zone.id}
-                                positions={positions}
-                                pathOptions={{
-                                    color,
-                                    fillColor: color,
-                                    fillOpacity: 0.15,
-                                    weight: 3,
-                                    opacity: 0.9,
-                                    dashArray: dashArray || undefined,
-                                }}
-                                eventHandlers={{
-                                    click: () => onEditZone?.(zone),
-                                    mouseover: (e) => {
-                                        e.target.bringToFront();
-                                        e.target.setStyle({ fillOpacity: 0.35, weight: 4, dashArray: '' });
-                                    },
-                                    mouseout: (e) => {
-                                        e.target.setStyle({ fillOpacity: 0.15, weight: 3, dashArray: dashArray || undefined });
-                                    },
-                                }}
-                            >
-                                <Tooltip direction="center" permanent
-                                    className="zone-label-tooltip"
-                                >
-                                    <div style={{
-                                        display: 'flex', flexDirection: 'column',
-                                        alignItems: 'center', gap: 2,
-                                        cursor: onEditZone ? 'pointer' : 'default',
-                                    }}>
-                                        <span style={{
-                                            fontWeight: 800, fontSize: 13,
-                                            color: '#1a1a2e',
-                                            textShadow: '0 1px 3px rgba(255,255,255,0.9), 0 0 6px rgba(255,255,255,0.8)',
-                                            letterSpacing: '-0.3px',
-                                        }}>
-                                            {zone.name}
-                                        </span>
-                                        {zone.code && (
-                                            <span style={{
-                                                fontWeight: 700, fontSize: 10,
-                                                color: '#fff',
-                                                background: color,
-                                                padding: '1px 7px', borderRadius: 4,
-                                                letterSpacing: '0.5px',
-                                            }}>
-                                                {zone.code}
-                                            </span>
-                                        )}
-                                        {onEditZone && (
-                                            <span style={{ fontSize: 9, color: '#94a3b8', marginTop: 1 }}>
-                                                ✏️ tıkla → düzenle
-                                            </span>
-                                        )}
-                                    </div>
-                                </Tooltip>
-                            </Polygon>
+                                zone={zone}
+                                color={color}
+                                dashArray={dashArray}
+                                onEditZone={onEditZone}
+                                onMoveZone={onMoveZone}
+                            />
                         );
                     })}
                 </MapContainer>

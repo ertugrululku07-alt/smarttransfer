@@ -94,6 +94,27 @@ const ZonesPage: React.FC = () => {
     } catch (err) { message.error('Bölge silinirken hata oluştu'); }
   };
 
+  const handleMoveZone = async (zoneId: string, newPolygon: { lat: number; lng: number }[]) => {
+    try {
+      const zone = zones.find(z => z.id === zoneId);
+      if (!zone) return;
+      const res = await apiClient.put(`/api/zones/${zoneId}`, {
+        name: zone.name,
+        code: zone.code || null,
+        keywords: zone.keywords || null,
+        color: zone.color || '#3388ff',
+        polygon: newPolygon,
+      });
+      if (res.data.success) {
+        message.success(`${zone.name} bölgesi taşındı`);
+        fetchData();
+      }
+    } catch (err) {
+      message.error('Bölge taşınırken hata oluştu');
+      fetchData(); // revert to original position
+    }
+  };
+
   const handleZoneSubmit = async () => {
     try {
       const values = await form.validateFields();
@@ -582,6 +603,7 @@ const ZonesPage: React.FC = () => {
               height={640}
               onEditZone={(zone) => handleEditZone(zone as any)}
               onNewZone={handleNewZone}
+              onMoveZone={handleMoveZone}
             />
           )}
 
