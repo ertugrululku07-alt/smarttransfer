@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { MapContainer, TileLayer, Polygon, Tooltip, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Polygon, Tooltip, Marker, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
@@ -77,7 +77,7 @@ const ZONE_PALETTE = [
     '#64748b', // slate
 ];
 
-// ── Draggable zone polygon: supports click-to-edit AND drag-to-move ──
+// ── Draggable zone polygon: click-to-edit, drag-to-move, dblclick for vertex editing ──
 const DraggableZoneLayer: React.FC<{
     zone: Zone;
     color: string;
@@ -86,20 +86,55 @@ const DraggableZoneLayer: React.FC<{
     onMoveZone?: (zoneId: string, newPolygon: { lat: number; lng: number }[]) => void;
 }> = ({ zone, color, dashArray, onEditZone, onMoveZone }) => {
     const map = useMap();
+    const polygonRef = useRef<any>(null);
     const [positions, setPositions] = useState<[number, number][]>(
         zone.polygon!.map(p => [p.lat, p.lng])
     );
     const posRef = useRef(positions);
     const dragRef = useRef({ active: false, moved: false, lat: 0, lng: 0 });
+    const [isEditing, setIsEditing] = useState(false);
+    const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const skipMapClickRef = useRef(false);
 
     // Sync when zone data changes externally (e.g. after save)
     useEffect(() => {
         const p: [number, number][] = zone.polygon!.map(pt => [pt.lat, pt.lng]);
         setPositions(p);
         posRef.current = p;
+        setIsEditing(false);
     }, [zone.polygon]);
 
+    // Cleanup click timer on unmount
+    useEffect(() => {
+        return () => { if (clickTimerRef.current) clearTimeout(clickTimerRef.current); };
+    }, []);
+
+    // Disable map double-click zoom while in vertex edit mode
+    useEffect(() => {
+        if (isEditing) {
+            map.doubleClickZoom.disable();
+        } else {
+            map.doubleClickZoom.enable();
+        }
+    }, [isEditing, map]);
+
+    // Exit vertex edit mode when clicking on empty map area
+    useEffect(() => {
+        if (!isEditing) return;
+        const exitEdit = () => {
+            if (skipMapClickRef.current) { skipMapClickRef.current = false; return; }
+            setIsEditing(false);
+            if (onMoveZone) {
+                onMoveZone(zone.id, posRef.current.map(([la, ln]) => ({ lat: la, lng: ln })));
+            }
+        };
+        const t = setTimeout(() => map.on('click', exitEdit), 200);
+        return () => { clearTimeout(t); map.off('click', exitEdit); };
+    }, [isEditing, map, zone.id, onMoveZone]);
+
+    // ── Whole-polygon drag (only when NOT in vertex edit mode) ──
     const onMouseDown = useCallback((e: any) => {
+        if (isEditing) return;
         dragRef.current = { active: true, moved: false, lat: e.latlng.lat, lng: e.latlng.lng };
         map.dragging.disable();
 
@@ -109,7 +144,6 @@ const DraggableZoneLayer: React.FC<{
             const dLng = me.latlng.lng - dragRef.current.lng;
             dragRef.current.lat = me.latlng.lat;
             dragRef.current.lng = me.latlng.lng;
-
             if (Math.abs(dLat) > 0.00002 || Math.abs(dLng) > 0.00002) {
                 dragRef.current.moved = true;
                 const next: [number, number][] = posRef.current.map(([la, ln]) => [la + dLat, ln + dLng]);
@@ -122,86 +156,172 @@ const DraggableZoneLayer: React.FC<{
             map.dragging.enable();
             map.off('mousemove', onMove);
             map.off('mouseup', onUp);
-
             if (dragRef.current.moved && onMoveZone) {
-                const newPoly = posRef.current.map(([la, ln]) => ({ lat: la, lng: ln }));
-                onMoveZone(zone.id, newPoly);
+                onMoveZone(zone.id, posRef.current.map(([la, ln]) => ({ lat: la, lng: ln })));
             }
-            // Reset active but keep moved flag for click handler
             dragRef.current.active = false;
         };
 
         map.on('mousemove', onMove);
         map.on('mouseup', onUp);
-    }, [map, zone.id, onMoveZone]);
+    }, [map, zone.id, onMoveZone, isEditing]);
 
+    // ── Click: open edit modal (delayed, so dblclick can cancel) ──
     const onClick = useCallback(() => {
-        // Only open edit if we didn't just drag
-        if (!dragRef.current.moved) {
-            onEditZone?.(zone);
-        }
-        dragRef.current.moved = false;
-    }, [zone, onEditZone]);
+        if (dragRef.current.moved) { dragRef.current.moved = false; return; }
+        if (isEditing) { skipMapClickRef.current = true; return; }
+        clickTimerRef.current = setTimeout(() => { onEditZone?.(zone); }, 300);
+    }, [zone, onEditZone, isEditing]);
+
+    // ── Double-click: enter vertex edit mode ──
+    const onDblClick = useCallback((e: any) => {
+        if (clickTimerRef.current) { clearTimeout(clickTimerRef.current); clickTimerRef.current = null; }
+        if (e.originalEvent) { e.originalEvent.stopPropagation(); e.originalEvent.preventDefault(); }
+        setIsEditing(true);
+    }, []);
+
+    // ── Vertex icon (small white square with colored border) ──
+    const makeVertexIcon = useCallback((c: string) => L.divIcon({
+        className: '',
+        html: `<div style="width:14px;height:14px;background:#fff;border:3px solid ${c};border-radius:3px;box-shadow:0 2px 6px rgba(0,0,0,0.35);cursor:pointer;"></div>`,
+        iconSize: [14, 14],
+        iconAnchor: [7, 7],
+    }), []);
+
+    // Midpoint icon (smaller, semi-transparent)
+    const makeMidIcon = useCallback((c: string) => L.divIcon({
+        className: '',
+        html: `<div style="width:10px;height:10px;background:${c};opacity:0.45;border:2px solid #fff;border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,0.25);cursor:pointer;"></div>`,
+        iconSize: [10, 10],
+        iconAnchor: [5, 5],
+    }), []);
+
+    // ── Live polygon update during vertex drag (via Leaflet API, no React re-render) ──
+    const handleVertexDrag = useCallback((index: number, e: any) => {
+        const { lat, lng } = e.target.getLatLng();
+        posRef.current = posRef.current.map((p, i) =>
+            i === index ? [lat, lng] as [number, number] : p
+        );
+        if (polygonRef.current) polygonRef.current.setLatLngs(posRef.current);
+    }, []);
+
+    // Sync React state after vertex drag finishes
+    const handleVertexDragEnd = useCallback((index: number, e: any) => {
+        const { lat, lng } = e.target.getLatLng();
+        posRef.current = posRef.current.map((p, i) =>
+            i === index ? [lat, lng] as [number, number] : [...p] as [number, number]
+        );
+        setPositions([...posRef.current]);
+    }, []);
+
+    // ── Insert new vertex when midpoint handle is dragged ──
+    const handleMidpointDragEnd = useCallback((afterIndex: number, e: any) => {
+        const { lat, lng } = e.target.getLatLng();
+        const newPos: [number, number][] = [...posRef.current];
+        newPos.splice(afterIndex + 1, 0, [lat, lng]);
+        posRef.current = newPos;
+        setPositions([...newPos]);
+        if (polygonRef.current) polygonRef.current.setLatLngs(newPos);
+    }, []);
+
+    const vertexIcon = makeVertexIcon(isEditing ? '#f59e0b' : color);
+    const midIcon = makeMidIcon(isEditing ? '#f59e0b' : color);
 
     return (
-        <Polygon
-            positions={positions}
-            pathOptions={{
-                color,
-                fillColor: color,
-                fillOpacity: 0.15,
-                weight: 3,
-                opacity: 0.9,
-                dashArray: dashArray || undefined,
-            }}
-            eventHandlers={{
-                mousedown: onMouseDown,
-                click: onClick,
-                mouseover: (e: any) => {
-                    e.target.bringToFront();
-                    e.target.setStyle({ fillOpacity: 0.35, weight: 4, dashArray: '' });
-                    if (e.target._path) e.target._path.style.cursor = 'grab';
-                },
-                mouseout: (e: any) => {
-                    if (!dragRef.current.active) {
-                        e.target.setStyle({ fillOpacity: 0.15, weight: 3, dashArray: dashArray || undefined });
-                    }
-                },
-            }}
-        >
-            <Tooltip direction="center" permanent className="zone-label-tooltip">
-                <div style={{
-                    display: 'flex', flexDirection: 'column',
-                    alignItems: 'center', gap: 2,
-                    cursor: 'grab',
-                }}>
-                    <span style={{
-                        fontWeight: 800, fontSize: 13,
-                        color: '#1a1a2e',
-                        textShadow: '0 1px 3px rgba(255,255,255,0.9), 0 0 6px rgba(255,255,255,0.8)',
-                        letterSpacing: '-0.3px',
+        <>
+            <Polygon
+                ref={polygonRef}
+                positions={positions}
+                pathOptions={{
+                    color: isEditing ? '#f59e0b' : color,
+                    fillColor: isEditing ? '#f59e0b' : color,
+                    fillOpacity: isEditing ? 0.2 : 0.15,
+                    weight: isEditing ? 2.5 : 3,
+                    opacity: 0.9,
+                    dashArray: isEditing ? '6 4' : (dashArray || undefined),
+                }}
+                eventHandlers={{
+                    mousedown: onMouseDown,
+                    click: onClick,
+                    dblclick: onDblClick,
+                    mouseover: (e: any) => {
+                        if (!isEditing) {
+                            e.target.bringToFront();
+                            e.target.setStyle({ fillOpacity: 0.35, weight: 4, dashArray: '' });
+                            if (e.target._path) e.target._path.style.cursor = 'grab';
+                        }
+                    },
+                    mouseout: (e: any) => {
+                        if (!dragRef.current.active && !isEditing) {
+                            e.target.setStyle({ fillOpacity: 0.15, weight: 3, dashArray: dashArray || undefined, color, fillColor: color });
+                        }
+                    },
+                }}
+            >
+                <Tooltip direction="center" permanent className="zone-label-tooltip">
+                    <div style={{
+                        display: 'flex', flexDirection: 'column',
+                        alignItems: 'center', gap: 2,
+                        cursor: isEditing ? 'default' : 'grab',
                     }}>
-                        {zone.name}
-                    </span>
-                    {zone.code && (
                         <span style={{
-                            fontWeight: 700, fontSize: 10,
-                            color: '#fff',
-                            background: color,
-                            padding: '1px 7px', borderRadius: 4,
-                            letterSpacing: '0.5px',
+                            fontWeight: 800, fontSize: 13,
+                            color: isEditing ? '#b45309' : '#1a1a2e',
+                            textShadow: '0 1px 3px rgba(255,255,255,0.9), 0 0 6px rgba(255,255,255,0.8)',
+                            letterSpacing: '-0.3px',
                         }}>
-                            {zone.code}
+                            {zone.name}
                         </span>
-                    )}
-                    {onEditZone && (
+                        {zone.code && (
+                            <span style={{
+                                fontWeight: 700, fontSize: 10,
+                                color: '#fff',
+                                background: isEditing ? '#f59e0b' : color,
+                                padding: '1px 7px', borderRadius: 4,
+                                letterSpacing: '0.5px',
+                            }}>
+                                {zone.code}
+                            </span>
+                        )}
                         <span style={{ fontSize: 9, color: '#94a3b8', marginTop: 1 }}>
-                            ✏️ tıkla → düzenle
+                            {isEditing
+                                ? '🔶 köşeleri sürükle • boşluğa tıkla → kaydet'
+                                : '✏️ tıkla → düzenle • çift tıkla → köşeleri düzenle'}
                         </span>
-                    )}
-                </div>
-            </Tooltip>
-        </Polygon>
+                    </div>
+                </Tooltip>
+            </Polygon>
+
+            {/* ── Vertex handles (corners) ── */}
+            {isEditing && positions.map((pos, i) => (
+                <Marker
+                    key={`v-${zone.id}-${i}`}
+                    position={pos as [number, number]}
+                    draggable
+                    icon={vertexIcon}
+                    eventHandlers={{
+                        drag: (e) => handleVertexDrag(i, e),
+                        dragend: (e) => handleVertexDragEnd(i, e),
+                    }}
+                />
+            ))}
+
+            {/* ── Midpoint handles (drag to insert new vertex) ── */}
+            {isEditing && positions.map((pos, i) => {
+                const next = positions[(i + 1) % positions.length];
+                return (
+                    <Marker
+                        key={`m-${zone.id}-${i}`}
+                        position={[(pos[0] + next[0]) / 2, (pos[1] + next[1]) / 2] as [number, number]}
+                        draggable
+                        icon={midIcon}
+                        eventHandlers={{
+                            dragend: (e) => handleMidpointDragEnd(i, e),
+                        }}
+                    />
+                );
+            })}
+        </>
     );
 };
 
