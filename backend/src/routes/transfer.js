@@ -657,12 +657,22 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
             if (!isPickupMatch && !route.pickupPolygon) {
                 const routeFrom = normalizeLocation(route.fromName);
                 const routeFromPrimary = routeFrom.split(/[\/,]/)[0].trim();
-                // Check ALL segments of the pickup address (street name, postal code, district, city etc.)
-                // e.g., "D-400, 07620, Çolaklı, Manavgat/Antalya" should match "Çolaklı 1"
+                // Split route name into words for precise matching
+                // e.g., "kızılağaç manavgat" → first word "kızılağaç"
+                const routeWords = routeFromPrimary.split(/\s+/).filter(w => w.length > 1);
+                const routeFirstWord = routeWords[0] || routeFromPrimary;
+                
                 const pickupSegments = pickupNorm.split(/[\/,]/).map(s => s.trim()).filter(s => s.length > 2);
-                isPickupMatch = pickupSegments.some(seg =>
-                    routeFromPrimary.includes(seg) || seg.includes(routeFromPrimary)
-                );
+                isPickupMatch = pickupSegments.some(seg => {
+                    // Exact match: "manavgat" === "manavgat"
+                    if (seg === routeFromPrimary) return true;
+                    // Segment contains full route name: "çolaklı mahallesi" contains "çolaklı"
+                    if (seg.includes(routeFromPrimary)) return true;
+                    // Route name contains segment, but ONLY if segment matches the first/main word
+                    // This prevents "Kızılağaç Manavgat" from matching generic "Manavgat" addresses
+                    if (routeFromPrimary.includes(seg) && (seg.includes(routeFirstWord) || routeFirstWord.includes(seg))) return true;
+                    return false;
+                });
             }
 
             // 1d. Hub-based pickup matching: if user pickup resolves to a known hub,
