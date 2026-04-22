@@ -119,6 +119,7 @@ async function loadTenantHubs(tenantId) {
  * Search available transfers (Mock algorithm, real future impl would use Google Distance Matrix)
  */
 router.post('/search', optionalAuthMiddleware, async (req, res) => {
+    console.log(`[SearchHit] /api/transfer/search called at ${new Date().toISOString()}, pickup="${req.body.pickup}", dropoff="${req.body.dropoff}"`);
     // ── Custom price rounding: round kuruş to nearest quarter ──
     // 0-24 → .00, 25-50 → .50, 51-75 → .75, 76-99 → next .00
     const roundPrice = (price) => {
