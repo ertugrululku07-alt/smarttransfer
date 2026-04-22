@@ -765,11 +765,12 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
 
             const routeMeta = route.metadata || {};
             const routeToHubCode = routeMeta.toHubCode;
-            if (routeToHubCode) {
-                if (originalDropoffHubCode && originalDropoffHubCode === routeToHubCode) {
-                    isDropoffMatch = true;
-                }
-            } else {
+            // 2a. Try hub code match first
+            if (routeToHubCode && originalDropoffHubCode && originalDropoffHubCode === routeToHubCode) {
+                isDropoffMatch = true;
+            }
+            // 2b. Fallback: text matching + hub keyword matching (always try if no hub match)
+            if (!isDropoffMatch) {
                 const routeTo = normalizeLocation(route.toName);
                 const routeToPrimary = routeTo.split(/[\/,]/)[0].trim();
                 isDropoffMatch = (routeToPrimary === dropoffPrimaryToken || routeToPrimary.includes(dropoffPrimaryToken) || dropoffPrimaryToken.includes(routeToPrimary));
@@ -830,7 +831,11 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                 }
             }
 
-            if (!isDropoffMatch) return false;
+            if (!isDropoffMatch) {
+                console.log(`[ShuttleDropoffReject] route="${route.fromName}→${route.toName}" routeToHubCode=${routeToHubCode}, originalDropoffHubCode=${originalDropoffHubCode}, routeToName="${route.toName}", dropoffPrimaryToken="${dropoffPrimaryToken}"`);
+                return false;
+            }
+            console.log(`[ShuttleDropoffPass] route="${route.fromName}→${route.toName}" PASSED dropoff check`);
 
             // Schedule Check
             let passesSchedule = false;
