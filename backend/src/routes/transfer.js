@@ -678,8 +678,11 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                 }
             }
 
-            // 1e. Zone Polygon matching for Pickup (with proximity tolerance)
-            if (pickupLat && pickupLng && !route.pickupPolygon) {
+            // 1e. Zone Polygon matching for Pickup (ADDITIVE only — never rejects)
+            // Zone polygons define pricing boundaries, NOT shuttle service areas.
+            // Only the route's own pickupPolygon (step 1a) can strictly reject.
+            // This step only runs when no prior match exists, to positively match via zone polygon.
+            if (!isPickupMatch && pickupLat && pickupLng && !route.pickupPolygon) {
                 let pZone = null;
                 const pHubCode = route.metadata?.fromHubCode;
                 if (pHubCode) {
@@ -711,8 +714,7 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                                 isPickupMatch = true;
                                 console.log(`[ShuttlePickupProximity] Pickup ${distKm.toFixed(1)}km from zone "${pZone.name}" polygon → allowing`);
                             } else {
-                                console.log(`[ShuttlePickupReject] Pickup ${distKm.toFixed(1)}km from zone "${pZone.name}" polygon → rejecting`);
-                                return false;
+                                console.log(`[ShuttlePickupNoMatch] Pickup ${distKm.toFixed(1)}km from zone "${pZone.name}" polygon → no zone match (text/hub match needed)`);
                             }
                         }
                     } catch (err) {
@@ -748,8 +750,9 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                 }
             }
 
-            // 2b. Zone Polygon matching for Dropoff (Priority over text if polygon exists)
-            if (dropoffLat && dropoffLng) {
+            // 2b. Zone Polygon matching for Dropoff (ADDITIVE only — never rejects)
+            // Zone polygons define pricing boundaries, NOT shuttle service areas.
+            if (!isDropoffMatch && dropoffLat && dropoffLng) {
                 let dZone = null;
                 const dHubCode = routeToHubCode;
                 if (dHubCode) {
@@ -774,8 +777,14 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                             isDropoffMatch = true;
                             console.log(`[ShuttleDropoff] Inside zone "${dZone.name}" polygon`);
                         } else {
-                            console.log(`[ShuttleDropoffReject] Dropoff point is outside zone "${dZone.name}" polygon → rejecting shuttle`);
-                            return false;
+                            const boundary = turf.polygonToLine(zonePoly);
+                            const distKm = turf.pointToLineDistance(dropPt, boundary, { units: 'kilometers' });
+                            if (distKm <= 3) {
+                                isDropoffMatch = true;
+                                console.log(`[ShuttleDropoffProximity] Dropoff ${distKm.toFixed(1)}km from zone "${dZone.name}" polygon → allowing`);
+                            } else {
+                                console.log(`[ShuttleDropoffNoMatch] Dropoff ${distKm.toFixed(1)}km from zone "${dZone.name}" polygon → no zone match`);
+                            }
                         }
                     } catch (err) {
                         console.error('Shuttle dropoff zone polygon check error:', err.message);
