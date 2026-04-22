@@ -665,7 +665,12 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
             }
 
             // 1c. Text matching fallback (only if no polygon provided)
-            if (!isPickupMatch && !route.pickupPolygon) {
+            // Skip for hub/airport routes — normalizeLocation strips "havalimanı"/"airport",
+            // leaving generic names like "antalya" that false-match province names in addresses.
+            // Airport routes should match via hub code (step 1d) only.
+            const fromNameLower = (route.fromName || '').toLowerCase();
+            const isFromAirportOrHub = fromNameLower.includes('havalimanı') || fromNameLower.includes('havalimani') || fromNameLower.includes('airport') || fromNameLower.includes('otogar') || fromNameLower.includes('terminal');
+            if (!isPickupMatch && !route.pickupPolygon && !isFromAirportOrHub) {
                 const routeFrom = normalizeLocation(route.fromName);
                 const routeFromPrimary = routeFrom.split(/[\/,]/)[0].trim();
                 // Split route name into words for precise matching
@@ -746,6 +751,7 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
             }
 
             if (!isPickupMatch) return false;
+            console.log(`[ShuttleMatch] Pickup MATCHED for route "${route.fromName}→${route.toName}" (id:${route.id})`);
 
             // 2. DROPOFF Location Check (to → user's dropoff)
             let isDropoffMatch = false;
@@ -772,6 +778,9 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                 }
             }
 
+            if (isDropoffMatch) {
+                console.log(`[ShuttleMatch] Dropoff MATCHED for route "${route.fromName}→${route.toName}" via ${routeToHubCode ? `hubCode(route=${routeToHubCode},dropoff=${originalDropoffHubCode})` : 'text/hub-keyword'}`);
+            }
             // 2b. Zone Polygon matching for Dropoff (ADDITIVE only — never rejects)
             // Zone polygons define pricing boundaries, NOT shuttle service areas.
             if (!isDropoffMatch && dropoffLat && dropoffLng) {

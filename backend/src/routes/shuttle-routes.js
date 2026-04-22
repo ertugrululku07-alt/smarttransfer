@@ -74,13 +74,14 @@ router.post('/', authMiddleware, async (req, res) => {
         });
 
         if (data.isBidirectional && data.returnDepartureTimes && data.returnDepartureTimes.length > 0) {
-            // Build reverse metadata: swap fromZoneId and toHubCode
+            // Build reverse metadata: properly swap hub codes and zone references
             const originalMeta = data.metadata || {};
             const reverseMeta = {
-                fromZoneId: null, // The reverse pickup is the hub (airport), not a zone
-                toHubCode: null,  // The reverse dropoff is the zone area, not a hub
+                ...originalMeta,                              // Spread FIRST so overrides work
+                fromHubCode: originalMeta.toHubCode || null,  // Original destination hub → new pickup hub
+                toHubCode: originalMeta.fromHubCode || null,  // Original pickup hub/zone → new dropoff
+                fromZoneId: null,                             // Reverse pickup is the hub, not a zone
                 reverseOf: 'auto-created',
-                ...originalMeta
             };
             // If the original route goes FROM a zone TO a hub,
             // the reverse goes FROM the hub TO the zone.
