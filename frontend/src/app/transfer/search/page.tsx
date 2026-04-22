@@ -58,6 +58,7 @@ interface TransferResult {
     estimatedDuration: string;
     image?: string;
     isShuttle?: boolean;
+    shuttleRouteName?: string;
     departureTimes?: string[];
     matchedMasterTime?: string;
     timeOffsetMin?: number;
@@ -405,6 +406,7 @@ const TransferSearchContent: React.FC = () => {
                                             <Text type="secondary" style={{ display: 'block', marginBottom: 16 }}>by {result.vendor}</Text>
                                             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%', marginBottom: 16 }}>
                                                 {result.isShuttle && <Tag color="purple">Paylaşımlı Shuttle</Tag>}
+                                                {result.isShuttle && result.shuttleRouteName && <Text type="secondary" style={{ fontSize: 11 }}>{result.shuttleRouteName}</Text>}
                                                 {result.isShuttle && result.matchedMasterTime ? (() => {
                                                     // Calculate raw home-pickup time: searchTime - travelDuration - pickupLeadHours
                                                     const timeStr = time || '12:00';

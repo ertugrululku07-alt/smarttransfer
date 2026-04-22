@@ -517,6 +517,12 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                     // Bonus: keyword found in primary token (first address segment) = stronger match
                     if (matchInPrimary) score += 2;
                     if (k === pickupPrimaryToken) score += 1;
+                    // Bonus: hub's OWN NAME matches pickup text → prefer over zones that only share a keyword
+                    // e.g., zone "Manavgat" should beat zone "Gündoğdu" (keyword: manavgat) for "Manavgat/Antalya"
+                    const hubNameLower = hub.name ? hub.name.toLowerCase() : '';
+                    if (hubNameLower && (pickupPrimaryToken.includes(hubNameLower) || hubNameLower.includes(pickupPrimaryToken))) {
+                        score += 3;
+                    }
                     if (score > bestPickupScore || (score === bestPickupScore && k.length > bestPickupLength)) {
                         detectedBaseLocation = hub.code;
                         originalPickupHubCode = hub.code;
@@ -550,6 +556,11 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                     // Bonus: keyword found in primary token (first address segment) = stronger match
                     if (matchInPrimary) score += 2;
                     if (k === dropoffPrimaryToken) score += 1;
+                    // Bonus: hub's OWN NAME matches dropoff text
+                    const hubNameLower = hub.name ? hub.name.toLowerCase() : '';
+                    if (hubNameLower && (dropoffPrimaryToken.includes(hubNameLower) || hubNameLower.includes(dropoffPrimaryToken))) {
+                        score += 3;
+                    }
                     if (score > bestDropoffScore || (score === bestDropoffScore && k.length > bestDropoffMatchLength)) {
                         detectedDropoffBase = hub.code;
                         originalDropoffHubCode = hub.code;
@@ -676,15 +687,16 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
             }
 
             // 1d. Hub-based pickup matching: if user pickup resolves to a known hub,
-            //     match routes whose fromName contains that hub's keywords
+            //     match routes whose fromName matches that hub's NAME or CODE (not keywords)
+            //     Keywords are for detecting the pickup location, not for matching routes.
             if (!isPickupMatch && originalPickupHubCode && !route.pickupPolygon) {
                 const pickupHub = hubs.find(h => h.code === originalPickupHubCode);
                 if (pickupHub) {
                     const routeFromLower = route.fromName.toLowerCase();
-                    const hubKeys = pickupHub.keywords ? pickupHub.keywords.split(',').map(k => k.trim().toLowerCase()).filter(k => k) : [];
-                    hubKeys.push(pickupHub.code.toLowerCase());
-                    if (pickupHub.name) hubKeys.push(pickupHub.name.toLowerCase());
-                    isPickupMatch = hubKeys.some(k => k && routeFromLower.includes(k));
+                    // Only use hub NAME and CODE for route matching
+                    const hubIdentifiers = [pickupHub.code.toLowerCase()];
+                    if (pickupHub.name) hubIdentifiers.push(pickupHub.name.toLowerCase());
+                    isPickupMatch = hubIdentifiers.some(k => k && (routeFromLower.includes(k) || k.includes(routeFromLower)));
                 }
             }
 
@@ -892,6 +904,7 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                 estimatedDuration: 'Değişken', // Depends on stops
                 image: vehicleImage,
                 isShuttle: true,
+                shuttleRouteName: `${s.fromName} → ${s.toName}`,
                 departureTimes: s.departureTimes, // Pass departure times to frontend
                 matchedMasterTime: s._matchedMasterTime,
                 timeOffsetMin: s._timeOffsetMin,
