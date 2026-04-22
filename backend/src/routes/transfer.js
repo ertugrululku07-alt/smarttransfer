@@ -608,22 +608,46 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
         console.log(`[ShuttleDebug] Total shuttleRoutes found: ${shuttleRoutes.length}, pickup="${pickup}", dropoff="${dropoff}", pickupLat=${pickupLat}, pickupLng=${pickupLng}`);
         console.log(`[ShuttleDebug] pickupNorm="${pickupNorm}", pickupPrimaryToken="${pickupPrimaryToken}", originalPickupHubCode="${originalPickupHubCode}", originalDropoffHubCode="${originalDropoffHubCode}"`);
 
+        // ── PRE-COMPUTE: which zones contain the pickup point? ──
+        const pickupInsideZoneCodes = new Set(); // zone codes (uppercase)
+        const pickupInsideZoneNames = new Set(); // zone names (lowercase trimmed)
+        const userLat = req.body.pickupLat ? Number(req.body.pickupLat) : null;
+        const userLng = req.body.pickupLng ? Number(req.body.pickupLng) : null;
+
+        if (userLat && userLng && zones.length > 0) {
+            const pickPt = turf.point([userLng, userLat]);
+            for (const zone of zones) {
+                if (!zone.polygon || (Array.isArray(zone.polygon) && zone.polygon.length < 3)) continue;
+                try {
+                    const zPoly = typeof zone.polygon === 'string' ? JSON.parse(zone.polygon) : zone.polygon;
+                    if (!Array.isArray(zPoly) || zPoly.length < 3) continue;
+                    let zCoords = zPoly.map(p => [p.lng, p.lat]);
+                    if (zCoords[0][0] !== zCoords[zCoords.length - 1][0] || zCoords[0][1] !== zCoords[zCoords.length - 1][1]) {
+                        zCoords.push([...zCoords[0]]);
+                    }
+                    const zPolygon = turf.polygon([zCoords]);
+                    if (turf.booleanPointInPolygon(pickPt, zPolygon)) {
+                        if (zone.code) pickupInsideZoneCodes.add(zone.code.toUpperCase());
+                        if (zone.name) pickupInsideZoneNames.add(zone.name.toLowerCase().trim());
+                        console.log(`[ShuttleZone] Pickup INSIDE zone "${zone.name}" (code=${zone.code})`);
+                    }
+                } catch (e) { /* skip invalid polygon */ }
+            }
+        }
+        console.log(`[ShuttleZones] Pickup inside ${pickupInsideZoneCodes.size} zones: codes=[${[...pickupInsideZoneCodes]}], names=[${[...pickupInsideZoneNames]}]`);
+
         const matchingShuttles = shuttleRoutes.filter(route => {
           try {
             // 1. PICKUP Location Check — POLYGON ONLY
-            // User's coordinates must be inside the route's pickup polygon or zone polygon
             let isPickupMatch = false;
-            const userLat = req.body.pickupLat ? Number(req.body.pickupLat) : null;
-            const userLng = req.body.pickupLng ? Number(req.body.pickupLng) : null;
 
             if (!userLat || !userLng) {
-                console.log(`[ShuttleReject] No pickup coordinates for "${route.fromName}→${route.toName}"`);
                 return false;
             }
 
             const pt = turf.point([userLng, userLat]);
 
-            // 1a. Check route's own pickupPolygon first
+            // 1a. Check route's own pickupPolygon
             if (route.pickupPolygon) {
                 try {
                     const polygon = typeof route.pickupPolygon === 'string'
@@ -634,14 +658,8 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                             polyCoords.push([...polyCoords[0]]);
                         }
                         const poly = turf.polygon([polyCoords]);
-                        const inside = turf.booleanPointInPolygon(pt, poly);
-                        if (inside) {
+                        if (turf.booleanPointInPolygon(pt, poly)) {
                             isPickupMatch = true;
-                            console.log(`[ShuttlePickup] INSIDE route polygon for "${route.fromName}→${route.toName}"`);
-                        } else {
-                            const boundary = turf.polygonToLine(poly);
-                            const distKm = turf.pointToLineDistance(pt, boundary, { units: 'kilometers' });
-                            console.log(`[ShuttlePickup] OUTSIDE route polygon (${distKm.toFixed(1)}km) for "${route.fromName}→${route.toName}" — trying zone polygon`);
                         }
                     }
                 } catch (err) {
@@ -649,44 +667,25 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                 }
             }
 
-            // 1b. Fallback: check the route's linked zone polygon (via fromHubCode or name)
+            // 1b. Check if route's zone is one of the zones containing the pickup point
             if (!isPickupMatch) {
-                let pZone = null;
                 const pHubCode = route.metadata?.fromHubCode;
-                if (pHubCode) {
-                    pZone = zones.find(z => z.code && z.code.toUpperCase() === pHubCode.toUpperCase());
+                // Match by zone code (most reliable)
+                if (pHubCode && pickupInsideZoneCodes.has(pHubCode.toUpperCase())) {
+                    isPickupMatch = true;
+                    console.log(`[ShuttlePickup] Route "${route.fromName}" matched via zone code ${pHubCode}`);
                 }
-                if (!pZone) {
-                    // Flexible zone name matching: zone "Manavgat" should match route "Manavgat manavgat"
+                // Match by zone name: zone name must be at START of route name
+                // "Manavgat" matches "Manavgat manavgat" but NOT "Kızılağaç Manavgat"
+                if (!isPickupMatch) {
                     const rn = route.fromName.toLowerCase().trim();
-                    pZone = zones.find(z => {
-                        if (!z.name) return false;
-                        const zn = z.name.toLowerCase().trim();
-                        return zn === rn || rn.includes(zn) || zn.includes(rn);
-                    });
-                }
-                if (pZone && pZone.polygon) {
-                    try {
-                        const pPoly = typeof pZone.polygon === 'string' ? JSON.parse(pZone.polygon) : pZone.polygon;
-                        if (Array.isArray(pPoly) && pPoly.length > 2) {
-                            let pPolyCoords = pPoly.map(p => [p.lng, p.lat]);
-                            if (pPolyCoords[0][0] !== pPolyCoords[pPolyCoords.length - 1][0] ||
-                                pPolyCoords[0][1] !== pPolyCoords[pPolyCoords.length - 1][1]) {
-                                pPolyCoords.push([...pPolyCoords[0]]);
-                            }
-                            const zonePoly = turf.polygon([pPolyCoords]);
-                            if (turf.booleanPointInPolygon(pt, zonePoly)) {
-                                isPickupMatch = true;
-                                console.log(`[ShuttlePickup] Inside zone "${pZone.name}" polygon for route "${route.fromName}"`);
-                            } else {
-                                console.log(`[ShuttlePickup] OUTSIDE zone "${pZone.name}" polygon for route "${route.fromName}"`);
-                            }
+                    for (const zn of pickupInsideZoneNames) {
+                        if (rn === zn || rn.startsWith(zn + ' ') || rn.startsWith(zn + '/')) {
+                            isPickupMatch = true;
+                            console.log(`[ShuttlePickup] Route "${route.fromName}" matched via zone name "${zn}"`);
+                            break;
                         }
-                    } catch (err) {
-                        console.error('[ShuttlePolygonError] Zone polygon:', err.message);
                     }
-                } else {
-                    console.log(`[ShuttlePickup] No zone found for route "${route.fromName}" (hubCode=${pHubCode})`);
                 }
             }
 
@@ -703,7 +702,7 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
             }
 
             if (!isPickupMatch) {
-                console.log(`[ShuttlePickupReject] Pickup (${userLat},${userLng}) not inside any polygon for "${route.fromName}→${route.toName}"`);
+                console.log(`[ShuttlePickupReject] "${route.fromName}→${route.toName}" — pickup not in any matching zone (hubCode=${route.metadata?.fromHubCode})`);
                 return false;
             }
             console.log(`[ShuttlePickupPass] "${route.fromName}→${route.toName}" pickup matched`);
