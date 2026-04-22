@@ -634,8 +634,14 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                             polyCoords.push([...polyCoords[0]]);
                         }
                         const poly = turf.polygon([polyCoords]);
-                        if (turf.booleanPointInPolygon(pt, poly)) {
+                        const inside = turf.booleanPointInPolygon(pt, poly);
+                        if (inside) {
                             isPickupMatch = true;
+                            console.log(`[ShuttlePickup] INSIDE route polygon for "${route.fromName}→${route.toName}"`);
+                        } else {
+                            const boundary = turf.polygonToLine(poly);
+                            const distKm = turf.pointToLineDistance(pt, boundary, { units: 'kilometers' });
+                            console.log(`[ShuttlePickup] OUTSIDE route polygon (${distKm.toFixed(1)}km) for "${route.fromName}→${route.toName}" — trying zone polygon`);
                         }
                     }
                 } catch (err) {
@@ -651,8 +657,13 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                     pZone = zones.find(z => z.code && z.code.toUpperCase() === pHubCode.toUpperCase());
                 }
                 if (!pZone) {
-                    const rn = route.fromName.toLowerCase();
-                    pZone = zones.find(z => z.name && z.name.toLowerCase() === rn);
+                    // Flexible zone name matching: zone "Manavgat" should match route "Manavgat manavgat"
+                    const rn = route.fromName.toLowerCase().trim();
+                    pZone = zones.find(z => {
+                        if (!z.name) return false;
+                        const zn = z.name.toLowerCase().trim();
+                        return zn === rn || rn.includes(zn) || zn.includes(rn);
+                    });
                 }
                 if (pZone && pZone.polygon) {
                     try {
@@ -666,12 +677,16 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                             const zonePoly = turf.polygon([pPolyCoords]);
                             if (turf.booleanPointInPolygon(pt, zonePoly)) {
                                 isPickupMatch = true;
-                                console.log(`[ShuttlePickup] Inside zone "${pZone.name}" polygon for "${route.fromName}"`);
+                                console.log(`[ShuttlePickup] Inside zone "${pZone.name}" polygon for route "${route.fromName}"`);
+                            } else {
+                                console.log(`[ShuttlePickup] OUTSIDE zone "${pZone.name}" polygon for route "${route.fromName}"`);
                             }
                         }
                     } catch (err) {
                         console.error('[ShuttlePolygonError] Zone polygon:', err.message);
                     }
+                } else {
+                    console.log(`[ShuttlePickup] No zone found for route "${route.fromName}" (hubCode=${pHubCode})`);
                 }
             }
 
