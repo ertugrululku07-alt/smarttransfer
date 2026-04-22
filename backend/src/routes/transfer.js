@@ -604,7 +604,11 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
             return deg * (Math.PI / 180);
         };
 
+        console.log(`[ShuttleDebug] Total shuttleRoutes found: ${shuttleRoutes.length}, pickup="${pickup}", dropoff="${dropoff}", pickupLat=${pickupLat}, pickupLng=${pickupLng}`);
+        console.log(`[ShuttleDebug] pickupNorm="${pickupNorm}", pickupPrimaryToken="${pickupPrimaryToken}", originalPickupHubCode="${originalPickupHubCode}", originalDropoffHubCode="${originalDropoffHubCode}"`);
+
         const matchingShuttles = shuttleRoutes.filter(route => {
+          try {
             // 1. PICKUP Location Check (from → user's pickup)
             let isPickupMatch = false;
 
@@ -690,6 +694,8 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                     return false;
                 });
             }
+
+            console.log(`[ShuttleStep1c] route="${route.fromName}→${route.toName}" isFromAirportOrHub=${isFromAirportOrHub} hasPolygon=${!!route.pickupPolygon} isPickupMatch=${isPickupMatch}`);
 
             // 1d. Hub-based pickup matching: if user pickup resolves to a known hub,
             //     match routes whose fromName matches that hub's NAME or CODE (not keywords)
@@ -880,7 +886,13 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
             route._timeOffsetMin = minOffset;
 
             return true;
+          } catch (filterErr) {
+            console.error(`[ShuttleFilterError] Route "${route.fromName}→${route.toName}" (id:${route.id}) threw:`, filterErr.message);
+            return false;
+          }
         });
+
+        console.log(`[ShuttleDebug] matchingShuttles count: ${matchingShuttles.length} (from ${shuttleRoutes.length} total)`);
 
         const shuttleResults = matchingShuttles.map(s => {
             const baseShuttlePrice = Number(s.pricePerSeat) * Number(passengers);
