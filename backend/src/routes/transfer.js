@@ -707,10 +707,20 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                 const pickupHub = hubs.find(h => h.code === originalPickupHubCode);
                 if (pickupHub) {
                     const routeFromLower = route.fromName.toLowerCase();
+                    const routeFromFirst = routeFromLower.split(/\s+/)[0]; // first word of route name
                     // Only use hub NAME and CODE for route matching
                     const hubIdentifiers = [pickupHub.code.toLowerCase()];
                     if (pickupHub.name) hubIdentifiers.push(pickupHub.name.toLowerCase());
-                    isPickupMatch = hubIdentifiers.some(k => k && (routeFromLower.includes(k) || k.includes(routeFromLower)));
+                    isPickupMatch = hubIdentifiers.some(k => {
+                        if (!k) return false;
+                        // Exact match or route name starts with hub name
+                        if (routeFromLower === k || k === routeFromLower) return true;
+                        // Hub name appears in route — only if it matches the FIRST word
+                        // Prevents "manavgat" hub from matching "kızılağaç manavgat" route
+                        if (routeFromLower.includes(k)) return routeFromFirst === k || k.includes(routeFromFirst);
+                        if (k.includes(routeFromLower)) return true;
+                        return false;
+                    });
                 }
             }
 
