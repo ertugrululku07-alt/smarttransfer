@@ -641,10 +641,12 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                                 isPickupMatch = true;
                                 route._overageKm = 0;
                             } else {
-                                // STRICT: pickup is outside the polygon → reject this shuttle route immediately.
-                                // No tolerance/overage — user explicitly wants shuttle NOT listed if outside polygon.
-                                console.log(`[ShuttlePickupReject] Pickup (${userLat},${userLng}) is OUTSIDE route polygon for "${route.fromName}→${route.toName}"`);
-                                return false;
+                                // Pickup is outside polygon — don't reject immediately,
+                                // let text matching (step 1c) try as fallback
+                                const boundary = turf.polygonToLine(poly);
+                                const distKm = turf.pointToLineDistance(pt, boundary, { units: 'kilometers' });
+                                route._polygonDistKm = distKm;
+                                console.log(`[ShuttlePickupOutside] Pickup (${userLat},${userLng}) is ${distKm.toFixed(1)}km outside polygon for "${route.fromName}→${route.toName}" — will try text match`);
                             }
                         } catch (err) {
                             console.error('Turf boundary calculation error for shuttle route:', err.message);
@@ -669,13 +671,13 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                 }
             }
 
-            // 1c. Text matching fallback (only if no polygon provided)
+            // 1c. Text matching fallback (runs even if polygon check was attempted but failed)
             // Skip for hub/airport routes — normalizeLocation strips "havalimanı"/"airport",
             // leaving generic names like "antalya" that false-match province names in addresses.
             // Airport routes should match via hub code (step 1d) only.
             const fromNameLower = (route.fromName || '').toLowerCase();
             const isFromAirportOrHub = fromNameLower.includes('havalimanı') || fromNameLower.includes('havalimani') || fromNameLower.includes('airport') || fromNameLower.includes('otogar') || fromNameLower.includes('terminal');
-            if (!isPickupMatch && !route.pickupPolygon && !isFromAirportOrHub) {
+            if (!isPickupMatch && !isFromAirportOrHub) {
                 const routeFrom = normalizeLocation(route.fromName);
                 const routeFromPrimary = routeFrom.split(/[\/,]/)[0].trim();
                 // Split route name into words for precise matching
