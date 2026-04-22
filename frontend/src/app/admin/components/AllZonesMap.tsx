@@ -54,6 +54,28 @@ const MapInvalidator: React.FC = () => {
     return null;
 };
 
+// Distinct color palette for auto-coloring zones that share the default blue
+const ZONE_PALETTE = [
+    '#3b82f6', // blue
+    '#ef4444', // red
+    '#10b981', // emerald
+    '#f59e0b', // amber
+    '#8b5cf6', // violet
+    '#ec4899', // pink
+    '#06b6d4', // cyan
+    '#f97316', // orange
+    '#14b8a6', // teal
+    '#a855f7', // purple
+    '#6366f1', // indigo
+    '#84cc16', // lime
+    '#e11d48', // rose
+    '#0ea5e9', // sky
+    '#d946ef', // fuchsia
+    '#22c55e', // green
+    '#eab308', // yellow
+    '#64748b', // slate
+];
+
 const AllZonesMap: React.FC<AllZonesMapProps> = ({ zones, height = 600, onEditZone, onNewZone }) => {
     const apiKey = process.env.NEXT_PUBLIC_HERE_API_KEY || 'RH04HVBUK6By3GfYWwVlCOG4Or1IzV-rRjygQRHbIvo';
     const tileUrl = `https://maps.hereapi.com/v3/base/mc/{z}/{x}/{y}/png8?apiKey=${apiKey}&size=256&style=explore.day`;
@@ -61,6 +83,17 @@ const AllZonesMap: React.FC<AllZonesMapProps> = ({ zones, height = 600, onEditZo
 
     const zonesWithPolygon = zones.filter(z => z.polygon && z.polygon.length >= 3);
     const zonesWithoutPolygon = zones.filter(z => !z.polygon || z.polygon.length < 3);
+
+    // Auto-assign distinct colors: if many zones share the same default color, give each a unique one
+    const defaultColor = '#3388ff';
+    const sameColorCount = zonesWithPolygon.filter(z => !z.color || z.color === defaultColor).length;
+    const needsAutoColor = sameColorCount > 1;
+
+    const getZoneColor = (zone: Zone, index: number): string => {
+        if (zone.color && zone.color !== defaultColor) return zone.color;
+        if (needsAutoColor) return ZONE_PALETTE[index % ZONE_PALETTE.length];
+        return zone.color || defaultColor;
+    };
 
     // Default center: Antalya
     const defaultCenter: [number, number] = [36.89, 30.69];
@@ -82,9 +115,12 @@ const AllZonesMap: React.FC<AllZonesMapProps> = ({ zones, height = 600, onEditZo
                     <MapInvalidator />
                     <FitBounds zones={zones} />
 
-                    {zonesWithPolygon.map(zone => {
-                        const color = zone.color || '#3388ff';
+                    {zonesWithPolygon.map((zone, idx) => {
+                        const color = getZoneColor(zone, idx);
                         const positions: [number, number][] = zone.polygon!.map(p => [p.lat, p.lng]);
+                        // Alternate dash patterns so adjacent zones are visually distinct
+                        const dashPatterns = ['', '8 4', '4 4', '12 6', '6 3 2 3'];
+                        const dashArray = dashPatterns[idx % dashPatterns.length];
                         return (
                             <Polygon
                                 key={zone.id}
@@ -92,17 +128,19 @@ const AllZonesMap: React.FC<AllZonesMapProps> = ({ zones, height = 600, onEditZo
                                 pathOptions={{
                                     color,
                                     fillColor: color,
-                                    fillOpacity: 0.22,
-                                    weight: 2.5,
-                                    opacity: 0.85,
+                                    fillOpacity: 0.15,
+                                    weight: 3,
+                                    opacity: 0.9,
+                                    dashArray: dashArray || undefined,
                                 }}
                                 eventHandlers={{
                                     click: () => onEditZone?.(zone),
                                     mouseover: (e) => {
-                                        e.target.setStyle({ fillOpacity: 0.4, weight: 4 });
+                                        e.target.bringToFront();
+                                        e.target.setStyle({ fillOpacity: 0.35, weight: 4, dashArray: '' });
                                     },
                                     mouseout: (e) => {
-                                        e.target.setStyle({ fillOpacity: 0.22, weight: 2.5 });
+                                        e.target.setStyle({ fillOpacity: 0.15, weight: 3, dashArray: dashArray || undefined });
                                     },
                                 }}
                             >
@@ -170,7 +208,7 @@ const AllZonesMap: React.FC<AllZonesMapProps> = ({ zones, height = 600, onEditZo
                     >
                         <div style={{
                             width: 14, height: 14, borderRadius: 4,
-                            background: z.color || '#3388ff',
+                            background: getZoneColor(z, zonesWithPolygon.indexOf(z)),
                             border: '2px solid rgba(255,255,255,0.8)',
                             boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
                             flexShrink: 0,
