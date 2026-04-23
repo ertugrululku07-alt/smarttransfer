@@ -13,9 +13,11 @@ import {
     ReloadOutlined,
     RightOutlined,
     TeamOutlined,
-    InboxOutlined
+    TeamOutlined,
+    InboxOutlined,
+    SwapRightOutlined
 } from '@ant-design/icons';
-import { Button, message, Spin, Empty } from 'antd';
+import { Button, message, Spin, Empty, Tabs, Tag } from 'antd';
 import { useRouter } from 'next/navigation';
 import apiClient from '@/lib/api-client';
 import FlightTracker from '@/components/FlightTracker';
@@ -74,6 +76,8 @@ const PartnerDashboard = () => {
                         poolRunKey: key,
                         routeName: bookings[0]?.poolRunName || 'Shuttle Sefer',
                         departureTime: bookings[0]?.poolDepartureTime || '--:--',
+                        poolPrice: bookings[0]?.price?.amount || 0,
+                        currency: bookings[0]?.price?.currency || 'TRY',
                         bookings
                     })));
                 }
@@ -185,121 +189,160 @@ const PartnerDashboard = () => {
                         </div>
                     </div>
 
-                    {/* Filters */}
-                    <div style={{ display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap' }}>
-                        {filters.map(f => (
-                            <button key={f.key} onClick={() => setActiveFilter(f.key)} style={{
-                                padding: '8px 18px', border: 'none',
-                                background: activeFilter === f.key ? 'linear-gradient(135deg, #0f172a, #1e293b)' : '#fff',
-                                color: activeFilter === f.key ? '#fff' : '#64748b',
-                                borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer',
-                                boxShadow: activeFilter === f.key ? '0 4px 12px rgba(15,23,42,0.2)' : '0 1px 4px rgba(0,0,0,0.06)',
-                                transition: 'all 0.2s ease',
-                            }}>
-                                {f.label}{f.count !== undefined && ` (${f.count})`}
-                            </button>
-                        ))}
-                    </div>
+                    {/* Tabs for Private and Shuttle */}
+                    <Tabs
+                        defaultActiveKey="private"
+                        size="large"
+                        items={[
+                            {
+                                key: 'private',
+                                label: <span style={{ fontSize: 15, fontWeight: 600 }}>🚕 Özel Transferler</span>,
+                                children: (
+                                    <>
+                                        {/* Filters */}
+                                        <div style={{ display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap' }}>
+                                            {filters.map(f => (
+                                                <button key={f.key} onClick={() => setActiveFilter(f.key)} style={{
+                                                    padding: '8px 18px', border: 'none',
+                                                    background: activeFilter === f.key ? 'linear-gradient(135deg, #0f172a, #1e293b)' : '#fff',
+                                                    color: activeFilter === f.key ? '#fff' : '#64748b',
+                                                    borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                                                    boxShadow: activeFilter === f.key ? '0 4px 12px rgba(15,23,42,0.2)' : '0 1px 4px rgba(0,0,0,0.06)',
+                                                    transition: 'all 0.2s ease',
+                                                }}>
+                                                    {f.label}{f.count !== undefined && ` (${f.count})`}
+                                                </button>
+                                            ))}
+                                        </div>
 
-                    {/* Pool Runs (grouped shuttle runs sent to pool) */}
-                    {poolRuns.length > 0 && (
-                        <div style={{ marginBottom: 24 }}>
-                            <h2 style={{ fontSize: 18, fontWeight: 700, color: '#1e1b4b', margin: '0 0 16px', display: 'flex', alignItems: 'center', gap: 8 }}>
-                                🚌 Shuttle Seferler <span style={{ fontSize: 13, color: '#94a3b8', fontWeight: 400 }}>({poolRuns.length} sefer)</span>
-                            </h2>
-                            {poolRuns.map(run => (
-                                <div key={run.poolRunKey} style={{
-                                    background: '#fff', borderRadius: 18, overflow: 'hidden', marginBottom: 16,
-                                    boxShadow: '0 2px 16px rgba(0,0,0,0.05)', border: '1px solid #ede9fe',
-                                }}>
-                                    {/* Run header */}
-                                    <div style={{
-                                        display: 'flex', alignItems: 'center', gap: 12,
-                                        padding: '12px 18px',
-                                        background: 'linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%)',
-                                        borderBottom: '2px solid #c4b5fd',
-                                    }}>
-                                        <div style={{
-                                            background: 'linear-gradient(135deg, #4f46e5, #7c3aed)',
-                                            color: '#fff', borderRadius: 10, padding: '6px 14px',
-                                            fontSize: 20, fontWeight: 900, minWidth: 70, textAlign: 'center',
-                                        }}>
-                                            {run.departureTime}
-                                        </div>
-                                        <div style={{ flex: 1 }}>
-                                            <div style={{ fontWeight: 700, fontSize: 15, color: '#1e1b4b' }}>🚌 {run.routeName}</div>
-                                            <div style={{ fontSize: 12, color: '#6d28d9' }}>{run.bookings.length} yolcu</div>
-                                        </div>
-                                        <button
-                                            onClick={() => {
-                                                // Accept entire run
-                                                run.bookings.forEach((b: any) => handleAccept(b.id));
-                                            }}
-                                            style={{
-                                                padding: '8px 20px', border: 'none', borderRadius: 10,
-                                                background: 'linear-gradient(135deg, #6366f1, #4f46e5)',
-                                                color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer',
-                                                boxShadow: '0 4px 12px rgba(99,102,241,0.3)',
-                                            }}
-                                        >
-                                            Tüm Seferi Kabul Et
-                                        </button>
-                                    </div>
-                                    {/* Booking rows */}
-                                    <div style={{ padding: '8px 12px' }}>
-                                        {run.bookings.map((b: any, i: number) => (
-                                            <div key={b.id} style={{
-                                                display: 'flex', alignItems: 'center', gap: 10,
-                                                padding: '8px 10px', borderRadius: 10,
-                                                background: i % 2 === 0 ? '#fafafe' : '#fff',
-                                                marginBottom: 4,
-                                            }}>
-                                                <span style={{ fontWeight: 800, fontSize: 14, color: '#5b21b6', width: 24 }}>{i + 1}</span>
-                                                <div style={{ flex: 1, minWidth: 0 }}>
-                                                    <div style={{ fontWeight: 600, fontSize: 13, color: '#1e1b4b' }}>{b.customer?.name}</div>
-                                                    <div style={{ fontSize: 11, color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                                        📍 {b.pickup?.location} → {b.dropoff?.location}
-                                                    </div>
-                                                </div>
-                                                {b.flightNumber && (
-                                                    <span style={{ fontSize: 11, color: '#1e40af', fontWeight: 600 }}>✈️ {b.flightNumber}</span>
-                                                )}
-                                                {b.flightTime && (
-                                                    <span style={{ fontSize: 11, color: '#6366f1', fontWeight: 700 }}>🕐 {b.flightTime}</span>
-                                                )}
-                                                <span style={{ fontSize: 12, fontWeight: 700, color: '#0f172a' }}>
-                                                    {b.price?.amount} {b.price?.currency}
-                                                </span>
+                                        {fetching ? (
+                                            <div style={{ textAlign: 'center', padding: 60 }}>
+                                                <Spin size="large" />
+                                                <p style={{ color: '#94a3b8', marginTop: 12 }}>Yükleniyor...</p>
                                             </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-
-                    {/* Cards */}
-                    {fetching ? (
-                        <div style={{ textAlign: 'center', padding: 60 }}>
-                            <Spin size="large" />
-                            <p style={{ color: '#94a3b8', marginTop: 12 }}>Yükleniyor...</p>
-                        </div>
-                    ) : reservations.length === 0 && poolRuns.length === 0 ? (
-                        <div style={{
-                            background: '#fff', borderRadius: 20, padding: '60px 24px', textAlign: 'center',
-                            boxShadow: '0 2px 12px rgba(0,0,0,0.04)', border: '1px solid #f1f5f9',
-                        }}>
-                            <InboxOutlined style={{ fontSize: 48, color: '#cbd5e1' }} />
-                            <h3 style={{ color: '#64748b', fontWeight: 600, margin: '16px 0 8px' }}>Henüz transfer yok</h3>
-                            <p style={{ color: '#94a3b8', fontSize: 14, margin: 0 }}>Yeni transferler atandığında burada görünecektir</p>
-                        </div>
-                    ) : (
-                        <div className="partner-res-grid">
-                            {reservations.map(res => (
-                                <ReservationCard key={res.id} res={res} onAccept={handleAccept} onReject={handleReject} loading={loading === res.id} router={router} />
-                            ))}
-                        </div>
-                    )}
+                                        ) : reservations.length === 0 ? (
+                                            <div style={{
+                                                background: '#fff', borderRadius: 20, padding: '60px 24px', textAlign: 'center',
+                                                boxShadow: '0 2px 12px rgba(0,0,0,0.04)', border: '1px solid #f1f5f9',
+                                            }}>
+                                                <InboxOutlined style={{ fontSize: 48, color: '#cbd5e1' }} />
+                                                <h3 style={{ color: '#64748b', fontWeight: 600, margin: '16px 0 8px' }}>Henüz transfer yok</h3>
+                                                <p style={{ color: '#94a3b8', fontSize: 14, margin: 0 }}>Yeni özel transferler atandığında burada görünecektir</p>
+                                            </div>
+                                        ) : (
+                                            <div className="partner-res-grid">
+                                                {reservations.map(res => (
+                                                    <ReservationCard key={res.id} res={res} onAccept={handleAccept} onReject={handleReject} loading={loading === res.id} router={router} />
+                                                ))}
+                                            </div>
+                                        )}
+                                    </>
+                                )
+                            },
+                            {
+                                key: 'shuttle',
+                                label: <span style={{ fontSize: 15, fontWeight: 600 }}>🚌 Shuttle Seferleri {poolRuns.length > 0 && <span style={{ background: '#fef08a', color: '#854d0e', padding: '2px 8px', borderRadius: 12, fontSize: 12, marginLeft: 8 }}>{poolRuns.length}</span>}</span>,
+                                children: (
+                                    <>
+                                        {fetching ? (
+                                            <div style={{ textAlign: 'center', padding: 60 }}>
+                                                <Spin size="large" />
+                                                <p style={{ color: '#94a3b8', marginTop: 12 }}>Yükleniyor...</p>
+                                            </div>
+                                        ) : poolRuns.length === 0 ? (
+                                            <div style={{
+                                                background: '#fff', borderRadius: 20, padding: '60px 24px', textAlign: 'center',
+                                                boxShadow: '0 2px 12px rgba(0,0,0,0.04)', border: '1px solid #f1f5f9',
+                                            }}>
+                                                <InboxOutlined style={{ fontSize: 48, color: '#cbd5e1' }} />
+                                                <h3 style={{ color: '#64748b', fontWeight: 600, margin: '16px 0 8px' }}>Henüz shuttle seferi yok</h3>
+                                                <p style={{ color: '#94a3b8', fontSize: 14, margin: 0 }}>Havuza atılan shuttle seferleri burada listelenir</p>
+                                            </div>
+                                        ) : (
+                                            <div style={{ marginBottom: 24 }}>
+                                                {poolRuns.map(run => (
+                                                    <div key={run.poolRunKey} style={{
+                                                        background: '#fff', borderRadius: 18, overflow: 'hidden', marginBottom: 16,
+                                                        boxShadow: '0 4px 20px rgba(0,0,0,0.06)', border: '1px solid #e2e8f0',
+                                                    }}>
+                                                        {/* Run header */}
+                                                        <div style={{
+                                                            display: 'flex', alignItems: 'center', gap: 16,
+                                                            padding: '16px 20px',
+                                                            background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
+                                                            borderBottom: '1px solid #e2e8f0',
+                                                        }}>
+                                                            <div style={{
+                                                                background: '#fff', border: '2px solid #3b82f6',
+                                                                color: '#1d4ed8', borderRadius: 12, padding: '8px 16px',
+                                                                fontSize: 22, fontWeight: 900, minWidth: 80, textAlign: 'center',
+                                                                boxShadow: '0 2px 8px rgba(59,130,246,0.15)'
+                                                            }}>
+                                                                {run.departureTime}
+                                                                <div style={{ fontSize: 10, fontWeight: 700, color: '#64748b', marginTop: 2, textTransform: 'uppercase' }}>Uçuş</div>
+                                                            </div>
+                                                            <div style={{ flex: 1 }}>
+                                                                <div style={{ fontWeight: 800, fontSize: 18, color: '#0f172a' }}>{run.routeName}</div>
+                                                                <div style={{ fontSize: 13, color: '#64748b', marginTop: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                                    <TeamOutlined /> {run.bookings.length} Yolcu
+                                                                </div>
+                                                            </div>
+                                                            <div style={{ textAlign: 'right' }}>
+                                                                <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: 4 }}>Tüm Sefer Ücreti</div>
+                                                                <div style={{ fontSize: 24, fontWeight: 900, color: '#10b981', display: 'flex', alignItems: 'baseline', gap: 4, justifyContent: 'flex-end' }}>
+                                                                    {Number(run.poolPrice).toLocaleString('tr-TR')} <span style={{ fontSize: 14, fontWeight: 700, color: '#64748b' }}>{run.currency}</span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        {/* Booking rows */}
+                                                        <div style={{ padding: '12px 16px', background: '#fff' }}>
+                                                            {run.bookings.map((b: any, i: number) => (
+                                                                <div key={b.id} style={{
+                                                                    display: 'flex', alignItems: 'center', gap: 12,
+                                                                    padding: '10px 12px', borderRadius: 10,
+                                                                    borderBottom: i < run.bookings.length - 1 ? '1px dashed #e2e8f0' : 'none',
+                                                                }}>
+                                                                    <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#f1f5f9', color: '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700 }}>
+                                                                        {i + 1}
+                                                                    </div>
+                                                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                                                        <div style={{ fontWeight: 700, fontSize: 14, color: '#1e293b' }}>{b.customer?.name}</div>
+                                                                        <div style={{ fontSize: 12, color: '#64748b', marginTop: 2, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                                                            <EnvironmentOutlined style={{ color: '#cbd5e1' }} /> {b.pickup?.location} <SwapRightOutlined style={{ color: '#94a3b8' }} /> {b.dropoff?.location}
+                                                                        </div>
+                                                                    </div>
+                                                                    {b.flightNumber && (
+                                                                        <Tag color="blue" style={{ borderRadius: 12, fontWeight: 600, border: 'none' }}>✈️ {b.flightNumber}</Tag>
+                                                                    )}
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                        {/* Action Footer */}
+                                                        <div style={{ padding: '16px', background: '#f8fafc', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'flex-end' }}>
+                                                            <button
+                                                                onClick={() => {
+                                                                    run.bookings.forEach((b: any) => handleAccept(b.id));
+                                                                }}
+                                                                style={{
+                                                                    padding: '12px 24px', border: 'none', borderRadius: 12,
+                                                                    background: 'linear-gradient(135deg, #10b981, #059669)',
+                                                                    color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer',
+                                                                    boxShadow: '0 4px 12px rgba(16,185,129,0.3)',
+                                                                    display: 'flex', alignItems: 'center', gap: 8
+                                                                }}
+                                                            >
+                                                                Seferi Kabul Et <RightOutlined style={{ fontSize: 12 }} />
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </>
+                                )
+                            }
+                        ]}
+                    />
                 </div>
             </PartnerLayout>
         </PartnerGuard>

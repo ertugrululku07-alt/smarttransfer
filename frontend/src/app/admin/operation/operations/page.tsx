@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
     Table, Card, Tag, Button, Space, Typography, message,
     Row, Col, DatePicker, Select, Input, Checkbox, Popover, Badge,
-    Avatar, Tooltip, Modal, Segmented, Spin, Dropdown
+    Avatar, Tooltip, Modal, Segmented, Spin, Dropdown, InputNumber
 } from 'antd';
 import { Resizable } from 'react-resizable';
 import 'react-resizable/css/styles.css';
@@ -216,6 +216,10 @@ export default function OperationsPage() {
     // ── Return to reservation modal state ──
     const [returnModal, setReturnModal] = useState<{ booking: any; reason: string } | null>(null);
     const [returnSaving, setReturnSaving] = useState(false);
+
+    // ── Shuttle Pool Transfer Modal state ──
+    const [poolModal, setPoolModal] = useState<{ run: any; defaultRevenue: number; poolPrice: number } | null>(null);
+    const [poolModalSaving, setPoolModalSaving] = useState(false);
 
     // ── Column titles from user metadata ──
     const [columnTitles, setColumnTitles] = useState<Record<string, string>>({});
@@ -585,13 +589,27 @@ export default function OperationsPage() {
     };
 
     // ── Pool Transfer for entire run (all bookings in a shuttle run) ──
-    const handlePoolTransferRun = async (run: any) => {
+    const handlePoolTransferRunClick = (run: any) => {
         if (!run.bookings || run.bookings.length === 0) {
             message.warning('Seferde yolcu yok');
             return;
         }
-        const confirmed = window.confirm(`"${run.routeName}" seferindeki ${run.bookings.length} yolcuyu havuza göndermek istediğinize emin misiniz?`);
-        if (!confirmed) return;
+        
+        // Calculate default revenue from passengers
+        const defaultRevenue = run.bookings.reduce((sum: number, b: any) => sum + (Number(b.total) || Number(b.metadata?.price) || 0), 0);
+        
+        setPoolModal({
+            run,
+            defaultRevenue,
+            poolPrice: defaultRevenue // default to revenue
+        });
+    };
+
+    const handlePoolTransferConfirm = async () => {
+        if (!poolModal) return;
+        const { run, poolPrice } = poolModal;
+        
+        setPoolModalSaving(true);
         shuttleActionTimeRef.current = Date.now();
         const poolRunKey = `POOL_RUN_${run.runKey}_${Date.now()}`;
         try {
@@ -600,8 +618,8 @@ export default function OperationsPage() {
                 try {
                     await apiClient.patch(`/api/transfer/bookings/${b.id}`, {
                         operationalStatus: 'POOL',
-                        price: b.metadata?.price || b.total || 0,
-                        currency: b.metadata?.currency || defaultCurrency,
+                        price: poolPrice, // Use the user-input pool price
+                        currency: defaultCurrency, // We can assume same currency for now
                         poolRunKey,
                         poolRunName: run.routeName || 'Shuttle Sefer',
                         poolDepartureTime: run.departureTime || null
@@ -616,8 +634,11 @@ export default function OperationsPage() {
             }));
             message.success(`${successCount}/${run.bookings.length} yolcu havuza aktarıldı!`);
             fetchShuttleRuns(true);
+            setPoolModal(null);
         } catch (e: any) {
             message.error('Toplu havuza aktarma başarısız: ' + (e?.response?.data?.error || e.message));
+        } finally {
+            setPoolModalSaving(false);
         }
     };
 
@@ -3314,7 +3335,7 @@ export default function OperationsPage() {
                                                     <Button
                                                         type="text"
                                                         size="small"
-                                                        onClick={() => handlePoolTransferRun(run)}
+                                                        onClick={() => handlePoolTransferRunClick(run)}
                                                         title="Tüm Seferi Havuza Gönder"
                                                         style={{ borderRadius: 6, color: '#f59e0b', fontWeight: 600 }}
                                                     >
@@ -5649,6 +5670,66 @@ export default function OperationsPage() {
                                         <div><strong>Varış:</strong> {conflictModal.conflictDropoff}</div>
                                         <div><strong>Başlangıç:</strong> {conflictModal.conflictStart}</div>
                                         <div><strong>Tahmini Bitiş:</strong> {conflictModal.freeAt}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </Modal>
+
+                    {/* Shuttle Pool Transfer Modal */}
+                    <Modal
+                        title={
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <div style={{ width: 32, height: 32, borderRadius: 8, background: '#fef3c7', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#d97706' }}>
+                                    📦
+                                </div>
+                                <span style={{ fontSize: 16, fontWeight: 700, color: '#1e293b' }}>Seferi Havuza Aktar</span>
+                            </div>
+                        }
+                        open={!!poolModal}
+                        onCancel={() => setPoolModal(null)}
+                        onOk={handlePoolTransferConfirm}
+                        confirmLoading={poolModalSaving}
+                        okText="Havuza Aktar"
+                        cancelText="İptal"
+                        okButtonProps={{ style: { background: 'linear-gradient(135deg, #f59e0b, #d97706)', border: 'none', fontWeight: 600, borderRadius: 8 } }}
+                        cancelButtonProps={{ style: { borderRadius: 8, fontWeight: 500 } }}
+                        width={480}
+                        centered
+                    >
+                        {poolModal && (
+                            <div style={{ padding: '12px 0' }}>
+                                <div style={{ background: '#f8fafc', borderRadius: 12, padding: 16, marginBottom: 20, border: '1px solid #e2e8f0' }}>
+                                    <div style={{ fontSize: 13, color: '#64748b', marginBottom: 4 }}>Sefer Adı</div>
+                                    <div style={{ fontSize: 16, fontWeight: 700, color: '#0f172a' }}>{poolModal.run.routeName}</div>
+                                    <div style={{ display: 'flex', gap: 16, marginTop: 12 }}>
+                                        <div>
+                                            <div style={{ fontSize: 12, color: '#64748b' }}>Yolcu Sayısı</div>
+                                            <div style={{ fontSize: 15, fontWeight: 600, color: '#334155' }}>{poolModal.run.bookings.length} Kişi</div>
+                                        </div>
+                                        <div>
+                                            <div style={{ fontSize: 12, color: '#64748b' }}>Toplam Tahsilat</div>
+                                            <div style={{ fontSize: 15, fontWeight: 700, color: '#10b981' }}>{poolModal.defaultRevenue.toLocaleString('tr-TR')} {defaultCurrency}</div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div style={{ marginBottom: 8 }}>
+                                    <label style={{ display: 'block', fontSize: 14, fontWeight: 600, color: '#334155', marginBottom: 8 }}>
+                                        Partner Ödenecek Tutar (Pool Price)
+                                    </label>
+                                    <InputNumber
+                                        style={{ width: '100%', borderRadius: 8 }}
+                                        size="large"
+                                        value={poolModal.poolPrice}
+                                        onChange={(val) => setPoolModal({ ...poolModal, poolPrice: Number(val) || 0 })}
+                                        addonAfter={defaultCurrency}
+                                        min={0}
+                                        formatter={value => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                                        parser={value => value!.replace(/\$\s?|(,*)/g, '') as any}
+                                    />
+                                    <div style={{ fontSize: 12, color: '#64748b', marginTop: 8 }}>
+                                        Bu tutar, tüm seferi kabul eden partnere ödenecek olan toplam fiyattır.
                                     </div>
                                 </div>
                             </div>
