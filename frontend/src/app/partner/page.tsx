@@ -13,7 +13,6 @@ import {
     ReloadOutlined,
     RightOutlined,
     TeamOutlined,
-    TeamOutlined,
     InboxOutlined,
     SwapRightOutlined
 } from '@ant-design/icons';
