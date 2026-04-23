@@ -1399,6 +1399,9 @@ router.post('/book', optionalAuthMiddleware, async (req, res) => {
         const io = req.app.get('io');
         if (io) {
             io.to('admin_monitoring').emit('new_booking', booking);
+            if (returnBooking) {
+                io.to('admin_monitoring').emit('new_booking', returnBooking);
+            }
         }
 
         // --- Create Invoice if requested ---
