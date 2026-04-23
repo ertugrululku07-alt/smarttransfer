@@ -3,7 +3,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { Modal, Button, Spin, Input } from 'antd';
 import { EnvironmentOutlined, CheckOutlined } from '@ant-design/icons';
-import HereLocationSearchInput from './HereLocationSearchInput';
+import DynamicLocationSearchInput from './DynamicLocationSearchInput';
 import dynamic from 'next/dynamic';
 
 const HereMapPicker = dynamic(() => import('./HereMapPicker'), {
@@ -149,7 +149,7 @@ const MapPickerModal: React.FC<MapPickerModalProps> = ({
             centered
         >
             <div style={{ marginBottom: 16 }}>
-                <HereLocationSearchInput
+                <DynamicLocationSearchInput
                     placeholder="Harita üzerinde ara..."
                     value={address}
                     onChange={setAddress}

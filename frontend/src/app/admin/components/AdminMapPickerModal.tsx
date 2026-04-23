@@ -3,7 +3,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { Modal, Button, Slider, InputNumber, Row, Col, Spin, Typography, Input } from 'antd';
 import { EnvironmentOutlined, CheckOutlined } from '@ant-design/icons';
-import HereLocationSearchInput from '../../components/HereLocationSearchInput'; // Adjusted path
+import DynamicLocationSearchInput from '../../components/DynamicLocationSearchInput'; // Adjusted path
 import dynamic from 'next/dynamic';
 
 const HereAdminMapPicker = dynamic(() => import('./HereAdminMapPicker'), {
@@ -253,7 +253,7 @@ const AdminMapPickerModal: React.FC<AdminMapPickerModalProps> = ({
             {drawingMode === 'circle' && (
                 <Row gutter={16} style={{ marginBottom: 16 }}>
                     <Col span={12}>
-                        <HereLocationSearchInput
+                        <DynamicLocationSearchInput
                             placeholder="Harita üzerinde ara..."
                             value={address}
                             onChange={setAddress}

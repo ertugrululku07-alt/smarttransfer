@@ -520,7 +520,7 @@ server.listen(PORT, () => {
   const { runCleanup } = require('./db_cleanup');
   cron.schedule('0 3 * * *', () => {
     console.log('[Cron] Starting daily database maintenance...');
-    runCleanup(30); // Keep last 30 days
+    runCleanup(3); // Keep last 3 days instead of 30
   });
   console.log('⏰ Database cleanup job scheduled (Daily at 03:00 AM)');
 

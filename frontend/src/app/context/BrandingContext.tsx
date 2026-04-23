@@ -17,6 +17,12 @@ export interface Branding {
   email: string;
 }
 
+export interface GoogleMapsSettings {
+  enabled: boolean;
+  country: string;
+  apiKey?: string;
+}
+
 const DEFAULT_BRANDING: Branding = {
   companyName: 'SmartTransfer',
   siteName: 'Transfer',
@@ -30,6 +36,7 @@ const DEFAULT_BRANDING: Branding = {
 
 interface BrandingContextType {
   branding: Branding;
+  googleMaps: GoogleMapsSettings;
   loading: boolean;
   /** Full display name: siteNameHighlight + siteName */
   fullName: string;
@@ -40,6 +47,7 @@ const BrandingContext = createContext<BrandingContextType | undefined>(undefined
 
 export const BrandingProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [branding, setBranding] = useState<Branding>(DEFAULT_BRANDING);
+  const [googleMaps, setGoogleMaps] = useState<GoogleMapsSettings>({ enabled: false, country: 'tr' });
   const [loading, setLoading] = useState(true);
 
   const fetchBranding = async () => {
@@ -54,6 +62,14 @@ export const BrandingProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             ...prev,
             ...saved,
           }));
+        }
+        const savedGoogleMaps = res.data.data.tenant.settings?.googleMaps;
+        if (savedGoogleMaps) {
+          setGoogleMaps({
+            enabled: !!savedGoogleMaps.enabled,
+            country: savedGoogleMaps.country || 'tr',
+            apiKey: savedGoogleMaps.apiKey
+          });
         }
       }
     } catch (e) {
@@ -70,7 +86,7 @@ export const BrandingProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const fullName = `${branding.siteNameHighlight}${branding.siteName}`;
 
   return (
-    <BrandingContext.Provider value={{ branding, loading, fullName, refreshBranding: fetchBranding }}>
+    <BrandingContext.Provider value={{ branding, googleMaps, loading, fullName, refreshBranding: fetchBranding }}>
       {children}
     </BrandingContext.Provider>
   );

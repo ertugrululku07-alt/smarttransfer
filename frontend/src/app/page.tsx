@@ -75,7 +75,7 @@ const isAirportLocation = (text: string): boolean => {
   });
 };
 import TopBar from './components/TopBar';
-import HereLocationSearchInput from './components/HereLocationSearchInput';
+import DynamicLocationSearchInput from './components/DynamicLocationSearchInput';
 import MapPickerModal from './components/MapPickerModal';
 import PassengerSelector from './components/PassengerSelector';
 import { useTheme } from './context/ThemeContext';
@@ -305,7 +305,7 @@ const HomePage: React.FC = () => {
           <Text strong style={{ display: 'block', marginBottom: 8, color: theme.labelColor, fontSize: 14 }}>
             <EnvironmentOutlined style={{ color: theme.primaryColor }} /> {t('search.from')}
           </Text>
-          <HereLocationSearchInput
+          <DynamicLocationSearchInput
             size="large"
             placeholder={t('search.fromPlaceholder')}
             value={pickup}
@@ -320,7 +320,7 @@ const HomePage: React.FC = () => {
           <Text strong style={{ display: 'block', marginBottom: 8, color: theme.labelColor, fontSize: 14 }}>
             <EnvironmentOutlined style={{ color: theme.accentColor }} /> {t('search.to')}
           </Text>
-          <HereLocationSearchInput
+          <DynamicLocationSearchInput
             size="large"
             placeholder={t('search.toPlaceholder')}
             value={dropoff}

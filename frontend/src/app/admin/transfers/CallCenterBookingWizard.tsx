@@ -10,7 +10,7 @@ import {
     SafetyCertificateOutlined, RocketOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
-import HereLocationSearchInput from '@/app/components/HereLocationSearchInput';
+import DynamicLocationSearchInput from '@/app/components/DynamicLocationSearchInput';
 import MapPickerModal from '@/app/components/MapPickerModal';
 import apiClient from '@/lib/api-client';
 import { getRouteDetails } from '@/lib/routing';
@@ -359,7 +359,7 @@ const CallCenterBookingWizard: React.FC<Props> = ({ open, onClose, onSuccess }) 
                                         </div>
                                         <div style={{ display: 'flex', gap: 6 }}>
                                             <div style={{ flex: 1 }}>
-                                                <HereLocationSearchInput
+                                                <DynamicLocationSearchInput
                                                     placeholder="Havaalani, otel, adres..."
                                                     value={pickup}
                                                     onChange={setPickup}
@@ -412,7 +412,7 @@ const CallCenterBookingWizard: React.FC<Props> = ({ open, onClose, onSuccess }) 
                                         </div>
                                         <div style={{ display: 'flex', gap: 6 }}>
                                             <div style={{ flex: 1 }}>
-                                                <HereLocationSearchInput
+                                                <DynamicLocationSearchInput
                                                     placeholder="Havaalani, otel, adres..."
                                                     value={dropoff}
                                                     onChange={setDropoff}

@@ -8,7 +8,7 @@ import dayjs, { Dayjs } from 'dayjs';
 import apiClient from '@/lib/api-client';
 import AgencyLayout from '../../AgencyLayout';
 import AgencyGuard from '../../AgencyGuard';
-import HereLocationSearchInput from '@/app/components/HereLocationSearchInput';
+import DynamicLocationSearchInput from '@/app/components/DynamicLocationSearchInput';
 import MapPickerModal from '@/app/components/MapPickerModal';
 import PassengerSelector from '@/app/components/PassengerSelector';
 import BookingVoucher from '@/app/components/BookingVoucher';
@@ -488,7 +488,7 @@ const AgencyNewTransferPage = () => {
                         <label style={{ display: 'block', marginBottom: 8, fontWeight: 700, fontSize: 13, color: '#374151', textTransform: 'uppercase', letterSpacing: 0.5 }}>
                             🛫 Nereden
                         </label>
-                        <HereLocationSearchInput
+                        <DynamicLocationSearchInput
                             size="large"
                             placeholder="Havaalanı, Adres, Otel"
                             value={pickup}
@@ -515,7 +515,7 @@ const AgencyNewTransferPage = () => {
                         <label style={{ display: 'block', marginBottom: 8, fontWeight: 700, fontSize: 13, color: '#374151', textTransform: 'uppercase', letterSpacing: 0.5 }}>
                             🛬 Nereye
                         </label>
-                        <HereLocationSearchInput
+                        <DynamicLocationSearchInput
                             size="large"
                             placeholder="Havaalanı, Adres, Otel"
                             value={dropoff}

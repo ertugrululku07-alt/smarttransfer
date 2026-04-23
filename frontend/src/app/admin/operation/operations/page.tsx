@@ -584,6 +584,43 @@ export default function OperationsPage() {
         }
     };
 
+    // ── Pool Transfer for entire run (all bookings in a shuttle run) ──
+    const handlePoolTransferRun = async (run: any) => {
+        if (!run.bookings || run.bookings.length === 0) {
+            message.warning('Seferde yolcu yok');
+            return;
+        }
+        const confirmed = window.confirm(`"${run.routeName}" seferindeki ${run.bookings.length} yolcuyu havuza göndermek istediğinize emin misiniz?`);
+        if (!confirmed) return;
+        shuttleActionTimeRef.current = Date.now();
+        const poolRunKey = `POOL_RUN_${run.runKey}_${Date.now()}`;
+        try {
+            let successCount = 0;
+            for (const b of run.bookings) {
+                try {
+                    await apiClient.patch(`/api/transfer/bookings/${b.id}`, {
+                        operationalStatus: 'POOL',
+                        price: b.metadata?.price || b.total || 0,
+                        currency: b.metadata?.currency || defaultCurrency,
+                        poolRunKey,
+                        poolRunName: run.routeName || 'Shuttle Sefer',
+                        poolDepartureTime: run.departureTime || null
+                    });
+                    successCount++;
+                } catch (e) { /* skip failed */ }
+            }
+            // Optimistic: remove all bookings from this run
+            setShuttleRuns(prev => prev.map(r => {
+                if (r.runKey !== run.runKey) return r;
+                return { ...r, bookings: [] };
+            }));
+            message.success(`${successCount}/${run.bookings.length} yolcu havuza aktarıldı!`);
+            fetchShuttleRuns(true);
+        } catch (e: any) {
+            message.error('Toplu havuza aktarma başarısız: ' + (e?.response?.data?.error || e.message));
+        }
+    };
+
     // Fullscreen toggle
     const toggleFullscreen = () => {
         if (!document.fullscreenElement) {
@@ -1013,13 +1050,13 @@ export default function OperationsPage() {
                     onBlur={(e) => {
                         if (e.target.value && val) {
                             const date = dayjs(val).format('YYYY-MM-DD');
-                            saveCellEdit(record.id, 'pickupDateTime', `${date}T${e.target.value}`);
+                            saveCellEdit(record.id, 'pickupDateTime', `${date}T${e.target.value}:00.000+03:00`);
                         }
                     }}
                     onPressEnter={(e) => {
                         if ((e.target as HTMLInputElement).value && val) {
                             const date = dayjs(val).format('YYYY-MM-DD');
-                            saveCellEdit(record.id, 'pickupDateTime', `${date}T${(e.target as HTMLInputElement).value}`);
+                            saveCellEdit(record.id, 'pickupDateTime', `${date}T${(e.target as HTMLInputElement).value}:00.000+03:00`);
                         }
                     }}
                     style={{ width: 90 }}
@@ -2670,6 +2707,28 @@ export default function OperationsPage() {
                                         </Button>
                                         <Button
                                             size="small"
+                                            type="primary"
+                                            onClick={async () => {
+                                                const date = filters.dateRange[0].format('YYYY-MM-DD');
+                                                message.loading({ content: 'Uçuş saatlerine göre seferler oluşturuluyor...', key: 'autogroup', duration: 30 });
+                                                try {
+                                                    const res = await apiClient.post('/api/operations/shuttle-runs/auto-group', { date });
+                                                    if (res.data.success) {
+                                                        message.success({ content: res.data.message || 'Otomatik seferler oluşturuldu!', key: 'autogroup' });
+                                                        fetchShuttleRuns(true);
+                                                    } else {
+                                                        message.warning({ content: res.data.message || 'Gruplama yapılamadı', key: 'autogroup' });
+                                                    }
+                                                } catch (e: any) {
+                                                    message.error({ content: 'Otomatik gruplama başarısız: ' + (e?.response?.data?.error || e.message), key: 'autogroup' });
+                                                }
+                                            }}
+                                            style={{ borderRadius: 6, background: 'linear-gradient(135deg, #f59e0b, #d97706)', border: 'none', fontWeight: 600 }}
+                                        >
+                                            ⚡ Otomatik Sefer Aç
+                                        </Button>
+                                        <Button
+                                            size="small"
                                             icon={<ReloadOutlined />}
                                             onClick={() => fetchShuttleRuns()}
                                             loading={shuttleRunsLoading}
@@ -3254,6 +3313,16 @@ export default function OperationsPage() {
 
                                                     <Button
                                                         type="text"
+                                                        size="small"
+                                                        onClick={() => handlePoolTransferRun(run)}
+                                                        title="Tüm Seferi Havuza Gönder"
+                                                        style={{ borderRadius: 6, color: '#f59e0b', fontWeight: 600 }}
+                                                    >
+                                                        📦 Havuza At
+                                                    </Button>
+
+                                                    <Button
+                                                        type="text"
                                                         danger
                                                         size="small"
                                                         icon={<DeleteOutlined />}
@@ -3418,9 +3487,14 @@ export default function OperationsPage() {
                                                                                         autoFocus
                                                                                         onBlur={(e) => {
                                                                                             if (e.target.value && e.target.value !== editingPickupTime!.value) {
-                                                                                                // Build full datetime
-                                                                                                const baseDate = b.pickupDateTime ? b.pickupDateTime.split('T')[0] : new Date().toISOString().split('T')[0];
-                                                                                                handlePickupTimeEdit(b.id, `${baseDate}T${e.target.value}:00`);
+                                                                                                // Build full datetime with Turkey timezone offset (+03:00)
+                                                                                                // Use TR date (not UTC date) to avoid date shift for late-night bookings
+                                                                                                const trDate = b.pickupDateTime ? (() => {
+                                                                                                    const d = new Date(b.pickupDateTime);
+                                                                                                    const tr = new Date(d.getTime() + 3 * 60 * 60 * 1000);
+                                                                                                    return tr.toISOString().split('T')[0];
+                                                                                                })() : new Date().toISOString().split('T')[0];
+                                                                                                handlePickupTimeEdit(b.id, `${trDate}T${e.target.value}:00.000+03:00`);
                                                                                             } else {
                                                                                                 setEditingPickupTime(null);
                                                                                             }

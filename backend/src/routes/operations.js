@@ -1965,4 +1965,126 @@ router.get('/driver-collections/summary', authMiddleware, async (req, res) => {
     }
 });
 
+// ---------------------------------------------------------------------------
+// POST /api/operations/shuttle-runs/auto-group
+// Groups shuttle bookings by flight time into 1-hour windows
+// Bookings with flight times within 1 hour get the same manual run assignment
+// Body: { date: 'YYYY-MM-DD', tripType?: 'DEP'|'ARV' }
+// ---------------------------------------------------------------------------
+router.post('/shuttle-runs/auto-group', authMiddleware, async (req, res) => {
+    try {
+        const tenantId = req.tenant?.id || req.user?.tenantId;
+        if (!tenantId) return res.status(401).json({ success: false, error: 'Tenant context missing' });
+
+        const { date, tripType } = req.body;
+        if (!date) return res.status(400).json({ success: false, error: 'date zorunlu' });
+
+        const TZ_OFFSET_MS = 3 * 60 * 60 * 1000;
+        const dayStart = new Date(new Date(`${date}T00:00:00.000Z`).getTime() - TZ_OFFSET_MS);
+        const dayEnd = new Date(new Date(`${date}T23:59:59.999Z`).getTime() - TZ_OFFSET_MS);
+
+        // Fetch all shuttle bookings for the day (not cancelled/completed)
+        const bookings = await prisma.booking.findMany({
+            where: {
+                tenantId,
+                productType: 'TRANSFER',
+                startDate: { gte: dayStart, lte: dayEnd },
+                status: { notIn: ['CANCELLED', 'COMPLETED', 'PENDING', 'NO_SHOW'] }
+            },
+            orderBy: { startDate: 'asc' }
+        });
+
+        // Filter shuttle bookings only
+        const shuttleBookings = bookings.filter(b => {
+            const m = b.metadata || {};
+            const vt = String(m.vehicleType || '').toLowerCase();
+            return vt.includes('shuttle') || vt.includes('paylaşımlı') || m.shuttleRouteId;
+        });
+
+        // Extract flight times and group into 1-hour windows
+        const withFlightTime = shuttleBookings
+            .map(b => {
+                const m = b.metadata || {};
+                const ft = m.flightTime || '';
+                if (!ft) return null;
+                const parts = ft.split(':');
+                if (parts.length < 2) return null;
+                const flightMin = parseInt(parts[0]) * 60 + parseInt(parts[1]);
+                return { booking: b, flightMin, flightTime: ft };
+            })
+            .filter(Boolean)
+            .sort((a, b) => a.flightMin - b.flightMin);
+
+        if (withFlightTime.length === 0) {
+            return res.json({ success: true, message: 'Uçuş saati olan shuttle rezervasyonu bulunamadı', groups: [] });
+        }
+
+        // Group by 1-hour windows
+        const groups = [];
+        let currentGroup = [withFlightTime[0]];
+
+        for (let i = 1; i < withFlightTime.length; i++) {
+            const prev = currentGroup[0]; // Compare against group start
+            const curr = withFlightTime[i];
+            if (curr.flightMin - prev.flightMin <= 60) {
+                // Within 1 hour of group start → same group
+                currentGroup.push(curr);
+            } else {
+                groups.push(currentGroup);
+                currentGroup = [curr];
+            }
+        }
+        groups.push(currentGroup);
+
+        // Assign manual run IDs to each group
+        let assignedCount = 0;
+        const groupSummaries = [];
+
+        for (const group of groups) {
+            // Use the earliest flight time as the run departure
+            const earliestFlight = group[0].flightTime;
+            const latestFlight = group[group.length - 1].flightTime;
+            const runId = `AUTO_${date}_${earliestFlight.replace(':', '')}`;
+
+            for (const item of group) {
+                const meta = item.booking.metadata || {};
+                // Skip if already assigned to a non-auto manual run
+                if (meta.manualRunId && !meta.manualRunId.startsWith('AUTO_')) continue;
+
+                const updatedMeta = {
+                    ...meta,
+                    manualRunId: runId,
+                    manualRunName: `Otomatik Sefer ${earliestFlight}-${latestFlight}`
+                };
+
+                await prisma.booking.update({
+                    where: { id: item.booking.id },
+                    data: { metadata: updatedMeta }
+                });
+                assignedCount++;
+            }
+
+            groupSummaries.push({
+                runId,
+                flightRange: `${earliestFlight} - ${latestFlight}`,
+                bookingCount: group.length,
+                bookingIds: group.map(g => g.booking.id)
+            });
+        }
+
+        const io = req.app.get('io');
+        if (io) io.to('admin_monitoring').emit('shuttle_runs_updated', { action: 'auto-group' });
+
+        res.json({
+            success: true,
+            message: `${assignedCount} rezervasyon ${groups.length} sefere gruplandı`,
+            groups: groupSummaries
+        });
+
+    } catch (error) {
+        console.error('shuttle-runs/auto-group error:', error);
+        res.status(500).json({ success: false, error: 'Otomatik gruplama başarısız: ' + error.message });
+    }
+});
+
 module.exports = router;

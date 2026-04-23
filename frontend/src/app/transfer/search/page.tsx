@@ -38,7 +38,7 @@ import dayjs from 'dayjs';
 import apiClient, { getImageUrl } from '@/lib/api-client';
 import TopBar from '@/app/components/TopBar';
 import BookingMap from '@/app/components/BookingMap';
-import HereLocationSearchInput from '@/app/components/HereLocationSearchInput';
+import DynamicLocationSearchInput from '@/app/components/DynamicLocationSearchInput';
 import { getRouteDetails } from '@/lib/routing';
 import { useCurrency } from '@/app/context/CurrencyContext';
 
@@ -476,7 +476,7 @@ const TransferSearchContent: React.FC = () => {
                     <Form.Item name="dropoffLng" noStyle><Input type="hidden" /></Form.Item>
 
                     <Form.Item name="pickup" label="Alış Noktası" rules={[{ required: true }]}>
-                        <HereLocationSearchInput 
+                        <DynamicLocationSearchInput 
                             placeholder="Nereden?" 
                             onSelect={(val, lat, lng) => {
                                 form.setFieldsValue({ pickup: val, pickupLat: lat, pickupLng: lng });
@@ -484,7 +484,7 @@ const TransferSearchContent: React.FC = () => {
                         />
                     </Form.Item>
                     <Form.Item name="dropoff" label="Bırakış Noktası" rules={[{ required: true }]}>
-                        <HereLocationSearchInput 
+                        <DynamicLocationSearchInput 
                             placeholder="Nereye?" 
                             onSelect={(val, lat, lng) => {
                                 form.setFieldsValue({ dropoff: val, dropoffLat: lat, dropoffLng: lng });

@@ -44,6 +44,8 @@ const PartnerDashboard = () => {
         }
     };
 
+    const [poolRuns, setPoolRuns] = useState<any[]>([]);
+
     const fetchBookings = async () => {
         setFetching(true);
         fetchStats();
@@ -51,9 +53,30 @@ const PartnerDashboard = () => {
             const activeResponse = await apiClient.get('/api/transfer/partner/active-bookings');
             if (activeResponse.data.success && activeResponse.data.data.length > 0) {
                 setReservations(activeResponse.data.data);
+                setPoolRuns([]);
             } else {
                 const poolResponse = await apiClient.get('/api/transfer/pool-bookings');
-                if (poolResponse.data.success) setReservations(poolResponse.data.data);
+                if (poolResponse.data.success) {
+                    const all = poolResponse.data.data || [];
+                    // Group by poolRunKey: bookings with same poolRunKey form a "run"
+                    const runMap: Record<string, any[]> = {};
+                    const singles: any[] = [];
+                    all.forEach((b: any) => {
+                        if (b.poolRunKey) {
+                            if (!runMap[b.poolRunKey]) runMap[b.poolRunKey] = [];
+                            runMap[b.poolRunKey].push(b);
+                        } else {
+                            singles.push(b);
+                        }
+                    });
+                    setReservations(singles);
+                    setPoolRuns(Object.entries(runMap).map(([key, bookings]) => ({
+                        poolRunKey: key,
+                        routeName: bookings[0]?.poolRunName || 'Shuttle Sefer',
+                        departureTime: bookings[0]?.poolDepartureTime || '--:--',
+                        bookings
+                    })));
+                }
             }
         } catch (error) {
             console.error('Error fetching bookings:', error);
@@ -178,13 +201,90 @@ const PartnerDashboard = () => {
                         ))}
                     </div>
 
+                    {/* Pool Runs (grouped shuttle runs sent to pool) */}
+                    {poolRuns.length > 0 && (
+                        <div style={{ marginBottom: 24 }}>
+                            <h2 style={{ fontSize: 18, fontWeight: 700, color: '#1e1b4b', margin: '0 0 16px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                                🚌 Shuttle Seferler <span style={{ fontSize: 13, color: '#94a3b8', fontWeight: 400 }}>({poolRuns.length} sefer)</span>
+                            </h2>
+                            {poolRuns.map(run => (
+                                <div key={run.poolRunKey} style={{
+                                    background: '#fff', borderRadius: 18, overflow: 'hidden', marginBottom: 16,
+                                    boxShadow: '0 2px 16px rgba(0,0,0,0.05)', border: '1px solid #ede9fe',
+                                }}>
+                                    {/* Run header */}
+                                    <div style={{
+                                        display: 'flex', alignItems: 'center', gap: 12,
+                                        padding: '12px 18px',
+                                        background: 'linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%)',
+                                        borderBottom: '2px solid #c4b5fd',
+                                    }}>
+                                        <div style={{
+                                            background: 'linear-gradient(135deg, #4f46e5, #7c3aed)',
+                                            color: '#fff', borderRadius: 10, padding: '6px 14px',
+                                            fontSize: 20, fontWeight: 900, minWidth: 70, textAlign: 'center',
+                                        }}>
+                                            {run.departureTime}
+                                        </div>
+                                        <div style={{ flex: 1 }}>
+                                            <div style={{ fontWeight: 700, fontSize: 15, color: '#1e1b4b' }}>🚌 {run.routeName}</div>
+                                            <div style={{ fontSize: 12, color: '#6d28d9' }}>{run.bookings.length} yolcu</div>
+                                        </div>
+                                        <button
+                                            onClick={() => {
+                                                // Accept entire run
+                                                run.bookings.forEach((b: any) => handleAccept(b.id));
+                                            }}
+                                            style={{
+                                                padding: '8px 20px', border: 'none', borderRadius: 10,
+                                                background: 'linear-gradient(135deg, #6366f1, #4f46e5)',
+                                                color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                                                boxShadow: '0 4px 12px rgba(99,102,241,0.3)',
+                                            }}
+                                        >
+                                            Tüm Seferi Kabul Et
+                                        </button>
+                                    </div>
+                                    {/* Booking rows */}
+                                    <div style={{ padding: '8px 12px' }}>
+                                        {run.bookings.map((b: any, i: number) => (
+                                            <div key={b.id} style={{
+                                                display: 'flex', alignItems: 'center', gap: 10,
+                                                padding: '8px 10px', borderRadius: 10,
+                                                background: i % 2 === 0 ? '#fafafe' : '#fff',
+                                                marginBottom: 4,
+                                            }}>
+                                                <span style={{ fontWeight: 800, fontSize: 14, color: '#5b21b6', width: 24 }}>{i + 1}</span>
+                                                <div style={{ flex: 1, minWidth: 0 }}>
+                                                    <div style={{ fontWeight: 600, fontSize: 13, color: '#1e1b4b' }}>{b.customer?.name}</div>
+                                                    <div style={{ fontSize: 11, color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                        📍 {b.pickup?.location} → {b.dropoff?.location}
+                                                    </div>
+                                                </div>
+                                                {b.flightNumber && (
+                                                    <span style={{ fontSize: 11, color: '#1e40af', fontWeight: 600 }}>✈️ {b.flightNumber}</span>
+                                                )}
+                                                {b.flightTime && (
+                                                    <span style={{ fontSize: 11, color: '#6366f1', fontWeight: 700 }}>🕐 {b.flightTime}</span>
+                                                )}
+                                                <span style={{ fontSize: 12, fontWeight: 700, color: '#0f172a' }}>
+                                                    {b.price?.amount} {b.price?.currency}
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
                     {/* Cards */}
                     {fetching ? (
                         <div style={{ textAlign: 'center', padding: 60 }}>
                             <Spin size="large" />
                             <p style={{ color: '#94a3b8', marginTop: 12 }}>Yükleniyor...</p>
                         </div>
-                    ) : reservations.length === 0 ? (
+                    ) : reservations.length === 0 && poolRuns.length === 0 ? (
                         <div style={{
                             background: '#fff', borderRadius: 20, padding: '60px 24px', textAlign: 'center',
                             boxShadow: '0 2px 12px rgba(0,0,0,0.04)', border: '1px solid #f1f5f9',

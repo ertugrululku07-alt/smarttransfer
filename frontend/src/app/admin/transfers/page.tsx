@@ -25,7 +25,7 @@ import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Resizable } from 'react-resizable';
-import HereLocationSearchInput from '@/app/components/HereLocationSearchInput';
+import DynamicLocationSearchInput from '@/app/components/DynamicLocationSearchInput';
 
 dayjs.locale('tr');
 const { Title, Text } = Typography;
@@ -1297,8 +1297,8 @@ const TransfersPage: React.FC = () => {
                                     <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:12}}>
                                         <Form.Item name="passengerName" label="Ad Soyad" rules={[{required:true, message:'Zorunlu'}]}><Input/></Form.Item>
                                         <Form.Item name="passengerPhone" label="Telefon"><Input/></Form.Item>
-                                        <Form.Item name="pickup" label="Alış Yeri" rules={[{required:true, message:'Zorunlu'}]}><HereLocationSearchInput placeholder="Havaalanı, Otel, Adres..." country="TUR" /></Form.Item>
-                                        <Form.Item name="dropoff" label="Bırakış Yeri" rules={[{required:true, message:'Zorunlu'}]}><HereLocationSearchInput placeholder="Havaalanı, Otel, Adres..." country="TUR" /></Form.Item>
+                                        <Form.Item name="pickup" label="Alış Yeri" rules={[{required:true, message:'Zorunlu'}]}><DynamicLocationSearchInput placeholder="Havaalanı, Otel, Adres..." country="TUR" /></Form.Item>
+                                        <Form.Item name="dropoff" label="Bırakış Yeri" rules={[{required:true, message:'Zorunlu'}]}><DynamicLocationSearchInput placeholder="Havaalanı, Otel, Adres..." country="TUR" /></Form.Item>
                                         <Form.Item name="pickupDateTime" label="Tarih & Saat" rules={[{required:true, message:'Zorunlu'}]}><DatePicker showTime format="DD.MM.YYYY HH:mm" style={{width:'100%'}}/></Form.Item>
                                         <Form.Item name="flightNumber" label="Uçuş Kodu"><Input/></Form.Item>
                                         <Form.Item name="vehicleType" label="Araç Tipi" rules={[{required:true, message:'Zorunlu'}]}>

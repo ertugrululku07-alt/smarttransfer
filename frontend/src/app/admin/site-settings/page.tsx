@@ -50,7 +50,7 @@ const SiteSettingsPage: React.FC = () => {
     const [modules, setModules] = useState<any>({});
     const [heroImages, setHeroImages] = useState<string[]>([]);
     const [newImageUrl, setNewImageUrl] = useState('');
-    const [googleMapsSettings, setGoogleMapsSettings] = useState<{ country: string; apiKey?: string }>({ country: 'tr', apiKey: '' });
+    const [googleMapsSettings, setGoogleMapsSettings] = useState<{ enabled: boolean; country: string; apiKey?: string }>({ enabled: false, country: 'tr', apiKey: '' });
     const [heroBackground, setHeroBackground] = useState({ type: 'image', videoUrl: '' });
     const [currentTheme, setCurrentTheme] = useState<string>('default');
     const [themeSaving, setThemeSaving] = useState(false);
@@ -149,7 +149,7 @@ const SiteSettingsPage: React.FC = () => {
                     setGoogleMapsSettings(settings.googleMaps);
                 } else {
                     // Initialize with empty if not present
-                    setGoogleMapsSettings({ country: 'tr', apiKey: '' });
+                    setGoogleMapsSettings({ enabled: false, country: 'tr', apiKey: '' });
                 }
                 if (settings.heroBackground) {
                     setHeroBackground(settings.heroBackground);
@@ -1191,6 +1191,20 @@ const SiteSettingsPage: React.FC = () => {
             children: (
                 <Card title="Google Maps Ayarları" variant="borderless">
                     <Form layout="vertical">
+                        <Form.Item label="Google Maps Kullanımı">
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                <Switch
+                                    checked={googleMapsSettings.enabled}
+                                    onChange={(checked) => setGoogleMapsSettings({ ...googleMapsSettings, enabled: checked })}
+                                    checkedChildren="Aktif"
+                                    unCheckedChildren="Pasif"
+                                />
+                                <Typography.Text type="secondary">
+                                    Aktif edilirse arama kutularında (Nereden / Nereye) Here yerine Google Maps altyapısı kullanılır.
+                                </Typography.Text>
+                            </div>
+                        </Form.Item>
+
                         <Form.Item
                             label="Google Maps API Anahtarı"
                             extra="Google Cloud Console'dan alacağınız sınırsız veya domain kısıtlamalı API anahtarı."

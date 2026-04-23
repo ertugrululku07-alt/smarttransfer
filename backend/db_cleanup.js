@@ -36,23 +36,23 @@ async function pruneOldLogs(days = 2) {
     });
     console.log(`- Deleted ${deletedLocations.count} records from DriverLocationHistory.`);
 
-    // Activity Log
-    const deletedActivity = await prisma.activityLog.deleteMany({
-      where: { createdAt: { lt: thresholdDate } }
-    });
-    console.log(`- Deleted ${deletedActivity.count} records from ActivityLog.`);
+    // Activity Log - COMMENTED OUT AS PER USER REQUEST
+    // const deletedActivity = await prisma.activityLog.deleteMany({
+    //   where: { createdAt: { lt: thresholdDate } }
+    // });
+    // console.log(`- Deleted ${deletedActivity.count} records from ActivityLog.`);
 
-    // Audit Log
-    const deletedAudit = await prisma.auditLog.deleteMany({
-      where: { createdAt: { lt: thresholdDate } }
-    });
-    console.log(`- Deleted ${deletedAudit.count} records from AuditLog.`);
+    // Audit Log - COMMENTED OUT AS PER USER REQUEST
+    // const deletedAudit = await prisma.auditLog.deleteMany({
+    //   where: { createdAt: { lt: thresholdDate } }
+    // });
+    // console.log(`- Deleted ${deletedAudit.count} records from AuditLog.`);
     
-    // Speed Violations
-    const deletedViolations = await prisma.speedViolation.deleteMany({
-      where: { createdAt: { lt: thresholdDate } }
-    });
-    console.log(`- Deleted ${deletedViolations.count} records from SpeedViolation.`);
+    // Speed Violations - COMMENTED OUT AS PER USER REQUEST
+    // const deletedViolations = await prisma.speedViolation.deleteMany({
+    //   where: { createdAt: { lt: thresholdDate } }
+    // });
+    // console.log(`- Deleted ${deletedViolations.count} records from SpeedViolation.`);
 
   } catch (error) {
     console.error('Error pruning logs:', error.message);

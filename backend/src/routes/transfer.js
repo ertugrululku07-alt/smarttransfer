@@ -1672,8 +1672,7 @@ router.get('/pool-bookings', authMiddleware, async (req, res) => {
 
         const poolBookings = bookings.filter(b => {
             const meta = b.metadata || {};
-            // Only show 'IN_POOL' status as 'POOL' is considered CONFIRMED by user
-            return meta.operationalStatus === 'IN_POOL';
+            return meta.operationalStatus === 'IN_POOL' || meta.operationalStatus === 'POOL';
         });
 
         const mappedBookings = poolBookings.map(b => ({
@@ -1687,25 +1686,29 @@ router.get('/pool-bookings', authMiddleware, async (req, res) => {
             pickup: {
                 location: b.metadata?.pickup || 'Belirtilmemiş',
                 time: new Date(b.startDate).toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }),
-                timeDate: b.startDate, // Raw date for FlightTracker
+                timeDate: b.startDate,
                 note: b.specialRequests
             },
             flightNumber: b.metadata?.flightNumber,
+            flightTime: b.metadata?.flightTime || null,
             dropoff: {
                 location: b.metadata?.dropoff || 'Belirtilmemiş',
-                dist: b.metadata?.distance || 'KM Bilgisi Yok', // Read from DB
-                duration: b.metadata?.duration || 'Süre Yok' // Read from DB
+                dist: b.metadata?.distance || 'KM Bilgisi Yok',
+                duration: b.metadata?.duration || 'Süre Yok'
             },
             vehicle: {
                 type: b.metadata?.vehicleType || 'Standart',
                 pax: b.adults,
-                luggage: 2 // Mock
+                luggage: 2
             },
             price: {
                 amount: b.metadata?.poolPrice ? Number(b.metadata.poolPrice) : Number(b.total),
                 currency: b.currency
             },
-            status: b.metadata?.operationalStatus || 'POOL'
+            status: b.metadata?.operationalStatus || 'POOL',
+            poolRunKey: b.metadata?.poolRunKey || null,
+            poolRunName: b.metadata?.poolRunName || null,
+            poolDepartureTime: b.metadata?.poolDepartureTime || null
         }));
 
         res.json({
@@ -1949,7 +1952,7 @@ router.get('/partner/stats', authMiddleware, async (req, res) => {
 
         // Filter in memory for JSON field query
         const pendingCount = pendingBookings.filter(b =>
-            b.metadata?.operationalStatus === 'IN_POOL'
+            b.metadata?.operationalStatus === 'IN_POOL' || b.metadata?.operationalStatus === 'POOL'
         ).length;
 
         // 2. Today (Completed Today) - Partner specific
@@ -2005,7 +2008,9 @@ router.patch('/bookings/:id', authMiddleware, async (req, res) => {
         const { driverId, assignedVehicleId, skipConflictCheck, internalNotes, returnToReservation, returnReason,
                 // Inline cell editing fields:
                 contactName, contactPhone, pickupDateTime, pickupLocation, dropoffLocation,
-                flightNumber, flightTime, adults, children, infants, price, status: newStatus, operationalStatus } = req.body;
+                flightNumber, flightTime, adults, children, infants, price, status: newStatus, operationalStatus,
+                // Pool run fields:
+                poolRunKey, poolRunName, poolDepartureTime } = req.body;
         console.log(`[PATCH booking] id=${id} driverId=${driverId} assignedVehicleId=${assignedVehicleId}`);
 
         // Auto-find vehicle assigned to this driver if not explicitly provided
@@ -2170,6 +2175,9 @@ router.patch('/bookings/:id', authMiddleware, async (req, res) => {
                  newMetadata.assignedVehicleId = null;
             }
         }
+        if (poolRunKey !== undefined) newMetadata.poolRunKey = poolRunKey;
+        if (poolRunName !== undefined) newMetadata.poolRunName = poolRunName;
+        if (poolDepartureTime !== undefined) newMetadata.poolDepartureTime = poolDepartureTime;
 
         // Handle return to reservation flow
         if (returnToReservation) {
