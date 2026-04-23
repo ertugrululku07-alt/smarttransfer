@@ -2176,7 +2176,6 @@ router.patch('/bookings/:id', authMiddleware, async (req, res) => {
             newMetadata.operationalStatus = operationalStatus;
             if (operationalStatus === 'POOL' || operationalStatus === 'IN_POOL') {
                  updateData.driverId = null;
-                 updateData.assignedVehicleId = null;
                  newMetadata.driverId = null;
                  newMetadata.assignedVehicleId = null;
                  // Store pool price if provided
