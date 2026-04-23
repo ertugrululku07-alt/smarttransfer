@@ -2156,6 +2156,9 @@ router.patch('/bookings/:id', authMiddleware, async (req, res) => {
         const effectiveStartDate = pickupDateTime || currentBooking.startDate;
         const freeAt = new Date(new Date(effectiveStartDate).getTime() + ((estimatedDurationMinutes || 120) + 30) * 60000);
 
+        // Prepare update data object early so it can be referenced in pool/status handlers
+        const updateData = {};
+
         const newMetadata = {
             ...(currentBooking.metadata || {}),
             ...(resolvedVehicleId !== undefined ? { assignedVehicleId: resolvedVehicleId } : {}),
@@ -2176,6 +2179,10 @@ router.patch('/bookings/:id', authMiddleware, async (req, res) => {
                  updateData.assignedVehicleId = null;
                  newMetadata.driverId = null;
                  newMetadata.assignedVehicleId = null;
+                 // Store pool price if provided
+                 if (price !== undefined) {
+                     newMetadata.poolPrice = Number(price);
+                 }
             }
         }
         if (poolRunKey !== undefined) newMetadata.poolRunKey = poolRunKey;
@@ -2193,10 +2200,8 @@ router.patch('/bookings/:id', authMiddleware, async (req, res) => {
             newMetadata.assignedVehicleId = null;
         }
 
-        // Prepare update data
-        const updateData = {
-            metadata: newMetadata
-        };
+        // Set metadata on updateData
+        updateData.metadata = newMetadata;
 
         // Inline field updates
         if (contactName !== undefined) updateData.contactName = contactName;
