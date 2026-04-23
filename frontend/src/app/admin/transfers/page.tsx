@@ -558,21 +558,42 @@ const TransfersPage: React.FC = () => {
     useEffect(() => { autoApproveRef.current = autoApprove; }, [autoApprove]);
 
     useEffect(() => {
-        apiClient.get('/api/auth/metadata').then(res => {
-            if (res.data?.success && res.data?.data?.transfer_preferences) {
-                const prefs = res.data.data.transfer_preferences;
-                if (prefs.colTitles) setColTitles(prefs.colTitles);
-                if (prefs.visibleCols) setVisibleCols(prefs.visibleCols);
-                if (prefs.statusColors) setStatusColors(prefs.statusColors);
-                if (prefs.colOrder) setColOrder(prefs.colOrder);
-                if (prefs.autoApprove) { setAutoApprove(prefs.autoApprove); autoApproveRef.current = prefs.autoApprove; }
-            } else {
+        const init = async () => {
+            // 1. Load preferences
+            let savedMode: 'off'|'operation'|'pool' = 'off';
+            try {
+                const metaRes = await apiClient.get('/api/auth/metadata');
+                if (metaRes.data?.success && metaRes.data?.data?.transfer_preferences) {
+                    const prefs = metaRes.data.data.transfer_preferences;
+                    if (prefs.colTitles) setColTitles(prefs.colTitles);
+                    if (prefs.visibleCols) setVisibleCols(prefs.visibleCols);
+                    if (prefs.statusColors) setStatusColors(prefs.statusColors);
+                    if (prefs.colOrder) setColOrder(prefs.colOrder);
+                    if (prefs.autoApprove) { savedMode = prefs.autoApprove; setAutoApprove(savedMode); autoApproveRef.current = savedMode; }
+                } else {
+                    setStatusColors(loadColors());
+                }
+            } catch {
                 setStatusColors(loadColors());
             }
-        }).catch(() => {
-            setStatusColors(loadColors());
-        });
-        fetchBookings();
+            // 2. Load bookings
+            setLoading(true);
+            let bookingsList: Booking[] = [];
+            try {
+                const res = await apiClient.get('/api/transfer/bookings');
+                if (res.data.success) { bookingsList = res.data.data; setBookings(bookingsList); }
+            } catch { message.error('Rezervasyonlar yüklenemedi'); }
+            finally { setLoading(false); }
+            // 3. Bulk auto-approve existing pending bookings if mode is active
+            if (savedMode !== 'off' && bookingsList.length > 0) {
+                const pending = bookingsList.filter(b => b.status === 'PENDING');
+                if (pending.length > 0) {
+                    console.log(`[InitBulkAutoApprove] mode=${savedMode}, pending=${pending.length}`);
+                    bulkAutoApprove(savedMode, bookingsList);
+                }
+            }
+        };
+        init();
     }, []);
 
     const getStatusConf = (r: Booking) => statusColors[getEffectiveStatus(r)] || statusColors['PENDING'];
@@ -584,6 +605,28 @@ const TransfersPage: React.FC = () => {
             if (res.data.success) setBookings(res.data.data);
         } catch { message.error('Rezervasyonlar yüklenemedi'); }
         finally { setLoading(false); }
+    };
+
+    // Bulk auto-approve: process all PENDING bookings
+    const bulkAutoApprove = async (mode: 'operation' | 'pool', list?: Booking[]) => {
+        const pending = (list || bookings).filter(b => b.status === 'PENDING');
+        if (pending.length === 0) return;
+        const subStatus = mode === 'operation' ? 'IN_OPERATION' : 'IN_POOL';
+        const label = mode === 'operation' ? 'Operasyona' : 'Havuza';
+        console.log(`[BulkAutoApprove] Processing ${pending.length} pending bookings → ${subStatus}`);
+        let ok = 0;
+        for (const b of pending) {
+            try {
+                await apiClient.put(`/api/transfer/bookings/${b.id}/status`, { status: 'CONFIRMED', subStatus });
+                ok++;
+            } catch (err) {
+                console.error(`[BulkAutoApprove] Failed for ${b.id}:`, err);
+            }
+        }
+        if (ok > 0) {
+            message.success(`${ok} bekleyen rezervasyon ${label} aktarıldı`);
+            fetchBookings();
+        }
     };
 
     useEffect(() => {
@@ -1078,8 +1121,12 @@ const TransfersPage: React.FC = () => {
                                 setAutoApprove(val);
                                 autoApproveRef.current = val;
                                 savePreferences({ autoApprove: val });
-                                if (val === 'off') message.info('Otomatik onaylama kapatıldı');
-                                else message.success(`Otomatik: ${val === 'operation' ? 'Operasyona Aktar' : 'Havuza At'} aktif`);
+                                if (val === 'off') {
+                                    message.info('Otomatik onaylama kapatıldı');
+                                } else {
+                                    message.success(`Otomatik: ${val === 'operation' ? 'Operasyona Aktar' : 'Havuza At'} aktif`);
+                                    bulkAutoApprove(val);
+                                }
                             }}
                             style={{width:200, borderRadius:8}}
                             suffixIcon={<ThunderboltOutlined style={{color: autoApprove !== 'off' ? '#10b981' : '#9ca3af'}} />}
