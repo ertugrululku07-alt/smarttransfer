@@ -10,6 +10,7 @@ interface LocationSearchInputProps {
     value?: string;
     onChange?: (value: string) => void;
     onSelect?: (address: string, lat?: number, lng?: number) => void;
+    onMapClick?: () => void;
     size?: 'large' | 'middle' | 'small';
     prefix?: React.ReactNode;
     style?: React.CSSProperties;
