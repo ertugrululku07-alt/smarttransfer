@@ -2180,8 +2180,14 @@ export default function OperationsPage() {
                     setPersistedManualRuns(updatedPersisted);
                 }
 
+                // Filter out bookings that are in the pool
+                const filteredBackendRuns = backendRuns.map((run: any) => ({
+                    ...run,
+                    bookings: run.bookings.filter((b: any) => b.operationalStatus !== 'POOL')
+                })).filter((run: any) => run.bookings.length > 0 || run.isManual);
+
                 // Final list: backend runs + remaining empty manual runs for this date
-                const finalRuns = [...backendRuns, ...localManualsForDate.filter(lp => !backendRuns.some((br: any) => br.runKey === lp.runKey))];
+                const finalRuns = [...filteredBackendRuns, ...localManualsForDate.filter(lp => !filteredBackendRuns.some((br: any) => br.runKey === lp.runKey))];
                 finalRuns.sort((a, b) => (a.departureTime || '99:99').localeCompare(b.departureTime || '99:99'));
                 
                 setShuttleRuns(finalRuns);

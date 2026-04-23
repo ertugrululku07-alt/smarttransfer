@@ -295,26 +295,72 @@ const PartnerDashboard = () => {
                                                         </div>
                                                         {/* Booking rows */}
                                                         <div style={{ padding: '12px 16px', background: '#fff' }}>
-                                                            {run.bookings.map((b: any, i: number) => (
-                                                                <div key={b.id} style={{
-                                                                    display: 'flex', alignItems: 'center', gap: 12,
-                                                                    padding: '10px 12px', borderRadius: 10,
-                                                                    borderBottom: i < run.bookings.length - 1 ? '1px dashed #e2e8f0' : 'none',
-                                                                }}>
-                                                                    <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#f1f5f9', color: '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700 }}>
-                                                                        {i + 1}
-                                                                    </div>
-                                                                    <div style={{ flex: 1, minWidth: 0 }}>
-                                                                        <div style={{ fontWeight: 700, fontSize: 14, color: '#1e293b' }}>{b.customer?.name}</div>
-                                                                        <div style={{ fontSize: 12, color: '#64748b', marginTop: 2, display: 'flex', alignItems: 'center', gap: 4 }}>
-                                                                            <EnvironmentOutlined style={{ color: '#cbd5e1' }} /> {b.pickup?.location} <SwapRightOutlined style={{ color: '#94a3b8' }} /> {b.dropoff?.location}
+                                                            {run.bookings.map((b: any, i: number) => {
+                                                                const isPaid = b.paymentStatus === 'PAID';
+                                                                return (
+                                                                    <div key={b.id} style={{
+                                                                        display: 'grid', gridTemplateColumns: '40px 2fr 1.5fr 1fr 1fr 1fr 1fr', gap: 12, alignItems: 'center',
+                                                                        padding: '12px 16px', borderRadius: 10,
+                                                                        borderBottom: i < run.bookings.length - 1 ? '1px dashed #e2e8f0' : 'none',
+                                                                        background: i % 2 === 0 ? '#f8fafc' : '#fff'
+                                                                    }}>
+                                                                        <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#e2e8f0', color: '#475569', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800 }}>
+                                                                            {i + 1}
+                                                                        </div>
+                                                                        
+                                                                        {/* Müşteri & İletişim */}
+                                                                        <div style={{ minWidth: 0 }}>
+                                                                            <div style={{ fontWeight: 800, fontSize: 14, color: '#1e293b' }}>{b.customer?.name}</div>
+                                                                            {b.customer?.phone && (
+                                                                                <div style={{ fontSize: 12, color: '#64748b', marginTop: 2, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                                                                    <PhoneOutlined /> {b.customer.phone}
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+
+                                                                        {/* Güzergah */}
+                                                                        <div style={{ minWidth: 0 }}>
+                                                                            <div style={{ fontSize: 12, color: '#475569', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                                                <span style={{ color: '#ef4444' }}>📍</span> {b.pickup?.location}
+                                                                            </div>
+                                                                            <div style={{ fontSize: 12, color: '#475569', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: 2 }}>
+                                                                                <span style={{ color: '#10b981' }}>📍</span> {b.dropoff?.location}
+                                                                            </div>
+                                                                        </div>
+
+                                                                        {/* Saatler */}
+                                                                        <div>
+                                                                            <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Alış Saati</div>
+                                                                            <div style={{ fontSize: 14, fontWeight: 800, color: '#3b82f6' }}>{b.pickupTime || '--:--'}</div>
+                                                                        </div>
+
+                                                                        {/* Uçuş */}
+                                                                        <div>
+                                                                            <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Uçuş</div>
+                                                                            {(b.flightNumber || b.flightTime) ? (
+                                                                                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                                                                    {b.flightNumber && <div style={{ fontSize: 12, fontWeight: 700, color: '#475569' }}>✈️ {b.flightNumber}</div>}
+                                                                                    {b.flightTime && <div style={{ fontSize: 12, fontWeight: 600, color: '#64748b' }}>🕒 {b.flightTime}</div>}
+                                                                                </div>
+                                                                            ) : <div style={{ fontSize: 12, color: '#cbd5e1' }}>Yok</div>}
+                                                                        </div>
+
+                                                                        {/* Kişi Sayısı */}
+                                                                        <div>
+                                                                            <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Yolcu</div>
+                                                                            <div style={{ fontSize: 13, fontWeight: 700, color: '#475569' }}>👥 {b.pax} Kişi</div>
+                                                                        </div>
+
+                                                                        {/* Ödeme Durumu */}
+                                                                        <div>
+                                                                            <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Ödeme</div>
+                                                                            <Tag color={isPaid ? 'success' : 'warning'} style={{ margin: 0, marginTop: 2, fontWeight: 700, borderRadius: 6 }}>
+                                                                                {isPaid ? 'ÖDENDİ' : 'ARAÇTA'}
+                                                                            </Tag>
                                                                         </div>
                                                                     </div>
-                                                                    {b.flightNumber && (
-                                                                        <Tag color="blue" style={{ borderRadius: 12, fontWeight: 600, border: 'none' }}>✈️ {b.flightNumber}</Tag>
-                                                                    )}
-                                                                </div>
-                                                            ))}
+                                                                );
+                                                            })}
                                                         </div>
                                                         {/* Action Footer */}
                                                         <div style={{ padding: '16px', background: '#f8fafc', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'flex-end' }}>
