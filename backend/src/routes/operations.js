@@ -2001,7 +2001,7 @@ router.post('/shuttle-runs/auto-group', authMiddleware, async (req, res) => {
             return vt.includes('shuttle') || vt.includes('paylaşımlı') || m.shuttleRouteId;
         });
 
-        // Extract flight times and group into 1-hour windows
+        // Extract flight times and determine tripType for each booking
         const withFlightTime = shuttleBookings
             .map(b => {
                 const m = b.metadata || {};
@@ -2010,43 +2010,54 @@ router.post('/shuttle-runs/auto-group', authMiddleware, async (req, res) => {
                 const parts = ft.split(':');
                 if (parts.length < 2) return null;
                 const flightMin = parseInt(parts[0]) * 60 + parseInt(parts[1]);
-                return { booking: b, flightMin, flightTime: ft };
+                // Determine trip type: use metadata or compute from pickup/dropoff
+                const bt = m.tripType || getTripType(m.pickup, m.dropoff) || 'ARA';
+                return { booking: b, flightMin, flightTime: ft, tripType: bt };
             })
-            .filter(Boolean)
-            .sort((a, b) => a.flightMin - b.flightMin);
+            .filter(Boolean);
 
         if (withFlightTime.length === 0) {
             return res.json({ success: true, message: 'Uçuş saati olan shuttle rezervasyonu bulunamadı', groups: [] });
         }
 
-        // Group by 1-hour windows
-        const groups = [];
-        let currentGroup = [withFlightTime[0]];
-
-        for (let i = 1; i < withFlightTime.length; i++) {
-            const prev = currentGroup[0]; // Compare against group start
-            const curr = withFlightTime[i];
-            if (curr.flightMin - prev.flightMin <= 60) {
-                // Within 1 hour of group start → same group
-                currentGroup.push(curr);
-            } else {
-                groups.push(currentGroup);
-                currentGroup = [curr];
-            }
+        // Separate by tripType first (DEP, ARV, ARA), then group each by 1-hour windows
+        const byTripType = {};
+        for (const item of withFlightTime) {
+            const tt = item.tripType;
+            if (!byTripType[tt]) byTripType[tt] = [];
+            byTripType[tt].push(item);
         }
-        groups.push(currentGroup);
+
+        const groups = [];
+        for (const [tt, items] of Object.entries(byTripType)) {
+            items.sort((a, b) => a.flightMin - b.flightMin);
+            let currentGroup = [items[0]];
+            for (let i = 1; i < items.length; i++) {
+                const prev = currentGroup[0]; // Compare against group start
+                const curr = items[i];
+                if (curr.flightMin - prev.flightMin <= 60) {
+                    currentGroup.push(curr);
+                } else {
+                    groups.push({ tripType: tt, items: currentGroup });
+                    currentGroup = [curr];
+                }
+            }
+            groups.push({ tripType: tt, items: currentGroup });
+        }
 
         // Assign manual run IDs to each group
         let assignedCount = 0;
         const groupSummaries = [];
 
         for (const group of groups) {
+            const tt = group.tripType;
+            const items = group.items;
             // Use the earliest flight time as the run departure
-            const earliestFlight = group[0].flightTime;
-            const latestFlight = group[group.length - 1].flightTime;
-            const runId = `AUTO_${date}_${earliestFlight.replace(':', '')}`;
+            const earliestFlight = items[0].flightTime;
+            const latestFlight = items[items.length - 1].flightTime;
+            const runId = `AUTO_${date}_${tt}_${earliestFlight.replace(':', '')}`;
 
-            for (const item of group) {
+            for (const item of items) {
                 const meta = item.booking.metadata || {};
                 // Skip if already assigned to a non-auto manual run
                 if (meta.manualRunId && !meta.manualRunId.startsWith('AUTO_')) continue;
@@ -2054,7 +2065,7 @@ router.post('/shuttle-runs/auto-group', authMiddleware, async (req, res) => {
                 const updatedMeta = {
                     ...meta,
                     manualRunId: runId,
-                    manualRunName: `Otomatik Sefer ${earliestFlight}-${latestFlight}`
+                    manualRunName: `${tt} Sefer ${earliestFlight}-${latestFlight}`
                 };
 
                 await prisma.booking.update({
@@ -2066,9 +2077,10 @@ router.post('/shuttle-runs/auto-group', authMiddleware, async (req, res) => {
 
             groupSummaries.push({
                 runId,
+                tripType: tt,
                 flightRange: `${earliestFlight} - ${latestFlight}`,
-                bookingCount: group.length,
-                bookingIds: group.map(g => g.booking.id)
+                bookingCount: items.length,
+                bookingIds: items.map(g => g.booking.id)
             });
         }
 
