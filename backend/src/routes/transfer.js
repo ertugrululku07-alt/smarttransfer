@@ -2012,6 +2012,8 @@ router.patch('/bookings/:id', authMiddleware, async (req, res) => {
                 // Inline cell editing fields:
                 contactName, contactPhone, pickupDateTime, pickupLocation, dropoffLocation,
                 flightNumber, flightTime, adults, children, infants, price, status: newStatus, operationalStatus,
+                // Passenger details:
+                passengerDetails,
                 // Pool run fields:
                 poolRunKey, poolRunName, poolDepartureTime } = req.body;
         console.log(`[PATCH booking] id=${id} driverId=${driverId} assignedVehicleId=${assignedVehicleId}`);
@@ -2172,6 +2174,7 @@ router.patch('/bookings/:id', authMiddleware, async (req, res) => {
         if (flightNumber !== undefined) newMetadata.flightNumber = flightNumber;
         if (flightTime !== undefined) newMetadata.flightTime = flightTime;
         if (internalNotes !== undefined) newMetadata.internalNotes = internalNotes;
+        if (passengerDetails !== undefined) newMetadata.passengerDetails = passengerDetails;
         if (operationalStatus !== undefined) {
             newMetadata.operationalStatus = operationalStatus;
             if (operationalStatus === 'POOL' || operationalStatus === 'IN_POOL') {
