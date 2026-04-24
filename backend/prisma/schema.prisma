@@ -1294,10 +1294,17 @@ model Personnel {
   salary     Decimal?  @db.Decimal(10, 2)
   isActive   Boolean   @default(true)
 
+  // Nationality (UETDS)
+  nationality String? @default("TUR") // ISO 3166 Alpha-3 country code
+
   // Documents & Qualifications
   licenseType        String? // B, C, D, E etc.
+  licenseNumber      String? // Ehliyet Belge Seri No (UETDS)
+  licenseExpiry      DateTime? @db.Date // Ehliyet Geçerlilik Tarihi (UETDS)
   srcNumber          String?
+  srcType            String? // SRC1, SRC2, SRC3, SRC4
   psychotechDocument String? // Psychotechnical report
+  psychotechExpiry   DateTime? @db.Date // Psikoteknik Geçerlilik Tarihi
 
   // Health
   medicalHistory String? @db.Text

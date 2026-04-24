@@ -194,9 +194,14 @@ router.post('/', authMiddleware, async (req, res) => {
                     department: data.department,
                     salary: data.salary ? parseFloat(data.salary) : undefined,
                     isActive: data.isActive !== undefined ? data.isActive : true,
+                    nationality: data.nationality || 'TUR',
                     licenseType: data.licenseType,
+                    licenseNumber: data.licenseNumber,
+                    licenseExpiry: data.licenseExpiry ? new Date(data.licenseExpiry) : undefined,
                     srcNumber: data.srcNumber,
+                    srcType: data.srcType,
                     psychotechDocument: data.psychotechDocument,
+                    psychotechExpiry: data.psychotechExpiry ? new Date(data.psychotechExpiry) : undefined,
                     medicalHistory: data.medicalHistory,
                     bloodGroup: data.bloodGroup,
                     photo: data.photo
@@ -265,9 +270,14 @@ router.put('/:id', authMiddleware, async (req, res) => {
         if (data.department !== undefined) updatePayload.department = data.department;
         if (data.salary !== undefined) updatePayload.salary = data.salary ? parseFloat(data.salary) : null;
         if (data.isActive !== undefined) updatePayload.isActive = data.isActive;
+        if (data.nationality !== undefined) updatePayload.nationality = data.nationality;
         if (data.licenseType !== undefined) updatePayload.licenseType = data.licenseType;
+        if (data.licenseNumber !== undefined) updatePayload.licenseNumber = data.licenseNumber;
+        if (data.licenseExpiry !== undefined) updatePayload.licenseExpiry = data.licenseExpiry ? new Date(data.licenseExpiry) : null;
         if (data.srcNumber !== undefined) updatePayload.srcNumber = data.srcNumber;
+        if (data.srcType !== undefined) updatePayload.srcType = data.srcType;
         if (data.psychotechDocument !== undefined) updatePayload.psychotechDocument = data.psychotechDocument;
+        if (data.psychotechExpiry !== undefined) updatePayload.psychotechExpiry = data.psychotechExpiry ? new Date(data.psychotechExpiry) : null;
         if (data.medicalHistory !== undefined) updatePayload.medicalHistory = data.medicalHistory;
         if (data.bloodGroup !== undefined) updatePayload.bloodGroup = data.bloodGroup;
         if (data.photo !== undefined) updatePayload.photo = data.photo;
