@@ -12,7 +12,8 @@ import {
     InfoCircleOutlined, SaveOutlined, ThunderboltOutlined,
     MailOutlined, SendOutlined, EyeOutlined, CheckCircleOutlined,
     LockOutlined, SettingOutlined, FileTextOutlined, CopyOutlined,
-    WhatsAppOutlined, ApiOutlined, PhoneOutlined
+    WhatsAppOutlined, ApiOutlined, PhoneOutlined,
+    SafetyCertificateOutlined, UserOutlined
 } from '@ant-design/icons';
 import apiClient from '@/lib/api-client';
 import { invalidateDefinitions } from '@/app/hooks/useDefinitions';
@@ -141,6 +142,29 @@ export default function DefinitionsPage() {
     const [templateSaving, setTemplateSaving] = useState(false);
     const [previewVisible, setPreviewVisible] = useState(false);
 
+    // UETDS Settings
+    const [uetdsSettings, setUetdsSettings] = useState<{
+        enabled: boolean;
+        username: string;
+        password: string;
+        firmaKodu: string;
+        terminalNo: string;
+        unetKodu: string;
+        yetkiBelgesiNo: string;
+        environment: 'test' | 'production';
+    }>({
+        enabled: false,
+        username: '',
+        password: '',
+        firmaKodu: '',
+        terminalNo: '',
+        unetKodu: '',
+        yetkiBelgesiNo: '',
+        environment: 'test',
+    });
+    const [uetdsSaving, setUetdsSaving] = useState(false);
+    const [showUetdsPass, setShowUetdsPass] = useState(false);
+
     // WhatsApp Settings
     const [whatsappSettings, setWhatsappSettings] = useState<{
         enabled: boolean; provider: string;
@@ -192,6 +216,9 @@ export default function DefinitionsPage() {
             }
             if (settings.whatsappSettings) {
                 setWhatsappSettings(prev => ({ ...prev, ...settings.whatsappSettings }));
+            }
+            if (settings.uetdsSettings) {
+                setUetdsSettings(prev => ({ ...prev, ...settings.uetdsSettings }));
             }
         } catch (error) {
             console.error('Fetch error:', error);
@@ -349,6 +376,19 @@ export default function DefinitionsPage() {
             message.error(error.response?.data?.error || 'Test mesajı gönderilemedi');
         } finally {
             setWhatsappTesting(false);
+        }
+    };
+
+    const saveUetdsSettings = async () => {
+        try {
+            setUetdsSaving(true);
+            await apiClient.put('/api/tenant/settings', { uetdsSettings });
+            message.success('UETDS ayarları kaydedildi');
+        } catch (error) {
+            console.error('Save UETDS settings error:', error);
+            message.error('UETDS ayarları kaydedilirken hata oluştu');
+        } finally {
+            setUetdsSaving(false);
         }
     };
 
@@ -1178,6 +1218,183 @@ export default function DefinitionsPage() {
                         >
                             Zaman Tanımlarını Kaydet
                         </Button>
+                    </div>
+                </div>
+            )
+        },
+        {
+            key: 'uetds',
+            label: <span><CarOutlined /> UETDS Tanımları</span>,
+            children: (
+                <div>
+                    <SectionHeader icon={<CarOutlined />} title="UETDS Tanımları" subtitle="Ulaştırma Elektronik Takip ve Denetim Sistemi entegrasyon ayarları" color="#0ea5e9" />
+
+                    <div style={{
+                        background: 'linear-gradient(135deg, #f0f9ff, #e0f2fe)', border: '1px solid #7dd3fc',
+                        borderRadius: 12, padding: '14px 18px', marginBottom: 24,
+                        display: 'flex', alignItems: 'flex-start', gap: 10
+                    }}>
+                        <InfoCircleOutlined style={{ color: '#0ea5e9', fontSize: 18, marginTop: 2 }} />
+                        <div>
+                            <Text strong style={{ color: '#0c4a6e', fontSize: 13 }}>UETDS Nedir?</Text>
+                            <div style={{ color: '#0c4a6e', fontSize: 12, marginTop: 2 }}>
+                                UETDS (Ulaştırma Elektronik Takip ve Denetim Sistemi), T.C. Ulaştırma ve Altyapı Bakanlığı tarafından yönetilen bir sistemdir.
+                                Yolcu taşımacılığı yapan firmalar sefer ve yolcu bilgilerini bu sisteme bildirmekle yükümlüdür.
+                                <strong> U-NET</strong> portalından alınan bilgilerle bu bölümü doldurun.
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 24 }}>
+                        {/* Connection Card */}
+                        <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                            <div style={{ background: 'linear-gradient(135deg, #0ea5e9, #0284c7)', padding: '18px 22px', color: '#fff' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                    <ApiOutlined style={{ fontSize: 22 }} />
+                                    <div>
+                                        <div style={{ fontSize: 16, fontWeight: 700 }}>Bağlantı Bilgileri</div>
+                                        <div style={{ fontSize: 11, opacity: 0.85 }}>U-NET Web Servisi kimlik bilgileri</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div style={{ padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+                                <div>
+                                    <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 6 }}>UETDS Entegrasyonu</label>
+                                    <Switch
+                                        checked={uetdsSettings.enabled}
+                                        onChange={(val) => setUetdsSettings(prev => ({ ...prev, enabled: val }))}
+                                        checkedChildren="Aktif"
+                                        unCheckedChildren="Pasif"
+                                    />
+                                </div>
+                                <div>
+                                    <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 6 }}>Kullanıcı Adı</label>
+                                    <Input
+                                        placeholder="UETDS kullanıcı adınız"
+                                        value={uetdsSettings.username}
+                                        onChange={(e) => setUetdsSettings(prev => ({ ...prev, username: e.target.value }))}
+                                        style={{ borderRadius: 8 }}
+                                        prefix={<UserOutlined style={{ color: '#94a3b8' }} />}
+                                    />
+                                </div>
+                                <div>
+                                    <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 6 }}>Şifre</label>
+                                    <Input.Password
+                                        placeholder="••••••••"
+                                        value={uetdsSettings.password}
+                                        onChange={(e) => setUetdsSettings(prev => ({ ...prev, password: e.target.value }))}
+                                        visibilityToggle={{ visible: showUetdsPass, onVisibleChange: setShowUetdsPass }}
+                                        style={{ borderRadius: 8 }}
+                                    />
+                                </div>
+                                <div>
+                                    <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 6 }}>Ortam</label>
+                                    <Select
+                                        value={uetdsSettings.environment}
+                                        onChange={(val) => setUetdsSettings(prev => ({ ...prev, environment: val }))}
+                                        style={{ width: '100%' }}
+                                        options={[
+                                            { value: 'test', label: '🧪 Test Ortamı' },
+                                            { value: 'production', label: '🚀 Canlı (Production)' },
+                                        ]}
+                                    />
+                                    <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>
+                                        Entegrasyonu test etmek için önce test ortamında deneyin
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Firm Info Card */}
+                        <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                            <div style={{ background: 'linear-gradient(135deg, #0369a1, #075985)', padding: '18px 22px', color: '#fff' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                    <SafetyCertificateOutlined style={{ fontSize: 22 }} />
+                                    <div>
+                                        <div style={{ fontSize: 16, fontWeight: 700 }}>Firma Bilgileri</div>
+                                        <div style={{ fontSize: 11, opacity: 0.85 }}>Yetki belgesi ve firma tanım kodları</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div style={{ padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+                                <div>
+                                    <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 6 }}>Firma Kodu</label>
+                                    <Input
+                                        placeholder="Örn: 123456"
+                                        value={uetdsSettings.firmaKodu}
+                                        onChange={(e) => setUetdsSettings(prev => ({ ...prev, firmaKodu: e.target.value }))}
+                                        style={{ borderRadius: 8 }}
+                                    />
+                                    <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>U-NET sisteminde tanımlı firma kodunuz</div>
+                                </div>
+                                <div>
+                                    <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 6 }}>Terminal No</label>
+                                    <Input
+                                        placeholder="Örn: 1"
+                                        value={uetdsSettings.terminalNo}
+                                        onChange={(e) => setUetdsSettings(prev => ({ ...prev, terminalNo: e.target.value }))}
+                                        style={{ borderRadius: 8 }}
+                                    />
+                                    <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>Kalkış terminal numarası</div>
+                                </div>
+                                <div>
+                                    <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 6 }}>UNET Kodu</label>
+                                    <Input
+                                        placeholder="Örn: UNET-XXXX"
+                                        value={uetdsSettings.unetKodu}
+                                        onChange={(e) => setUetdsSettings(prev => ({ ...prev, unetKodu: e.target.value }))}
+                                        style={{ borderRadius: 8 }}
+                                    />
+                                    <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>U-NET portalından alınan entegrasyon kodu</div>
+                                </div>
+                                <div>
+                                    <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 6 }}>Yetki Belgesi No</label>
+                                    <Input
+                                        placeholder="Örn: D2-XXXX-XXXX"
+                                        value={uetdsSettings.yetkiBelgesiNo}
+                                        onChange={(e) => setUetdsSettings(prev => ({ ...prev, yetkiBelgesiNo: e.target.value }))}
+                                        style={{ borderRadius: 8 }}
+                                    />
+                                    <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>Ulaştırma Bakanlığı tarafından verilen D2 yetki belgesi numarası</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Status & Save */}
+                    <div style={{
+                        background: '#fff', borderRadius: 16, border: '1px solid #e2e8f0',
+                        padding: '20px 24px', boxShadow: '0 2px 8px rgba(0,0,0,0.04)'
+                    }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                <div style={{
+                                    width: 10, height: 10, borderRadius: '50%',
+                                    background: uetdsSettings.enabled && uetdsSettings.username && uetdsSettings.password ? '#10b981' : '#ef4444',
+                                    boxShadow: uetdsSettings.enabled && uetdsSettings.username && uetdsSettings.password ? '0 0 8px #10b98180' : '0 0 8px #ef444480',
+                                }} />
+                                <Text style={{ fontSize: 13, color: '#64748b' }}>
+                                    {uetdsSettings.enabled && uetdsSettings.username && uetdsSettings.password
+                                        ? <><CheckCircleOutlined style={{ color: '#10b981', marginRight: 4 }} />Bağlantı bilgileri girilmiş — {uetdsSettings.environment === 'production' ? 'Canlı Ortam' : 'Test Ortamı'}</>
+                                        : 'Bağlantı bilgileri eksik veya entegrasyon pasif'
+                                    }
+                                </Text>
+                            </div>
+                            <Button
+                                type="primary"
+                                icon={<SaveOutlined />}
+                                loading={uetdsSaving}
+                                onClick={saveUetdsSettings}
+                                size="large"
+                                style={{
+                                    borderRadius: 10, fontWeight: 700, height: 44, paddingInline: 32,
+                                    background: 'linear-gradient(135deg, #0ea5e9, #0284c7)',
+                                    border: 'none', boxShadow: '0 4px 12px #0ea5e940'
+                                }}
+                            >
+                                UETDS Ayarlarını Kaydet
+                            </Button>
+                        </div>
                     </div>
                 </div>
             )
