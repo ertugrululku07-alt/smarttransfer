@@ -197,7 +197,7 @@ export default function OperationsTable({
     const saveTimerRef = React.useRef<NodeJS.Timeout | null>(null);
 
     // Static column key list for drag-drop fallback
-    const ALL_COLUMN_KEYS = ['index','bookingNumber','direction','partnerName','paymentType','customerNote','internalNotes','customerName','contactPhone','date','airportCode','pickupRegionCode','dropoffRegionCode','status','driver','vehicle','time','flightTime','flightCode','pax','pickup','dropoff','extraServices','actions'];
+    const ALL_COLUMN_KEYS = ['index','bookingNumber','direction','partnerName','vehicleType','paymentType','customerNote','internalNotes','customerName','contactPhone','date','airportCode','pickupRegionCode','dropoffRegionCode','status','driver','vehicle','time','flightTime','flightCode','pax','pickup','dropoff','extraServices','actions'];
     
     const sensors = useSensors(
         useSensor(PointerSensor, {
@@ -212,6 +212,7 @@ export default function OperationsTable({
         bookingNumber: 120,
         direction: 70,
         partnerName: 120,
+        vehicleType: 110,
         paymentType: 95,
         customerNote: 150,
         internalNotes: 150,
@@ -567,6 +568,27 @@ export default function OperationsTable({
             render: (_: string, record: any) => {
                 const agencyName = record.agencyName || record.partnerName;
                 return <Text style={{ fontSize: 11, fontWeight: 500 }}>{agencyName || <span style={{ color: '#d1d5db' }}>—</span>}</Text>;
+            },
+        },
+        {
+            title: renderColumnHeader('vehicleType', 'ARAÇ TİPİ', true),
+            key: 'vehicleType',
+            width: columnWidths.vehicleType,
+            ellipsis: true,
+            render: (_: any, record: any) => {
+                const vt = record.metadata?.vehicleType || record.vehicleType || '';
+                if (!vt) return <Text style={{ fontSize: 11, color: '#999' }}>-</Text>;
+                return (
+                    <Tag style={{
+                        margin: 0, fontSize: 10, fontWeight: 700,
+                        background: '#f0f9ff', border: '1px solid #bae6fd',
+                        color: '#0369a1', borderRadius: 6, padding: '2px 8px',
+                        display: 'inline-flex', alignItems: 'center', gap: 3,
+                        lineHeight: '18px', whiteSpace: 'nowrap'
+                    }}>
+                        <CarOutlined style={{ fontSize: 10 }} /> {vt}
+                    </Tag>
+                );
             },
         },
         {
@@ -1335,6 +1357,10 @@ export default function OperationsTable({
                 const code = pickupCode || dropoffCode || '';
                 return code.toLowerCase().includes(value.toLowerCase());
             }
+            if (key === 'vehicleType') {
+                const vt = booking.metadata?.vehicleType || booking.vehicleType || '';
+                return vt.toLowerCase().includes(value.toLowerCase());
+            }
             
             const bookingValue = String(booking[key] || '').toLowerCase();
             return bookingValue.includes(value.toLowerCase());
@@ -1355,6 +1381,9 @@ export default function OperationsTable({
             } else if (sortConfig.key === 'pax') {
                 aValue = (a.adults || 0) + (a.children || 0) + (a.infants || 0);
                 bValue = (b.adults || 0) + (b.children || 0) + (b.infants || 0);
+            } else if (sortConfig.key === 'vehicleType') {
+                aValue = a.metadata?.vehicleType || a.vehicleType || '';
+                bValue = b.metadata?.vehicleType || b.vehicleType || '';
             } else if (sortConfig.key === 'airportCode') {
                 const aPickup = a.pickup?.rawLocation || a.pickup?.location || '';
                 const aDropoff = a.dropoff?.rawLocation || a.dropoff?.location || '';

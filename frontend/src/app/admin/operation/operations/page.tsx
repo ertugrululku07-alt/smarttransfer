@@ -774,6 +774,25 @@ export default function OperationsPage() {
             }
         },
         {
+            title: 'ARAÇ TİPİ',
+            key: 'vehicleType',
+            width: 110,
+            render: (_: any, record: any) => {
+                const vt = record.metadata?.vehicleType || record.vehicleType || '';
+                if (!vt) return <Text type="secondary" style={{ fontSize: 11 }}>-</Text>;
+                return (
+                    <Tag style={{
+                        margin: 0, fontSize: 10, fontWeight: 700,
+                        background: '#f0f9ff', border: '1px solid #bae6fd',
+                        color: '#0369a1', borderRadius: 6, padding: '2px 8px',
+                        display: 'inline-flex', alignItems: 'center', gap: 3,
+                    }}>
+                        <CarOutlined style={{ fontSize: 10 }} /> {vt}
+                    </Tag>
+                );
+            }
+        },
+        {
             title: 'MÜŞTERİ NOTU',
             key: 'customerNote',
             width: 120,
