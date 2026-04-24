@@ -164,14 +164,14 @@ const AccountingDashboard: React.FC = () => {
     }, [accounts]);
 
     /* ── Top debtors / creditors ── */
-    const topDebtors = useMemo(() => [...accounts].filter(a => Number(a.balance) > 0).sort((a, b) => b.balance - a.balance).slice(0, 5), [accounts]);
-    const topCreditors = useMemo(() => [...accounts].filter(a => Number(a.balance) < 0).sort((a, b) => a.balance - b.balance).slice(0, 5), [accounts]);
+    const topDebtors = useMemo(() => [...accounts].filter(a => Number(a.balance) < 0).sort((a, b) => a.balance - b.balance).slice(0, 5), [accounts]);
+    const topCreditors = useMemo(() => [...accounts].filter(a => Number(a.balance) > 0).sort((a, b) => b.balance - a.balance).slice(0, 5), [accounts]);
 
     /* ── Donut slices ── */
     const donutData = useMemo(() => (
         Object.entries(TYPE_CFG).map(([k, c]) => ({
             label: c.label,
-            value: Math.abs(metrics.byType[k]?.reduce((s, a) => s + (Number(a.credit) || 0), 0) || 0),
+            value: Math.abs(metrics.byType[k]?.reduce((s, a) => s + (Number(a.balance) || 0), 0) || 0),
             color: c.color,
         })).filter(d => d.value > 0)
     ), [metrics]);
@@ -248,8 +248,8 @@ const AccountingDashboard: React.FC = () => {
         if (data.count === 0) return null;
 
         const miniBarData = [
-            { label: 'Alacak', value: data.credit, color: '#16a34a' },
-            { label: 'Borç', value: data.debit, color: '#dc2626' },
+            { label: 'Alacak', value: data.debit, color: '#16a34a' },
+            { label: 'Borç', value: data.credit, color: '#dc2626' },
             { label: 'Bakiye', value: Math.abs(data.balance), color: cfg.color },
         ];
 
@@ -310,7 +310,7 @@ const AccountingDashboard: React.FC = () => {
                                     }}>
                                         <div style={{ fontSize: 10, color: '#16a34a', fontWeight: 700, marginBottom: 2 }}>TOPLAM ALACAK</div>
                                         <div style={{ fontSize: 13, fontWeight: 700, color: '#16a34a', fontFamily: 'monospace' }}>
-                                            {fmtTRY(data.credit)}
+                                            {fmtTRY(data.debit)}
                                         </div>
                                     </div>
                                 </Col>
@@ -321,14 +321,14 @@ const AccountingDashboard: React.FC = () => {
                                     }}>
                                         <div style={{ fontSize: 10, color: '#dc2626', fontWeight: 700, marginBottom: 2 }}>TOPLAM BORÇ</div>
                                         <div style={{ fontSize: 13, fontWeight: 700, color: '#dc2626', fontFamily: 'monospace' }}>
-                                            {fmtTRY(data.debit)}
+                                            {fmtTRY(data.credit)}
                                         </div>
                                     </div>
                                 </Col>
                             </Row>
                             <div style={{ marginTop: 12 }}>
                                 <Progress
-                                    percent={data.credit + data.debit > 0 ? Math.round((data.credit / (data.credit + data.debit)) * 100) : 0}
+                                    percent={data.credit + data.debit > 0 ? Math.round((data.debit / (data.credit + data.debit)) * 100) : 0}
                                     strokeColor={{ from: '#16a34a', to: '#4ade80' }}
                                     trailColor="#fecaca"
                                     strokeWidth={8}
@@ -434,22 +434,22 @@ const AccountingDashboard: React.FC = () => {
                         <Col xs={24} sm={12} lg={6}>
                             <KpiCard
                                 title="Toplam Alacak"
-                                value={metrics.totalCredit}
+                                value={metrics.totalDebit}
                                 color="#16a34a"
                                 grad="linear-gradient(135deg,#16a34a,#4ade80)"
                                 icon={<ArrowUpOutlined />}
-                                badge={`${accounts.filter(a => Number(a.credit) > 0).length} alacaklı cari`}
+                                badge={`${accounts.filter(a => Number(a.balance) < 0).length} borçlu cari`}
                                 trend={+8.4}
                             />
                         </Col>
                         <Col xs={24} sm={12} lg={6}>
                             <KpiCard
                                 title="Toplam Borç"
-                                value={metrics.totalDebit}
+                                value={metrics.totalCredit}
                                 color="#dc2626"
                                 grad="linear-gradient(135deg,#dc2626,#f87171)"
                                 icon={<ArrowDownOutlined />}
-                                badge={`${accounts.filter(a => Number(a.debit) > 0).length} borçlu cari`}
+                                badge={`${accounts.filter(a => Number(a.balance) > 0).length} alacaklı cari`}
                                 trend={-3.1}
                             />
                         </Col>
@@ -581,8 +581,8 @@ const AccountingDashboard: React.FC = () => {
                                 </div>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                                     {[
-                                        { icon: <CheckCircleOutlined />, color: '#16a34a', text: `Alacak: ${fmtTRY(metrics.totalCredit)}` },
-                                        { icon: <WarningOutlined />, color: '#d97706', text: `Borç: ${fmtTRY(metrics.totalDebit)}` },
+                                        { icon: <CheckCircleOutlined />, color: '#16a34a', text: `Alacak: ${fmtTRY(metrics.totalDebit)}` },
+                                        { icon: <WarningOutlined />, color: '#d97706', text: `Borç: ${fmtTRY(metrics.totalCredit)}` },
                                         { icon: <InfoCircleOutlined />, color: '#2563eb', text: `Net: ${fmtTRY(Math.abs(metrics.totalBalance))}` },
                                     ].map((r, i) => (
                                         <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
@@ -652,7 +652,7 @@ const AccountingDashboard: React.FC = () => {
                                             align: 'right' as const,
                                             render: (v: number) => (
                                                 <Text style={{ color: '#dc2626', fontWeight: 700, fontSize: 12, fontFamily: 'monospace' }}>
-                                                    {fmtTRY(v)}
+                                                    {fmtTRY(Math.abs(v))}
                                                 </Text>
                                             )
                                         },
@@ -660,10 +660,10 @@ const AccountingDashboard: React.FC = () => {
                                             title: 'Oran',
                                             align: 'center' as const,
                                             render: (_: any, r: Account) => {
-                                                const max = topDebtors[0]?.balance || 1;
+                                                const max = Math.abs(topDebtors[0]?.balance) || 1;
                                                 return (
                                                     <Progress
-                                                        percent={Math.round((r.balance / max) * 100)}
+                                                        percent={Math.round((Math.abs(r.balance) / max) * 100)}
                                                         showInfo={false}
                                                         strokeColor="#dc2626"
                                                         trailColor="#fecaca"

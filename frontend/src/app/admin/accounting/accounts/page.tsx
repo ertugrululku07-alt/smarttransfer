@@ -130,8 +130,8 @@ const AccountsPage: React.FC = () => {
     const stats = useMemo(() => {
         let receivable = 0, payable = 0, netBalance = 0;
         accounts.forEach(acc => {
-            receivable += Number(acc.credit) || 0;
-            payable += Number(acc.debit) || 0;
+            receivable += Number(acc.debit) || 0;
+            payable += Number(acc.credit) || 0;
             netBalance += Number(acc.balance) || 0;
         });
         const byType: Record<string, number> = {};
@@ -676,7 +676,7 @@ const AccountsPage: React.FC = () => {
                                     precision={2}
                                     styles={{ content: { color: stats.netBalance >= 0 ? '#2563eb' : '#7c3aed', fontWeight: 700, fontSize: 22 } }}
                                     prefix={<WalletOutlined />}
-                                    suffix={stats.netBalance >= 0 ? ' ₺ (Alacaklı)' : ' ₺ (Borçlu)'}
+                                    suffix={stats.netBalance < 0 ? ' ₺ (Alacaklı)' : stats.netBalance > 0 ? ' ₺ (Borçlu)' : ' ₺'}
                                 />
                             </Card>
                         </Col>
@@ -967,7 +967,7 @@ const AccountsPage: React.FC = () => {
                                     }}>
                                         <div style={{ fontSize: 11, color: '#16a34a', fontWeight: 600, marginBottom: 4 }}>TOPLAM ALACAK</div>
                                         <div style={{ fontSize: 18, fontWeight: 700, color: '#16a34a', fontFamily: 'monospace' }}>
-                                            {fmtCurrency(stmtAccount.credit, stmtAccount.currency)}
+                                            {fmtCurrency(stmtAccount.debit, stmtAccount.currency)}
                                         </div>
                                     </div>
                                 </Col>
@@ -978,7 +978,7 @@ const AccountsPage: React.FC = () => {
                                     }}>
                                         <div style={{ fontSize: 11, color: '#dc2626', fontWeight: 600, marginBottom: 4 }}>TOPLAM BORC</div>
                                         <div style={{ fontSize: 18, fontWeight: 700, color: '#dc2626', fontFamily: 'monospace' }}>
-                                            {fmtCurrency(stmtAccount.debit, stmtAccount.currency)}
+                                            {fmtCurrency(stmtAccount.credit, stmtAccount.currency)}
                                         </div>
                                     </div>
                                 </Col>
@@ -996,7 +996,7 @@ const AccountsPage: React.FC = () => {
                                 }}>
                                     {Number(stmtAccount.balance) < 0 ? '↑' : Number(stmtAccount.balance) > 0 ? '↓' : ''}
                                     {fmtCurrency(Math.abs(Number(stmtAccount.balance)), stmtAccount.currency)}
-                                    {Number(stmtAccount.balance) < 0 ? ' (Alacakli)' : Number(stmtAccount.balance) > 0 ? ' (Borclu)' : ''}
+                                    {Number(stmtAccount.balance) > 0 ? ' (Alacakli)' : Number(stmtAccount.balance) < 0 ? ' (Borclu)' : ''}
                                 </span>
                             </div>
                             <div style={{
