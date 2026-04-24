@@ -70,7 +70,38 @@ router.get('/', authMiddleware, async (req, res) => {
             openingFee: v.metadata?.openingFee,
             fixedPrice: v.metadata?.fixedPrice,
             currency: v.metadata?.currency,
-            driverId: v.metadata?.driverId || null
+            driverId: v.metadata?.driverId || null,
+            // Documents & UETDS
+            chassisNumber: v.metadata?.chassisNumber || null,
+            engineNumber: v.metadata?.engineNumber || null,
+            registrationCertNo: v.metadata?.registrationCertNo || null,
+            registrationDate: v.metadata?.registrationDate || null,
+            seatCount: v.metadata?.seatCount || null,
+            // Inspection
+            inspectionDate: v.metadata?.inspectionDate || null,
+            inspectionPeriod: v.metadata?.inspectionPeriod || null,
+            inspectionExpiryDate: v.metadata?.inspectionExpiryDate || null,
+            // Insurance
+            insuranceStartDate: v.metadata?.insuranceStartDate || null,
+            insuranceExpiryDate: v.metadata?.insuranceExpiryDate || null,
+            insuranceCompany: v.metadata?.insuranceCompany || null,
+            insurancePolicyNo: v.metadata?.insurancePolicyNo || null,
+            // Kasko
+            kaskoStartDate: v.metadata?.kaskoStartDate || null,
+            kaskoExpiryDate: v.metadata?.kaskoExpiryDate || null,
+            kaskoCompany: v.metadata?.kaskoCompany || null,
+            kaskoPolicyNo: v.metadata?.kaskoPolicyNo || null,
+            // Ownership
+            ownershipType: v.metadata?.ownershipType || 'OWNED',
+            rentalPeriod: v.metadata?.rentalPeriod || null,
+            rentalCost: v.metadata?.rentalCost || null,
+            ownerName: v.metadata?.ownerName || null,
+            ownerPhone: v.metadata?.ownerPhone || null,
+            ownerTaxNumber: v.metadata?.ownerTaxNumber || null,
+            ownerTaxOffice: v.metadata?.ownerTaxOffice || null,
+            ownerAddress: v.metadata?.ownerAddress || null,
+            ownerEmail: v.metadata?.ownerEmail || null,
+            ownerAccountId: v.metadata?.ownerAccountId || null,
         }));
 
         console.log('[GET vehicles] driverIds:', formattedVehicles.map(v => ({ plate: v.plateNumber, driverId: v.driverId })));
@@ -118,6 +149,7 @@ router.post('/', authMiddleware, async (req, res) => {
             return res.status(400).json({ success: false, error: 'Geçerli bir Araç Tipi seçilmelidir.' });
         }
 
+        const ownershipType = data.ownershipType || 'OWNED';
         const vehicle = await prisma.vehicle.create({
             data: {
                 tenantId,
@@ -126,11 +158,10 @@ router.post('/', authMiddleware, async (req, res) => {
                 model: data.model || 'Unknown',
                 year: data.year || new Date().getFullYear(),
                 color: data.color || 'White',
-                status: data.isActive ? 'ACTIVE' : 'INACTIVE',
-                isOwned: data.isCompanyOwned !== false,
+                status: data.isActive !== false ? 'ACTIVE' : 'INACTIVE',
+                isOwned: ownershipType !== 'RENTED',
                 vehicleTypeId: vehicleTypeId,
                 metadata: {
-                    vehicleClass: data.vehicleClass,
                     basePricePerKm: data.basePricePerKm,
                     basePricePerHour: data.basePricePerHour,
                     hasBabySeat: data.hasBabySeat,
@@ -142,10 +173,82 @@ router.post('/', authMiddleware, async (req, res) => {
                     hasWifi: data.hasWifi,
                     openingFee: data.openingFee,
                     fixedPrice: data.fixedPrice,
-                    currency: data.currency
+                    currency: data.currency,
+                    seatCount: data.seatCount,
+                    // UETDS / Documents
+                    chassisNumber: data.chassisNumber,
+                    engineNumber: data.engineNumber,
+                    registrationCertNo: data.registrationCertNo,
+                    registrationDate: data.registrationDate,
+                    // Inspection
+                    inspectionDate: data.inspectionDate,
+                    inspectionPeriod: data.inspectionPeriod,
+                    inspectionExpiryDate: data.inspectionExpiryDate,
+                    // Insurance
+                    insuranceStartDate: data.insuranceStartDate,
+                    insuranceExpiryDate: data.insuranceExpiryDate,
+                    insuranceCompany: data.insuranceCompany,
+                    insurancePolicyNo: data.insurancePolicyNo,
+                    // Kasko
+                    kaskoStartDate: data.kaskoStartDate,
+                    kaskoExpiryDate: data.kaskoExpiryDate,
+                    kaskoCompany: data.kaskoCompany,
+                    kaskoPolicyNo: data.kaskoPolicyNo,
+                    // Ownership
+                    ownershipType: ownershipType,
+                    rentalPeriod: data.rentalPeriod,
+                    rentalCost: data.rentalCost,
+                    ownerName: data.ownerName,
+                    ownerPhone: data.ownerPhone,
+                    ownerTaxNumber: data.ownerTaxNumber,
+                    ownerTaxOffice: data.ownerTaxOffice,
+                    ownerAddress: data.ownerAddress,
+                    ownerEmail: data.ownerEmail,
                 }
             }
         });
+
+        // Auto-create Cari (Account) for rented vehicles
+        if (ownershipType === 'RENTED' && data.ownerName) {
+            try {
+                let account = await prisma.account.findFirst({
+                    where: { tenantId, name: data.ownerName, type: 'SUPPLIER' }
+                });
+                if (!account) {
+                    const code = `SUP-${Date.now().toString(36).toUpperCase()}`;
+                    account = await prisma.account.create({
+                        data: {
+                            tenantId,
+                            code,
+                            name: data.ownerName,
+                            type: 'SUPPLIER',
+                            phone: data.ownerPhone || null,
+                            email: data.ownerEmail || null,
+                            address: data.ownerAddress || null,
+                            taxNumber: data.ownerTaxNumber || null,
+                            taxOffice: data.ownerTaxOffice || null,
+                        }
+                    });
+                }
+                // Link account to vehicle and set initial credit based on rental
+                const rentalCost = parseFloat(data.rentalCost) || 0;
+                await prisma.vehicle.update({
+                    where: { id: vehicle.id },
+                    data: {
+                        metadata: { ...(vehicle.metadata || {}), ownerAccountId: account.id }
+                    }
+                });
+                // Update account credit (owner becomes creditor)
+                if (rentalCost > 0) {
+                    await prisma.account.update({
+                        where: { id: account.id },
+                        data: { credit: { increment: rentalCost }, balance: { decrement: rentalCost } }
+                    });
+                }
+            } catch (accountErr) {
+                console.error('Auto-create Cari error:', accountErr);
+            }
+        }
 
         res.json({ success: true, data: vehicle });
     } catch (error) {
@@ -168,19 +271,17 @@ router.put('/:id', authMiddleware, async (req, res) => {
         const existingVehicle = await prisma.vehicle.findFirst({ where: { id, tenantId }, select: { metadata: true } });
         const existingMeta = existingVehicle?.metadata || {};
 
+        const ownershipType = data.ownershipType ?? existingMeta.ownershipType ?? 'OWNED';
         const updateData = {
             plateNumber: data.plateNumber,
             brand: data.brand,
             model: data.model,
             year: data.year,
             color: data.color,
-            status: data.isActive ? 'ACTIVE' : 'INACTIVE',
-            isOwned: data.isCompanyOwned,
+            status: data.isActive !== false ? 'ACTIVE' : 'INACTIVE',
+            isOwned: ownershipType !== 'RENTED',
             metadata: {
-                // Preserve existing fields (especially tracking!)
                 ...existingMeta,
-                // Overwrite only the vehicle definition fields
-                vehicleClass: data.vehicleClass,
                 basePricePerKm: data.basePricePerKm,
                 basePricePerHour: data.basePricePerHour,
                 hasBabySeat: data.hasBabySeat,
@@ -194,6 +295,37 @@ router.put('/:id', authMiddleware, async (req, res) => {
                 fixedPrice: data.fixedPrice,
                 currency: data.currency,
                 driverId: existingMeta.driverId ?? null,
+                seatCount: data.seatCount ?? existingMeta.seatCount,
+                // UETDS / Documents
+                chassisNumber: data.chassisNumber ?? existingMeta.chassisNumber,
+                engineNumber: data.engineNumber ?? existingMeta.engineNumber,
+                registrationCertNo: data.registrationCertNo ?? existingMeta.registrationCertNo,
+                registrationDate: data.registrationDate ?? existingMeta.registrationDate,
+                // Inspection
+                inspectionDate: data.inspectionDate ?? existingMeta.inspectionDate,
+                inspectionPeriod: data.inspectionPeriod ?? existingMeta.inspectionPeriod,
+                inspectionExpiryDate: data.inspectionExpiryDate ?? existingMeta.inspectionExpiryDate,
+                // Insurance
+                insuranceStartDate: data.insuranceStartDate ?? existingMeta.insuranceStartDate,
+                insuranceExpiryDate: data.insuranceExpiryDate ?? existingMeta.insuranceExpiryDate,
+                insuranceCompany: data.insuranceCompany ?? existingMeta.insuranceCompany,
+                insurancePolicyNo: data.insurancePolicyNo ?? existingMeta.insurancePolicyNo,
+                // Kasko
+                kaskoStartDate: data.kaskoStartDate ?? existingMeta.kaskoStartDate,
+                kaskoExpiryDate: data.kaskoExpiryDate ?? existingMeta.kaskoExpiryDate,
+                kaskoCompany: data.kaskoCompany ?? existingMeta.kaskoCompany,
+                kaskoPolicyNo: data.kaskoPolicyNo ?? existingMeta.kaskoPolicyNo,
+                // Ownership
+                ownershipType: ownershipType,
+                rentalPeriod: data.rentalPeriod ?? existingMeta.rentalPeriod,
+                rentalCost: data.rentalCost ?? existingMeta.rentalCost,
+                ownerName: data.ownerName ?? existingMeta.ownerName,
+                ownerPhone: data.ownerPhone ?? existingMeta.ownerPhone,
+                ownerTaxNumber: data.ownerTaxNumber ?? existingMeta.ownerTaxNumber,
+                ownerTaxOffice: data.ownerTaxOffice ?? existingMeta.ownerTaxOffice,
+                ownerAddress: data.ownerAddress ?? existingMeta.ownerAddress,
+                ownerEmail: data.ownerEmail ?? existingMeta.ownerEmail,
+                ownerAccountId: existingMeta.ownerAccountId ?? null,
             }
         };
 

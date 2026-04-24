@@ -19,6 +19,11 @@ import {
   message,
   Upload,
   Tabs,
+  DatePicker,
+  Steps,
+  Divider,
+  Radio,
+  Alert,
 } from 'antd';
 import type { UploadChangeParam } from 'antd/es/upload';
 import type { RcFile, UploadFile, UploadProps } from 'antd/es/upload/interface';
@@ -31,6 +36,15 @@ import {
   SearchOutlined,
   UserOutlined,
   CarOutlined,
+  SafetyOutlined,
+  FileProtectOutlined,
+  HomeOutlined,
+  ToolOutlined,
+  IdcardOutlined,
+  BankOutlined,
+  CalendarOutlined,
+  DollarOutlined,
+  SettingOutlined,
 } from '@ant-design/icons';
 import { Avatar, List, Tooltip } from 'antd';
 import apiClient, { getImageUrl } from '@/lib/api-client';
@@ -68,6 +82,37 @@ interface Vehicle {
   usageType: string | string[];
   shuttleMode?: string | null;
   zonePrices?: any[];
+  // UETDS / Documents
+  chassisNumber?: string | null;
+  engineNumber?: string | null;
+  registrationCertNo?: string | null;
+  registrationDate?: string | null;
+  seatCount?: number | null;
+  // Inspection
+  inspectionDate?: string | null;
+  inspectionPeriod?: string | null;
+  inspectionExpiryDate?: string | null;
+  // Insurance
+  insuranceStartDate?: string | null;
+  insuranceExpiryDate?: string | null;
+  insuranceCompany?: string | null;
+  insurancePolicyNo?: string | null;
+  // Kasko
+  kaskoStartDate?: string | null;
+  kaskoExpiryDate?: string | null;
+  kaskoCompany?: string | null;
+  kaskoPolicyNo?: string | null;
+  // Ownership
+  ownershipType?: string | null;
+  rentalPeriod?: string | null;
+  rentalCost?: number | null;
+  ownerName?: string | null;
+  ownerPhone?: string | null;
+  ownerTaxNumber?: string | null;
+  ownerTaxOffice?: string | null;
+  ownerAddress?: string | null;
+  ownerEmail?: string | null;
+  ownerAccountId?: string | null;
 }
 
 interface VehicleFormValues {
@@ -81,7 +126,6 @@ interface VehicleFormValues {
   luggage?: number;
   vehicleType: string;
   vehicleTypeId?: number;
-  vehicleClass?: string;
   basePricePerKm?: number;
   basePricePerHour?: number;
   isCompanyOwned?: boolean;
@@ -99,6 +143,36 @@ interface VehicleFormValues {
   };
   currency?: string;
   zonePrices?: any[];
+  // UETDS / Documents
+  chassisNumber?: string;
+  engineNumber?: string;
+  registrationCertNo?: string;
+  registrationDate?: any;
+  seatCount?: number;
+  // Inspection
+  inspectionDate?: any;
+  inspectionPeriod?: string;
+  inspectionExpiryDate?: any;
+  // Insurance
+  insuranceStartDate?: any;
+  insuranceExpiryDate?: any;
+  insuranceCompany?: string;
+  insurancePolicyNo?: string;
+  // Kasko
+  kaskoStartDate?: any;
+  kaskoExpiryDate?: any;
+  kaskoCompany?: string;
+  kaskoPolicyNo?: string;
+  // Ownership
+  ownershipType?: string;
+  rentalPeriod?: string;
+  rentalCost?: number;
+  ownerName?: string;
+  ownerPhone?: string;
+  ownerTaxNumber?: string;
+  ownerTaxOffice?: string;
+  ownerAddress?: string;
+  ownerEmail?: string;
 }
 
 const VehiclesPage: React.FC = () => {
@@ -107,8 +181,8 @@ const VehiclesPage: React.FC = () => {
   const [vehicleTypes, setVehicleTypes] = useState<any[]>([]); // Added vehicleTypes state
 
   const [filterActive, setFilterActive] = useState<'all' | 'active' | 'inactive'>('all');
-  const [vehicleClassFilter, setVehicleClassFilter] = useState<string | undefined>(undefined);
   const [searchText, setSearchText] = useState('');
+  const [currentStep, setCurrentStep] = useState(0);
 
   const [modalVisible, setModalVisible] = useState(false);
   const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
@@ -224,7 +298,6 @@ const VehiclesPage: React.FC = () => {
     return vehicles.filter((v) => {
       if (filterActive === 'active' && !v.isActive) return false;
       if (filterActive === 'inactive' && v.isActive) return false;
-      if (vehicleClassFilter && v.vehicleClass !== vehicleClassFilter) return false;
 
       if (searchText.trim()) {
         const s = searchText.trim().toLowerCase();
@@ -235,11 +308,12 @@ const VehiclesPage: React.FC = () => {
 
       return true;
     });
-  }, [vehicles, filterActive, vehicleClassFilter, searchText]);
+  }, [vehicles, filterActive, searchText]);
 
   const handleNewVehicle = () => {
     setEditingVehicle(null);
     setImageUrl(undefined);
+    setCurrentStep(0);
     form.resetFields();
     form.setFieldsValue({
       isCompanyOwned: true,
@@ -250,6 +324,8 @@ const VehiclesPage: React.FC = () => {
       shuttleMode: undefined,
       zonePrices: [],
       currency: undefined,
+      ownershipType: 'OWNED',
+      inspectionPeriod: '1_YEAR',
     });
     setModalVisible(true);
   };
@@ -257,6 +333,7 @@ const VehiclesPage: React.FC = () => {
   const handleEditVehicle = (vehicle: Vehicle) => {
     setEditingVehicle(vehicle);
     setImageUrl(vehicle.imageUrl || undefined);
+    setCurrentStep(0);
     form.setFieldsValue({
       name: vehicle.name,
       brand: vehicle.brand || undefined,
@@ -266,9 +343,7 @@ const VehiclesPage: React.FC = () => {
       plateNumber: vehicle.plateNumber,
       capacity: vehicle.capacity,
       luggage: vehicle.luggage || undefined,
-      // vehicleType: vehicle.vehicleType, // Legacy string
-      vehicleTypeId: (vehicle as any).vehicleTypeId, // Use ID if available
-      vehicleClass: vehicle.vehicleClass || undefined,
+      vehicleTypeId: (vehicle as any).vehicleTypeId,
       basePricePerKm: vehicle.basePricePerKm || undefined,
       basePricePerHour: vehicle.basePricePerHour || undefined,
       isCompanyOwned: vehicle.isCompanyOwned,
@@ -286,9 +361,38 @@ const VehiclesPage: React.FC = () => {
         fixedPrice: (vehicle as any).fixedPrice
       },
       currency: (vehicle as any).currency,
-    });
+      // UETDS / Documents
+      chassisNumber: vehicle.chassisNumber || undefined,
+      engineNumber: vehicle.engineNumber || undefined,
+      registrationCertNo: vehicle.registrationCertNo || undefined,
+      registrationDate: vehicle.registrationDate ? dayjs(vehicle.registrationDate) : undefined,
+      seatCount: vehicle.seatCount || undefined,
+      // Inspection
+      inspectionDate: vehicle.inspectionDate ? dayjs(vehicle.inspectionDate) : undefined,
+      inspectionPeriod: vehicle.inspectionPeriod || '1_YEAR',
+      inspectionExpiryDate: vehicle.inspectionExpiryDate ? dayjs(vehicle.inspectionExpiryDate) : undefined,
+      // Insurance
+      insuranceStartDate: vehicle.insuranceStartDate ? dayjs(vehicle.insuranceStartDate) : undefined,
+      insuranceExpiryDate: vehicle.insuranceExpiryDate ? dayjs(vehicle.insuranceExpiryDate) : undefined,
+      insuranceCompany: vehicle.insuranceCompany || undefined,
+      insurancePolicyNo: vehicle.insurancePolicyNo || undefined,
+      // Kasko
+      kaskoStartDate: vehicle.kaskoStartDate ? dayjs(vehicle.kaskoStartDate) : undefined,
+      kaskoExpiryDate: vehicle.kaskoExpiryDate ? dayjs(vehicle.kaskoExpiryDate) : undefined,
+      kaskoCompany: vehicle.kaskoCompany || undefined,
+      kaskoPolicyNo: vehicle.kaskoPolicyNo || undefined,
+      // Ownership
+      ownershipType: vehicle.ownershipType || 'OWNED',
+      rentalPeriod: vehicle.rentalPeriod || undefined,
+      rentalCost: vehicle.rentalCost || undefined,
+      ownerName: vehicle.ownerName || undefined,
+      ownerPhone: vehicle.ownerPhone || undefined,
+      ownerTaxNumber: vehicle.ownerTaxNumber || undefined,
+      ownerTaxOffice: vehicle.ownerTaxOffice || undefined,
+      ownerAddress: vehicle.ownerAddress || undefined,
+      ownerEmail: vehicle.ownerEmail || undefined,
+    } as any);
 
-    // Fallback if ID is missing (legacy records), set ID by searching name match (optional but good)
     if (!(vehicle as any).vehicleTypeId && vehicleTypes.length > 0) {
       const match = vehicleTypes.find(t => t.category === vehicle.vehicleType);
       if (match) {
@@ -351,14 +455,20 @@ const VehiclesPage: React.FC = () => {
         imageUrl: imageUrl,
         isCompanyOwned: values.isCompanyOwned,
         shuttleMode: Array.isArray(values.usageType) ? (values.usageType.includes('SHUTTLE') ? values.shuttleMode : null) : (values.usageType === 'SHUTTLE' ? values.shuttleMode : null),
-        // Map metadata fields to root for backend
         openingFee: metadataForm.openingFee,
         fixedPrice: metadataForm.fixedPrice,
         basePricePerKm: (values as any).basePricePerKm,
         basePricePerHour: (values as any).basePricePerHour,
         zonePrices: values.zonePrices,
-        // Send vehicleType string for legacy compatibility/display
-        vehicleType: selectedType ? selectedType.name : 'Unknown'
+        vehicleType: selectedType ? selectedType.name : 'Unknown',
+        // Date fields - format for backend
+        registrationDate: values.registrationDate ? dayjs(values.registrationDate).format('YYYY-MM-DD') : null,
+        inspectionDate: values.inspectionDate ? dayjs(values.inspectionDate).format('YYYY-MM-DD') : null,
+        inspectionExpiryDate: values.inspectionExpiryDate ? dayjs(values.inspectionExpiryDate).format('YYYY-MM-DD') : null,
+        insuranceStartDate: values.insuranceStartDate ? dayjs(values.insuranceStartDate).format('YYYY-MM-DD') : null,
+        insuranceExpiryDate: values.insuranceExpiryDate ? dayjs(values.insuranceExpiryDate).format('YYYY-MM-DD') : null,
+        kaskoStartDate: values.kaskoStartDate ? dayjs(values.kaskoStartDate).format('YYYY-MM-DD') : null,
+        kaskoExpiryDate: values.kaskoExpiryDate ? dayjs(values.kaskoExpiryDate).format('YYYY-MM-DD') : null,
       };
 
       if (editingVehicle) {
@@ -393,7 +503,7 @@ const VehiclesPage: React.FC = () => {
       form.setFieldsValue({
         capacity: type.capacity,
         luggage: type.luggage,
-        vehicleClass: type.category // Auto-select category/class if strictly mapped
+        // capacity and luggage auto-filled from type
       });
     }
   };
@@ -403,19 +513,6 @@ const VehiclesPage: React.FC = () => {
     SHUTTLE: { label: 'Shuttle', color: '#0ea5e9' },
     TOUR: { label: 'Tur', color: '#f59e0b' },
   };
-
-  const CLASS_COLORS: Record<string, string> = {
-    ECONOMY: '#64748b',
-    BUSINESS: '#0891b2',
-    VIP: '#7c3aed',
-    MINIBUS: '#ca8a04',
-    BUS: '#dc2626',
-  };
-
-  const CLASS_LABELS: Record<string, string> = {
-    ECONOMY: 'Economy', BUSINESS: 'Business', VIP: 'VIP', MINIBUS: 'Minibüs', BUS: 'Otöbüs'
-  };
-
 
   return (
     <AdminGuard>
@@ -469,22 +566,6 @@ const VehiclesPage: React.FC = () => {
                 ]}
               />
             </Col>
-            <Col xs={12} sm={8} md={5}>
-              <Select
-                allowClear
-                placeholder="Sınıf Filtrele"
-                style={{ width: '100%' }}
-                value={vehicleClassFilter}
-                onChange={(val) => setVehicleClassFilter(val)}
-                options={[
-                  { value: 'ECONOMY', label: 'Economy' },
-                  { value: 'BUSINESS', label: 'Business' },
-                  { value: 'VIP', label: 'VIP' },
-                  { value: 'MINIBUS', label: 'Minibüs' },
-                  { value: 'BUS', label: 'Otöbüs' },
-                ]}
-              />
-            </Col>
             <Col xs={24} md={8} style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               {['TRANSFER', 'SHUTTLE', 'TOUR'].map(t => (
                 <Button
@@ -527,8 +608,6 @@ const VehiclesPage: React.FC = () => {
             const usageTypes = Array.isArray(v.usageType) ? v.usageType : [v.usageType || 'TRANSFER'];
             const firstUsage = usageTypes[0];
             const usageInfo = USAGE_LABELS[firstUsage] || { label: firstUsage, color: '#6b7280' };
-            const classColor = CLASS_COLORS[v.vehicleClass || ''] || '#6b7280';
-            const classLabel = CLASS_LABELS[v.vehicleClass || ''] || v.vehicleClass || '';
 
             return (
               <Col key={v.id} xs={24} sm={12} lg={8} xl={6}>
@@ -549,7 +628,7 @@ const VehiclesPage: React.FC = () => {
                     height: 140,
                     background: v.imageUrl
                       ? `url(${getImageUrl(v.imageUrl)}) center/cover`
-                      : `linear-gradient(135deg, ${usageInfo.color}22 0%, ${classColor}33 100%)`,
+                      : `linear-gradient(135deg, ${usageInfo.color}22 0%, ${usageInfo.color}33 100%)`,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -626,21 +705,7 @@ const VehiclesPage: React.FC = () => {
                           {[v.brand, v.model, v.year ? String(v.year) : null].filter(Boolean).join(' ')}
                         </Text>
                       </div>
-                      {classLabel && (
-                        <div style={{
-                          background: classColor + '18',
-                          color: classColor,
-                          borderRadius: 6,
-                          padding: '2px 8px',
-                          fontSize: 11,
-                          fontWeight: 700,
-                          flexShrink: 0,
-                          marginLeft: 8,
-                        }}>
-                          {classLabel}
-                        </div>
-                      )}
-                    </div>
+                      </div>
 
                     {/* Features Row */}
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
@@ -878,217 +943,401 @@ const VehiclesPage: React.FC = () => {
 
         <Modal
           open={modalVisible}
-          title={editingVehicle ? 'Araç Düzenle' : 'Yeni Araç Ekle'}
+          title={null}
           onCancel={() => setModalVisible(false)}
-          onOk={handleSubmit}
-          width={800}
-          okText="Kaydet"
-          cancelText="İptal"
+          footer={null}
+          width={920}
+          destroyOnClose
+          styles={{ body: { padding: 0 } }}
         >
-          <Form form={form} layout="vertical">
-            <Tabs defaultActiveKey="1" items={[
-              {
-                key: '1',
-                label: 'Araç Özellikleri',
-                children: (
-                  <>
-                    <Row gutter={16}>
-                      <Col span={12}>
-                        <Form.Item
-                          label="Araç Adı"
-                          name="name"
-                          rules={[{ required: true, message: 'Araç adı zorunludur' }]}
-                        >
-                          <Input placeholder="Örn: Mercedes E Serisi - Sedan" />
-                        </Form.Item>
-                      </Col>
-                      <Col span={12}>
-                        <Form.Item
-                          label="Plaka"
-                          name="plateNumber"
-                          rules={[{ required: true, message: 'Plaka zorunludur' }]}
-                        >
-                          <Input placeholder="34 ABC 123" />
-                        </Form.Item>
-                      </Col>
-                    </Row>
+          {/* Header */}
+          <div style={{
+            background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a78bfa 100%)',
+            padding: '24px 32px 20px',
+            borderRadius: '8px 8px 0 0',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+              <div style={{ width: 44, height: 44, borderRadius: 12, background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <CarOutlined style={{ fontSize: 22, color: 'white' }} />
+              </div>
+              <div>
+                <Title level={4} style={{ margin: 0, color: 'white', fontWeight: 700 }}>
+                  {editingVehicle ? 'Araç Düzenle' : 'Yeni Araç Ekle'}
+                </Title>
+                <Text style={{ color: 'rgba(255,255,255,0.75)', fontSize: 12 }}>
+                  Araç bilgilerini eksiksiz doldurun
+                </Text>
+              </div>
+            </div>
+            <Steps
+              current={currentStep}
+              size="small"
+              onChange={(step) => setCurrentStep(step)}
+              style={{ maxWidth: 700 }}
+              items={[
+                { title: <span style={{ color: 'white', fontSize: 12 }}>Araç Bilgileri</span>, icon: <CarOutlined style={{ color: currentStep >= 0 ? 'white' : 'rgba(255,255,255,0.5)' }} /> },
+                { title: <span style={{ color: 'white', fontSize: 12 }}>Belgeler & Muayene</span>, icon: <FileProtectOutlined style={{ color: currentStep >= 1 ? 'white' : 'rgba(255,255,255,0.5)' }} /> },
+                { title: <span style={{ color: 'white', fontSize: 12 }}>Mülkiyet & Sahiplik</span>, icon: <HomeOutlined style={{ color: currentStep >= 2 ? 'white' : 'rgba(255,255,255,0.5)' }} /> },
+                { title: <span style={{ color: 'white', fontSize: 12 }}>Özellikler</span>, icon: <SettingOutlined style={{ color: currentStep >= 3 ? 'white' : 'rgba(255,255,255,0.5)' }} /> },
+              ]}
+            />
+          </div>
 
-                    <Row gutter={16}>
-                      <Col span={8}>
-                        <Form.Item label="Marka" name="brand">
-                          <Input placeholder="Mercedes, VW, Ford..." />
-                        </Form.Item>
-                      </Col>
-                      <Col span={8}>
-                        <Form.Item label="Model" name="model">
-                          <Input placeholder="E220d, Caravelle..." />
-                        </Form.Item>
-                      </Col>
-                      <Col span={8}>
-                        <Form.Item label="Yıl" name="year">
-                          <InputNumber placeholder="2023" style={{ width: '100%' }} />
-                        </Form.Item>
-                      </Col>
-                    </Row>
+          <div style={{ padding: '24px 32px 16px', maxHeight: '60vh', overflowY: 'auto' }}>
+            <Form form={form} layout="vertical" size="middle">
 
-                    <Row gutter={16}>
-                      <Col span={8}>
-                        <Form.Item label="Renk" name="color">
-                          <Input placeholder="Siyah, Beyaz..." />
-                        </Form.Item>
-                      </Col>
-                      <Col span={8}>
-                        <Form.Item
-                          label="Kapasite (Yolcu)"
-                          name="capacity"
-                          rules={[{ required: true, message: 'Kapasite zorunludur' }]}
-                        >
-                          <InputNumber min={1} max={50} style={{ width: '100%' }} />
-                        </Form.Item>
-                      </Col>
-                      <Col span={8}>
-                        <Form.Item label="Bagaj Kapasitesi" name="luggage">
-                          <InputNumber min={0} max={20} style={{ width: '100%' }} />
-                        </Form.Item>
-                      </Col>
-                    </Row>
+              {/* ── STEP 0: Araç Bilgileri ── */}
+              {currentStep === 0 && (
+                <>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+                    <CarOutlined style={{ color: '#6366f1', fontSize: 16 }} />
+                    <Text strong style={{ fontSize: 15, color: '#1e293b' }}>Temel Araç Bilgileri</Text>
+                  </div>
+                  <Row gutter={16}>
+                    <Col span={12}>
+                      <Form.Item label="Araç Adı" name="name" rules={[{ required: true, message: 'Araç adı zorunludur' }]}>
+                        <Input placeholder="Örn: Mercedes E Serisi - Sedan" />
+                      </Form.Item>
+                    </Col>
+                    <Col span={12}>
+                      <Form.Item label="Plaka" name="plateNumber" rules={[{ required: true, message: 'Plaka zorunludur' }]}>
+                        <Input placeholder="34 ABC 123" style={{ textTransform: 'uppercase', fontWeight: 600, letterSpacing: 1 }} />
+                      </Form.Item>
+                    </Col>
+                  </Row>
+                  <Row gutter={16}>
+                    <Col span={8}>
+                      <Form.Item label="Marka" name="brand"><Input placeholder="Mercedes, VW, Ford..." /></Form.Item>
+                    </Col>
+                    <Col span={8}>
+                      <Form.Item label="Model" name="model"><Input placeholder="E220d, Caravelle..." /></Form.Item>
+                    </Col>
+                    <Col span={4}>
+                      <Form.Item label="Yıl" name="year"><InputNumber placeholder="2023" style={{ width: '100%' }} /></Form.Item>
+                    </Col>
+                    <Col span={4}>
+                      <Form.Item label="Renk" name="color"><Input placeholder="Siyah" /></Form.Item>
+                    </Col>
+                  </Row>
+                  <Row gutter={16}>
+                    <Col span={6}>
+                      <Form.Item label="Kapasite (Yolcu)" name="capacity" rules={[{ required: true, message: 'Zorunlu' }]}>
+                        <InputNumber min={1} max={50} style={{ width: '100%' }} />
+                      </Form.Item>
+                    </Col>
+                    <Col span={6}>
+                      <Form.Item label="Bagaj Kapasitesi" name="luggage"><InputNumber min={0} max={20} style={{ width: '100%' }} /></Form.Item>
+                    </Col>
+                    <Col span={6}>
+                      <Form.Item label="Koltuk Sayısı (UETDS)" name="seatCount"><InputNumber min={1} max={60} style={{ width: '100%' }} /></Form.Item>
+                    </Col>
+                    <Col span={6}>
+                      <Form.Item label="Araç Tipi" name="vehicleTypeId" rules={[{ required: true, message: 'Seçiniz' }]}>
+                        <Select placeholder="Seçiniz" onChange={onVehicleTypeChange} showSearch optionFilterProp="children">
+                          {vehicleTypes.map(t => (<Option key={t.id} value={t.id}>{t.name}</Option>))}
+                        </Select>
+                      </Form.Item>
+                    </Col>
+                  </Row>
+                  <Row gutter={16}>
+                    <Col span={12}>
+                      <Form.Item label="Kullanım Tipi" name="usageType" rules={[{ required: true, message: 'Zorunlu' }]}>
+                        <Select mode="multiple" placeholder="Seçiniz">
+                          <Option value="TRANSFER">Özel Transfer</Option>
+                          <Option value="SHUTTLE">Shuttle / Paylaşımlı</Option>
+                          <Option value="TOUR">Tur Aracı</Option>
+                        </Select>
+                      </Form.Item>
+                    </Col>
+                    <Col span={12}>
+                      <Form.Item noStyle shouldUpdate>
+                        {() => {
+                          const ut = form.getFieldValue('usageType') || [];
+                          const hasShuttle = Array.isArray(ut) ? ut.includes('SHUTTLE') : ut === 'SHUTTLE';
+                          if (!hasShuttle) return null;
+                          return (
+                            <Form.Item label="Shuttle Modu" name="shuttleMode" rules={[{ required: true, message: 'Zorunlu' }]}>
+                              <Select placeholder="Seçiniz">
+                                <Option value="ROUTE_BASED">Sabit Hat</Option>
+                                <Option value="FLEXIBLE">Esnek / Koltuk Bazlı</Option>
+                              </Select>
+                            </Form.Item>
+                          );
+                        }}
+                      </Form.Item>
+                    </Col>
+                  </Row>
+                </>
+              )}
 
-                    <Row gutter={16}>
-                      <Col span={8}>
-                        {/* Dynamic Vehicle Type Selection */}
-                        <Form.Item
-                          label="Araç Tipi"
-                          name="vehicleTypeId"
-                          rules={[{ required: true, message: 'Araç tipi seçiniz' }]}
-                        >
-                          <Select
-                            placeholder="Seçiniz"
-                            onChange={onVehicleTypeChange}
-                            showSearch
-                            optionFilterProp="children"
-                          >
-                            {vehicleTypes.map(t => (
-                              <Option key={t.id} value={t.id}>{t.name}</Option>
-                            ))}
-                          </Select>
-                        </Form.Item>
-                      </Col>
-                      <Col span={8}>
-                        <Form.Item
-                          label="Kullanım Tipi"
-                          name="usageType"
-                          rules={[{ required: true, message: 'Kullanım tipi zorunludur' }]}
-                        >
-                          <Select mode="multiple" placeholder="Seçiniz">
-                            <Option value="TRANSFER">Özel Transfer</Option>
-                            <Option value="SHUTTLE">Shuttle / Paylaşımlı</Option>
-                            <Option value="TOUR">Tur Aracı</Option>
-                          </Select>
-                        </Form.Item>
-                      </Col>
-                      <Col span={8}>
-                        <Form.Item label="Araç Sınıfı" name="vehicleClass">
-                          <Select placeholder="Seçiniz" allowClear>
-                            <Option value="ECONOMY">Ekonomik (Economy)</Option>
-                            <Option value="BUSINESS">Business</Option>
-                            <Option value="VIP">VIP</Option>
-                            <Option value="MINIBUS">Minibüs</Option>
-                            <Option value="BUS">Otobüs</Option>
-                          </Select>
-                        </Form.Item>
-                      </Col>
-                    </Row>
+              {/* ── STEP 1: Belgeler & Muayene ── */}
+              {currentStep === 1 && (
+                <>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+                    <FileProtectOutlined style={{ color: '#6366f1', fontSize: 16 }} />
+                    <Text strong style={{ fontSize: 15, color: '#1e293b' }}>UETDS & Ruhsat Bilgileri</Text>
+                    <Tag color="blue" style={{ marginLeft: 'auto', fontSize: 10 }}>UETDS Zorunlu</Tag>
+                  </div>
+                  <Row gutter={16}>
+                    <Col span={8}>
+                      <Form.Item label="Şasi Numarası" name="chassisNumber"><Input placeholder="WDDNG8FB1BA..." /></Form.Item>
+                    </Col>
+                    <Col span={8}>
+                      <Form.Item label="Motor Numarası" name="engineNumber"><Input placeholder="64294130..." /></Form.Item>
+                    </Col>
+                    <Col span={8}>
+                      <Form.Item label="Ruhsat Belge Seri No" name="registrationCertNo"><Input placeholder="AA 123456" /></Form.Item>
+                    </Col>
+                  </Row>
+                  <Row gutter={16}>
+                    <Col span={8}>
+                      <Form.Item label="Tescil Tarihi" name="registrationDate"><DatePicker style={{ width: '100%' }} format="DD.MM.YYYY" placeholder="Tescil tarihi" /></Form.Item>
+                    </Col>
+                  </Row>
 
-                    {/* Sadece SHUTTLE için göster */}
-                    <Form.Item noStyle shouldUpdate>
-                      {() => {
-                        const usageType = form.getFieldValue('usageType') || [];
-                        if ((Array.isArray(usageType) && !usageType.includes('SHUTTLE')) || (!Array.isArray(usageType) && usageType !== 'SHUTTLE')) return null;
+                  <Divider style={{ margin: '16px 0' }} />
 
-                        return (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+                    <ToolOutlined style={{ color: '#ea580c', fontSize: 16 }} />
+                    <Text strong style={{ fontSize: 15, color: '#1e293b' }}>Araç Muayene</Text>
+                  </div>
+                  <Row gutter={16}>
+                    <Col span={8}>
+                      <Form.Item label="Son Muayene Tarihi" name="inspectionDate"><DatePicker style={{ width: '100%' }} format="DD.MM.YYYY" placeholder="Muayene tarihi" /></Form.Item>
+                    </Col>
+                    <Col span={8}>
+                      <Form.Item label="Muayene Periyodu" name="inspectionPeriod">
+                        <Select placeholder="Seçiniz">
+                          <Option value="1_YEAR">1 Yıl</Option>
+                          <Option value="2_YEAR">2 Yıl</Option>
+                        </Select>
+                      </Form.Item>
+                    </Col>
+                    <Col span={8}>
+                      <Form.Item label="Muayene Bitiş Tarihi" name="inspectionExpiryDate"><DatePicker style={{ width: '100%' }} format="DD.MM.YYYY" placeholder="Bitiş tarihi" /></Form.Item>
+                    </Col>
+                  </Row>
+
+                  <Divider style={{ margin: '16px 0' }} />
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+                    <SafetyOutlined style={{ color: '#16a34a', fontSize: 16 }} />
+                    <Text strong style={{ fontSize: 15, color: '#1e293b' }}>Zorunlu Trafik Sigortası</Text>
+                  </div>
+                  <Row gutter={16}>
+                    <Col span={6}><Form.Item label="Sigorta Şirketi" name="insuranceCompany"><Input placeholder="Axa, Allianz..." /></Form.Item></Col>
+                    <Col span={6}><Form.Item label="Poliçe No" name="insurancePolicyNo"><Input placeholder="Poliçe numarası" /></Form.Item></Col>
+                    <Col span={6}><Form.Item label="Başlangıç" name="insuranceStartDate"><DatePicker style={{ width: '100%' }} format="DD.MM.YYYY" /></Form.Item></Col>
+                    <Col span={6}><Form.Item label="Bitiş" name="insuranceExpiryDate"><DatePicker style={{ width: '100%' }} format="DD.MM.YYYY" /></Form.Item></Col>
+                  </Row>
+
+                  <Divider style={{ margin: '16px 0' }} />
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+                    <SafetyOutlined style={{ color: '#7c3aed', fontSize: 16 }} />
+                    <Text strong style={{ fontSize: 15, color: '#1e293b' }}>Kasko</Text>
+                  </div>
+                  <Row gutter={16}>
+                    <Col span={6}><Form.Item label="Kasko Şirketi" name="kaskoCompany"><Input placeholder="Axa, Allianz..." /></Form.Item></Col>
+                    <Col span={6}><Form.Item label="Poliçe No" name="kaskoPolicyNo"><Input placeholder="Poliçe numarası" /></Form.Item></Col>
+                    <Col span={6}><Form.Item label="Başlangıç" name="kaskoStartDate"><DatePicker style={{ width: '100%' }} format="DD.MM.YYYY" /></Form.Item></Col>
+                    <Col span={6}><Form.Item label="Bitiş" name="kaskoExpiryDate"><DatePicker style={{ width: '100%' }} format="DD.MM.YYYY" /></Form.Item></Col>
+                  </Row>
+                </>
+              )}
+
+              {/* ── STEP 2: Mülkiyet & Sahiplik ── */}
+              {currentStep === 2 && (
+                <>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+                    <HomeOutlined style={{ color: '#6366f1', fontSize: 16 }} />
+                    <Text strong style={{ fontSize: 15, color: '#1e293b' }}>Mülkiyet Durumu</Text>
+                  </div>
+                  <Form.Item name="ownershipType" label="Araç Kime Ait?">
+                    <Radio.Group buttonStyle="solid" style={{ display: 'flex', gap: 12 }}>
+                      <Radio.Button value="OWNED" style={{ flex: 1, textAlign: 'center', height: 48, lineHeight: '36px', borderRadius: 10, fontWeight: 600 }}>
+                        <CheckCircleOutlined style={{ marginRight: 6 }} />Şirket Aracı (Kendi Mülkümüz)
+                      </Radio.Button>
+                      <Radio.Button value="RENTED" style={{ flex: 1, textAlign: 'center', height: 48, lineHeight: '36px', borderRadius: 10, fontWeight: 600 }}>
+                        <DollarOutlined style={{ marginRight: 6 }} />Kiralık Araç
+                      </Radio.Button>
+                    </Radio.Group>
+                  </Form.Item>
+
+                  <Form.Item noStyle shouldUpdate>
+                    {() => {
+                      if (form.getFieldValue('ownershipType') !== 'RENTED') return null;
+                      return (
+                        <>
+                          <Alert
+                            message="Kiralık araç sahibi otomatik olarak Cari (Tedarikçi) hesabına kaydedilecektir."
+                            type="info"
+                            showIcon
+                            style={{ marginBottom: 16, borderRadius: 8 }}
+                          />
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+                            <DollarOutlined style={{ color: '#ea580c', fontSize: 16 }} />
+                            <Text strong style={{ fontSize: 14, color: '#1e293b' }}>Kira Detayları</Text>
+                          </div>
                           <Row gutter={16}>
-                            <Col span={12}>
-                              <Form.Item
-                                label="Shuttle Modu"
-                                name="shuttleMode"
-                                rules={[{ required: true, message: 'Shuttle modu zorunludur' }]}
-                              >
+                            <Col span={8}>
+                              <Form.Item label="Kira Periyodu" name="rentalPeriod" rules={[{ required: true, message: 'Zorunlu' }]}>
                                 <Select placeholder="Seçiniz">
-                                  <Option value="ROUTE_BASED">Sabit Hat</Option>
-                                  <Option value="FLEXIBLE">Esnek / Koltuk Bazlı</Option>
+                                  <Option value="DAILY">Günlük</Option>
+                                  <Option value="WEEKLY">Haftalık</Option>
+                                  <Option value="MONTHLY">Aylık</Option>
                                 </Select>
                               </Form.Item>
                             </Col>
+                            <Col span={8}>
+                              <Form.Item label="Kira Bedeli (TL)" name="rentalCost" rules={[{ required: true, message: 'Zorunlu' }]}>
+                                <InputNumber min={0} style={{ width: '100%' }} placeholder="0.00" precision={2} />
+                              </Form.Item>
+                            </Col>
                           </Row>
-                        );
-                      }}
-                    </Form.Item>
 
-                    <Row gutter={16}>
-                      <Col span={8}>
-                        <Form.Item label="Bebek Koltuğu" name="hasBabySeat" valuePropName="checked">
-                          <Switch />
-                        </Form.Item>
-                      </Col>
-                      <Col span={8}>
-                        <Form.Item label="Maks. Bebek Koltuğu" name="maxBabySeats">
-                          <InputNumber min={0} max={5} style={{ width: '100%' }} />
-                        </Form.Item>
-                      </Col>
-                      <Col span={8}>
-                        <Form.Item label="Ücretsiz WiFi" name="hasWifi" valuePropName="checked">
-                          <Switch />
-                        </Form.Item>
-                      </Col>
-                    </Row>
-                  </>
-                )
-              },
-              {
-                key: '2',
-                label: 'Diğer',
-                children: (
-                  <>
-                    <Row gutter={16}>
-                      <Col span={8}>
-                        <Form.Item label="Şirket Aracı" name="isCompanyOwned" valuePropName="checked">
-                          <Switch />
-                        </Form.Item>
-                      </Col>
-                      <Col span={8}>
-                        <Form.Item label="Aktif" name="isActive" valuePropName="checked">
-                          <Switch />
-                        </Form.Item>
-                      </Col>
-                    </Row>
+                          <Divider style={{ margin: '12px 0' }} />
 
-                    <Form.Item label="Fotoğraf">
-                      <Upload
-                        name="file"
-                        listType="picture-card"
-                        className="avatar-uploader"
-                        showUploadList={false}
-                        action={`${(process.env.NEXT_PUBLIC_API_URL || 'https://backend-production-69e7.up.railway.app').replace(/[\r\n]+/g, '').trim()}/api/upload`}
-                        headers={{
-                          Authorization: typeof window !== 'undefined' ? `Bearer ${localStorage.getItem('token')}` : '',
-                        }}
-                        onChange={handleUploadChange}
-                      >
-                        {imageUrl ? <img src={getImageUrl(imageUrl)} alt="avatar" style={{ width: '100%', objectFit: 'contain' }} /> : uploadButton}
-                      </Upload>
-                    </Form.Item>
-                    <Form.Item name="imageUrl" hidden>
-                      <Input />
-                    </Form.Item>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+                            <IdcardOutlined style={{ color: '#2563eb', fontSize: 16 }} />
+                            <Text strong style={{ fontSize: 14, color: '#1e293b' }}>Araç Sahibi Bilgileri</Text>
+                          </div>
+                          <Row gutter={16}>
+                            <Col span={12}>
+                              <Form.Item label="Ad Soyad / Firma" name="ownerName" rules={[{ required: true, message: 'Zorunlu' }]}>
+                                <Input placeholder="Araç sahibi adı" />
+                              </Form.Item>
+                            </Col>
+                            <Col span={12}>
+                              <Form.Item label="Telefon" name="ownerPhone">
+                                <Input placeholder="+90 5XX XXX XX XX" />
+                              </Form.Item>
+                            </Col>
+                          </Row>
+                          <Row gutter={16}>
+                            <Col span={12}>
+                              <Form.Item label="E-posta" name="ownerEmail">
+                                <Input placeholder="email@firma.com" />
+                              </Form.Item>
+                            </Col>
+                            <Col span={12}>
+                              <Form.Item label="Adres" name="ownerAddress">
+                                <Input placeholder="Adres" />
+                              </Form.Item>
+                            </Col>
+                          </Row>
+                          <Row gutter={16}>
+                            <Col span={12}>
+                              <Form.Item label="Vergi No" name="ownerTaxNumber">
+                                <Input placeholder="Vergi numarası" />
+                              </Form.Item>
+                            </Col>
+                            <Col span={12}>
+                              <Form.Item label="Vergi Dairesi" name="ownerTaxOffice">
+                                <Input placeholder="Vergi dairesi" />
+                              </Form.Item>
+                            </Col>
+                          </Row>
+                        </>
+                      );
+                    }}
+                  </Form.Item>
+                </>
+              )}
 
-                    <Form.Item label="Açıklama / Notlar" name="description">
-                      <Input.TextArea rows={3} placeholder="Ek bilgiler..." />
-                    </Form.Item>
-                  </>
-                )
-              }
-            ]} />
-          </Form>
+              {/* ── STEP 3: Özellikler & Fotoğraf ── */}
+              {currentStep === 3 && (
+                <>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+                    <SettingOutlined style={{ color: '#6366f1', fontSize: 16 }} />
+                    <Text strong style={{ fontSize: 15, color: '#1e293b' }}>Araç Özellikleri & Fotoğraf</Text>
+                  </div>
+                  <Row gutter={16}>
+                    <Col span={6}>
+                      <Form.Item label="Bebek Koltuğu" name="hasBabySeat" valuePropName="checked"><Switch /></Form.Item>
+                    </Col>
+                    <Col span={6}>
+                      <Form.Item label="Maks. Bebek Koltuğu" name="maxBabySeats"><InputNumber min={0} max={5} style={{ width: '100%' }} /></Form.Item>
+                    </Col>
+                    <Col span={6}>
+                      <Form.Item label="Ücretsiz WiFi" name="hasWifi" valuePropName="checked"><Switch /></Form.Item>
+                    </Col>
+                    <Col span={6}>
+                      <Form.Item label="Aktif" name="isActive" valuePropName="checked"><Switch /></Form.Item>
+                    </Col>
+                  </Row>
+
+                  <Divider style={{ margin: '12px 0' }} />
+
+                  <Row gutter={24}>
+                    <Col span={8}>
+                      <Form.Item label="Araç Fotoğrafı">
+                        <Upload
+                          name="file"
+                          listType="picture-card"
+                          className="avatar-uploader"
+                          showUploadList={false}
+                          action={`${(process.env.NEXT_PUBLIC_API_URL || 'https://backend-production-69e7.up.railway.app').replace(/[\r\n]+/g, '').trim()}/api/upload`}
+                          headers={{ Authorization: typeof window !== 'undefined' ? `Bearer ${localStorage.getItem('token')}` : '' }}
+                          onChange={handleUploadChange}
+                        >
+                          {imageUrl ? <img src={getImageUrl(imageUrl)} alt="avatar" style={{ width: '100%', objectFit: 'contain' }} /> : uploadButton}
+                        </Upload>
+                      </Form.Item>
+                      <Form.Item name="imageUrl" hidden><Input /></Form.Item>
+                    </Col>
+                    <Col span={16}>
+                      <Form.Item label="Açıklama / Notlar" name="description">
+                        <Input.TextArea rows={4} placeholder="Araç hakkında ek bilgiler..." style={{ borderRadius: 8 }} />
+                      </Form.Item>
+                    </Col>
+                  </Row>
+                </>
+              )}
+
+            </Form>
+          </div>
+
+          {/* Footer Navigation */}
+          <div style={{
+            padding: '16px 32px',
+            borderTop: '1px solid #f0f0f0',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            background: '#fafafa',
+            borderRadius: '0 0 8px 8px',
+          }}>
+            <Button
+              disabled={currentStep === 0}
+              onClick={() => setCurrentStep(prev => prev - 1)}
+              style={{ borderRadius: 8 }}
+            >
+              Geri
+            </Button>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <Button onClick={() => setModalVisible(false)} style={{ borderRadius: 8 }}>
+                İptal
+              </Button>
+              {currentStep < 3 ? (
+                <Button
+                  type="primary"
+                  onClick={() => setCurrentStep(prev => prev + 1)}
+                  style={{ borderRadius: 8, background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)', border: 'none', fontWeight: 600 }}
+                >
+                  İleri
+                </Button>
+              ) : (
+                <Button
+                  type="primary"
+                  onClick={handleSubmit}
+                  style={{ borderRadius: 8, background: 'linear-gradient(135deg, #16a34a 0%, #15803d 100%)', border: 'none', fontWeight: 600, minWidth: 120 }}
+                >
+                  <CheckCircleOutlined /> Kaydet
+                </Button>
+              )}
+            </div>
+          </div>
         </Modal>
       </AdminLayout>
     </AdminGuard>
