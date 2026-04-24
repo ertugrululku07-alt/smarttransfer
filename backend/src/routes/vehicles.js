@@ -208,6 +208,69 @@ router.post('/', authMiddleware, async (req, res) => {
             }
         });
 
+        // Auto-sync insurance/kasko/inspection to tracking arrays
+        try {
+            const currentMeta = vehicle.metadata || {};
+            const tracking = currentMeta.tracking || { insurance: [], fuel: [], inspection: [], maintenance: [], totalKm: 0 };
+            let trackingChanged = false;
+
+            // Sync Trafik Sigortası
+            if (data.insuranceCompany || data.insuranceStartDate) {
+                tracking.insurance.push({
+                    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
+                    company: data.insuranceCompany || '',
+                    policyNo: data.insurancePolicyNo || '',
+                    type: 'TRAFIK',
+                    startDate: data.insuranceStartDate || null,
+                    endDate: data.insuranceExpiryDate || null,
+                    cost: 0,
+                    notes: 'Araç kaydı sırasında otomatik oluşturuldu',
+                    createdAt: new Date().toISOString(),
+                });
+                trackingChanged = true;
+            }
+
+            // Sync Kasko
+            if (data.kaskoCompany || data.kaskoStartDate) {
+                tracking.insurance.push({
+                    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7) + 'k',
+                    company: data.kaskoCompany || '',
+                    policyNo: data.kaskoPolicyNo || '',
+                    type: 'KASKO',
+                    startDate: data.kaskoStartDate || null,
+                    endDate: data.kaskoExpiryDate || null,
+                    cost: 0,
+                    notes: 'Araç kaydı sırasında otomatik oluşturuldu',
+                    createdAt: new Date().toISOString(),
+                });
+                trackingChanged = true;
+            }
+
+            // Sync Muayene
+            if (data.inspectionDate) {
+                tracking.inspection.push({
+                    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7) + 'i',
+                    date: data.inspectionDate || null,
+                    nextDate: data.inspectionExpiryDate || null,
+                    station: '',
+                    result: 'GECTI',
+                    cost: 0,
+                    notes: 'Araç kaydı sırasında otomatik oluşturuldu',
+                    createdAt: new Date().toISOString(),
+                });
+                trackingChanged = true;
+            }
+
+            if (trackingChanged) {
+                await prisma.vehicle.update({
+                    where: { id: vehicle.id },
+                    data: { metadata: { ...currentMeta, tracking } }
+                });
+            }
+        } catch (trackErr) {
+            console.error('Auto-sync tracking error:', trackErr);
+        }
+
         // Auto-create Cari (Account) for rented vehicles
         if (ownershipType === 'RENTED' && data.ownerName) {
             try {
@@ -337,6 +400,76 @@ router.put('/:id', authMiddleware, async (req, res) => {
             where: { id },
             data: updateData
         });
+
+        // Auto-sync insurance/kasko/inspection to tracking arrays on update
+        try {
+            const updatedMeta = vehicle.metadata || {};
+            const tracking = updatedMeta.tracking || { insurance: [], fuel: [], inspection: [], maintenance: [], totalKm: 0 };
+            let trackingChanged = false;
+
+            // Only add if data changed (check if already in tracking by company+policyNo)
+            if (data.insuranceCompany || data.insuranceStartDate) {
+                const exists = tracking.insurance.some(i => i.type === 'TRAFIK' && i.company === data.insuranceCompany && i.policyNo === data.insurancePolicyNo);
+                if (!exists) {
+                    tracking.insurance.push({
+                        id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
+                        company: data.insuranceCompany || '',
+                        policyNo: data.insurancePolicyNo || '',
+                        type: 'TRAFIK',
+                        startDate: data.insuranceStartDate || null,
+                        endDate: data.insuranceExpiryDate || null,
+                        cost: 0,
+                        notes: 'Araç güncelleme sırasında otomatik oluşturuldu',
+                        createdAt: new Date().toISOString(),
+                    });
+                    trackingChanged = true;
+                }
+            }
+
+            if (data.kaskoCompany || data.kaskoStartDate) {
+                const exists = tracking.insurance.some(i => i.type === 'KASKO' && i.company === data.kaskoCompany && i.policyNo === data.kaskoPolicyNo);
+                if (!exists) {
+                    tracking.insurance.push({
+                        id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7) + 'k',
+                        company: data.kaskoCompany || '',
+                        policyNo: data.kaskoPolicyNo || '',
+                        type: 'KASKO',
+                        startDate: data.kaskoStartDate || null,
+                        endDate: data.kaskoExpiryDate || null,
+                        cost: 0,
+                        notes: 'Araç güncelleme sırasında otomatik oluşturuldu',
+                        createdAt: new Date().toISOString(),
+                    });
+                    trackingChanged = true;
+                }
+            }
+
+            if (data.inspectionDate) {
+                const exists = tracking.inspection.some(i => i.date === data.inspectionDate && i.nextDate === data.inspectionExpiryDate);
+                if (!exists) {
+                    tracking.inspection.push({
+                        id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7) + 'i',
+                        date: data.inspectionDate || null,
+                        nextDate: data.inspectionExpiryDate || null,
+                        station: '',
+                        result: 'GECTI',
+                        cost: 0,
+                        notes: 'Araç güncelleme sırasında otomatik oluşturuldu',
+                        createdAt: new Date().toISOString(),
+                    });
+                    trackingChanged = true;
+                }
+            }
+
+            if (trackingChanged) {
+                await prisma.vehicle.update({
+                    where: { id },
+                    data: { metadata: { ...updatedMeta, tracking } }
+                });
+            }
+        } catch (trackErr) {
+            console.error('Auto-sync tracking on update error:', trackErr);
+        }
 
         res.json({ success: true, data: vehicle });
     } catch (error) {
