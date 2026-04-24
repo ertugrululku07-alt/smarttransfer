@@ -11,7 +11,8 @@ import {
     ReloadOutlined, ArrowLeftOutlined, WarningOutlined,
     CameraOutlined, EnvironmentOutlined, UserOutlined,
     CarOutlined, DashboardOutlined, ExclamationCircleOutlined,
-    CheckCircleOutlined, EyeOutlined,
+    CheckCircleOutlined, EyeOutlined, FireOutlined,
+    AlertOutlined, ThunderboltOutlined,
 } from '@ant-design/icons';
 import AdminLayout from '../../AdminLayout';
 import AdminGuard from '../../AdminGuard';
@@ -197,6 +198,43 @@ const FuelPage: React.FC = () => {
             },
         },
         {
+            title: 'Gidilen KM', width: 100,
+            render: (_: any, r: any) => {
+                const dist = r.distanceTraveled;
+                if (dist === undefined || dist === null) return <Text type="secondary" style={{ fontSize: 11 }}>—</Text>;
+                if (dist < 0) return <Text style={{ color: '#dc2626', fontWeight: 700, fontSize: 12 }}>{dist.toLocaleString('tr-TR')} km <ExclamationCircleOutlined /></Text>;
+                if (dist === 0) return <Text style={{ color: '#dc2626', fontWeight: 700, fontSize: 12 }}>0 km <ExclamationCircleOutlined /></Text>;
+                return <Text style={{ fontWeight: 600, fontSize: 12 }}>{dist.toLocaleString('tr-TR')} km</Text>;
+            },
+            sorter: (a: any, b: any) => (a.distanceTraveled || 0) - (b.distanceTraveled || 0),
+        },
+        {
+            title: <Tooltip title="Litre / 100 KM">L/100km</Tooltip>, width: 110,
+            render: (_: any, r: any) => {
+                const c = r.consumptionPer100km;
+                if (!c) {
+                    if (r.consumptionStatus === 'km_decrease') return <Tag color="red" style={{ fontSize: 9, margin: 0 }}><WarningOutlined /> KM Düştü</Tag>;
+                    if (r.consumptionStatus === 'zero_distance') return <Tag color="red" style={{ fontSize: 9, margin: 0 }}><FireOutlined /> 0 KM</Tag>;
+                    return <Text type="secondary" style={{ fontSize: 11 }}>—</Text>;
+                }
+                let color = '#16a34a'; // green
+                let bg = '#f0fdf4';
+                let icon = <CheckCircleOutlined />;
+                let label = 'Normal';
+                if (c > 35) { color = '#dc2626'; bg = '#fef2f2'; icon = <FireOutlined />; label = 'Kritik'; }
+                else if (c > 25) { color = '#d97706'; bg = '#fffbeb'; icon = <WarningOutlined />; label = 'Yüksek'; }
+                return (
+                    <Tooltip title={`${label} tüketim — ${c} L/100km`}>
+                        <div style={{ background: bg, borderRadius: 6, padding: '2px 8px', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                            <span style={{ color, fontSize: 13, fontWeight: 800, fontFamily: 'monospace' }}>{c.toFixed(1)}</span>
+                            <span style={{ color, fontSize: 10 }}>{icon}</span>
+                        </div>
+                    </Tooltip>
+                );
+            },
+            sorter: (a: any, b: any) => (a.consumptionPer100km || 0) - (b.consumptionPer100km || 0),
+        },
+        {
             title: 'Fotoğraf', width: 70, align: 'center' as const,
             render: (_: any, r: any) => r.odometerPhotoUrl ? (
                 <Image
@@ -308,22 +346,32 @@ const FuelPage: React.FC = () => {
                         <Col xs={24} md={19}>
                             {/* Stats */}
                             <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
-                                <Col xs={6}>
+                                <Col xs={24} md={4}>
                                     <Card variant="borderless" style={{ borderRadius: 10, background: 'linear-gradient(135deg,#fffbeb,#fef9c3)', border: '1px solid #fde68a' }} styles={{ body: { padding: '12px 16px' } }}>
                                         <Statistic title={<Text style={{ color: '#d97706', fontSize: 11 }}>Toplam Yakıt Gideri</Text>} value={stats.totalCost || 0} precision={2} suffix="₺" styles={{ content: { color: '#d97706', fontSize: 18, fontWeight: 700 } }} />
                                     </Card>
                                 </Col>
-                                <Col xs={6}>
+                                <Col xs={24} md={4}>
                                     <Card variant="borderless" style={{ borderRadius: 10, background: 'linear-gradient(135deg,#f0fdf4,#dcfce7)', border: '1px solid #bbf7d0' }} styles={{ body: { padding: '12px 16px' } }}>
                                         <Statistic title={<Text style={{ color: '#16a34a', fontSize: 11 }}>Toplam Litre</Text>} value={(stats.totalLiters || 0).toFixed(1)} suffix="L" styles={{ content: { color: '#16a34a', fontSize: 18, fontWeight: 700 } }} />
                                     </Card>
                                 </Col>
-                                <Col xs={6}>
+                                <Col xs={24} md={4}>
                                     <Card variant="borderless" style={{ borderRadius: 10, background: 'linear-gradient(135deg,#eff6ff,#dbeafe)', border: '1px solid #93c5fd' }} styles={{ body: { padding: '12px 16px' } }}>
                                         <Statistic title={<Text style={{ color: '#2563eb', fontSize: 11 }}>Ort. Litre Fiyatı</Text>} value={(stats.avgPrice || 0).toFixed(2)} suffix="₺" styles={{ content: { color: '#2563eb', fontSize: 18, fontWeight: 700 } }} />
                                     </Card>
                                 </Col>
-                                <Col xs={6}>
+                                <Col xs={24} md={4}>
+                                    <Card variant="borderless" style={{ borderRadius: 10, background: 'linear-gradient(135deg,#faf5ff,#f3e8ff)', border: '1px solid #d8b4fe' }} styles={{ body: { padding: '12px 16px' } }}>
+                                        <Statistic title={<Text style={{ color: '#7c3aed', fontSize: 11 }}>Ort. Tüketim (L/100km)</Text>} value={stats.avgConsumption || 0} precision={1} suffix="L" styles={{ content: { color: '#7c3aed', fontSize: 18, fontWeight: 700 } }} />
+                                    </Card>
+                                </Col>
+                                <Col xs={24} md={4}>
+                                    <Card variant="borderless" style={{ borderRadius: 10, background: 'linear-gradient(135deg,#f0f9ff,#e0f2fe)', border: '1px solid #7dd3fc' }} styles={{ body: { padding: '12px 16px' } }}>
+                                        <Statistic title={<Text style={{ color: '#0284c7', fontSize: 11 }}>Toplam Mesafe</Text>} value={stats.totalDistanceKm || 0} suffix="km" styles={{ content: { color: '#0284c7', fontSize: 18, fontWeight: 700 } }} />
+                                    </Card>
+                                </Col>
+                                <Col xs={24} md={4}>
                                     <Card variant="borderless" style={{
                                         borderRadius: 10,
                                         background: (stats.anomalyCount || 0) > 0 ? 'linear-gradient(135deg,#fef2f2,#fecaca)' : 'linear-gradient(135deg,#f0fdf4,#dcfce7)',
@@ -338,6 +386,39 @@ const FuelPage: React.FC = () => {
                                 </Col>
                             </Row>
 
+                            {/* Anomaly Alert Banner */}
+                            {(stats.anomalyCount || 0) > 0 && (
+                                <div style={{
+                                    background: 'linear-gradient(135deg, #fef2f2, #fff1f2)', border: '1px solid #fca5a5',
+                                    borderRadius: 12, padding: '14px 18px', marginBottom: 16,
+                                    display: 'flex', alignItems: 'flex-start', gap: 12
+                                }}>
+                                    <AlertOutlined style={{ color: '#dc2626', fontSize: 22, marginTop: 2 }} />
+                                    <div style={{ flex: 1 }}>
+                                        <div style={{ fontWeight: 700, color: '#991b1b', fontSize: 14, marginBottom: 4 }}>
+                                            <FireOutlined /> Yakıt Tüketim Uyarısı — {stats.anomalyCount} şüpheli kayıt tespit edildi!
+                                        </div>
+                                        <div style={{ fontSize: 12, color: '#7f1d1d', lineHeight: 1.6 }}>
+                                            Aşağıdaki durumlardan biri veya birkaçı tespit edilmiştir:
+                                        </div>
+                                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+                                            {records.some((r: any) => r.consumptionStatus === 'critical') && (
+                                                <Tag color="red" style={{ fontSize: 11 }}><FireOutlined /> Kritik Tüketim (&gt;35 L/100km) — Yakıt hırsızlığı veya araçta rölanti şüphesi</Tag>
+                                            )}
+                                            {records.some((r: any) => r.consumptionStatus === 'high') && (
+                                                <Tag color="volcano" style={{ fontSize: 11 }}><WarningOutlined /> Yüksek Tüketim (&gt;25 L/100km) — İncelenmeli</Tag>
+                                            )}
+                                            {records.some((r: any) => r.consumptionStatus === 'km_decrease') && (
+                                                <Tag color="magenta" style={{ fontSize: 11 }}><ExclamationCircleOutlined /> KM Düşüşü — Sayaç müdahalesi şüphesi</Tag>
+                                            )}
+                                            {records.some((r: any) => r.consumptionStatus === 'zero_distance') && (
+                                                <Tag color="red" style={{ fontSize: 11 }}><ThunderboltOutlined /> 0 KM&apos;de yakıt alımı — Araçta bekleme / klima şüphesi</Tag>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
                             {/* Table */}
                             <Card variant="borderless" style={{ borderRadius: 14, border: '1px solid #f0f0f0' }} styles={{ body: { padding: 0 } }}>
                                 <Table
@@ -348,7 +429,7 @@ const FuelPage: React.FC = () => {
                                     pagination={{ pageSize: 15, showSizeChanger: true, showTotal: (t) => `${t} kayıt` }}
                                     size="small"
                                     locale={{ emptyText: 'Yakıt kaydı yok.' }}
-                                    scroll={{ x: 1100 }}
+                                    scroll={{ x: 1400 }}
                                     rowClassName={(r) => r.anomalyFlag ? 'fuel-row-warning' : ''}
                                 />
                             </Card>
@@ -451,6 +532,75 @@ const FuelPage: React.FC = () => {
                                                     <div style={{ fontWeight: 700, fontSize: 14 }}>{((detailModal.ocrConfidence || 0) * 100).toFixed(0)}%</div>
                                                 </Col>
                                             </Row>
+                                        </div>
+                                    )}
+
+                                    {/* Consumption Analysis Section */}
+                                    {(detailModal.distanceTraveled != null || detailModal.consumptionPer100km) && (
+                                        <div style={{
+                                            background: detailModal.consumptionStatus === 'critical' ? '#fef2f2'
+                                                : detailModal.consumptionStatus === 'high' ? '#fffbeb'
+                                                : detailModal.consumptionStatus === 'km_decrease' ? '#fdf2f8'
+                                                : detailModal.consumptionStatus === 'zero_distance' ? '#fef2f2'
+                                                : '#f0fdf4',
+                                            borderRadius: 10, padding: 12, marginTop: 12,
+                                            border: `1px solid ${detailModal.consumptionStatus === 'critical' ? '#fca5a5'
+                                                : detailModal.consumptionStatus === 'high' ? '#fde68a'
+                                                : detailModal.consumptionStatus === 'km_decrease' ? '#f9a8d4'
+                                                : detailModal.consumptionStatus === 'zero_distance' ? '#fca5a5'
+                                                : '#bbf7d0'}`
+                                        }}>
+                                            <div style={{ fontSize: 10, color: '#6b7280', fontWeight: 700, textTransform: 'uppercase', marginBottom: 6 }}>
+                                                <FireOutlined /> Tüketim Analizi
+                                            </div>
+                                            <Row gutter={12}>
+                                                {detailModal.previousKm && (
+                                                    <Col span={6}>
+                                                        <div style={{ fontSize: 10, color: '#9ca3af' }}>Önceki KM</div>
+                                                        <div style={{ fontWeight: 700, fontSize: 14 }}>{fmtKm(detailModal.previousKm)}</div>
+                                                    </Col>
+                                                )}
+                                                <Col span={6}>
+                                                    <div style={{ fontSize: 10, color: '#9ca3af' }}>Gidilen KM</div>
+                                                    <div style={{ fontWeight: 700, fontSize: 14, color: (detailModal.distanceTraveled || 0) < 0 ? '#dc2626' : '#1e293b' }}>
+                                                        {detailModal.distanceTraveled != null ? `${detailModal.distanceTraveled.toLocaleString('tr-TR')} km` : '—'}
+                                                    </div>
+                                                </Col>
+                                                <Col span={6}>
+                                                    <div style={{ fontSize: 10, color: '#9ca3af' }}>Alınan Yakıt</div>
+                                                    <div style={{ fontWeight: 700, fontSize: 14 }}>{Number(detailModal.liters).toFixed(1)} L</div>
+                                                </Col>
+                                                <Col span={6}>
+                                                    <div style={{ fontSize: 10, color: '#9ca3af' }}>Tüketim</div>
+                                                    <div style={{
+                                                        fontWeight: 800, fontSize: 16,
+                                                        color: (detailModal.consumptionPer100km || 0) > 35 ? '#dc2626'
+                                                            : (detailModal.consumptionPer100km || 0) > 25 ? '#d97706' : '#16a34a'
+                                                    }}>
+                                                        {detailModal.consumptionPer100km ? `${detailModal.consumptionPer100km.toFixed(1)} L/100km` : '—'}
+                                                    </div>
+                                                </Col>
+                                            </Row>
+                                            {detailModal.consumptionStatus === 'critical' && (
+                                                <div style={{ marginTop: 8, padding: '6px 10px', borderRadius: 8, background: '#fee2e2', color: '#991b1b', fontSize: 11, fontWeight: 600 }}>
+                                                    <FireOutlined /> Kritik tüketim! Yakıt hırsızlığı veya araçta klimalı bekleme şüphesi
+                                                </div>
+                                            )}
+                                            {detailModal.consumptionStatus === 'high' && (
+                                                <div style={{ marginTop: 8, padding: '6px 10px', borderRadius: 8, background: '#fef3c7', color: '#92400e', fontSize: 11, fontWeight: 600 }}>
+                                                    <WarningOutlined /> Yüksek tüketim — İncelenmeli
+                                                </div>
+                                            )}
+                                            {detailModal.consumptionStatus === 'km_decrease' && (
+                                                <div style={{ marginTop: 8, padding: '6px 10px', borderRadius: 8, background: '#fce7f3', color: '#9d174d', fontSize: 11, fontWeight: 600 }}>
+                                                    <ExclamationCircleOutlined /> KM düşüşü! Sayaç müdahalesi şüphesi
+                                                </div>
+                                            )}
+                                            {detailModal.consumptionStatus === 'zero_distance' && (
+                                                <div style={{ marginTop: 8, padding: '6px 10px', borderRadius: 8, background: '#fee2e2', color: '#991b1b', fontSize: 11, fontWeight: 600 }}>
+                                                    <ThunderboltOutlined /> 0 KM mesafede yakıt alımı! Araçta bekleme / klima şüphesi
+                                                </div>
+                                            )}
                                         </div>
                                     )}
 

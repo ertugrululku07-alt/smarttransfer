@@ -216,6 +216,63 @@ router.post('/:vehicleId/fuel', authMiddleware, async (req, res) => {
         if (!vehicle) return res.status(404).json({ success: false, error: 'Araç bulunamadı' });
         const tracking = vehicle.metadata.tracking;
         const entry = { id: genId(), ...req.body, createdAt: new Date().toISOString() };
+
+        // ── Anomaly detection for admin fuel entry ──
+        const entryKm = Number(entry.km || 0);
+        if (entryKm > 0) {
+            // Find previous fuel record with KM (sorted by date desc)
+            const allPrev = [...tracking.fuel]
+                .filter(f => Number(f.km || 0) > 0)
+                .sort((a, b) => new Date(b.date || b.createdAt).getTime() - new Date(a.date || a.createdAt).getTime());
+            
+            // Also check driver FuelRecords
+            const driverPrev = await prisma.fuelRecord.findFirst({
+                where: { vehicleId, tenantId },
+                orderBy: { createdAt: 'desc' },
+            });
+
+            let prevKm = null;
+            const metaPrevKm = allPrev.length > 0 ? Number(allPrev[0].km) : null;
+            const driverPrevKm = driverPrev ? Number(driverPrev.odometer || 0) : null;
+
+            // Use whichever is most recent
+            if (metaPrevKm && driverPrevKm) {
+                prevKm = Math.max(metaPrevKm, driverPrevKm);
+            } else {
+                prevKm = metaPrevKm || driverPrevKm;
+            }
+
+            if (prevKm && prevKm > 0) {
+                const distance = entryKm - prevKm;
+                entry.distanceTraveled = distance;
+                entry.previousKm = prevKm;
+                
+                if (distance < 0) {
+                    entry.anomalyFlag = 'SUSPICIOUS';
+                    entry.anomalyReasons = ['KM_DECREASE'];
+                    entry.consumptionStatus = 'km_decrease';
+                } else if (distance === 0 && Number(entry.liters) > 0) {
+                    entry.anomalyFlag = 'SUSPICIOUS';
+                    entry.anomalyReasons = ['HIGH_CONSUMPTION'];
+                    entry.consumptionStatus = 'zero_distance';
+                } else if (distance > 0 && Number(entry.liters) > 0) {
+                    const per100 = (Number(entry.liters) / distance) * 100;
+                    entry.consumptionPer100km = Math.round(per100 * 100) / 100;
+                    if (per100 > 35) {
+                        entry.anomalyFlag = 'SUSPICIOUS';
+                        entry.anomalyReasons = ['HIGH_CONSUMPTION'];
+                        entry.consumptionStatus = 'critical';
+                    } else if (per100 > 25) {
+                        entry.anomalyFlag = 'SUSPICIOUS';
+                        entry.anomalyReasons = ['HIGH_CONSUMPTION'];
+                        entry.consumptionStatus = 'high';
+                    } else {
+                        entry.consumptionStatus = 'normal';
+                    }
+                }
+            }
+        }
+
         tracking.fuel.push(entry);
         await saveTracking(vehicleId, tracking);
         res.json({ success: true, data: entry });
@@ -415,21 +472,103 @@ router.get('/:vehicleId/all-fuel', authMiddleware, async (req, res) => {
             createdAt: r.createdAt.toISOString(),
         }));
 
-        // Merge & sort by date desc
-        const all = [...metaFuel, ...driverFuel].sort((a, b) =>
-            new Date(b.date || b.createdAt).getTime() - new Date(a.date || a.createdAt).getTime()
+        // Merge & sort by date ASC for consumption calculation
+        const allAsc = [...metaFuel, ...driverFuel].sort((a, b) =>
+            new Date(a.date || a.createdAt).getTime() - new Date(b.date || b.createdAt).getTime()
         );
+
+        // ── Consumption calculation between consecutive fuel records ──
+        const CONSUMPTION_THRESHOLD_HIGH = 25; // L/100km - above this = suspicious
+        const CONSUMPTION_THRESHOLD_CRITICAL = 35; // L/100km - above this = very suspicious
+        let totalDistanceKm = 0;
+        let totalConsumptionLiters = 0;
+        let consumptionEntries = 0;
+
+        for (let i = 0; i < allAsc.length; i++) {
+            const rec = allAsc[i];
+            const currentKm = Number(rec.km || rec.odometer || 0);
+            if (!currentKm) continue;
+
+            // Find previous record with KM
+            let prevKm = null;
+            for (let j = i - 1; j >= 0; j--) {
+                const pk = Number(allAsc[j].km || allAsc[j].odometer || 0);
+                if (pk > 0) { prevKm = pk; break; }
+            }
+
+            if (prevKm !== null && prevKm > 0) {
+                const distance = currentKm - prevKm;
+                rec.distanceTraveled = distance;
+
+                if (distance > 0 && Number(rec.liters) > 0) {
+                    const per100 = (Number(rec.liters) / distance) * 100;
+                    rec.consumptionPer100km = Math.round(per100 * 100) / 100;
+                    totalDistanceKm += distance;
+                    totalConsumptionLiters += Number(rec.liters);
+                    consumptionEntries++;
+
+                    // Anomaly detection for admin records too
+                    if (!rec.anomalyReasons) rec.anomalyReasons = [];
+                    if (!rec.anomalyFlag) rec.anomalyFlag = null;
+
+                    if (per100 > CONSUMPTION_THRESHOLD_CRITICAL) {
+                        if (!rec.anomalyReasons.includes('HIGH_CONSUMPTION')) {
+                            rec.anomalyReasons.push('HIGH_CONSUMPTION');
+                        }
+                        rec.anomalyFlag = rec.anomalyFlag || 'SUSPICIOUS';
+                        rec.consumptionStatus = 'critical'; // yakıt hırsızlığı veya araçta yatma şüphesi
+                    } else if (per100 > CONSUMPTION_THRESHOLD_HIGH) {
+                        if (!rec.anomalyReasons.includes('HIGH_CONSUMPTION')) {
+                            rec.anomalyReasons.push('HIGH_CONSUMPTION');
+                        }
+                        rec.anomalyFlag = rec.anomalyFlag || 'SUSPICIOUS';
+                        rec.consumptionStatus = 'high';
+                    } else {
+                        rec.consumptionStatus = 'normal';
+                    }
+                } else if (distance < 0) {
+                    // KM decrease
+                    rec.distanceTraveled = distance;
+                    rec.consumptionStatus = 'km_decrease';
+                    if (!rec.anomalyReasons) rec.anomalyReasons = [];
+                    if (!rec.anomalyReasons.includes('KM_DECREASE')) {
+                        rec.anomalyReasons.push('KM_DECREASE');
+                    }
+                    rec.anomalyFlag = rec.anomalyFlag || 'SUSPICIOUS';
+                } else if (distance === 0) {
+                    // 0 KM traveled but fuel added — very suspicious
+                    rec.distanceTraveled = 0;
+                    rec.consumptionStatus = 'zero_distance';
+                    if (!rec.anomalyReasons) rec.anomalyReasons = [];
+                    if (!rec.anomalyReasons.includes('HIGH_CONSUMPTION')) {
+                        rec.anomalyReasons.push('HIGH_CONSUMPTION');
+                    }
+                    rec.anomalyFlag = rec.anomalyFlag || 'SUSPICIOUS';
+                }
+
+                rec.previousKm = prevKm;
+            }
+        }
+
+        // Sort descending for display
+        const all = allAsc.reverse();
 
         // Stats
         const totalCost = all.reduce((s, r) => s + (Number(r.totalCost) || 0), 0);
         const totalLiters = all.reduce((s, r) => s + (Number(r.liters) || 0), 0);
         const avgPrice = totalLiters > 0 ? totalCost / totalLiters : 0;
-        const anomalyCount = driverFuel.filter(r => r.anomalyFlag).length;
+        const anomalyCount = all.filter(r => r.anomalyFlag).length;
+        const avgConsumption = totalDistanceKm > 0 ? Math.round((totalConsumptionLiters / totalDistanceKm) * 100 * 100) / 100 : 0;
 
         res.json({
             success: true,
             data: all,
-            stats: { totalCost, totalLiters, avgPrice, anomalyCount, total: all.length }
+            stats: {
+                totalCost, totalLiters, avgPrice, anomalyCount, total: all.length,
+                totalDistanceKm: Math.round(totalDistanceKm),
+                avgConsumption, // L/100km average
+                consumptionEntries,
+            }
         });
     } catch (e) {
         console.error('All fuel error:', e);
