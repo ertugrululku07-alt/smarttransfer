@@ -44,25 +44,18 @@ router.get('/', authMiddleware, async (req, res) => {
             }
         });
 
-        // Map to frontend expected format
-        const formattedUsers = users.map(u => {
-            let mappedRole = 'CUSTOMER';
-            const rt = u.role.type;
-            
-            if (['SUPER_ADMIN', 'TENANT_ADMIN', 'TENANT_MANAGER', 'TENANT_STAFF'].includes(rt)) mappedRole = 'ADMIN';
-            else if (['AGENCY_ADMIN', 'AGENCY_STAFF', 'PARTNER'].includes(rt)) mappedRole = 'COMPANY';
-            else if (rt === 'DRIVER') mappedRole = 'DRIVER';
-            else if (rt === 'CUSTOMER') mappedRole = 'CUSTOMER';
-
-            return {
-                id: u.id,
-                name: u.fullName,
-                email: u.email,
-                role: mappedRole,
-                isActive: u.status === 'ACTIVE',
-                createdAt: u.createdAt
-            };
-        });
+        // Map to frontend format — send actual RoleType
+        const formattedUsers = users.map(u => ({
+            id: u.id,
+            name: u.fullName,
+            email: u.email,
+            role: u.role.type, // actual RoleType: TENANT_ADMIN, PARTNER, DRIVER, etc.
+            roleId: u.role.id,
+            roleName: u.role.name,
+            roleCode: u.role.code,
+            isActive: u.status === 'ACTIVE',
+            createdAt: u.createdAt
+        }));
 
         res.json({
             success: true,
@@ -104,8 +97,8 @@ router.post('/', authMiddleware, async (req, res) => {
             return res.status(409).json({ success: false, error: 'Email already registered' });
         }
 
-        // Find the role ID based on the type provided by frontend (ADMIN, COMPANY, DRIVER, CUSTOMER)
-        // We'll map these to the standard RoleTypes
+        // Find the role by type (frontend now sends actual RoleType values)
+        // Backward compatibility: map legacy values
         let mappedRoleType = role;
         if (role === 'ADMIN') mappedRoleType = 'TENANT_ADMIN';
         if (role === 'COMPANY') mappedRoleType = 'AGENCY_ADMIN';
@@ -141,22 +134,15 @@ router.post('/', authMiddleware, async (req, res) => {
             }
         });
 
-        // Map role type back to frontend format for consistency
-        let mappedReturnRole = 'CUSTOMER';
-        const rt = user.role?.type;
-        if (['SUPER_ADMIN', 'TENANT_ADMIN', 'TENANT_MANAGER', 'TENANT_STAFF'].includes(rt)) mappedReturnRole = 'ADMIN';
-        else if (['AGENCY_ADMIN', 'AGENCY_STAFF', 'PARTNER'].includes(rt)) mappedReturnRole = 'COMPANY';
-        else if (rt === 'DRIVER') mappedReturnRole = 'DRIVER';
-        else if (rt === 'CUSTOMER') mappedReturnRole = 'CUSTOMER';
-
         res.status(201).json({
             success: true,
             data: {
                 id: user.id,
                 name: user.fullName,
                 email: user.email,
-                role: mappedReturnRole,
-                roleType: user.role?.type,
+                role: user.role?.type,
+                roleId: user.role?.id,
+                roleName: user.role?.name,
                 isActive: user.status === 'ACTIVE',
                 createdAt: user.createdAt
             }
@@ -188,16 +174,11 @@ router.put('/:id', authMiddleware, async (req, res) => {
         // Capture previous state for audit trail
         const prevUser = await prisma.user.findUnique({ where: { id }, include: { role: true } });
         if (prevUser) {
-            let prevMappedRole = 'CUSTOMER';
-            const prt = prevUser.role?.type;
-            if (['SUPER_ADMIN', 'TENANT_ADMIN', 'TENANT_MANAGER', 'TENANT_STAFF'].includes(prt)) prevMappedRole = 'ADMIN';
-            else if (['AGENCY_ADMIN', 'AGENCY_STAFF', 'PARTNER'].includes(prt)) prevMappedRole = 'COMPANY';
-            else if (prt === 'DRIVER') prevMappedRole = 'DRIVER';
             req._auditPreviousState = {
                 name: prevUser.fullName,
                 email: prevUser.email,
-                role: prevMappedRole,
-                roleType: prevUser.role?.type,
+                role: prevUser.role?.type,
+                roleId: prevUser.role?.id,
                 isActive: prevUser.status === 'ACTIVE'
             };
         }
@@ -214,6 +195,7 @@ router.put('/:id', authMiddleware, async (req, res) => {
         if (isActive !== undefined) updateData.status = isActive ? 'ACTIVE' : 'INACTIVE';
 
         if (role) {
+            // Backward compatibility: map legacy values
             let mappedRoleType = role;
             if (role === 'ADMIN') mappedRoleType = 'TENANT_ADMIN';
             if (role === 'COMPANY') mappedRoleType = 'AGENCY_ADMIN';
@@ -230,24 +212,16 @@ router.put('/:id', authMiddleware, async (req, res) => {
             include: { role: true }
         });
 
-        // Map role type back to frontend format for consistency
-        let mappedReturnRole = 'CUSTOMER';
-        const rt = user.role?.type;
-        if (['SUPER_ADMIN', 'TENANT_ADMIN', 'TENANT_MANAGER', 'TENANT_STAFF'].includes(rt)) mappedReturnRole = 'ADMIN';
-        else if (['AGENCY_ADMIN', 'AGENCY_STAFF', 'PARTNER'].includes(rt)) mappedReturnRole = 'COMPANY';
-        else if (rt === 'DRIVER') mappedReturnRole = 'DRIVER';
-        else if (rt === 'CUSTOMER') mappedReturnRole = 'CUSTOMER';
-
         res.json({
             success: true,
             data: {
                 id: user.id,
                 name: user.fullName,
                 email: user.email,
-                role: mappedReturnRole,
-                roleType: user.role?.type,
+                role: user.role?.type,
                 roleId: user.role?.id,
                 roleName: user.role?.name,
+                roleCode: user.role?.code,
                 isActive: user.status === 'ACTIVE',
                 createdAt: user.createdAt
             }

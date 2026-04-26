@@ -18,7 +18,7 @@ import AdminLayout from '../AdminLayout';
 
 const { Title, Text } = Typography;
 
-type UserRole = 'ADMIN' | 'COMPANY' | 'DRIVER' | 'CUSTOMER';
+type UserRole = 'SUPER_ADMIN' | 'TENANT_ADMIN' | 'TENANT_MANAGER' | 'TENANT_STAFF' | 'CUSTOMER' | 'PARTNER' | 'DRIVER' | 'AGENCY_ADMIN' | 'AGENCY_STAFF' | 'PLATFORM_OPS';
 
 interface User {
   id: string;
@@ -29,17 +29,23 @@ interface User {
   isActive: boolean;
 }
 
-const ROLE_CONFIG: Record<UserRole, { label: string; color: string; bg: string; icon: React.ReactNode }> = {
-  ADMIN: { label: 'Yönetici', color: '#6366f1', bg: '#eef2ff', icon: <SafetyCertificateOutlined /> },
-  COMPANY: { label: 'Firma / Acente', color: '#f59e0b', bg: '#fffbeb', icon: <ShopOutlined /> },
-  DRIVER: { label: 'Şoför', color: '#3b82f6', bg: '#eff6ff', icon: <CarOutlined /> },
-  CUSTOMER: { label: 'Müşteri', color: '#10b981', bg: '#ecfdf5', icon: <UserOutlined /> },
+const ROLE_CONFIG: Record<string, { label: string; color: string; bg: string; icon: React.ReactNode }> = {
+  SUPER_ADMIN:    { label: 'Süper Yönetici', color: '#7c3aed', bg: '#f5f3ff', icon: <SafetyCertificateOutlined /> },
+  TENANT_ADMIN:   { label: 'Yönetici',       color: '#6366f1', bg: '#eef2ff', icon: <SafetyCertificateOutlined /> },
+  TENANT_MANAGER: { label: 'Müdür',          color: '#8b5cf6', bg: '#f5f3ff', icon: <SafetyCertificateOutlined /> },
+  TENANT_STAFF:   { label: 'Personel',       color: '#a78bfa', bg: '#f5f3ff', icon: <IdcardOutlined /> },
+  PARTNER:        { label: 'Partner',        color: '#f59e0b', bg: '#fffbeb', icon: <TeamOutlined /> },
+  DRIVER:         { label: 'Şoför',          color: '#3b82f6', bg: '#eff6ff', icon: <CarOutlined /> },
+  CUSTOMER:       { label: 'Müşteri',        color: '#10b981', bg: '#ecfdf5', icon: <UserOutlined /> },
+  AGENCY_ADMIN:   { label: 'Acente Yönetici', color: '#ea580c', bg: '#fff7ed', icon: <ShopOutlined /> },
+  AGENCY_STAFF:   { label: 'Acente Personel', color: '#f97316', bg: '#fff7ed', icon: <ShopOutlined /> },
+  PLATFORM_OPS:   { label: 'Platform Ops',   color: '#64748b', bg: '#f8fafc', icon: <SafetyCertificateOutlined /> },
 };
 
 const AdminUsersPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [users, setUsers] = useState<User[]>([]);
-  const [roleFilter, setRoleFilter] = useState<UserRole | 'ALL'>('ALL');
+  const [roleFilter, setRoleFilter] = useState<string>('ALL');
   const [activeFilter, setActiveFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL');
   const [searchText, setSearchText] = useState('');
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -78,14 +84,14 @@ const AdminUsersPage: React.FC = () => {
   const stats = useMemo(() => ({
     total: users.length,
     active: users.filter(u => u.isActive).length,
-    admin: users.filter(u => u.role === 'ADMIN').length,
+    admin: users.filter(u => ['SUPER_ADMIN', 'TENANT_ADMIN', 'TENANT_MANAGER'].includes(u.role)).length,
     driver: users.filter(u => u.role === 'DRIVER').length,
   }), [users]);
 
   const handleNewUser = () => {
     setEditingUser(null);
     form.resetFields();
-    form.setFieldsValue({ role: 'CUSTOMER', isActive: true });
+    form.setFieldsValue({ role: 'CUSTOMER' as UserRole, isActive: true });
     setDrawerOpen(true);
   };
 
@@ -310,14 +316,19 @@ const AdminUsersPage: React.FC = () => {
             <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
               <Select
                 value={roleFilter}
-                style={{ width: 170 }}
+                style={{ width: 190 }}
                 onChange={(val) => setRoleFilter(val)}
                 options={[
                   { value: 'ALL', label: 'Tüm Roller' },
-                  { value: 'ADMIN', label: '🛡 Yönetici' },
-                  { value: 'COMPANY', label: '🏢 Firma / Acente' },
+                  { value: 'SUPER_ADMIN', label: '🛡 Süper Yönetici' },
+                  { value: 'TENANT_ADMIN', label: '🛡 Yönetici' },
+                  { value: 'TENANT_MANAGER', label: '🛡 Müdür' },
+                  { value: 'TENANT_STAFF', label: '👤 Personel' },
+                  { value: 'PARTNER', label: '🤝 Partner' },
                   { value: 'DRIVER', label: '🚗 Şoför' },
                   { value: 'CUSTOMER', label: '👤 Müşteri' },
+                  { value: 'AGENCY_ADMIN', label: '🏢 Acente Yönetici' },
+                  { value: 'AGENCY_STAFF', label: '🏢 Acente Personel' },
                 ]}
               />
               <Select
@@ -436,7 +447,7 @@ const AdminUsersPage: React.FC = () => {
               rules={[{ required: true, message: 'Rol seçilmelidir' }]}
             >
               <Select placeholder="Rol seçin" style={{ borderRadius: 8 }}>
-                {(Object.entries(ROLE_CONFIG) as [UserRole, typeof ROLE_CONFIG[UserRole]][]).map(([key, cfg]) => (
+                {Object.entries(ROLE_CONFIG).map(([key, cfg]) => (
                   <Select.Option key={key} value={key}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <span style={{ color: cfg.color }}>{cfg.icon}</span>
