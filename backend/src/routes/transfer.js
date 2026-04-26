@@ -1678,28 +1678,46 @@ router.get('/pool-bookings', authMiddleware, async (req, res) => {
             return meta.operationalStatus === 'IN_POOL' || meta.operationalStatus === 'POOL';
         });
 
-        // ── Partner vehicle type filtering ──
-        // Only show pool bookings matching partner's vehicle types
+        // ── Partner vehicle capacity (tier) filtering ──
+        // Tier rule: partner's largest vehicle capacity must be >= booking's required capacity.
+        // A Mini Van partner can take Sedan jobs, but a Sedan partner cannot take Mini Van jobs.
         if (req.user?.roleType === 'PARTNER') {
             const tenantId = req.tenant?.id;
-            const partnerVehicles = await prisma.vehicle.findMany({
-                where: { tenantId, ownerId: req.user.id, status: 'ACTIVE' },
-                include: { vehicleType: true }
-            });
+            const [partnerVehicles, allTypes] = await Promise.all([
+                prisma.vehicle.findMany({
+                    where: { tenantId, ownerId: req.user.id, status: 'ACTIVE' },
+                    include: { vehicleType: true }
+                }),
+                prisma.vehicleType.findMany({
+                    where: { tenantId },
+                    select: { name: true, slug: true, capacity: true }
+                })
+            ]);
 
-            if (partnerVehicles.length > 0) {
-                // Collect unique vehicle type names the partner owns
-                const partnerVehicleTypeNames = [...new Set(
-                    partnerVehicles
-                        .map(v => v.vehicleType?.name)
-                        .filter(Boolean)
-                        .map(n => n.toLowerCase().trim())
-                )];
+            if (partnerVehicles.length === 0) {
+                // Partner has no vehicles → cannot serve any pool booking
+                poolBookings = [];
+            } else {
+                const partnerMaxCapacity = Math.max(
+                    0,
+                    ...partnerVehicles.map(v => v.vehicleType?.capacity || 0)
+                );
+
+                // Lookup table: normalized vehicle type name/slug → capacity
+                const typeCapByKey = {};
+                allTypes.forEach(t => {
+                    if (t.name) typeCapByKey[t.name.toLowerCase().trim()] = t.capacity;
+                    if (t.slug) typeCapByKey[t.slug.toLowerCase().trim()] = t.capacity;
+                });
 
                 poolBookings = poolBookings.filter(b => {
-                    const bookingVehicleType = (b.metadata?.vehicleType || '').toLowerCase().trim();
-                    if (!bookingVehicleType || bookingVehicleType === 'standart') return true; // No type specified → show to all
-                    return partnerVehicleTypeNames.includes(bookingVehicleType);
+                    const requestedKey = (b.metadata?.vehicleType || '').toLowerCase().trim();
+                    let requiredCapacity = typeCapByKey[requestedKey];
+                    if (requiredCapacity == null) {
+                        // Fallback: use passenger headcount when vehicle type name is missing/unknown
+                        requiredCapacity = (b.adults || 0) + (b.children || 0);
+                    }
+                    return partnerMaxCapacity >= requiredCapacity;
                 });
             }
         }
@@ -2642,16 +2660,42 @@ router.put('/bookings/:id/status', authMiddleware, async (req, res) => {
             const tenantId = req.tenant?.id;
             const userId = req.user.id;
 
-            // Get partner's vehicles
+            // Get partner's vehicles (with type for capacity)
             const partnerVehicles = await prisma.vehicle.findMany({
                 where: { tenantId, ownerId: userId, status: 'ACTIVE' },
-                select: { id: true, plateNumber: true, brand: true, model: true }
+                include: { vehicleType: { select: { name: true, capacity: true } } }
             });
 
             if (partnerVehicles.length === 0) {
                 return res.status(400).json({
                     success: false,
                     error: 'Kayıtlı aracınız yok. Önce Ayarlar > Araçlarım bölümünden araç ekleyin.'
+                });
+            }
+
+            // ── Capacity tier guard: partner's largest vehicle must fit the booking ──
+            const allTypesForCap = await prisma.vehicleType.findMany({
+                where: { tenantId },
+                select: { name: true, slug: true, capacity: true }
+            });
+            const typeCapByKey = {};
+            allTypesForCap.forEach(t => {
+                if (t.name) typeCapByKey[t.name.toLowerCase().trim()] = t.capacity;
+                if (t.slug) typeCapByKey[t.slug.toLowerCase().trim()] = t.capacity;
+            });
+            const requestedKey = (currentBooking.metadata?.vehicleType || '').toLowerCase().trim();
+            let requiredCapacity = typeCapByKey[requestedKey];
+            if (requiredCapacity == null) {
+                requiredCapacity = (currentBooking.adults || 0) + (currentBooking.children || 0);
+            }
+            const partnerMaxCapacity = Math.max(
+                0,
+                ...partnerVehicles.map(v => v.vehicleType?.capacity || 0)
+            );
+            if (partnerMaxCapacity < requiredCapacity) {
+                return res.status(403).json({
+                    success: false,
+                    error: `Bu transfer ${requiredCapacity} kişilik araç gerektiriyor. Sizin en büyük aracınız ${partnerMaxCapacity} kişilik — kabul edemezsiniz.`
                 });
             }
 
@@ -2679,6 +2723,15 @@ router.put('/bookings/:id/status', authMiddleware, async (req, res) => {
                     return res.status(400).json({
                         success: false,
                         error: 'Seçilen araç size ait değil.'
+                    });
+                }
+
+                // Selected vehicle must also fit the booking's required capacity
+                const selectedCapacity = selectedVehicle.vehicleType?.capacity || 0;
+                if (selectedCapacity < requiredCapacity) {
+                    return res.status(403).json({
+                        success: false,
+                        error: `Seçtiğiniz araç ${selectedCapacity} kişilik, bu transfer ${requiredCapacity} kişilik araç gerektiriyor. Daha büyük bir aracınızı seçin.`
                     });
                 }
 
