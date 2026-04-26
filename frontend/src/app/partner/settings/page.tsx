@@ -11,7 +11,8 @@ import {
     PlusOutlined, CarOutlined, BankOutlined, UserOutlined,
     UploadOutlined, EditOutlined,
     SaveOutlined, SafetyOutlined, FileTextOutlined,
-    LockOutlined
+    LockOutlined, TeamOutlined, CalendarOutlined,
+    CheckCircleOutlined
 } from '@ant-design/icons';
 import apiClient from '@/lib/api-client';
 import { useAuth } from '@/app/context/AuthContext';
@@ -30,6 +31,9 @@ export default function SettingsPage() {
     const [messageApi, contextHolder] = message.useMessage();
     const [profileForm] = Form.useForm();
     const [passwordForm] = Form.useForm();
+    const [vehicleTypes, setVehicleTypes] = useState<any[]>([]);
+    const [savingVehicle, setSavingVehicle] = useState(false);
+    const [selectedVehicleTypeId, setSelectedVehicleTypeId] = useState<string | null>(null);
 
     const [documents, setDocuments] = useState([
         { id: 1, name: 'Sürücü Belgesi', status: 'VERIFIED', uploadDate: '2024-01-15' },
@@ -37,6 +41,15 @@ export default function SettingsPage() {
         { id: 3, name: 'Psikoteknik', status: 'PENDING', uploadDate: '2024-02-10' },
         { id: 4, name: 'Adli Sicil Kaydı', status: 'MISSING', uploadDate: null },
     ]);
+
+    const fetchVehicleTypes = async () => {
+        try {
+            const res = await apiClient.get('/api/vehicle-types');
+            if (res.data.success) setVehicleTypes(res.data.data);
+        } catch (e) { console.error('Vehicle types error:', e); }
+    };
+
+    useEffect(() => { fetchVehicleTypes(); }, []);
 
     useEffect(() => {
         if (activeTab === 'vehicles') fetchVehicles();
@@ -67,17 +80,36 @@ export default function SettingsPage() {
         } finally { setLoadingVehicles(false); }
     };
 
-    const handleAddVehicle = () => { setEditingVehicle(null); vehicleForm.resetFields(); setIsVehicleModalVisible(true); };
+    const CAR_BRANDS = [
+        'Mercedes-Benz', 'Volkswagen', 'Ford', 'Toyota', 'BMW', 'Audi',
+        'Renault', 'Fiat', 'Hyundai', 'Peugeot', 'Citroën', 'Opel',
+        'Škoda', 'Honda', 'Nissan', 'Dacia', 'Kia', 'Volvo', 'Iveco', 'MAN'
+    ];
+
+    const handleAddVehicle = () => { setEditingVehicle(null); vehicleForm.resetFields(); setSelectedVehicleTypeId(null); setIsVehicleModalVisible(true); };
     const handleEditVehicle = (record: any) => {
         setEditingVehicle(record);
-        vehicleForm.setFieldsValue({ ...record });
+        vehicleForm.setFieldsValue({
+            ...record,
+            vehicleTypeId: record.vehicleTypeId || undefined,
+        });
+        setSelectedVehicleTypeId(record.vehicleTypeId || null);
         setIsVehicleModalVisible(true);
     };
 
     const handleSaveVehicle = async () => {
         try {
+            setSavingVehicle(true);
             const values = await vehicleForm.validateFields();
-            const payload = { ...values, year: Number(values.year), capacity: Number(values.capacity), isActive: true, isCompanyOwned: true };
+            // Find selected vehicle type for capacity
+            const selectedType = vehicleTypes.find(vt => vt.id === values.vehicleTypeId);
+            const payload = {
+                ...values,
+                year: Number(values.year),
+                capacity: selectedType?.capacity || Number(values.capacity || 4),
+                isActive: true,
+                isCompanyOwned: true,
+            };
             const response = editingVehicle
                 ? await apiClient.put(`/api/vehicles/${editingVehicle.id}`, payload)
                 : await apiClient.post('/api/vehicles', payload);
@@ -86,6 +118,7 @@ export default function SettingsPage() {
                 setIsVehicleModalVisible(false); fetchVehicles();
             } else { messageApi.error(response.data.error || 'İşlem başarısız'); }
         } catch (error) { console.error('Validation or API error:', error); messageApi.error('Lütfen formu kontrol edin'); }
+        finally { setSavingVehicle(false); }
     };
 
     const handleSaveBankInfo = async () => {
@@ -120,7 +153,7 @@ export default function SettingsPage() {
         )},
         { title: 'Tip / Yıl', key: 'type', render: (_: any, r: any) => (
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ padding: '2px 8px', borderRadius: 6, background: '#f1f5f9', fontSize: 12, fontWeight: 600, color: '#475569' }}>{r.vehicleType}</span>
+                <span style={{ padding: '2px 8px', borderRadius: 6, background: '#eef2ff', fontSize: 12, fontWeight: 600, color: '#4f46e5', border: '1px solid #c7d2fe' }}>{r.vehicleTypeDetails?.name || r.vehicleType}</span>
                 <span style={{ fontSize: 12, color: '#94a3b8' }}>{r.year}</span>
             </div>
         )},
@@ -349,55 +382,198 @@ export default function SettingsPage() {
                         </div>
                     </div>
 
-                    {/* Vehicle Modal */}
+                    {/* Vehicle Modal — Professional Design */}
                     <Modal
-                        title={editingVehicle ? "Aracı Düzenle" : "Yeni Araç Ekle"}
                         open={isVehicleModalVisible}
-                        onOk={handleSaveVehicle}
+                        title={null}
+                        footer={null}
                         onCancel={() => setIsVehicleModalVisible(false)}
-                        okText="Kaydet" cancelText="İptal"
+                        centered
+                        width={520}
+                        styles={{ body: { padding: 0 } }}
                     >
-                        <Form form={vehicleForm} layout="vertical">
-                            <Form.Item label="Plaka" name="plateNumber" rules={[{ required: true }]}>
-                                <Input placeholder="34 ABC 123" style={{ borderRadius: 10 }} />
-                            </Form.Item>
-                            <Row gutter={12}>
-                                <Col span={12}>
-                                    <Form.Item label="Marka" name="brand" rules={[{ required: true }]}>
-                                        <Select placeholder="Seçiniz">
-                                            <Option value="Mercedes-Benz">Mercedes-Benz</Option>
-                                            <Option value="Volkswagen">Volkswagen</Option>
-                                            <Option value="Ford">Ford</Option>
-                                        </Select>
-                                    </Form.Item>
-                                </Col>
-                                <Col span={12}>
-                                    <Form.Item label="Model" name="model" rules={[{ required: true }]}>
-                                        <Input placeholder="Vito Tourer" style={{ borderRadius: 10 }} />
-                                    </Form.Item>
-                                </Col>
-                            </Row>
-                            <Row gutter={12}>
-                                <Col span={12}>
-                                    <Form.Item label="Araç Tipi" name="vehicleType" rules={[{ required: true }]}>
-                                        <Select placeholder="Seçiniz">
-                                            <Option value="VIP_VAN">Vito VIP (6+1)</Option>
-                                            <Option value="MINIVAN">Transporter (8+1)</Option>
-                                            <Option value="MINIBUS">Sprinter (16+1)</Option>
-                                            <Option value="SEDAN">Binek (Sedan)</Option>
-                                        </Select>
-                                    </Form.Item>
-                                </Col>
-                                <Col span={12}>
-                                    <Form.Item label="Yıl" name="year" rules={[{ required: true }]}>
-                                        <Input type="number" style={{ borderRadius: 10 }} />
-                                    </Form.Item>
-                                </Col>
-                            </Row>
-                            <Form.Item label="Kapasite (Yolcu)" name="capacity" rules={[{ required: true }]}>
-                                <Input type="number" max={50} min={1} style={{ borderRadius: 10 }} />
-                            </Form.Item>
-                        </Form>
+                        <div style={{ padding: '28px 28px 8px' }}>
+                            {/* Modal Header */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 24 }}>
+                                <div style={{
+                                    width: 48, height: 48, borderRadius: 14,
+                                    background: editingVehicle ? 'linear-gradient(135deg, #f59e0b, #d97706)' : 'linear-gradient(135deg, #10b981, #059669)',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    color: '#fff', fontSize: 22, boxShadow: `0 6px 16px ${editingVehicle ? 'rgba(245,158,11,0.3)' : 'rgba(16,185,129,0.3)'}`,
+                                }}>
+                                    <CarOutlined />
+                                </div>
+                                <div>
+                                    <div style={{ fontSize: 18, fontWeight: 800, color: '#0f172a' }}>{editingVehicle ? 'Aracı Düzenle' : 'Yeni Araç Ekle'}</div>
+                                    <div style={{ fontSize: 13, color: '#64748b' }}>Araç bilgilerini ve tipini belirleyin</div>
+                                </div>
+                            </div>
+
+                            <Form form={vehicleForm} layout="vertical" requiredMark={false}>
+                                {/* Plaka — Full Width, Prominent */}
+                                <Form.Item
+                                    label={<span style={{ fontWeight: 700, fontSize: 13, color: '#334155' }}>Plaka Numarası</span>}
+                                    name="plateNumber"
+                                    rules={[{ required: true, message: 'Plaka zorunludur' }]}
+                                >
+                                    <Input
+                                        placeholder="34 ABC 123"
+                                        size="large"
+                                        style={{
+                                            borderRadius: 12, fontSize: 16, fontWeight: 700, letterSpacing: 1.5,
+                                            textTransform: 'uppercase', textAlign: 'center',
+                                            border: '2px solid #e2e8f0', height: 50,
+                                        }}
+                                    />
+                                </Form.Item>
+
+                                {/* Vehicle Type — Cards Grid */}
+                                <Form.Item
+                                    label={<span style={{ fontWeight: 700, fontSize: 13, color: '#334155' }}>Araç Tipi</span>}
+                                    name="vehicleTypeId"
+                                    rules={[{ required: true, message: 'Araç tipi seçilmelidir' }]}
+                                >
+                                    <div>
+                                        {vehicleTypes.length === 0 ? (
+                                            <div style={{ textAlign: 'center', padding: 20, color: '#94a3b8', fontSize: 13 }}>
+                                                <Spin size="small" /> Araç tipleri yükleniyor...
+                                            </div>
+                                        ) : (
+                                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 10 }}>
+                                                {vehicleTypes.map(vt => {
+                                                    const isSelected = selectedVehicleTypeId === vt.id;
+                                                    return (
+                                                        <button
+                                                            key={vt.id}
+                                                            type="button"
+                                                            onClick={() => {
+                                                                vehicleForm.setFieldsValue({ vehicleTypeId: vt.id, capacity: vt.capacity });
+                                                                setSelectedVehicleTypeId(vt.id);
+                                                            }}
+                                                            style={{
+                                                                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+                                                                padding: '14px 10px', border: `2px solid ${isSelected ? '#6366f1' : '#e2e8f0'}`,
+                                                                borderRadius: 14, cursor: 'pointer', transition: 'all 0.2s',
+                                                                background: isSelected ? '#eef2ff' : '#fff',
+                                                                position: 'relative',
+                                                            }}
+                                                        >
+                                                            {isSelected && (
+                                                                <div style={{
+                                                                    position: 'absolute', top: -6, right: -6,
+                                                                    width: 20, height: 20, borderRadius: '50%',
+                                                                    background: '#6366f1', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                                }}>
+                                                                    <CheckCircleOutlined style={{ color: '#fff', fontSize: 12 }} />
+                                                                </div>
+                                                            )}
+                                                            <CarOutlined style={{ fontSize: 22, color: isSelected ? '#6366f1' : '#94a3b8' }} />
+                                                            <div style={{ fontWeight: 700, fontSize: 13, color: isSelected ? '#4f46e5' : '#1e293b', textAlign: 'center' }}>{vt.name}</div>
+                                                            <div style={{ display: 'flex', gap: 8, fontSize: 11, color: '#64748b' }}>
+                                                                <span><TeamOutlined /> {vt.capacity}</span>
+                                                                <span>{vt.categoryDisplay}</span>
+                                                            </div>
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
+                                </Form.Item>
+
+                                {/* Brand + Model */}
+                                <Row gutter={12}>
+                                    <Col span={12}>
+                                        <Form.Item
+                                            label={<span style={{ fontWeight: 700, fontSize: 13, color: '#334155' }}>Marka</span>}
+                                            name="brand"
+                                            rules={[{ required: true, message: 'Marka zorunludur' }]}
+                                        >
+                                            <Select
+                                                placeholder="Seçiniz"
+                                                size="large"
+                                                showSearch
+                                                optionFilterProp="children"
+                                                style={{ borderRadius: 12 }}
+                                            >
+                                                {CAR_BRANDS.map(b => <Option key={b} value={b}>{b}</Option>)}
+                                            </Select>
+                                        </Form.Item>
+                                    </Col>
+                                    <Col span={12}>
+                                        <Form.Item
+                                            label={<span style={{ fontWeight: 700, fontSize: 13, color: '#334155' }}>Model</span>}
+                                            name="model"
+                                            rules={[{ required: true, message: 'Model zorunludur' }]}
+                                        >
+                                            <Input placeholder="Vito Tourer" size="large" style={{ borderRadius: 12 }} />
+                                        </Form.Item>
+                                    </Col>
+                                </Row>
+
+                                {/* Year + Color */}
+                                <Row gutter={12}>
+                                    <Col span={12}>
+                                        <Form.Item
+                                            label={<span style={{ fontWeight: 700, fontSize: 13, color: '#334155' }}>Model Yılı</span>}
+                                            name="year"
+                                            rules={[{ required: true, message: 'Yıl zorunludur' }]}
+                                        >
+                                            <Select placeholder="Seçiniz" size="large" style={{ borderRadius: 12 }}>
+                                                {Array.from({ length: 30 }, (_, i) => new Date().getFullYear() - i).map(y => (
+                                                    <Option key={y} value={y}>{y}</Option>
+                                                ))}
+                                            </Select>
+                                        </Form.Item>
+                                    </Col>
+                                    <Col span={12}>
+                                        <Form.Item
+                                            label={<span style={{ fontWeight: 700, fontSize: 13, color: '#334155' }}>Renk</span>}
+                                            name="color"
+                                        >
+                                            <Select placeholder="Seçiniz" size="large" allowClear style={{ borderRadius: 12 }}>
+                                                <Option value="Beyaz">Beyaz</Option>
+                                                <Option value="Siyah">Siyah</Option>
+                                                <Option value="Gri">Gri</Option>
+                                                <Option value="Lacivert">Lacivert</Option>
+                                                <Option value="Kırmızı">Kırmızı</Option>
+                                            </Select>
+                                        </Form.Item>
+                                    </Col>
+                                </Row>
+
+                                {/* Hidden capacity */}
+                                <Form.Item name="capacity" hidden><Input /></Form.Item>
+
+                                {/* Buttons */}
+                                <div style={{ display: 'flex', gap: 10, marginTop: 8, paddingBottom: 16 }}>
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsVehicleModalVisible(false)}
+                                        style={{
+                                            flex: 1, padding: '12px', border: '1px solid #e2e8f0', borderRadius: 12,
+                                            background: '#fff', color: '#64748b', fontSize: 14, fontWeight: 600, cursor: 'pointer',
+                                        }}
+                                    >
+                                        İptal
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={handleSaveVehicle}
+                                        disabled={savingVehicle}
+                                        style={{
+                                            flex: 2, padding: '12px', border: 'none', borderRadius: 12,
+                                            background: savingVehicle ? '#94a3b8' : 'linear-gradient(135deg, #6366f1, #4f46e5)',
+                                            color: '#fff', fontSize: 14, fontWeight: 700, cursor: savingVehicle ? 'not-allowed' : 'pointer',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                                            boxShadow: '0 4px 12px rgba(99,102,241,0.3)',
+                                        }}
+                                    >
+                                        {savingVehicle ? <Spin size="small" /> : <><CheckCircleOutlined /> {editingVehicle ? 'Güncelle' : 'Araç Ekle'}</>}
+                                    </button>
+                                </div>
+                            </Form>
+                        </div>
                     </Modal>
                 </div>
             </PartnerLayout>

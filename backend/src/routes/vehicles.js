@@ -150,6 +150,8 @@ router.post('/', authMiddleware, async (req, res) => {
         }
 
         const ownershipType = data.ownershipType || 'OWNED';
+        // Auto-set ownerId for Partner users
+        const ownerId = req.user?.roleType === 'PARTNER' ? req.user.id : (data.ownerId || null);
         const vehicle = await prisma.vehicle.create({
             data: {
                 tenantId,
@@ -161,6 +163,7 @@ router.post('/', authMiddleware, async (req, res) => {
                 status: data.isActive !== false ? 'ACTIVE' : 'INACTIVE',
                 isOwned: ownershipType !== 'RENTED',
                 vehicleTypeId: vehicleTypeId,
+                ...(ownerId ? { ownerId } : {}),
                 metadata: {
                     basePricePerKm: data.basePricePerKm,
                     basePricePerHour: data.basePricePerHour,

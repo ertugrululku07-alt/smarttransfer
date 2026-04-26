@@ -1673,10 +1673,36 @@ router.get('/pool-bookings', authMiddleware, async (req, res) => {
             orderBy: { startDate: 'asc' }
         });
 
-        const poolBookings = bookings.filter(b => {
+        let poolBookings = bookings.filter(b => {
             const meta = b.metadata || {};
             return meta.operationalStatus === 'IN_POOL' || meta.operationalStatus === 'POOL';
         });
+
+        // ── Partner vehicle type filtering ──
+        // Only show pool bookings matching partner's vehicle types
+        if (req.user?.roleType === 'PARTNER') {
+            const tenantId = req.tenant?.id;
+            const partnerVehicles = await prisma.vehicle.findMany({
+                where: { tenantId, ownerId: req.user.id, status: 'ACTIVE' },
+                include: { vehicleType: true }
+            });
+
+            if (partnerVehicles.length > 0) {
+                // Collect unique vehicle type names the partner owns
+                const partnerVehicleTypeNames = [...new Set(
+                    partnerVehicles
+                        .map(v => v.vehicleType?.name)
+                        .filter(Boolean)
+                        .map(n => n.toLowerCase().trim())
+                )];
+
+                poolBookings = poolBookings.filter(b => {
+                    const bookingVehicleType = (b.metadata?.vehicleType || '').toLowerCase().trim();
+                    if (!bookingVehicleType || bookingVehicleType === 'standart') return true; // No type specified → show to all
+                    return partnerVehicleTypeNames.includes(bookingVehicleType);
+                });
+            }
+        }
 
         const mappedBookings = poolBookings.map(b => ({
             id: b.id,
