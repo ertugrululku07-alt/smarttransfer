@@ -1851,7 +1851,10 @@ router.get('/partner/active-bookings', authMiddleware, async (req, res) => {
                 currency: b.currency
             },
             status: 'ACCEPTED', // Frontend tracking
-            operationalStatus: b.metadata?.operationalStatus
+            operationalStatus: b.metadata?.operationalStatus,
+            partnerVehicleId: b.metadata?.partnerVehicleId || null,
+            partnerVehiclePlate: b.metadata?.partnerVehiclePlate || null,
+            partnerVehicleName: b.metadata?.partnerVehicleName || null
         }));
 
         res.json({
@@ -1998,6 +2001,82 @@ router.get('/partner/stats', authMiddleware, async (req, res) => {
             success: false,
             error: 'İstatistikler alınamadı'
         });
+    }
+});
+
+/**
+ * GET /api/transfer/partner/my-vehicles
+ * Get partner's vehicles with busy/available status
+ */
+router.get('/partner/my-vehicles', authMiddleware, async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const tenantId = req.tenant?.id;
+
+        // Get partner's vehicles
+        const vehicles = await prisma.vehicle.findMany({
+            where: { tenantId, ownerId: userId, status: 'ACTIVE' },
+            include: { vehicleType: true },
+            orderBy: { createdAt: 'asc' }
+        });
+
+        // Get active bookings for this partner
+        const activeBookings = await prisma.booking.findMany({
+            where: {
+                productType: 'TRANSFER',
+                status: 'CONFIRMED',
+                confirmedBy: userId
+            },
+            select: { id: true, bookingNumber: true, metadata: true, startDate: true, contactName: true }
+        });
+
+        // Map vehicles with busy status
+        const vehiclesWithStatus = vehicles.map(v => {
+            const activeBooking = activeBookings.find(b =>
+                b.metadata?.partnerVehicleId === v.id
+            );
+            return {
+                id: v.id,
+                plateNumber: v.plateNumber,
+                brand: v.brand,
+                model: v.model,
+                name: `${v.brand} ${v.model}`,
+                capacity: v.vehicleType?.capacity || 0,
+                vehicleType: v.vehicleType?.category || 'SEDAN',
+                isBusy: !!activeBooking,
+                activeBooking: activeBooking ? {
+                    id: activeBooking.id,
+                    bookingNumber: activeBooking.bookingNumber,
+                    customerName: activeBooking.contactName,
+                    pickup: activeBooking.metadata?.pickup,
+                    startDate: activeBooking.startDate
+                } : null
+            };
+        });
+
+        // Also find active bookings that don't have a vehicle assigned (legacy)
+        const unassignedBookings = activeBookings.filter(b =>
+            !b.metadata?.partnerVehicleId
+        );
+
+        const totalVehicles = vehiclesWithStatus.length;
+        const busyVehicles = vehiclesWithStatus.filter(v => v.isBusy).length + unassignedBookings.length;
+        const availableSlots = Math.max(0, totalVehicles - busyVehicles);
+
+        res.json({
+            success: true,
+            data: {
+                vehicles: vehiclesWithStatus,
+                totalVehicles,
+                busyVehicles,
+                availableSlots,
+                canAcceptMore: availableSlots > 0,
+                unassignedActiveCount: unassignedBookings.length
+            }
+        });
+    } catch (error) {
+        console.error('Get partner vehicles error:', error);
+        res.status(500).json({ success: false, error: 'Araçlar alınamadı' });
     }
 });
 
@@ -2518,7 +2597,7 @@ router.put('/bookings/admin/:id', authMiddleware, async (req, res) => {
 router.put('/bookings/:id/status', authMiddleware, async (req, res) => {
     try {
         const { id } = req.params;
-        const { status, subStatus, collectedAmount, poolPrice } = req.body;
+        const { status, subStatus, collectedAmount, poolPrice, partnerVehicleId } = req.body;
 
         // Fetch current booking first to preserve metadata
         const currentBooking = await prisma.booking.findUnique({
@@ -2530,6 +2609,74 @@ router.put('/bookings/:id/status', authMiddleware, async (req, res) => {
                 success: false,
                 error: 'Rezervasyon bulunamadı'
             });
+        }
+
+        // ── Partner vehicle capacity validation ──
+        if (status === 'CONFIRMED' && req.user?.roleType === 'PARTNER') {
+            const tenantId = req.tenant?.id;
+            const userId = req.user.id;
+
+            // Get partner's vehicles
+            const partnerVehicles = await prisma.vehicle.findMany({
+                where: { tenantId, ownerId: userId, status: 'ACTIVE' },
+                select: { id: true, plateNumber: true, brand: true, model: true }
+            });
+
+            if (partnerVehicles.length === 0) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Kayıtlı aracınız yok. Önce Ayarlar > Araçlarım bölümünden araç ekleyin.'
+                });
+            }
+
+            // Get current active bookings for this partner
+            const activeCount = await prisma.booking.count({
+                where: {
+                    productType: 'TRANSFER',
+                    status: 'CONFIRMED',
+                    confirmedBy: userId,
+                    id: { not: id }
+                }
+            });
+
+            if (activeCount >= partnerVehicles.length) {
+                return res.status(400).json({
+                    success: false,
+                    error: `Tüm araçlarınız meşgul (${partnerVehicles.length} araç / ${activeCount} aktif transfer). Transfer tamamlanmadan yeni transfer kabul edemezsiniz.`
+                });
+            }
+
+            // Validate selected vehicle
+            if (partnerVehicleId) {
+                const selectedVehicle = partnerVehicles.find(v => v.id === partnerVehicleId);
+                if (!selectedVehicle) {
+                    return res.status(400).json({
+                        success: false,
+                        error: 'Seçilen araç size ait değil.'
+                    });
+                }
+
+                // Check if selected vehicle is already busy
+                const vehicleBusy = await prisma.booking.findFirst({
+                    where: {
+                        productType: 'TRANSFER',
+                        status: 'CONFIRMED',
+                        confirmedBy: userId,
+                        id: { not: id }
+                    },
+                    select: { metadata: true, bookingNumber: true }
+                });
+
+                if (vehicleBusy && vehicleBusy.metadata?.partnerVehicleId === partnerVehicleId) {
+                    return res.status(400).json({
+                        success: false,
+                        error: `Bu araç zaten ${vehicleBusy.bookingNumber} numaralı transferde kullanılıyor.`
+                    });
+                }
+            } else if (partnerVehicles.length === 1) {
+                // Auto-assign if only 1 vehicle
+                req.body.partnerVehicleId = partnerVehicles[0].id;
+            }
         }
 
         // Capture previous state for audit trail
@@ -2549,6 +2696,21 @@ router.put('/bookings/:id/status', authMiddleware, async (req, res) => {
         }
         if (poolPrice !== undefined) {
             newMetadata = { ...newMetadata, poolPrice: Number(poolPrice) };
+        }
+
+        // Store partner vehicle assignment
+        const finalPartnerVehicleId = req.body.partnerVehicleId || partnerVehicleId;
+        if (finalPartnerVehicleId && status === 'CONFIRMED') {
+            const vehicle = await prisma.vehicle.findUnique({
+                where: { id: finalPartnerVehicleId },
+                select: { plateNumber: true, brand: true, model: true }
+            });
+            newMetadata = {
+                ...newMetadata,
+                partnerVehicleId: finalPartnerVehicleId,
+                partnerVehiclePlate: vehicle?.plateNumber || '',
+                partnerVehicleName: vehicle ? `${vehicle.brand} ${vehicle.model}` : ''
+            };
         }
 
         let updatedBooking;

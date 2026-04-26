@@ -16,7 +16,7 @@ import {
     InboxOutlined,
     SwapRightOutlined
 } from '@ant-design/icons';
-import { Button, message, Spin, Empty, Tabs, Tag } from 'antd';
+import { Button, message, Spin, Empty, Tabs, Tag, Modal } from 'antd';
 import { useRouter } from 'next/navigation';
 import apiClient from '@/lib/api-client';
 import FlightTracker from '@/components/FlightTracker';
@@ -35,6 +35,11 @@ const PartnerDashboard = () => {
     const [fetching, setFetching] = useState(true);
     const [activeFilter, setActiveFilter] = useState('all');
     const [stats, setStats] = useState({ pending: 0, today: 0 });
+    // Vehicle capacity state
+    const [myVehicles, setMyVehicles] = useState<any[]>([]);
+    const [vehicleCapacity, setVehicleCapacity] = useState({ totalVehicles: 0, busyVehicles: 0, availableSlots: 0, canAcceptMore: false });
+    const [vehicleModalVisible, setVehicleModalVisible] = useState(false);
+    const [pendingAcceptId, setPendingAcceptId] = useState<string | null>(null);
 
     const fetchStats = async () => {
         try {
@@ -47,19 +52,50 @@ const PartnerDashboard = () => {
 
     const [poolRuns, setPoolRuns] = useState<any[]>([]);
 
+    const fetchMyVehicles = async () => {
+        try {
+            const res = await apiClient.get('/api/transfer/partner/my-vehicles');
+            if (res.data.success) {
+                const d = res.data.data;
+                setMyVehicles(d.vehicles || []);
+                setVehicleCapacity({
+                    totalVehicles: d.totalVehicles || 0,
+                    busyVehicles: d.busyVehicles || 0,
+                    availableSlots: d.availableSlots || 0,
+                    canAcceptMore: d.canAcceptMore || false
+                });
+                return d;
+            }
+        } catch (e) { console.error('Vehicle fetch error:', e); }
+        return null;
+    };
+
     const fetchBookings = async () => {
         setFetching(true);
         fetchStats();
         try {
-            const activeResponse = await apiClient.get('/api/transfer/partner/active-bookings');
-            if (activeResponse.data.success && activeResponse.data.data.length > 0) {
-                setReservations(activeResponse.data.data);
-                setPoolRuns([]);
+            // Fetch vehicles and active bookings in parallel
+            const [vehicleData, activeResponse] = await Promise.all([
+                fetchMyVehicles(),
+                apiClient.get('/api/transfer/partner/active-bookings')
+            ]);
+
+            const activeBookings = activeResponse.data.success ? activeResponse.data.data : [];
+            const availableSlots = vehicleData?.availableSlots ?? 0;
+            const totalVehicles = vehicleData?.totalVehicles ?? 0;
+
+            // Always set active bookings as reservations
+            if (activeBookings.length > 0) {
+                setReservations(activeBookings);
             } else {
+                setReservations([]);
+            }
+
+            // Show pool only if there are available vehicle slots
+            if (availableSlots > 0 || totalVehicles === 0) {
                 const poolResponse = await apiClient.get('/api/transfer/pool-bookings');
                 if (poolResponse.data.success) {
                     const all = poolResponse.data.data || [];
-                    // Group by poolRunKey: bookings with same poolRunKey form a "run"
                     const runMap: Record<string, any[]> = {};
                     const singles: any[] = [];
                     all.forEach((b: any) => {
@@ -70,7 +106,12 @@ const PartnerDashboard = () => {
                             singles.push(b);
                         }
                     });
-                    setReservations(singles);
+                    // If there are active bookings, append pool singles after them
+                    if (activeBookings.length > 0) {
+                        setReservations([...activeBookings, ...singles]);
+                    } else {
+                        setReservations(singles);
+                    }
                     setPoolRuns(Object.entries(runMap).map(([key, bookings]) => ({
                         poolRunKey: key,
                         routeName: bookings[0]?.poolRunName || 'Shuttle Sefer',
@@ -80,6 +121,8 @@ const PartnerDashboard = () => {
                         bookings
                     })));
                 }
+            } else {
+                setPoolRuns([]);
             }
         } catch (error) {
             console.error('Error fetching bookings:', error);
@@ -91,21 +134,35 @@ const PartnerDashboard = () => {
 
     useEffect(() => { fetchBookings(); }, []);
 
-    const handleAccept = async (id: string) => {
+    const handleAccept = async (id: string, vehicleId?: string) => {
+        // If multiple vehicles and no vehicleId selected yet, show modal
+        const availableVehicles = myVehicles.filter(v => !v.isBusy);
+        if (availableVehicles.length > 1 && !vehicleId) {
+            setPendingAcceptId(id);
+            setVehicleModalVisible(true);
+            return;
+        }
+
+        // Auto-select if only 1 available vehicle
+        const selectedVehicleId = vehicleId || (availableVehicles.length === 1 ? availableVehicles[0].id : undefined);
+
         setLoading(id);
         try {
             const response = await apiClient.put(`/api/transfer/bookings/${id}/status`, {
-                status: 'CONFIRMED', subStatus: 'IN_OPERATION'
+                status: 'CONFIRMED', subStatus: 'IN_OPERATION',
+                ...(selectedVehicleId ? { partnerVehicleId: selectedVehicleId } : {})
             });
             if (response.data.success) {
                 message.success('Rezervasyon kabul edildi!');
+                setVehicleModalVisible(false);
+                setPendingAcceptId(null);
                 fetchBookings();
             } else {
-                message.error('İşlem başarısız oldu');
+                message.error(response.data.error || 'İşlem başarısız oldu');
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error('Accept error:', error);
-            message.error('Bir hata oluştu');
+            message.error(error?.response?.data?.error || 'Bir hata oluştu');
         } finally {
             setLoading(null);
         }
@@ -119,6 +176,8 @@ const PartnerDashboard = () => {
     };
 
     const hasActive = reservations.some(r => r.status === 'ACCEPTED' || r.status === 'CONFIRMED');
+    const allVehiclesBusy = vehicleCapacity.totalVehicles > 0 && vehicleCapacity.availableSlots === 0;
+    const hasPool = reservations.some(r => r.status === 'PENDING' || r.status === 'WAITING' || r.status === 'POOL');
     const filters = [
         { key: 'all', label: 'Tümü', count: reservations.length },
         { key: 'vip', label: 'VIP Transfer' },
@@ -145,10 +204,10 @@ const PartnerDashboard = () => {
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
                             <div>
                                 <h1 style={{ fontSize: 24, fontWeight: 800, color: '#0f172a', margin: 0, lineHeight: 1.3 }}>
-                                    {hasActive ? '🟢 Aktif Transfer' : '📋 Transfer Havuzu'}
+                                    {allVehiclesBusy ? '🟢 Aktif Transferler' : hasActive && hasPool ? '📋 Transfer Havuzu' : hasActive ? '🟢 Aktif Transfer' : '📋 Transfer Havuzu'}
                                 </h1>
                                 <p style={{ fontSize: 14, color: '#64748b', margin: '4px 0 0', fontWeight: 400 }}>
-                                    {hasActive ? 'Devam eden transferiniz aşağıda' : 'Size atanan ve bekleyen transferler'}
+                                    {allVehiclesBusy ? 'Tüm araçlarınız meşgul — havuz gizli' : hasActive ? 'Aktif transferleriniz ve bekleyen havuz' : 'Size atanan ve bekleyen transferler'}
                                 </p>
                             </div>
                             <Button
@@ -187,6 +246,54 @@ const PartnerDashboard = () => {
                             <div style={{ fontSize: 12, opacity: 0.7, marginTop: 2 }}>transfer</div>
                         </div>
                     </div>
+
+                    {/* Vehicle Capacity Banner */}
+                    {vehicleCapacity.totalVehicles > 0 && (
+                        <div style={{
+                            background: allVehiclesBusy
+                                ? 'linear-gradient(135deg, #fef2f2, #fee2e2)'
+                                : 'linear-gradient(135deg, #f0fdf4, #dcfce7)',
+                            borderRadius: 14, padding: '14px 20px', marginBottom: 20,
+                            border: `1px solid ${allVehiclesBusy ? '#fca5a5' : '#86efac'}`,
+                            display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12,
+                        }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                <CarOutlined style={{ fontSize: 20, color: allVehiclesBusy ? '#dc2626' : '#16a34a' }} />
+                                <div>
+                                    <div style={{ fontWeight: 700, fontSize: 14, color: allVehiclesBusy ? '#991b1b' : '#166534' }}>
+                                        {allVehiclesBusy ? '🔴 Tüm araçlarınız meşgul' : `🟢 ${vehicleCapacity.availableSlots} araç müsait`}
+                                    </div>
+                                    <div style={{ fontSize: 12, color: allVehiclesBusy ? '#b91c1c' : '#15803d', marginTop: 2 }}>
+                                        {vehicleCapacity.totalVehicles} araç toplam • {vehicleCapacity.busyVehicles} meşgul • {vehicleCapacity.availableSlots} boş
+                                    </div>
+                                </div>
+                            </div>
+                            {allVehiclesBusy && (
+                                <div style={{
+                                    padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700,
+                                    background: '#fecaca', color: '#991b1b',
+                                }}>
+                                    Transferler bitene kadar havuz gizli
+                                </div>
+                            )}
+                            {/* Vehicle list chips */}
+                            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', width: '100%' }}>
+                                {myVehicles.map(v => (
+                                    <div key={v.id} style={{
+                                        display: 'inline-flex', alignItems: 'center', gap: 6,
+                                        padding: '4px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+                                        background: v.isBusy ? '#fef3c7' : '#ecfdf5',
+                                        border: `1px solid ${v.isBusy ? '#fcd34d' : '#6ee7b7'}`,
+                                        color: v.isBusy ? '#92400e' : '#065f46',
+                                    }}>
+                                        <CarOutlined style={{ fontSize: 11 }} />
+                                        {v.plateNumber}
+                                        {v.isBusy ? ` • ${v.activeBooking?.bookingNumber || 'Meşgul'}` : ' • Boş'}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
 
                     {/* Tabs for Private and Shuttle */}
                     <Tabs
@@ -389,6 +496,58 @@ const PartnerDashboard = () => {
                         ]}
                     />
                 </div>
+
+                {/* Vehicle Selection Modal */}
+                <Modal
+                    open={vehicleModalVisible}
+                    title={null}
+                    footer={null}
+                    onCancel={() => { setVehicleModalVisible(false); setPendingAcceptId(null); }}
+                    centered
+                    width={420}
+                    styles={{ body: { padding: 0 } }}
+                >
+                    <div style={{ padding: '24px 24px 8px' }}>
+                        <div style={{ fontSize: 18, fontWeight: 800, color: '#0f172a', marginBottom: 4 }}>🚗 Araç Seçin</div>
+                        <div style={{ fontSize: 13, color: '#64748b', marginBottom: 20 }}>
+                            Bu transferi hangi aracınızla yapacaksınız?
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                            {myVehicles.filter(v => !v.isBusy).map(v => (
+                                <button
+                                    key={v.id}
+                                    onClick={() => pendingAcceptId && handleAccept(pendingAcceptId, v.id)}
+                                    disabled={loading !== null}
+                                    style={{
+                                        display: 'flex', alignItems: 'center', gap: 14,
+                                        padding: '16px 18px', border: '2px solid #e2e8f0', borderRadius: 14,
+                                        background: '#fff', cursor: loading ? 'not-allowed' : 'pointer',
+                                        transition: 'all 0.2s ease', textAlign: 'left', width: '100%',
+                                    }}
+                                    onMouseEnter={e => { (e.target as any).closest('button').style.borderColor = '#6366f1'; (e.target as any).closest('button').style.background = '#f5f3ff'; }}
+                                    onMouseLeave={e => { (e.target as any).closest('button').style.borderColor = '#e2e8f0'; (e.target as any).closest('button').style.background = '#fff'; }}
+                                >
+                                    <div style={{
+                                        width: 44, height: 44, borderRadius: 12,
+                                        background: 'linear-gradient(135deg, #6366f1, #4f46e5)',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        color: '#fff', flexShrink: 0,
+                                    }}>
+                                        <CarOutlined style={{ fontSize: 20 }} />
+                                    </div>
+                                    <div style={{ flex: 1 }}>
+                                        <div style={{ fontWeight: 700, fontSize: 15, color: '#0f172a' }}>{v.plateNumber}</div>
+                                        <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{v.name} • {v.vehicleType} • {v.capacity} kişi</div>
+                                    </div>
+                                    <RightOutlined style={{ color: '#94a3b8', fontSize: 14 }} />
+                                </button>
+                            ))}
+                        </div>
+                        <div style={{ textAlign: 'center', padding: '12px 0', fontSize: 12, color: '#94a3b8' }}>
+                            Sadece boş araçlarınız listeleniyor
+                        </div>
+                    </div>
+                </Modal>
             </PartnerLayout>
         </PartnerGuard>
     );
@@ -497,6 +656,15 @@ const ReservationCard = ({ res, onAccept, onReject, loading, router }: any) => {
                     }}>
                         <TeamOutlined style={{ fontSize: 13 }} />{res.vehicle.pax} kişi
                     </div>
+                    {res.partnerVehiclePlate && (
+                        <div style={{
+                            display: 'flex', alignItems: 'center', gap: 6,
+                            padding: '6px 12px', background: '#eef2ff', borderRadius: 8, fontSize: 12, fontWeight: 700, color: '#4f46e5',
+                            border: '1px solid #c7d2fe',
+                        }}>
+                            <CarOutlined style={{ fontSize: 13 }} />{res.partnerVehiclePlate}
+                        </div>
+                    )}
                     <div style={{
                         marginLeft: 'auto', fontSize: 20, fontWeight: 800, color: '#0f172a',
                         display: 'flex', alignItems: 'baseline', gap: 4,
