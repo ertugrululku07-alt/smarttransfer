@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Table, Tag, Button, Space, Typography, message, Input, Select, Tooltip, Popover, ColorPicker, Dropdown, Checkbox, Divider } from 'antd';
-import { CarOutlined, EnvironmentOutlined, MessageOutlined, SearchOutlined, FilterFilled, SortAscendingOutlined, SortDescendingOutlined, BgColorsOutlined, HolderOutlined, DownOutlined, RightOutlined, UserOutlined, PhoneOutlined, IdcardOutlined, MoreOutlined, EyeOutlined, UndoOutlined, StopOutlined, InboxOutlined, CheckCircleOutlined, DollarOutlined } from '@ant-design/icons';
+import { CarOutlined, EnvironmentOutlined, MessageOutlined, SearchOutlined, FilterFilled, SortAscendingOutlined, SortDescendingOutlined, BgColorsOutlined, HolderOutlined, DownOutlined, RightOutlined, UserOutlined, PhoneOutlined, IdcardOutlined, MoreOutlined, EyeOutlined, UndoOutlined, StopOutlined, InboxOutlined, CheckCircleOutlined, DollarOutlined, EditOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { Resizable } from 'react-resizable';
 import 'react-resizable/css/styles.css';
@@ -147,6 +147,7 @@ interface OperationsTableProps {
     onPoolTransfer?: (booking: any) => void;
     onOpenBookingDetail?: (booking: any) => void;
     onCancelBooking?: (booking: any) => void;
+    onEditReservation?: (booking: any) => void;
 }
 
 const DEFAULT_STATUS_COLORS: Record<string, string> = {
@@ -182,6 +183,7 @@ export default function OperationsTable({
     onPoolTransfer,
     onOpenBookingDetail,
     onCancelBooking,
+    onEditReservation,
 }: OperationsTableProps) {
     const [editingCell, setEditingCell] = useState<{ id: string; field: string; value: any } | null>(null);
     const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
@@ -1457,6 +1459,7 @@ export default function OperationsTable({
 
                 const menuItems: any[] = [
                     { key: 'detail', icon: <EyeOutlined style={{ color: '#6366f1' }} />, label: <span style={{ fontWeight: 600 }}>Detay Görüntüle</span>, onClick: () => onOpenBookingDetail?.(record) },
+                    { key: 'editRes', icon: <EditOutlined style={{ color: '#6366f1' }} />, label: <span style={{ fontWeight: 600 }}>Rezervasyonu Düzenle</span>, onClick: () => onEditReservation?.(record) },
                     { type: 'divider' },
                     { key: 'pool', icon: <InboxOutlined style={{ color: '#f59e0b' }} />, label: <span style={{ fontWeight: 600 }}>Havuza Gönder</span>, onClick: () => onPoolTransfer?.(record) },
                     { key: 'return', icon: <UndoOutlined style={{ color: '#3b82f6' }} />, label: <span style={{ fontWeight: 600 }}>Geri Al (Rezervasyona)</span>, onClick: () => onReturnToReservation?.(record) },

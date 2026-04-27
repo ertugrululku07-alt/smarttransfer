@@ -28,6 +28,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Resizable } from 'react-resizable';
 import DynamicLocationSearchInput from '@/app/components/DynamicLocationSearchInput';
+import MapPickerModal from '@/app/components/MapPickerModal';
 
 dayjs.locale('tr');
 const { Title, Text } = Typography;
@@ -514,6 +515,9 @@ const TransfersPage: React.FC = () => {
     const [paxDropoffLocation, setPaxDropoffLocation] = useState('');
     const [paxFlightNumber, setPaxFlightNumber] = useState('');
     const [paxNotes, setPaxNotes] = useState('');
+    // Map picker for pickup/dropoff
+    const [paxMapModalOpen, setPaxMapModalOpen] = useState(false);
+    const [paxMapTarget, setPaxMapTarget] = useState<'pickup' | 'dropoff' | null>(null);
 
     const saveCellEdit = async (bookingId: string, field: string, value: any) => {
         setCellSaving(true);
@@ -1889,7 +1893,10 @@ const TransfersPage: React.FC = () => {
                                             <DynamicLocationSearchInput
                                                 value={paxPickupLocation}
                                                 onChange={(v) => setPaxPickupLocation(v)}
-                                                placeholder="Alış noktasını ara..."
+                                                onSelect={(addr) => setPaxPickupLocation(addr)}
+                                                onMapClick={() => { setPaxMapTarget('pickup'); setPaxMapModalOpen(true); }}
+                                                placeholder="Alış noktasını ara veya haritada seç..."
+                                                country="TUR"
                                             />
                                         </div>
                                         <div style={{ gridColumn: '1 / span 2' }}>
@@ -1899,7 +1906,10 @@ const TransfersPage: React.FC = () => {
                                             <DynamicLocationSearchInput
                                                 value={paxDropoffLocation}
                                                 onChange={(v) => setPaxDropoffLocation(v)}
-                                                placeholder="Bırakış noktasını ara..."
+                                                onSelect={(addr) => setPaxDropoffLocation(addr)}
+                                                onMapClick={() => { setPaxMapTarget('dropoff'); setPaxMapModalOpen(true); }}
+                                                placeholder="Bırakış noktasını ara veya haritada seç..."
+                                                country="TUR"
                                             />
                                         </div>
                                         <div>
@@ -2234,6 +2244,21 @@ const TransfersPage: React.FC = () => {
                         </div>
                     )}
                 </Modal>
+
+                {/* Map picker for pickup/dropoff inside reservation edit modal */}
+                <MapPickerModal
+                    visible={paxMapModalOpen}
+                    onCancel={() => { setPaxMapModalOpen(false); setPaxMapTarget(null); }}
+                    onConfirm={(address) => {
+                        if (paxMapTarget === 'pickup') setPaxPickupLocation(address);
+                        else if (paxMapTarget === 'dropoff') setPaxDropoffLocation(address);
+                        setPaxMapModalOpen(false);
+                        setPaxMapTarget(null);
+                    }}
+                    initialAddress={paxMapTarget === 'pickup' ? paxPickupLocation : paxDropoffLocation}
+                    title={paxMapTarget === 'pickup' ? 'Alış Yerini Haritada Seç' : 'Bırakış Yerini Haritada Seç'}
+                    country="TUR"
+                />
 
                 {/* New Call-Center 2-Step Booking Wizard */}
                 <CallCenterBookingWizard

@@ -60,6 +60,7 @@ import type { ColumnsType } from 'antd/es/table';
 
 import { useSocket } from '@/app/context/SocketContext';
 import OperationsTable from './OperationsTable';
+import ReservationEditModal from '../../components/ReservationEditModal';
 
 // DnD Imports
 import type { DragEndEvent } from '@dnd-kit/core';
@@ -193,6 +194,7 @@ const ColSortableItem = ({
 
 export default function OperationsPage() {
     const [bookings, setBookings] = useState<any[]>([]);
+    const [editReservationModal, setEditReservationModal] = useState<{ booking: any } | null>(null);
     const [loading, setLoading] = useState(true);
     const [vehicles, setVehicles] = useState<any[]>([]);
     const [drivers, setDrivers] = useState<any[]>([]);
@@ -3147,6 +3149,7 @@ export default function OperationsPage() {
                             }}
                             onOpenBookingDetail={(booking) => setDetailModal({ visible: true, booking })}
                             onCancelBooking={(booking) => setCancelModal({ booking, reason: '' })}
+                            onEditReservation={(booking) => setEditReservationModal({ booking })}
                         />
                     </div>
                     )}
@@ -5757,6 +5760,18 @@ export default function OperationsPage() {
                             );
                         })()}
                     </Modal>
+
+                    {/* ══════ RESERVATION EDIT MODAL ══════ */}
+                    <ReservationEditModal
+                        open={!!editReservationModal}
+                        booking={editReservationModal?.booking || null}
+                        onClose={() => setEditReservationModal(null)}
+                        onSaved={(updated) => {
+                            setBookings(prev => prev.map(b => b.id === updated.id ? { ...b, ...updated } : b));
+                            // Refresh to ensure all derived fields are correct
+                            fetchBookings();
+                        }}
+                    />
 
                     {/* ══════ CANCEL BOOKING MODAL ══════ */}
                     <Modal
