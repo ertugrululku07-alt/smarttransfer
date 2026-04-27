@@ -357,7 +357,12 @@ router.get('/vehicle-availability', authMiddleware, async (req, res) => {
                 bookingNumber: true,
                 metadata: true,
                 startDate: true,
+                endDate: true,
                 contactName: true,
+                contactPhone: true,
+                adults: true,
+                children: true,
+                infants: true,
                 status: true
             }
         });
@@ -369,12 +374,25 @@ router.get('/vehicle-availability', authMiddleware, async (req, res) => {
             if (vId) {
                 if (!bookingsByVehicle[vId]) bookingsByVehicle[vId] = [];
                 bookingsByVehicle[vId].push({
+                    id: b.id,
                     bookingNumber: b.bookingNumber,
                     passengerName: b.contactName,
+                    passengerPhone: b.contactPhone,
+                    pax: (b.adults || 0) + (b.children || 0) + (b.infants || 0),
                     pickupTime: b.startDate,
+                    endTime: b.endDate,
+                    pickupRegionCode: b.metadata?.pickupRegionCode || null,
+                    dropoffRegionCode: b.metadata?.dropoffRegionCode || null,
+                    pickupLocation: b.metadata?.pickup || null,
+                    dropoffLocation: b.metadata?.dropoff || null,
+                    flightNumber: b.metadata?.flightNumber || null,
                     status: b.status
                 });
             }
+        });
+        // Sort each vehicle's bookings chronologically (timeline order)
+        Object.keys(bookingsByVehicle).forEach(vId => {
+            bookingsByVehicle[vId].sort((a, b) => new Date(a.pickupTime) - new Date(b.pickupTime));
         });
 
         const result = vehicles.map(v => {

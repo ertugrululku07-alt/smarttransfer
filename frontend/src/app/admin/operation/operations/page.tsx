@@ -4005,24 +4005,128 @@ export default function OperationsPage() {
                                         )
                                     },
                                     {
-                                        title: 'ATANAN TRANSFERLER', key: 'bookings', width: 400,
+                                        title: 'GÜNLÜK PROGRAM (Zaman Çizelgesi)', key: 'bookings', width: 560,
                                         render: (_: any, r: any) => {
-                                            if (!r.assignedBookings.length) return <Text type="secondary" style={{ fontSize: 11 }}>Atanmış transfer yok</Text>;
+                                            if (!r.assignedBookings.length) {
+                                                return (
+                                                    <div style={{ fontSize: 11, color: '#10b981', fontWeight: 600, fontStyle: 'italic' }}>
+                                                        ✨ Boşta — yeni iş atayabilirsiniz
+                                                    </div>
+                                                );
+                                            }
+
+                                            // Bookings already sorted chronologically by backend
+                                            const bookings = r.assignedBookings;
+
+                                            // Compute deadhead/consecutive analysis
+                                            let deadheadCount = 0;
+                                            let consecutiveCount = 0;
+                                            const flags = bookings.map((b: any, i: number) => {
+                                                if (i === 0) return { type: 'first' };
+                                                const prev = bookings[i - 1];
+                                                const prevDrop = prev.dropoffRegionCode;
+                                                const currPick = b.pickupRegionCode;
+                                                if (prevDrop && currPick && prevDrop === currPick) {
+                                                    consecutiveCount++;
+                                                    return { type: 'consecutive' };
+                                                }
+                                                if (prevDrop && currPick && prevDrop !== currPick) {
+                                                    deadheadCount++;
+                                                    return { type: 'deadhead', from: prevDrop, to: currPick };
+                                                }
+                                                return { type: 'unknown' };
+                                            });
+
+                                            const fmtTime = (d: any) => dayjs(d).format('HH:mm');
+                                            const statusColors: any = {
+                                                COMPLETED: { bg: '#dcfce7', border: '#86efac', text: '#166534', icon: '✓' },
+                                                NO_SHOW: { bg: '#fee2e2', border: '#fca5a5', text: '#991b1b', icon: '✗' },
+                                                CONFIRMED: { bg: '#dbeafe', border: '#93c5fd', text: '#1e40af', icon: '●' },
+                                                IN_PROGRESS: { bg: '#fef3c7', border: '#fde68a', text: '#92400e', icon: '►' },
+                                            };
+
                                             return (
-                                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                                                    {r.assignedBookings.map((b: any, i: number) => {
-                                                        const isCompleted = b.status === 'COMPLETED' || b.status === 'NO_SHOW';
-                                                        return (
-                                                            <Tooltip key={i} title={`${b.passengerName} • ${dayjs(b.pickupTime).format('HH:mm')} • ${isCompleted ? 'Tamamlandı' : 'Aktif'}`}>
-                                                                <Tag
-                                                                    color={isCompleted ? 'green' : 'processing'}
-                                                                    style={{ fontSize: 10, margin: 0, cursor: 'pointer', opacity: isCompleted ? 0.7 : 1 }}
-                                                                >
-                                                                    {isCompleted ? '✓ ' : ''}{b.bookingNumber} ({dayjs(b.pickupTime).format('HH:mm')})
-                                                                </Tag>
-                                                            </Tooltip>
-                                                        );
-                                                    })}
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                                    {/* Timeline chips */}
+                                                    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 4 }}>
+                                                        {bookings.map((b: any, i: number) => {
+                                                            const flag = flags[i];
+                                                            const isCompleted = b.status === 'COMPLETED' || b.status === 'NO_SHOW';
+                                                            const sc = statusColors[b.status] || statusColors.CONFIRMED;
+                                                            const pickup = b.pickupRegionCode || '?';
+                                                            const dropoff = b.dropoffRegionCode || '?';
+                                                            const time = fmtTime(b.pickupTime);
+
+                                                            const tooltipContent = (
+                                                                <div style={{ fontSize: 12, lineHeight: 1.6 }}>
+                                                                    <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 4 }}>
+                                                                        {b.passengerName || 'İsimsiz'} {b.pax ? `• ${b.pax} kişi` : ''}
+                                                                    </div>
+                                                                    <div>📞 {b.passengerPhone || '—'}</div>
+                                                                    <div>🕐 {time} • {b.bookingNumber}</div>
+                                                                    {b.flightNumber && <div>✈️ {b.flightNumber}</div>}
+                                                                    <div style={{ marginTop: 4, paddingTop: 4, borderTop: '1px solid rgba(255,255,255,0.2)' }}>
+                                                                        <div style={{ fontSize: 11, opacity: 0.85 }}>📍 {b.pickupLocation || pickup}</div>
+                                                                        <div style={{ fontSize: 11, opacity: 0.85 }}>🏁 {b.dropoffLocation || dropoff}</div>
+                                                                    </div>
+                                                                    <div style={{ marginTop: 4, fontSize: 11, fontWeight: 600 }}>
+                                                                        Durum: {isCompleted ? '✓ Tamamlandı' : b.status === 'IN_PROGRESS' ? '► Yolda' : '● Aktif'}
+                                                                    </div>
+                                                                </div>
+                                                            );
+
+                                                            return (
+                                                                <React.Fragment key={i}>
+                                                                    {/* Connector showing deadhead/consecutive between trips */}
+                                                                    {flag.type === 'deadhead' && (
+                                                                        <Tooltip title={`⚠️ Boş depar: ${flag.from} → ${flag.to} arası araç boş gidecek`}>
+                                                                            <span style={{
+                                                                                fontSize: 10, color: '#b91c1c', fontWeight: 700,
+                                                                                background: '#fef2f2', border: '1px dashed #fca5a5',
+                                                                                padding: '1px 5px', borderRadius: 4, cursor: 'help'
+                                                                            }}>
+                                                                                ⚠ boş
+                                                                            </span>
+                                                                        </Tooltip>
+                                                                    )}
+                                                                    {flag.type === 'consecutive' && (
+                                                                        <Tooltip title="✓ Ardışık: önceki transferin bittiği bölgeden devam">
+                                                                            <span style={{ fontSize: 11, color: '#16a34a', fontWeight: 800 }}>→</span>
+                                                                        </Tooltip>
+                                                                    )}
+                                                                    {flag.type === 'unknown' && i > 0 && (
+                                                                        <span style={{ fontSize: 11, color: '#9ca3af' }}>·</span>
+                                                                    )}
+
+                                                                    <Tooltip title={tooltipContent} overlayStyle={{ maxWidth: 320 }}>
+                                                                        <span style={{
+                                                                            display: 'inline-flex', alignItems: 'center', gap: 4,
+                                                                            background: sc.bg, border: `1px solid ${sc.border}`,
+                                                                            color: sc.text, padding: '2px 8px', borderRadius: 6,
+                                                                            fontSize: 11, fontWeight: 700, cursor: 'pointer',
+                                                                            opacity: isCompleted ? 0.7 : 1, fontFamily: 'ui-monospace, monospace',
+                                                                            letterSpacing: 0.3, whiteSpace: 'nowrap'
+                                                                        }}>
+                                                                            <span style={{ fontSize: 9 }}>{sc.icon}</span>
+                                                                            {pickup}<span style={{ opacity: 0.55, margin: '0 1px' }}>→</span>{dropoff}
+                                                                            <span style={{ marginLeft: 3, opacity: 0.85, fontWeight: 800 }}>{time}</span>
+                                                                        </span>
+                                                                    </Tooltip>
+                                                                </React.Fragment>
+                                                            );
+                                                        })}
+                                                    </div>
+
+                                                    {/* Summary footer */}
+                                                    <div style={{ display: 'flex', gap: 10, fontSize: 10, color: '#64748b', fontWeight: 600 }}>
+                                                        <span>📊 Toplam: <b style={{ color: '#0f172a' }}>{bookings.length}</b></span>
+                                                        {consecutiveCount > 0 && (
+                                                            <span style={{ color: '#16a34a' }}>✓ Ardışık: <b>{consecutiveCount}</b></span>
+                                                        )}
+                                                        {deadheadCount > 0 && (
+                                                            <span style={{ color: '#b91c1c' }}>⚠ Boş depar: <b>{deadheadCount}</b></span>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             );
                                         }
