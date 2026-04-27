@@ -234,19 +234,20 @@ const CallCenterBookingWizard: React.FC<Props> = ({ open, onClose, onSuccess }) 
             <Modal
                 open={open}
                 onCancel={handleClose}
-                width={960}
+                width={840}
                 footer={null}
                 destroyOnClose
                 closable={false}
+                centered
                 styles={{
-                    body: { padding: 0 },
+                    body: { padding: 0, maxHeight: 'calc(100vh - 80px)', overflowY: 'auto' },
                 }}
                 className="cc-wizard-modal"
             >
                 {/* ─── HEADER ─── */}
                 <div style={{
                     background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a78bfa 100%)',
-                    padding: '20px 28px 18px',
+                    padding: '14px 22px 12px',
                     position: 'relative',
                     overflow: 'hidden',
                 }}>
@@ -263,20 +264,20 @@ const CallCenterBookingWizard: React.FC<Props> = ({ open, onClose, onSuccess }) 
 
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', position: 'relative', zIndex: 1 }}>
                         <div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
                                 <div style={{
-                                    width: 36, height: 36, borderRadius: 10,
+                                    width: 28, height: 28, borderRadius: 8,
                                     background: 'rgba(255,255,255,0.2)',
                                     backdropFilter: 'blur(10px)',
                                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                                 }}>
-                                    <RocketOutlined style={{ fontSize: 18, color: '#fff' }} />
+                                    <RocketOutlined style={{ fontSize: 14, color: '#fff' }} />
                                 </div>
                                 <div>
-                                    <div style={{ fontSize: 18, fontWeight: 800, color: '#fff', letterSpacing: '-0.3px' }}>
+                                    <div style={{ fontSize: 15, fontWeight: 800, color: '#fff', letterSpacing: '-0.3px', lineHeight: 1.2 }}>
                                         Yeni Rezervasyon
                                     </div>
-                                    <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', fontWeight: 500 }}>
+                                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', fontWeight: 500 }}>
                                         Call Center Hizli Kayit
                                     </div>
                                 </div>
@@ -286,7 +287,7 @@ const CallCenterBookingWizard: React.FC<Props> = ({ open, onClose, onSuccess }) 
                             onClick={handleClose}
                             style={{
                                 background: 'rgba(255,255,255,0.15)', border: 'none',
-                                width: 32, height: 32, borderRadius: 8,
+                                width: 26, height: 26, borderRadius: 6,
                                 color: '#fff', fontSize: 16, cursor: 'pointer',
                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                                 transition: 'background 0.15s',
@@ -299,7 +300,7 @@ const CallCenterBookingWizard: React.FC<Props> = ({ open, onClose, onSuccess }) 
                     </div>
 
                     {/* Step Indicator */}
-                    <div style={{ display: 'flex', gap: 8, marginTop: 16, position: 'relative', zIndex: 1 }}>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 10, position: 'relative', zIndex: 1 }}>
                         {[
                             { label: 'Rota & Arama', icon: <SearchOutlined style={{ fontSize: 12 }} />, idx: 0 },
                             { label: 'Musteri & Odeme', icon: <UserOutlined style={{ fontSize: 12 }} />, idx: 1 },
@@ -308,7 +309,7 @@ const CallCenterBookingWizard: React.FC<Props> = ({ open, onClose, onSuccess }) 
                             const done = step > s.idx;
                             return (
                                 <div key={s.idx} style={{
-                                    flex: 1, padding: '10px 14px', borderRadius: 10,
+                                    flex: 1, padding: '7px 12px', borderRadius: 10,
                                     background: active ? 'rgba(255,255,255,0.22)' : done ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.06)',
                                     backdropFilter: 'blur(10px)',
                                     border: active ? '1.5px solid rgba(255,255,255,0.35)' : '1.5px solid transparent',
@@ -331,7 +332,7 @@ const CallCenterBookingWizard: React.FC<Props> = ({ open, onClose, onSuccess }) 
                                         <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.6)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                                             Adim {s.idx + 1}
                                         </div>
-                                        <div style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>{s.label}</div>
+                                        <div style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>{s.label}</div>
                                     </div>
                                 </div>
                             );
@@ -340,16 +341,16 @@ const CallCenterBookingWizard: React.FC<Props> = ({ open, onClose, onSuccess }) 
                 </div>
 
                 {/* ─── BODY ─── */}
-                <div style={{ padding: '24px 28px 20px', background: '#fafbfc', minHeight: 300 }}>
+                <div style={{ padding: '14px 20px 14px', background: '#fafbfc', minHeight: 200 }}>
 
                     {/* ─── STEP 1: Search ─── */}
                     {step === 0 && (
                         <div>
                             {/* Trip Type Segment */}
-                            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 18 }}>
+                            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10 }}>
                                 <div style={{
-                                    background: '#f3f4f6', borderRadius: 16, padding: 4,
-                                    display: 'inline-flex', gap: 4,
+                                    background: '#f3f4f6', borderRadius: 12, padding: 3,
+                                    display: 'inline-flex', gap: 3,
                                 }}>
                                     {[
                                         { val: 'oneWay', label: 'Tek Yön', icon: <ArrowRightOutlined /> },
@@ -361,10 +362,10 @@ const CallCenterBookingWizard: React.FC<Props> = ({ open, onClose, onSuccess }) 
                                                 key={opt.val}
                                                 onClick={() => setTripType(opt.val as any)}
                                                 style={{
-                                                    padding: '10px 24px', borderRadius: 12,
-                                                    fontWeight: 700, fontSize: 13, cursor: 'pointer',
+                                                    padding: '7px 18px', borderRadius: 10,
+                                                    fontWeight: 700, fontSize: 12, cursor: 'pointer',
                                                     transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                                                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                                                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                                                     border: 'none',
                                                     color: active ? '#fff' : '#6b7280',
                                                     background: active ? 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)' : 'transparent',
@@ -381,23 +382,23 @@ const CallCenterBookingWizard: React.FC<Props> = ({ open, onClose, onSuccess }) 
 
                             {/* Route Section */}
                             <div style={{
-                                background: 'rgba(249, 250, 251, 0.5)', borderRadius: 16,
-                                padding: 20, border: '1px solid #f3f4f6', marginBottom: 18,
+                                background: 'rgba(249, 250, 251, 0.5)', borderRadius: 12,
+                                padding: 12, border: '1px solid #f3f4f6', marginBottom: 10,
                             }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
                                     <div style={{
-                                        width: 32, height: 32, borderRadius: 8,
+                                        width: 24, height: 24, borderRadius: 6,
                                         background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center',
                                     }}>
-                                        <EnvironmentOutlined style={{ fontSize: 14, color: '#2563eb' }} />
+                                        <EnvironmentOutlined style={{ fontSize: 12, color: '#2563eb' }} />
                                     </div>
-                                    <span style={{ fontSize: 12, fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Rota</span>
+                                    <span style={{ fontSize: 11, fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Rota</span>
                                 </div>
 
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, position: 'relative' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, position: 'relative' }}>
                                     {/* Nereden */}
                                     <div style={{
-                                        background: '#fff', borderRadius: 16, padding: 16,
+                                        background: '#fff', borderRadius: 12, padding: 10,
                                         border: '1px solid #e5e7eb',
                                     }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
@@ -466,7 +467,7 @@ const CallCenterBookingWizard: React.FC<Props> = ({ open, onClose, onSuccess }) 
 
                                     {/* Nereye */}
                                     <div style={{
-                                        background: '#fff', borderRadius: 16, padding: 16,
+                                        background: '#fff', borderRadius: 12, padding: 10,
                                         border: '1px solid #e5e7eb',
                                     }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
@@ -509,15 +510,15 @@ const CallCenterBookingWizard: React.FC<Props> = ({ open, onClose, onSuccess }) 
                             </div>
 
                             {/* Dates Flow: Gidiş → Dönüş */}
-                            <div style={{ marginBottom: 18 }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, padding: '0 4px' }}>
+                            <div style={{ marginBottom: 10 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6, padding: '0 4px' }}>
                                     <div style={{
-                                        width: 32, height: 32, borderRadius: 8,
+                                        width: 24, height: 24, borderRadius: 6,
                                         background: '#eef2ff', display: 'flex', alignItems: 'center', justifyContent: 'center',
                                     }}>
-                                        <CalendarOutlined style={{ fontSize: 14, color: '#6366f1' }} />
+                                        <CalendarOutlined style={{ fontSize: 12, color: '#6366f1' }} />
                                     </div>
-                                    <span style={{ fontSize: 12, fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Tarih Bilgileri</span>
+                                    <span style={{ fontSize: 11, fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Tarih Bilgileri</span>
                                     {tripType === 'roundTrip' && (
                                         <span style={{
                                             marginLeft: 'auto', fontSize: 11, fontWeight: 700,
@@ -533,7 +534,7 @@ const CallCenterBookingWizard: React.FC<Props> = ({ open, onClose, onSuccess }) 
                                 }}>
                                     {/* Gidiş */}
                                     <div style={{
-                                        background: '#fff', borderRadius: 16, padding: 18,
+                                        background: '#fff', borderRadius: 12, padding: 10,
                                         border: '2px solid #e0e7ff', position: 'relative', overflow: 'hidden',
                                     }}>
                                         <div style={{
@@ -542,25 +543,21 @@ const CallCenterBookingWizard: React.FC<Props> = ({ open, onClose, onSuccess }) 
                                             background: 'linear-gradient(225deg, #eef2ff, transparent)',
                                         }} />
                                         <div style={{ position: 'relative', zIndex: 1 }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
                                                 <div style={{
-                                                    width: 32, height: 32, borderRadius: 8,
+                                                    width: 24, height: 24, borderRadius: 6,
                                                     background: '#e0e7ff', display: 'flex', alignItems: 'center', justifyContent: 'center',
                                                 }}>
-                                                    <RocketOutlined style={{ fontSize: 14, color: '#6366f1' }} />
+                                                    <RocketOutlined style={{ fontSize: 12, color: '#6366f1' }} />
                                                 </div>
-                                                <div>
-                                                    <label style={{ fontSize: 12, fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block' }}>Gidiş</label>
-                                                    <span style={{ fontSize: 11, color: '#6b7280' }}>Yolculuk başlangıcı</span>
-                                                </div>
+                                                <label style={{ fontSize: 11, fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Gidiş</label>
                                             </div>
                                             <DatePicker
                                                 showTime={{ format: 'HH:mm' }}
                                                 format="DD.MM.YYYY HH:mm"
                                                 value={pickupDateTime}
                                                 onChange={setPickupDateTime}
-                                                style={{ width: '100%', borderRadius: 10, height: 44, fontWeight: 700 }}
-                                                size="large"
+                                                style={{ width: '100%', borderRadius: 8, height: 36, fontWeight: 600 }}
                                             />
                                         </div>
                                     </div>
@@ -582,7 +579,7 @@ const CallCenterBookingWizard: React.FC<Props> = ({ open, onClose, onSuccess }) 
                                         background: tripType === 'roundTrip'
                                             ? 'linear-gradient(135deg, #fff7ed 0%, #ffffff 100%)'
                                             : '#fff',
-                                        borderRadius: 16, padding: 18,
+                                        borderRadius: 12, padding: 10,
                                         border: tripType === 'roundTrip' ? '2px solid #fdba74' : '2px solid #e5e7eb',
                                         position: 'relative', overflow: 'hidden',
                                         opacity: tripType === 'oneWay' ? 0.55 : 1,
@@ -597,24 +594,19 @@ const CallCenterBookingWizard: React.FC<Props> = ({ open, onClose, onSuccess }) 
                                             background: 'linear-gradient(225deg, #fff7ed, transparent)',
                                         }} />
                                         <div style={{ position: 'relative', zIndex: 1 }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
                                                 <div style={{
-                                                    width: 32, height: 32, borderRadius: 8,
+                                                    width: 24, height: 24, borderRadius: 6,
                                                     background: tripType === 'roundTrip' ? '#fed7aa' : '#fef3c7',
                                                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                                                 }}>
                                                     <RocketOutlined style={{
-                                                        fontSize: 14,
+                                                        fontSize: 12,
                                                         color: tripType === 'roundTrip' ? '#ea580c' : '#fbbf24',
                                                         transform: 'rotate(180deg)'
                                                     }} />
                                                 </div>
-                                                <div>
-                                                    <label style={{ fontSize: 12, fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block' }}>Dönüş</label>
-                                                    <span style={{ fontSize: 11, color: '#6b7280' }}>
-                                                        {tripType === 'roundTrip' ? 'Yolculuk dönüşü' : 'Aktif değil'}
-                                                    </span>
-                                                </div>
+                                                <label style={{ fontSize: 11, fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Dönüş</label>
                                             </div>
                                             <DatePicker
                                                 showTime={{ format: 'HH:mm' }}
@@ -622,8 +614,7 @@ const CallCenterBookingWizard: React.FC<Props> = ({ open, onClose, onSuccess }) 
                                                 value={returnDateTime}
                                                 onChange={setReturnDateTime}
                                                 disabled={tripType !== 'roundTrip'}
-                                                style={{ width: '100%', borderRadius: 10, height: 44, fontWeight: 700 }}
-                                                size="large"
+                                                style={{ width: '100%', borderRadius: 8, height: 36, fontWeight: 600 }}
                                             />
                                         </div>
                                         {tripType === 'oneWay' && (
@@ -653,71 +644,63 @@ const CallCenterBookingWizard: React.FC<Props> = ({ open, onClose, onSuccess }) 
 
                             {/* Passengers Card */}
                             <div style={{
-                                background: '#fff', borderRadius: 16, padding: 18,
-                                border: '1px solid #e5e7eb', marginBottom: 18,
+                                background: '#fff', borderRadius: 12, padding: 10,
+                                border: '1px solid #e5e7eb', marginBottom: 10,
                                 transition: 'all 0.3s ease',
                             }}>
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                         <div style={{
-                                            width: 32, height: 32, borderRadius: 8,
+                                            width: 24, height: 24, borderRadius: 6,
                                             background: '#faf5ff', display: 'flex', alignItems: 'center', justifyContent: 'center',
                                         }}>
-                                            <TeamOutlined style={{ fontSize: 14, color: '#9333ea' }} />
+                                            <TeamOutlined style={{ fontSize: 12, color: '#9333ea' }} />
                                         </div>
-                                        <label style={{ fontSize: 12, fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Yolcular</label>
+                                        <label style={{ fontSize: 11, fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Yolcular</label>
                                     </div>
                                     <span style={{
                                         fontSize: 11, fontWeight: 700, color: '#4f46e5',
                                         background: '#eef2ff', padding: '4px 12px', borderRadius: 999,
                                     }}>{totalPax} Kişi</span>
                                 </div>
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
                                     {[
                                         { key: 'adult', label: 'Yetişkin', value: adults, set: setAdults, min: 1 },
                                         { key: 'child', label: 'Çocuk', value: children, set: setChildren, min: 0 },
                                         { key: 'infant', label: 'Bebek', value: infants, set: setInfants, min: 0 },
                                     ].map(p => (
-                                        <div key={p.key} style={{ textAlign: 'center' }}>
-                                            <div style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                                                {p.label}
-                                            </div>
-                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                                        <div key={p.key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, padding: '4px 8px', background: '#f9fafb', borderRadius: 8 }}>
+                                            <span style={{ fontSize: 11, fontWeight: 600, color: '#6b7280' }}>{p.label}</span>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                                 <button
                                                     onClick={() => p.set(Math.max(p.min, p.value - 1))}
                                                     disabled={p.value <= p.min}
                                                     style={{
-                                                        width: 32, height: 32, borderRadius: 8,
-                                                        background: '#f3f4f6', border: 'none',
+                                                        width: 24, height: 24, borderRadius: 6,
+                                                        background: '#fff', border: '1px solid #e5e7eb',
                                                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                                                         color: '#4b5563', cursor: p.value <= p.min ? 'not-allowed' : 'pointer',
-                                                        opacity: p.value <= p.min ? 0.4 : 1,
-                                                        transition: 'all 0.2s',
+                                                        opacity: p.value <= p.min ? 0.4 : 1, padding: 0,
                                                     }}
-                                                    onMouseEnter={e => { if (p.value > p.min) { e.currentTarget.style.background = '#ede9fe'; e.currentTarget.style.color = '#7c3aed'; e.currentTarget.style.transform = 'scale(1.1)'; } }}
-                                                    onMouseLeave={e => { e.currentTarget.style.background = '#f3f4f6'; e.currentTarget.style.color = '#4b5563'; e.currentTarget.style.transform = 'scale(1)'; }}
                                                 >
-                                                    <MinusOutlined style={{ fontSize: 11 }} />
+                                                    <MinusOutlined style={{ fontSize: 10 }} />
                                                 </button>
                                                 <span style={{
-                                                    width: 32, textAlign: 'center', fontWeight: 700,
-                                                    fontSize: 18, color: '#1f2937',
+                                                    minWidth: 18, textAlign: 'center', fontWeight: 700,
+                                                    fontSize: 13, color: '#1f2937',
                                                 }}>{p.value}</span>
                                                 <button
                                                     onClick={() => p.set(Math.min(9, p.value + 1))}
                                                     disabled={p.value >= 9}
                                                     style={{
-                                                        width: 32, height: 32, borderRadius: 8,
-                                                        background: '#f3f4f6', border: 'none',
+                                                        width: 24, height: 24, borderRadius: 6,
+                                                        background: '#fff', border: '1px solid #e5e7eb',
                                                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                                                         color: '#4b5563', cursor: p.value >= 9 ? 'not-allowed' : 'pointer',
-                                                        opacity: p.value >= 9 ? 0.4 : 1,
-                                                        transition: 'all 0.2s',
+                                                        opacity: p.value >= 9 ? 0.4 : 1, padding: 0,
                                                     }}
-                                                    onMouseEnter={e => { if (p.value < 9) { e.currentTarget.style.background = '#ede9fe'; e.currentTarget.style.color = '#7c3aed'; e.currentTarget.style.transform = 'scale(1.1)'; } }}
-                                                    onMouseLeave={e => { e.currentTarget.style.background = '#f3f4f6'; e.currentTarget.style.color = '#4b5563'; e.currentTarget.style.transform = 'scale(1)'; }}
                                                 >
-                                                    <PlusOutlined style={{ fontSize: 11 }} />
+                                                    <PlusOutlined style={{ fontSize: 10 }} />
                                                 </button>
                                             </div>
                                         </div>
@@ -730,7 +713,7 @@ const CallCenterBookingWizard: React.FC<Props> = ({ open, onClose, onSuccess }) 
                                 onClick={handleSearch}
                                 disabled={searching}
                                 style={{
-                                    width: '100%', height: 60, borderRadius: 16,
+                                    width: '100%', height: 44, borderRadius: 12,
                                     border: 'none', cursor: searching ? 'wait' : 'pointer',
                                     background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #a855f7 100%)',
                                     backgroundSize: '200% 200%',
@@ -754,8 +737,8 @@ const CallCenterBookingWizard: React.FC<Props> = ({ open, onClose, onSuccess }) 
 
                             {/* Trust badges */}
                             <div style={{
-                                display: 'flex', justifyContent: 'center', gap: 24,
-                                marginTop: 16, fontSize: 12, color: '#6b7280',
+                                display: 'flex', justifyContent: 'center', gap: 18,
+                                marginTop: 8, fontSize: 11, color: '#6b7280',
                             }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                     <SafetyOutlined style={{ fontSize: 14, color: '#22c55e' }} />
