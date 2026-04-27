@@ -4311,8 +4311,99 @@ export default function OperationsPage() {
 
                         {/* Completed Table */}
                         <div style={{ flex: 1, overflow: 'auto', padding: '12px 20px' }}>
+                            {(() => {
+                                // ── Shuttle trip grouping ─────────────────────────────────
+                                const getShuttleGroupKey = (b: any): string | null => {
+                                    const m = b.metadata || {};
+                                    if (m.manualRunId) return `MANUAL::${m.manualRunId}`;
+                                    if (m.shuttleRouteId) return `ROUTE::${m.shuttleRouteId}::${m.shuttleMasterTime || ''}`;
+                                    if (m.shuttleMasterTime) return `MT::${m.shuttleMasterTime}`;
+                                    if (b.assignedVehicleId && b.pickupDateTime) {
+                                        return `VEH::${b.assignedVehicleId}::${dayjs(b.pickupDateTime).format('YYYY-MM-DD-HH')}`;
+                                    }
+                                    return null;
+                                };
+                                const tripGroups: Record<string, any[]> = {};
+                                const standaloneRows: any[] = [];
+                                completedBookings.forEach((b: any) => {
+                                    if (b.transferType === 'SHUTTLE') {
+                                        const k = getShuttleGroupKey(b);
+                                        if (k) { (tripGroups[k] ||= []).push(b); return; }
+                                    }
+                                    standaloneRows.push(b);
+                                });
+                                const tripRows = Object.entries(tripGroups).map(([key, list]) => {
+                                    const sorted = [...list].sort((a, b) => dayjs(a.pickupDateTime).unix() - dayjs(b.pickupDateTime).unix());
+                                    const first = sorted[0];
+                                    const totalPax = sorted.reduce((s, b) => s + ((b.adults || 1) + (b.children || 0) + (b.infants || 0)), 0);
+                                    return {
+                                        ...first,
+                                        id: `trip-${key}`,
+                                        _isTrip: true,
+                                        _tripKey: key,
+                                        _bookings: sorted,
+                                        _passengerCount: sorted.length,
+                                        _totalPax: totalPax,
+                                    };
+                                });
+                                const displayRows = [...tripRows, ...standaloneRows];
+
+                                // ── Auto-filter generator for any column key ──────────────
+                                const filterGetters: Record<string, (r: any) => string> = {
+                                    bookingNumber: (r) => r.bookingNumber || '',
+                                    date:          (r) => r.pickupDateTime ? dayjs(r.pickupDateTime).format('DD.MM.YYYY') : '',
+                                    type:          (r) => r.transferType === 'SHUTTLE' ? 'Shuttle' : 'Özel',
+                                    direction:     (r) => r.direction || '',
+                                    agency:        (r) => r.agencyName || 'Direkt',
+                                    customer:      (r) => r.contactName || r.customer?.name || '-',
+                                    flight:        (r) => r.flightNumber || r.metadata?.flightNumber || '',
+                                    pickup:        (r) => r.pickup?.rawLocation || r.pickup?.location || '-',
+                                    dropoff:       (r) => r.dropoff?.rawLocation || r.dropoff?.location || '-',
+                                    pax:           (r) => String((r.adults || 1) + (r.children || 0) + (r.infants || 0)),
+                                    scheduledPickup: (r) => r.pickupDateTime ? dayjs(r.pickupDateTime).format('HH:mm') : '',
+                                    pickedUpAt:    (r) => r.pickedUpAt ? dayjs(r.pickedUpAt).format('HH:mm') : '',
+                                    droppedOffAt:  (r) => r.droppedOffAt ? dayjs(r.droppedOffAt).format('HH:mm') : '',
+                                    driver:        (r) => { const d = drivers.find((dr: any) => (dr.user?.id || dr.id) === r.driverId); return d ? `${d.firstName} ${d.lastName}` : 'Atanmadı'; },
+                                    vehicle:       (r) => { const v = vehicles.find((vh: any) => vh.id === r.assignedVehicleId); return v ? v.plateNumber : 'Atanmadı'; },
+                                    vehicleType:   (r) => r.vehicleType || r.metadata?.vehicleType || '',
+                                    payment:       (r) => r.paymentStatus || '',
+                                    completionStatus: (r) => r.status || '',
+                                };
+                                const augmentColumn = (col: any) => {
+                                    const get = filterGetters[col.key];
+                                    if (!get) return col;
+                                    const values = new Set<string>();
+                                    displayRows.forEach((row: any) => {
+                                        if (row._isTrip) row._bookings.forEach((b: any) => values.add(get(b)));
+                                        else values.add(get(row));
+                                    });
+                                    const sorted = Array.from(values).filter(v => v !== '').sort((a, b) => a.localeCompare(b, 'tr'));
+                                    return {
+                                        ...col,
+                                        filters: sorted.map(v => ({ text: v, value: v })),
+                                        filterSearch: true,
+                                        onFilter: (value: any, record: any) => {
+                                            if (record._isTrip) return record._bookings.some((b: any) => get(b) === value);
+                                            return get(record) === value;
+                                        },
+                                    };
+                                };
+
+                                // Trip-aware passenger count badge for REZ. NO column
+                                const renderTripBadge = (record: any) => (
+                                    <Space size={4} wrap>
+                                        <Tag color="geekblue" style={{ fontSize: 10, fontWeight: 700, margin: 0 }}>
+                                            🚌 SEFER
+                                        </Tag>
+                                        <Tag color="purple" style={{ fontSize: 10, fontWeight: 700, margin: 0 }}>
+                                            👥 {record._passengerCount}
+                                        </Tag>
+                                    </Space>
+                                );
+
+                                return (
                             <Table
-                                dataSource={completedBookings}
+                                dataSource={displayRows}
                                 rowKey="id"
                                 size="small"
                                 childrenColumnName="nested_children_disabled"
@@ -4320,18 +4411,71 @@ export default function OperationsPage() {
                                 pagination={{ pageSize: 50, showSizeChanger: true, pageSizeOptions: ['25', '50', '100', '200'], size: 'small', showTotal: (total) => `${total} kayıt` }}
                                 scroll={{ x: 2400 }}
                                 style={{ fontSize: 12 }}
-                                rowClassName={(record: any) => record.transferType === 'SHUTTLE' ? 'completed-row-shuttle' : 'completed-row-private'}
-                                columns={[
+                                rowClassName={(record: any) => record._isTrip ? 'completed-row-trip' : (record.transferType === 'SHUTTLE' ? 'completed-row-shuttle' : 'completed-row-private')}
+                                expandable={{
+                                    rowExpandable: (record: any) => record._isTrip,
+                                    expandedRowRender: (record: any) => (
+                                        <div style={{ background: '#f8fafc', padding: '8px 16px', borderLeft: '3px solid #6366f1', margin: '-8px -16px' }}>
+                                            <div style={{ fontSize: 11, fontWeight: 700, color: '#4338ca', marginBottom: 6 }}>
+                                                🚌 Bu seferdeki {record._passengerCount} müşteri ({record._totalPax} yolcu)
+                                            </div>
+                                            <Table
+                                                size="small"
+                                                pagination={false}
+                                                rowKey="id"
+                                                dataSource={record._bookings}
+                                                style={{ fontSize: 11 }}
+                                                columns={[
+                                                    { title: '#', key: 'idx', width: 40, render: (_: any, __: any, idx: number) => <Text style={{ fontSize: 11, fontWeight: 700, color: '#6366f1' }}>{idx + 1}</Text> },
+                                                    { title: 'REZ. NO', dataIndex: 'bookingNumber', width: 110, render: (v: string) => <Tag color="blue" style={{ fontSize: 10, margin: 0 }}>{v || '—'}</Tag> },
+                                                    { title: 'MÜŞTERİ', key: 'customer', width: 160, render: (_: any, b: any) => (
+                                                        <div style={{ lineHeight: 1.3 }}>
+                                                            <div style={{ fontWeight: 700, fontSize: 11 }}>{b.contactName || b.customer?.name || '-'}</div>
+                                                            <div style={{ fontSize: 10, color: '#6b7280' }}>{b.customer?.phone || b.contactPhone || '-'}</div>
+                                                        </div>
+                                                    ) },
+                                                    { title: 'PAX', key: 'pax', width: 50, align: 'center' as const, render: (_: any, b: any) => {
+                                                        const t = (b.adults || 1) + (b.children || 0) + (b.infants || 0);
+                                                        return <Tag color="purple" style={{ fontSize: 10, margin: 0, fontWeight: 700 }}>{t}</Tag>;
+                                                    } },
+                                                    { title: 'UÇUŞ', key: 'flight', width: 90, render: (_: any, b: any) => {
+                                                        const fn = b.flightNumber || b.metadata?.flightNumber;
+                                                        const ft = b.flightTime || b.metadata?.flightTime;
+                                                        if (!fn && !ft) return <span style={{ color: '#d1d5db' }}>—</span>;
+                                                        return <div style={{ fontSize: 10, lineHeight: 1.3 }}>{fn && <div style={{ fontWeight: 700, color: '#0369a1' }}>{fn}</div>}{ft && <div style={{ color: '#6b7280' }}>{ft}</div>}</div>;
+                                                    } },
+                                                    { title: 'ALIŞ NOKTASI', key: 'pickup', ellipsis: true, render: (_: any, b: any) => {
+                                                        const loc = b.pickup?.rawLocation || b.pickup?.location || '-';
+                                                        return <Tooltip title={loc}><span style={{ fontSize: 10 }}>📍 {loc}</span></Tooltip>;
+                                                    } },
+                                                    { title: 'VARIŞ NOKTASI', key: 'dropoff', ellipsis: true, render: (_: any, b: any) => {
+                                                        const loc = b.dropoff?.rawLocation || b.dropoff?.location || '-';
+                                                        return <Tooltip title={loc}><span style={{ fontSize: 10 }}>🏁 {loc}</span></Tooltip>;
+                                                    } },
+                                                    { title: 'ALIŞ', key: 'pickedUpAt', width: 60, align: 'center' as const, render: (_: any, b: any) => b.pickedUpAt ? <span style={{ fontSize: 10, fontWeight: 700, color: '#16a34a' }}>{dayjs(b.pickedUpAt).format('HH:mm')}</span> : <span style={{ color: '#d1d5db' }}>—</span> },
+                                                    { title: 'VARIŞ', key: 'droppedOffAt', width: 60, align: 'center' as const, render: (_: any, b: any) => b.droppedOffAt ? <span style={{ fontSize: 10, fontWeight: 700, color: '#7c3aed' }}>{dayjs(b.droppedOffAt).format('HH:mm')}</span> : <span style={{ color: '#d1d5db' }}>—</span> },
+                                                    { title: 'ÜCRET', key: 'price', width: 90, align: 'right' as const, render: (_: any, b: any) => {
+                                                        const p = b.price || b.total || 0; const cur = b.currency || 'TRY';
+                                                        const sym: Record<string,string> = { TRY: '₺', USD: '$', EUR: '€', GBP: '£' };
+                                                        return p > 0 ? <span style={{ fontSize: 11, fontWeight: 700, color: '#16a34a' }}>{p.toLocaleString('tr-TR')} {sym[cur] || cur}</span> : <span style={{ color: '#d1d5db' }}>—</span>;
+                                                    } },
+                                                ]}
+                                            />
+                                        </div>
+                                    ),
+                                }}
+                                columns={([
                                     {
                                         title: 'REZ. NO',
                                         dataIndex: 'bookingNumber',
                                         key: 'bookingNumber',
-                                        width: 100,
+                                        width: 130,
                                         fixed: 'left' as const,
                                         sorter: (a: any, b: any) => (a.bookingNumber || '').localeCompare(b.bookingNumber || ''),
-                                        render: (val: string) => (
-                                            <Tag color="blue" style={{ fontSize: 10, fontWeight: 700, margin: 0, letterSpacing: 0.3 }}>{val || '—'}</Tag>
-                                        )
+                                        render: (val: string, record: any) => {
+                                            if (record._isTrip) return renderTripBadge(record);
+                                            return <Tag color="blue" style={{ fontSize: 10, fontWeight: 700, margin: 0, letterSpacing: 0.3 }}>{val || '—'}</Tag>;
+                                        }
                                     },
                                     {
                                         title: 'TARİH / SAAT',
@@ -4403,14 +4547,26 @@ export default function OperationsPage() {
                                         key: 'customer',
                                         width: 170,
                                         sorter: (a: any, b: any) => (a.contactName || '').localeCompare(b.contactName || ''),
-                                        render: (_: any, record: any) => (
-                                            <div style={{ lineHeight: 1.3 }}>
-                                                <div style={{ fontWeight: 700, fontSize: 12, color: '#1e1b4b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                                    {record.contactName || record.customer?.name || '-'}
+                                        render: (_: any, record: any) => {
+                                            if (record._isTrip) {
+                                                return (
+                                                    <div style={{ lineHeight: 1.3 }}>
+                                                        <div style={{ fontWeight: 700, fontSize: 12, color: '#4338ca' }}>
+                                                            👥 {record._passengerCount} müşteri
+                                                        </div>
+                                                        <div style={{ fontSize: 10, color: '#6b7280' }}>+ tıkla → detay</div>
+                                                    </div>
+                                                );
+                                            }
+                                            return (
+                                                <div style={{ lineHeight: 1.3 }}>
+                                                    <div style={{ fontWeight: 700, fontSize: 12, color: '#1e1b4b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                        {record.contactName || record.customer?.name || '-'}
+                                                    </div>
+                                                    <div style={{ fontSize: 10, color: '#6b7280' }}>{record.customer?.phone || record.contactPhone || '-'}</div>
                                                 </div>
-                                                <div style={{ fontSize: 10, color: '#6b7280' }}>{record.customer?.phone || record.contactPhone || '-'}</div>
-                                            </div>
-                                        )
+                                            );
+                                        }
                                     },
                                     {
                                         title: 'UÇUŞ',
@@ -4471,6 +4627,14 @@ export default function OperationsPage() {
                                             return totalA - totalB;
                                         },
                                         render: (_: any, record: any) => {
+                                            if (record._isTrip) {
+                                                return (
+                                                    <span style={{
+                                                        fontWeight: 800, color: '#fff', fontSize: 13,
+                                                        background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', borderRadius: 6, padding: '2px 8px',
+                                                    }}>{record._totalPax}</span>
+                                                );
+                                            }
                                             const adults = record.adults || 1;
                                             const children = record.children || 0;
                                             const infants = record.infants || 0;
@@ -4697,8 +4861,10 @@ export default function OperationsPage() {
                                             );
                                         }
                                     },
-                                ]}
+                                ] as any[]).map(augmentColumn)}
                             />
+                                );
+                            })()}
                         </div>
                     </div>
                     )}
