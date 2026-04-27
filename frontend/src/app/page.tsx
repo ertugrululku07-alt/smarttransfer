@@ -309,7 +309,7 @@ const HomePage: React.FC = () => {
   const transferSearchForm = (
     <div>
       <div style={{ position: 'relative' }}>
-        <Row gutter={[16, 16]}>
+        <Row gutter={[40, 16]}>
           <Col xs={24} md={12}>
             <Text strong style={{ display: 'block', marginBottom: 8, color: theme.labelColor, fontSize: 14 }}>
               <EnvironmentOutlined style={{ color: theme.primaryColor }} /> {t('search.from')}
@@ -341,39 +341,41 @@ const HomePage: React.FC = () => {
             />
           </Col>
         </Row>
-        {/* Swap Locations Button */}
+        {/* Swap Locations Button — pinned to the vertical center of the inputs (skips the label height above) */}
         <button
           type="button"
-          aria-label={t('search.swapLocations') || 'Yön değiştir'}
-          title={t('search.swapLocations') || 'Yerleri değiştir'}
+          aria-label="Yerleri değiştir"
+          title="Yerleri değiştir"
           onClick={handleSwapLocations}
           className="swap-locations-btn"
           style={{
             position: 'absolute',
             left: '50%',
-            top: '50%',
-            transform: 'translate(-50%, -50%)',
-            width: 40,
-            height: 40,
+            // Pin the button center to the input's vertical middle (input ≈ 40px → 20px above row bottom).
+            // With translateY(50%), bottom:20px places the center exactly at 20px above the row bottom.
+            bottom: 20,
+            transform: 'translate(-50%, 50%)',
+            width: 36,
+            height: 36,
             borderRadius: '50%',
-            border: '2px solid #fff',
+            border: '3px solid #fff',
             background: theme.buttonGradient || 'linear-gradient(135deg, #f97316, #ea580c)',
             color: '#fff',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            boxShadow: '0 4px 14px rgba(0,0,0,0.18), 0 0 0 4px rgba(255,255,255,0.4)',
+            boxShadow: '0 4px 14px rgba(0,0,0,0.18)',
             zIndex: 5,
             transition: 'transform 0.3s ease, box-shadow 0.2s ease',
           }}
           onMouseEnter={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.transform = 'translate(-50%, -50%) rotate(180deg) scale(1.08)';
-            (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 6px 20px rgba(0,0,0,0.25), 0 0 0 4px rgba(255,255,255,0.5)';
+            (e.currentTarget as HTMLButtonElement).style.transform = 'translate(-50%, 50%) rotate(180deg) scale(1.08)';
+            (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 6px 20px rgba(0,0,0,0.25)';
           }}
           onMouseLeave={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.transform = 'translate(-50%, -50%) rotate(0deg) scale(1)';
-            (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 4px 14px rgba(0,0,0,0.18), 0 0 0 4px rgba(255,255,255,0.4)';
+            (e.currentTarget as HTMLButtonElement).style.transform = 'translate(-50%, 50%) rotate(0deg) scale(1)';
+            (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 4px 14px rgba(0,0,0,0.18)';
           }}
         >
           <SwapOutlined style={{ fontSize: 16 }} />
