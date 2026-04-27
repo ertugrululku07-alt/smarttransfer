@@ -4,7 +4,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import {
     Table, Button, Card, Space, message, Tag, Tooltip, Avatar,
     Modal, Form, DatePicker, Input, Select, Popconfirm, Drawer,
-    Empty, Row, Col, Badge, Divider, Typography, Checkbox
+    Empty, Row, Col, Badge, Divider, Typography, Checkbox, Popover
 } from 'antd';
 import {
     PlusOutlined, EditOutlined, DeleteOutlined, UserOutlined,
@@ -134,7 +134,8 @@ const PersonnelListPage = () => {
                 if (!match) return false;
             }
             if (statusFilter === 'ACTIVE' && !p.isActive) return false;
-            if (statusFilter === 'INACTIVE' && p.isActive) return false;
+            if (statusFilter === 'INACTIVE' && (p.isActive || p.metadata?.blacklisted)) return false;
+            if (statusFilter === 'BLACKLISTED' && !p.metadata?.blacklisted) return false;
             if (statusFilter === 'ON_LEAVE') {
                 const leaves: LeaveRecord[] = p.metadata?.leaves || [];
                 const today = dayjs();
@@ -148,7 +149,8 @@ const PersonnelListPage = () => {
 
     const stats = useMemo(() => {
         const active = data.filter(p => p.isActive).length;
-        const inactive = data.filter(p => !p.isActive).length;
+        const inactive = data.filter(p => !p.isActive && !p.metadata?.blacklisted).length;
+        const blacklisted = data.filter(p => p.metadata?.blacklisted).length;
         const drivers = data.filter(p => p.jobTitle === 'DRIVER' && p.isActive).length;
         const onLeave = data.filter(p => {
             if (!p.isActive) return false;
@@ -156,7 +158,7 @@ const PersonnelListPage = () => {
             const today = dayjs();
             return leaves.some(l => today.isAfter(dayjs(l.startDate).subtract(1, 'day')) && today.isBefore(dayjs(l.endDate).add(1, 'day')));
         }).length;
-        return { total: data.length, active, inactive, drivers, onLeave };
+        return { total: data.length, active, inactive, blacklisted, drivers, onLeave };
     }, [data]);
 
     const handleDelete = async (id: string) => {
@@ -368,14 +370,23 @@ const PersonnelListPage = () => {
             ),
         },
         {
-            title: 'İşe Başlama',
+            title: 'İşe Başlama / Çıkış',
             dataIndex: 'startDate',
             key: 'startDate',
-            width: 120,
-            render: (d: string) => (
+            width: 150,
+            render: (d: string, r: Personnel) => (
                 <div>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: '#1e293b' }}>{d ? dayjs(d).format('DD.MM.YYYY') : '-'}</div>
-                    {d && <div style={{ fontSize: 10, color: '#94a3b8' }}>{dayjs().diff(dayjs(d), 'month')} ay</div>}
+                    <div style={{ fontSize: 12, fontWeight: 600, color: '#1e293b' }}>
+                        <span style={{ color: '#10b981', fontSize: 9, marginRight: 4 }}>▶</span>
+                        {d ? dayjs(d).format('DD.MM.YYYY') : '-'}
+                    </div>
+                    {d && !r.endDate && <div style={{ fontSize: 10, color: '#94a3b8', marginLeft: 12 }}>{dayjs().diff(dayjs(d), 'month')} ay</div>}
+                    {r.endDate && (
+                        <div style={{ fontSize: 11, fontWeight: 600, color: '#ef4444', marginTop: 2 }}>
+                            <span style={{ fontSize: 9, marginRight: 4 }}>■</span>
+                            {dayjs(r.endDate).format('DD.MM.YYYY')}
+                        </div>
+                    )}
                 </div>
             ),
         },
@@ -403,18 +414,71 @@ const PersonnelListPage = () => {
         {
             title: 'Durum',
             key: 'status',
-            width: 130,
+            width: 140,
             render: (_: any, r: Personnel) => {
                 const s = getPersonStatus(r);
-                return (
+                const isInactive = !r.isActive;
+                const md = r.metadata || {};
+                const reason = md.terminationReason;
+                const note = md.blacklistNote || md.terminationNote;
+
+                const badge = (
                     <div style={{
                         display: 'inline-flex', alignItems: 'center', gap: 5,
                         background: s.bg, border: `1px solid ${s.color}30`,
-                        borderRadius: 8, padding: '3px 10px'
+                        borderRadius: 8, padding: '3px 10px',
+                        cursor: isInactive ? 'help' : 'default',
                     }}>
                         <span style={{ color: s.color, fontSize: 11 }}>{s.icon}</span>
                         <span style={{ fontWeight: 600, color: s.color, fontSize: 11 }}>{s.label}</span>
+                        {md.blacklisted && <span style={{ marginLeft: 2, fontSize: 10 }}>ℹ</span>}
                     </div>
+                );
+
+                if (!isInactive) return badge;
+
+                const popContent = (
+                    <div style={{ minWidth: 260, maxWidth: 320 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, paddingBottom: 8, borderBottom: '1px solid #f0f0f0' }}>
+                            <Avatar src={getImageUrl(r.photo)} icon={<UserOutlined />} size={32}
+                                style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }} />
+                            <div>
+                                <div style={{ fontWeight: 700, fontSize: 13, color: '#1e293b' }}>{r.firstName} {r.lastName}</div>
+                                <div style={{ fontSize: 11, color: '#94a3b8', fontFamily: 'monospace' }}>{r.tcNumber}</div>
+                            </div>
+                        </div>
+                        {md.blacklisted && (
+                            <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '6px 10px', marginBottom: 8, color: '#991b1b', fontWeight: 700, fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <WarningOutlined /> Kara Listede
+                            </div>
+                        )}
+                        <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr', gap: '4px 10px', fontSize: 12 }}>
+                            <span style={{ color: '#94a3b8' }}>İşe Başlama:</span>
+                            <span style={{ fontWeight: 600, color: '#1e293b' }}>{r.startDate ? dayjs(r.startDate).format('DD.MM.YYYY') : '-'}</span>
+                            <span style={{ color: '#94a3b8' }}>İşten Çıkış:</span>
+                            <span style={{ fontWeight: 600, color: '#ef4444' }}>{r.endDate ? dayjs(r.endDate).format('DD.MM.YYYY') : '-'}</span>
+                            {reason && (<>
+                                <span style={{ color: '#94a3b8' }}>Sebep:</span>
+                                <span style={{ fontWeight: 600, color: '#1e293b' }}>{reason}</span>
+                            </>)}
+                            {md.blacklistedAt && (<>
+                                <span style={{ color: '#94a3b8' }}>K.Listeye:</span>
+                                <span style={{ fontWeight: 600, color: '#1e293b' }}>{dayjs(md.blacklistedAt).format('DD.MM.YYYY HH:mm')}</span>
+                            </>)}
+                        </div>
+                        {note && (
+                            <div style={{ marginTop: 8, padding: '6px 10px', background: '#f8fafc', borderRadius: 6, border: '1px solid #e2e8f0' }}>
+                                <div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600, marginBottom: 2 }}>NOT</div>
+                                <div style={{ fontSize: 12, color: '#334155' }}>{note}</div>
+                            </div>
+                        )}
+                    </div>
+                );
+
+                return (
+                    <Popover content={popContent} placement="left" trigger="hover">
+                        {badge}
+                    </Popover>
                 );
             },
         },
@@ -499,18 +563,24 @@ const PersonnelListPage = () => {
                     </div>
 
                     {/* Stats */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12, marginBottom: 20 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 12, marginBottom: 20 }}>
                         {[
-                            { label: 'Toplam', value: stats.total, color: '#6366f1', icon: <TeamOutlined /> },
-                            { label: 'Aktif', value: stats.active, color: '#10b981', icon: <CheckCircleOutlined /> },
-                            { label: 'İzinde', value: stats.onLeave, color: '#f59e0b', icon: <CalendarOutlined /> },
-                            { label: 'Şoför', value: stats.drivers, color: '#3b82f6', icon: <CarOutlined /> },
-                            { label: 'Ayrılmış', value: stats.inactive, color: '#ef4444', icon: <StopOutlined /> },
-                        ].map((s, i) => (
-                            <div key={i} style={{
-                                background: `linear-gradient(135deg, ${s.color}08, ${s.color}15)`,
-                                border: `1px solid ${s.color}25`, borderRadius: 12, padding: '12px 16px',
-                                display: 'flex', alignItems: 'center', gap: 10
+                            { label: 'Toplam', value: stats.total, color: '#6366f1', icon: <TeamOutlined />, filter: 'ALL' },
+                            { label: 'Aktif', value: stats.active, color: '#10b981', icon: <CheckCircleOutlined />, filter: 'ACTIVE' },
+                            { label: 'İzinde', value: stats.onLeave, color: '#f59e0b', icon: <CalendarOutlined />, filter: 'ON_LEAVE' },
+                            { label: 'Şoför', value: stats.drivers, color: '#3b82f6', icon: <CarOutlined />, filter: 'ALL' },
+                            { label: 'Ayrılmış', value: stats.inactive, color: '#ef4444', icon: <StopOutlined />, filter: 'INACTIVE' },
+                            { label: 'Kara Liste', value: stats.blacklisted, color: '#1e293b', icon: <WarningOutlined />, filter: 'BLACKLISTED' },
+                        ].map((s, i) => {
+                            const isActiveFilter = statusFilter === s.filter && s.filter !== 'ALL';
+                            return (
+                            <div key={i} onClick={() => setStatusFilter(s.filter)} style={{
+                                background: isActiveFilter ? `linear-gradient(135deg, ${s.color}20, ${s.color}30)` : `linear-gradient(135deg, ${s.color}08, ${s.color}15)`,
+                                border: `${isActiveFilter ? '2px' : '1px'} solid ${s.color}${isActiveFilter ? '70' : '25'}`,
+                                borderRadius: 12, padding: '12px 16px',
+                                display: 'flex', alignItems: 'center', gap: 10,
+                                cursor: 'pointer', transition: 'all 0.15s',
+                                boxShadow: isActiveFilter ? `0 4px 12px ${s.color}30` : 'none',
                             }}>
                                 <div style={{
                                     width: 36, height: 36, borderRadius: 10, background: `${s.color}18`,
@@ -522,7 +592,8 @@ const PersonnelListPage = () => {
                                     <div style={{ fontSize: 18, fontWeight: 800, color: '#1e293b' }}>{s.value}</div>
                                 </div>
                             </div>
-                        ))}
+                            );
+                        })}
                     </div>
 
                     {/* Filters */}
@@ -536,12 +607,13 @@ const PersonnelListPage = () => {
                                 onChange={e => setSearch(e.target.value)}
                                 allowClear
                             />
-                            <Select value={statusFilter} style={{ width: 150 }} onChange={setStatusFilter}
+                            <Select value={statusFilter} style={{ width: 170 }} onChange={setStatusFilter}
                                 options={[
                                     { value: 'ALL', label: 'Tüm Durum' },
                                     { value: 'ACTIVE', label: '🟢 Aktif' },
                                     { value: 'ON_LEAVE', label: '🟡 İzinde' },
                                     { value: 'INACTIVE', label: '🔴 Ayrılmış' },
+                                    { value: 'BLACKLISTED', label: '⛔ Kara Liste' },
                                 ]}
                             />
                             <Select value={jobFilter} style={{ width: 160 }} onChange={setJobFilter}
