@@ -7,7 +7,10 @@ import {
     CreditCardOutlined, DollarOutlined, ClockCircleOutlined, TeamOutlined,
     SearchOutlined, CheckCircleOutlined, ArrowLeftOutlined,
     SwapRightOutlined, CalendarOutlined, InfoCircleOutlined,
-    SafetyCertificateOutlined, RocketOutlined
+    SafetyCertificateOutlined, RocketOutlined,
+    SwapOutlined, ArrowRightOutlined, MinusOutlined, PlusOutlined,
+    LockOutlined, NotificationOutlined, ThunderboltOutlined, CustomerServiceOutlined,
+    SafetyOutlined, CloseOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import DynamicLocationSearchInput from '@/app/components/DynamicLocationSearchInput';
@@ -47,6 +50,8 @@ const CallCenterBookingWizard: React.FC<Props> = ({ open, onClose, onSuccess }) 
     const [pickupCoords, setPickupCoords] = useState<{ lat?: number; lng?: number }>({});
     const [dropoffCoords, setDropoffCoords] = useState<{ lat?: number; lng?: number }>({});
     const [pickupDateTime, setPickupDateTime] = useState<any>(dayjs().add(2, 'hour'));
+    const [tripType, setTripType] = useState<'oneWay' | 'roundTrip'>('oneWay');
+    const [returnDateTime, setReturnDateTime] = useState<any>(dayjs().add(1, 'day').add(2, 'hour'));
     const [adults, setAdults] = useState(1);
     const [children, setChildren] = useState(0);
     const [infants, setInfants] = useState(0);
@@ -68,6 +73,8 @@ const CallCenterBookingWizard: React.FC<Props> = ({ open, onClose, onSuccess }) 
         setPickup(''); setDropoff('');
         setPickupCoords({}); setDropoffCoords({});
         setPickupDateTime(dayjs().add(2, 'hour'));
+        setTripType('oneWay');
+        setReturnDateTime(dayjs().add(1, 'day').add(2, 'hour'));
         setAdults(1); setChildren(0); setInfants(0);
         setResults([]); setSearchError(null); setRouteInfo(null);
         setSelected(null);
@@ -110,8 +117,9 @@ const CallCenterBookingWizard: React.FC<Props> = ({ open, onClose, onSuccess }) 
                 pickup,
                 dropoff,
                 pickupDateTime: pickupDateTime.toISOString(),
+                returnDateTime: tripType === 'roundTrip' && returnDateTime ? returnDateTime.toISOString() : undefined,
                 passengers: Number(adults) + Number(children) + Number(infants) || 1,
-                transferType: 'ONE_WAY',
+                transferType: tripType === 'roundTrip' ? 'ROUND_TRIP' : 'ONE_WAY',
                 distance,
                 encodedPolyline,
                 pickupLat: pickupCoords.lat,
@@ -337,30 +345,72 @@ const CallCenterBookingWizard: React.FC<Props> = ({ open, onClose, onSuccess }) 
                     {/* ─── STEP 1: Search ─── */}
                     {step === 0 && (
                         <div>
-                            {/* Location Inputs */}
+                            {/* Trip Type Segment */}
+                            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 18 }}>
+                                <div style={{
+                                    background: '#f3f4f6', borderRadius: 16, padding: 4,
+                                    display: 'inline-flex', gap: 4,
+                                }}>
+                                    {[
+                                        { val: 'oneWay', label: 'Tek Yön', icon: <ArrowRightOutlined /> },
+                                        { val: 'roundTrip', label: 'Çift Yön', icon: <SwapOutlined /> },
+                                    ].map(opt => {
+                                        const active = tripType === opt.val;
+                                        return (
+                                            <button
+                                                key={opt.val}
+                                                onClick={() => setTripType(opt.val as any)}
+                                                style={{
+                                                    padding: '10px 24px', borderRadius: 12,
+                                                    fontWeight: 700, fontSize: 13, cursor: 'pointer',
+                                                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                                                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                                                    border: 'none',
+                                                    color: active ? '#fff' : '#6b7280',
+                                                    background: active ? 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)' : 'transparent',
+                                                    boxShadow: active ? '0 4px 15px rgba(79, 70, 229, 0.3)' : 'none',
+                                                }}
+                                            >
+                                                {opt.icon}
+                                                {opt.label}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            {/* Route Section */}
                             <div style={{
-                                background: '#fff', borderRadius: 14, padding: '20px 20px 16px',
-                                border: '1px solid #e8ecf1',
-                                boxShadow: '0 1px 4px rgba(0,0,0,0.03)',
-                                marginBottom: 16,
+                                background: 'rgba(249, 250, 251, 0.5)', borderRadius: 16,
+                                padding: 20, border: '1px solid #f3f4f6', marginBottom: 18,
                             }}>
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: 12, alignItems: 'end' }}>
-                                    {/* Pickup */}
-                                    <div>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+                                    <div style={{
+                                        width: 32, height: 32, borderRadius: 8,
+                                        background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    }}>
+                                        <EnvironmentOutlined style={{ fontSize: 14, color: '#2563eb' }} />
+                                    </div>
+                                    <span style={{ fontSize: 12, fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Rota</span>
+                                </div>
+
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, position: 'relative' }}>
+                                    {/* Nereden */}
+                                    <div style={{
+                                        background: '#fff', borderRadius: 16, padding: 16,
+                                        border: '1px solid #e5e7eb',
+                                    }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
                                             <div style={{
-                                                width: 22, height: 22, borderRadius: 6,
-                                                background: '#ecfdf5', border: '1.5px solid #6ee7b7',
-                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                            }}>
-                                                <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#10b981' }} />
-                                            </div>
-                                            <span style={{ fontSize: 12, fontWeight: 700, color: '#374151', letterSpacing: '-0.2px' }}>Nereden</span>
+                                                width: 12, height: 12, borderRadius: '50%',
+                                                background: '#22c55e', boxShadow: '0 0 0 4px rgba(34, 197, 94, 0.2)',
+                                            }} />
+                                            <label style={{ fontSize: 12, fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Nereden</label>
                                         </div>
-                                        <div style={{ display: 'flex', gap: 6 }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                             <div style={{ flex: 1 }}>
                                                 <DynamicLocationSearchInput
-                                                    placeholder="Havaalani, otel, adres..."
+                                                    placeholder="Havalimanı, otel, adres..."
                                                     value={pickup}
                                                     onChange={setPickup}
                                                     onSelect={(addr, lat, lng) => {
@@ -373,47 +423,63 @@ const CallCenterBookingWizard: React.FC<Props> = ({ open, onClose, onSuccess }) 
                                             <button
                                                 onClick={() => setMapOpen('pickup')}
                                                 style={{
-                                                    width: 36, height: 36, borderRadius: 10,
-                                                    border: '1.5px solid #e2e8f0', background: '#fff',
+                                                    width: 32, height: 32, borderRadius: 8,
+                                                    border: 'none', background: 'transparent',
                                                     cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                    color: '#6366f1', transition: 'all 0.15s', flexShrink: 0,
+                                                    color: '#9ca3af', flexShrink: 0,
                                                 }}
-                                                onMouseEnter={e => { e.currentTarget.style.background = '#eef2ff'; e.currentTarget.style.borderColor = '#a5b4fc'; }}
-                                                onMouseLeave={e => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.borderColor = '#e2e8f0'; }}
-                                                title="Haritadan sec"
+                                                onMouseEnter={e => { e.currentTarget.style.background = '#f3f4f6'; e.currentTarget.style.color = '#4f46e5'; }}
+                                                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#9ca3af'; }}
+                                                title="Haritadan seç"
                                             >
                                                 <EnvironmentOutlined style={{ fontSize: 15 }} />
                                             </button>
                                         </div>
                                     </div>
 
-                                    {/* Arrow */}
+                                    {/* Swap Button */}
                                     <div style={{
-                                        width: 36, height: 36, borderRadius: 10,
-                                        background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                        boxShadow: '0 2px 8px rgba(99,102,241,0.25)',
-                                        marginBottom: 1,
+                                        position: 'absolute', left: '50%', top: '50%',
+                                        transform: 'translate(-50%, -50%)', zIndex: 5,
                                     }}>
-                                        <SwapRightOutlined style={{ fontSize: 16, color: '#fff' }} />
+                                        <button
+                                            onClick={() => {
+                                                const tmpAddr = pickup; const tmpCoords = pickupCoords;
+                                                setPickup(dropoff); setPickupCoords(dropoffCoords);
+                                                setDropoff(tmpAddr); setDropoffCoords(tmpCoords);
+                                            }}
+                                            style={{
+                                                width: 44, height: 44, borderRadius: '50%',
+                                                background: 'linear-gradient(135deg, #6366f1, #7c3aed)',
+                                                color: '#fff', border: '4px solid #fafbfc',
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                cursor: 'pointer', boxShadow: '0 4px 15px rgba(99, 102, 241, 0.3)',
+                                                transition: 'all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55)',
+                                            }}
+                                            onMouseEnter={e => { e.currentTarget.style.transform = 'rotate(180deg) scale(1.1)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(99, 102, 241, 0.4)'; }}
+                                            onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '0 4px 15px rgba(99, 102, 241, 0.3)'; }}
+                                            title="Yer değiştir"
+                                        >
+                                            <SwapOutlined style={{ fontSize: 16 }} />
+                                        </button>
                                     </div>
 
-                                    {/* Dropoff */}
-                                    <div>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                                    {/* Nereye */}
+                                    <div style={{
+                                        background: '#fff', borderRadius: 16, padding: 16,
+                                        border: '1px solid #e5e7eb',
+                                    }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
                                             <div style={{
-                                                width: 22, height: 22, borderRadius: 6,
-                                                background: '#fef2f2', border: '1.5px solid #fca5a5',
-                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                            }}>
-                                                <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#ef4444' }} />
-                                            </div>
-                                            <span style={{ fontSize: 12, fontWeight: 700, color: '#374151', letterSpacing: '-0.2px' }}>Nereye</span>
+                                                width: 12, height: 12, borderRadius: '50%',
+                                                background: '#ef4444', boxShadow: '0 0 0 4px rgba(239, 68, 68, 0.2)',
+                                            }} />
+                                            <label style={{ fontSize: 12, fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Nereye</label>
                                         </div>
-                                        <div style={{ display: 'flex', gap: 6 }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                             <div style={{ flex: 1 }}>
                                                 <DynamicLocationSearchInput
-                                                    placeholder="Havaalani, otel, adres..."
+                                                    placeholder="Havalimanı, otel, adres..."
                                                     value={dropoff}
                                                     onChange={setDropoff}
                                                     onSelect={(addr, lat, lng) => {
@@ -426,14 +492,14 @@ const CallCenterBookingWizard: React.FC<Props> = ({ open, onClose, onSuccess }) 
                                             <button
                                                 onClick={() => setMapOpen('dropoff')}
                                                 style={{
-                                                    width: 36, height: 36, borderRadius: 10,
-                                                    border: '1.5px solid #e2e8f0', background: '#fff',
+                                                    width: 32, height: 32, borderRadius: 8,
+                                                    border: 'none', background: 'transparent',
                                                     cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                    color: '#6366f1', transition: 'all 0.15s', flexShrink: 0,
+                                                    color: '#9ca3af', flexShrink: 0,
                                                 }}
-                                                onMouseEnter={e => { e.currentTarget.style.background = '#eef2ff'; e.currentTarget.style.borderColor = '#a5b4fc'; }}
-                                                onMouseLeave={e => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.borderColor = '#e2e8f0'; }}
-                                                title="Haritadan sec"
+                                                onMouseEnter={e => { e.currentTarget.style.background = '#f3f4f6'; e.currentTarget.style.color = '#4f46e5'; }}
+                                                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#9ca3af'; }}
+                                                title="Haritadan seç"
                                             >
                                                 <EnvironmentOutlined style={{ fontSize: 15 }} />
                                             </button>
@@ -442,91 +508,268 @@ const CallCenterBookingWizard: React.FC<Props> = ({ open, onClose, onSuccess }) 
                                 </div>
                             </div>
 
-                            {/* Date + Passengers */}
-                            <div style={{
-                                display: 'grid', gridTemplateColumns: '1fr 1fr',
-                                gap: 16, marginBottom: 16,
-                            }}>
-                                {/* Date Card */}
-                                <div style={{
-                                    background: '#fff', borderRadius: 14, padding: '16px 18px',
-                                    border: '1px solid #e8ecf1',
-                                    boxShadow: '0 1px 4px rgba(0,0,0,0.03)',
-                                }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
-                                        <CalendarOutlined style={{ fontSize: 13, color: '#6366f1' }} />
-                                        <span style={{ fontSize: 12, fontWeight: 700, color: '#374151' }}>Tarih & Saat</span>
+                            {/* Dates Flow: Gidiş → Dönüş */}
+                            <div style={{ marginBottom: 18 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, padding: '0 4px' }}>
+                                    <div style={{
+                                        width: 32, height: 32, borderRadius: 8,
+                                        background: '#eef2ff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    }}>
+                                        <CalendarOutlined style={{ fontSize: 14, color: '#6366f1' }} />
                                     </div>
-                                    <DatePicker
-                                        showTime={{ format: 'HH:mm' }}
-                                        format="DD.MM.YYYY HH:mm"
-                                        value={pickupDateTime}
-                                        onChange={setPickupDateTime}
-                                        style={{ width: '100%', borderRadius: 10, height: 40 }}
-                                        size="large"
-                                    />
-                                </div>
-
-                                {/* Passengers Card */}
-                                <div style={{
-                                    background: '#fff', borderRadius: 14, padding: '16px 18px',
-                                    border: '1px solid #e8ecf1',
-                                    boxShadow: '0 1px 4px rgba(0,0,0,0.03)',
-                                }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
-                                        <TeamOutlined style={{ fontSize: 13, color: '#6366f1' }} />
-                                        <span style={{ fontSize: 12, fontWeight: 700, color: '#374151' }}>Yolcular</span>
+                                    <span style={{ fontSize: 12, fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Tarih Bilgileri</span>
+                                    {tripType === 'roundTrip' && (
                                         <span style={{
                                             marginLeft: 'auto', fontSize: 11, fontWeight: 700,
-                                            color: '#6366f1', background: '#eef2ff',
-                                            padding: '2px 8px', borderRadius: 6,
-                                        }}>
-                                            {totalPax} kisi
-                                        </span>
-                                    </div>
-                                    <div style={{ display: 'flex', gap: 8 }}>
-                                        {[
-                                            { label: 'Yetiskin', value: adults, onChange: (v: any) => setAdults(Number(v) || 1), min: 1 },
-                                            { label: 'Cocuk', value: children, onChange: (v: any) => setChildren(Number(v) || 0), min: 0 },
-                                            { label: 'Bebek', value: infants, onChange: (v: any) => setInfants(Number(v) || 0), min: 0 },
-                                        ].map(p => (
-                                            <div key={p.label} style={{ flex: 1, textAlign: 'center' }}>
-                                                <div style={{ fontSize: 10, fontWeight: 600, color: '#94a3b8', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.3px' }}>
-                                                    {p.label}
+                                            color: '#4f46e5', background: '#eef2ff',
+                                            padding: '4px 12px', borderRadius: 999,
+                                        }}>Çift Yön</span>
+                                    )}
+                                </div>
+
+                                <div style={{
+                                    display: 'grid', gridTemplateColumns: '1fr auto 1fr',
+                                    gap: 8, alignItems: 'stretch',
+                                }}>
+                                    {/* Gidiş */}
+                                    <div style={{
+                                        background: '#fff', borderRadius: 16, padding: 18,
+                                        border: '2px solid #e0e7ff', position: 'relative', overflow: 'hidden',
+                                    }}>
+                                        <div style={{
+                                            position: 'absolute', top: -16, right: -16,
+                                            width: 80, height: 80, borderRadius: '50%',
+                                            background: 'linear-gradient(225deg, #eef2ff, transparent)',
+                                        }} />
+                                        <div style={{ position: 'relative', zIndex: 1 }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                                                <div style={{
+                                                    width: 32, height: 32, borderRadius: 8,
+                                                    background: '#e0e7ff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                }}>
+                                                    <RocketOutlined style={{ fontSize: 14, color: '#6366f1' }} />
                                                 </div>
-                                                <InputNumber
-                                                    min={p.min} max={50} value={p.value}
-                                                    onChange={p.onChange}
-                                                    style={{ width: '100%', borderRadius: 8 }}
-                                                    controls
-                                                />
+                                                <div>
+                                                    <label style={{ fontSize: 12, fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block' }}>Gidiş</label>
+                                                    <span style={{ fontSize: 11, color: '#6b7280' }}>Yolculuk başlangıcı</span>
+                                                </div>
                                             </div>
-                                        ))}
+                                            <DatePicker
+                                                showTime={{ format: 'HH:mm' }}
+                                                format="DD.MM.YYYY HH:mm"
+                                                value={pickupDateTime}
+                                                onChange={setPickupDateTime}
+                                                style={{ width: '100%', borderRadius: 10, height: 44, fontWeight: 700 }}
+                                                size="large"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Flow Arrow */}
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        <div style={{
+                                            width: 40, height: 40, borderRadius: '50%',
+                                            background: '#f3f4f6', border: '2px solid #fff',
+                                            boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        }}>
+                                            <ArrowRightOutlined style={{ fontSize: 16, color: '#9ca3af' }} />
+                                        </div>
+                                    </div>
+
+                                    {/* Dönüş */}
+                                    <div style={{
+                                        background: tripType === 'roundTrip'
+                                            ? 'linear-gradient(135deg, #fff7ed 0%, #ffffff 100%)'
+                                            : '#fff',
+                                        borderRadius: 16, padding: 18,
+                                        border: tripType === 'roundTrip' ? '2px solid #fdba74' : '2px solid #e5e7eb',
+                                        position: 'relative', overflow: 'hidden',
+                                        opacity: tripType === 'oneWay' ? 0.55 : 1,
+                                        filter: tripType === 'oneWay' ? 'grayscale(0.6)' : 'none',
+                                        transform: tripType === 'oneWay' ? 'scale(0.98)' : 'scale(1)',
+                                        transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+                                        boxShadow: tripType === 'roundTrip' ? '0 4px 20px -5px rgba(249, 115, 22, 0.15)' : 'none',
+                                    }}>
+                                        <div style={{
+                                            position: 'absolute', top: -16, right: -16,
+                                            width: 80, height: 80, borderRadius: '50%',
+                                            background: 'linear-gradient(225deg, #fff7ed, transparent)',
+                                        }} />
+                                        <div style={{ position: 'relative', zIndex: 1 }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                                                <div style={{
+                                                    width: 32, height: 32, borderRadius: 8,
+                                                    background: tripType === 'roundTrip' ? '#fed7aa' : '#fef3c7',
+                                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                }}>
+                                                    <RocketOutlined style={{
+                                                        fontSize: 14,
+                                                        color: tripType === 'roundTrip' ? '#ea580c' : '#fbbf24',
+                                                        transform: 'rotate(180deg)'
+                                                    }} />
+                                                </div>
+                                                <div>
+                                                    <label style={{ fontSize: 12, fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block' }}>Dönüş</label>
+                                                    <span style={{ fontSize: 11, color: '#6b7280' }}>
+                                                        {tripType === 'roundTrip' ? 'Yolculuk dönüşü' : 'Aktif değil'}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <DatePicker
+                                                showTime={{ format: 'HH:mm' }}
+                                                format="DD.MM.YYYY HH:mm"
+                                                value={returnDateTime}
+                                                onChange={setReturnDateTime}
+                                                disabled={tripType !== 'roundTrip'}
+                                                style={{ width: '100%', borderRadius: 10, height: 44, fontWeight: 700 }}
+                                                size="large"
+                                            />
+                                        </div>
+                                        {tripType === 'oneWay' && (
+                                            <div style={{
+                                                position: 'absolute', inset: 0,
+                                                background: 'rgba(243, 244, 246, 0.6)',
+                                                backdropFilter: 'blur(1px)', borderRadius: 16,
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                pointerEvents: 'none',
+                                            }}>
+                                                <div style={{ textAlign: 'center' }}>
+                                                    <div style={{
+                                                        width: 44, height: 44, borderRadius: '50%',
+                                                        background: '#fff', boxShadow: '0 2px 6px rgba(0,0,0,0.08)',
+                                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                        margin: '0 auto 6px',
+                                                    }}>
+                                                        <LockOutlined style={{ fontSize: 16, color: '#9ca3af' }} />
+                                                    </div>
+                                                    <span style={{ fontSize: 12, fontWeight: 600, color: '#6b7280' }}>Çift yön seçin</span>
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             </div>
 
-                            {/* Search Button */}
+                            {/* Passengers Card */}
+                            <div style={{
+                                background: '#fff', borderRadius: 16, padding: 18,
+                                border: '1px solid #e5e7eb', marginBottom: 18,
+                                transition: 'all 0.3s ease',
+                            }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                        <div style={{
+                                            width: 32, height: 32, borderRadius: 8,
+                                            background: '#faf5ff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        }}>
+                                            <TeamOutlined style={{ fontSize: 14, color: '#9333ea' }} />
+                                        </div>
+                                        <label style={{ fontSize: 12, fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Yolcular</label>
+                                    </div>
+                                    <span style={{
+                                        fontSize: 11, fontWeight: 700, color: '#4f46e5',
+                                        background: '#eef2ff', padding: '4px 12px', borderRadius: 999,
+                                    }}>{totalPax} Kişi</span>
+                                </div>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+                                    {[
+                                        { key: 'adult', label: 'Yetişkin', value: adults, set: setAdults, min: 1 },
+                                        { key: 'child', label: 'Çocuk', value: children, set: setChildren, min: 0 },
+                                        { key: 'infant', label: 'Bebek', value: infants, set: setInfants, min: 0 },
+                                    ].map(p => (
+                                        <div key={p.key} style={{ textAlign: 'center' }}>
+                                            <div style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                                {p.label}
+                                            </div>
+                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                                                <button
+                                                    onClick={() => p.set(Math.max(p.min, p.value - 1))}
+                                                    disabled={p.value <= p.min}
+                                                    style={{
+                                                        width: 32, height: 32, borderRadius: 8,
+                                                        background: '#f3f4f6', border: 'none',
+                                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                        color: '#4b5563', cursor: p.value <= p.min ? 'not-allowed' : 'pointer',
+                                                        opacity: p.value <= p.min ? 0.4 : 1,
+                                                        transition: 'all 0.2s',
+                                                    }}
+                                                    onMouseEnter={e => { if (p.value > p.min) { e.currentTarget.style.background = '#ede9fe'; e.currentTarget.style.color = '#7c3aed'; e.currentTarget.style.transform = 'scale(1.1)'; } }}
+                                                    onMouseLeave={e => { e.currentTarget.style.background = '#f3f4f6'; e.currentTarget.style.color = '#4b5563'; e.currentTarget.style.transform = 'scale(1)'; }}
+                                                >
+                                                    <MinusOutlined style={{ fontSize: 11 }} />
+                                                </button>
+                                                <span style={{
+                                                    width: 32, textAlign: 'center', fontWeight: 700,
+                                                    fontSize: 18, color: '#1f2937',
+                                                }}>{p.value}</span>
+                                                <button
+                                                    onClick={() => p.set(Math.min(9, p.value + 1))}
+                                                    disabled={p.value >= 9}
+                                                    style={{
+                                                        width: 32, height: 32, borderRadius: 8,
+                                                        background: '#f3f4f6', border: 'none',
+                                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                        color: '#4b5563', cursor: p.value >= 9 ? 'not-allowed' : 'pointer',
+                                                        opacity: p.value >= 9 ? 0.4 : 1,
+                                                        transition: 'all 0.2s',
+                                                    }}
+                                                    onMouseEnter={e => { if (p.value < 9) { e.currentTarget.style.background = '#ede9fe'; e.currentTarget.style.color = '#7c3aed'; e.currentTarget.style.transform = 'scale(1.1)'; } }}
+                                                    onMouseLeave={e => { e.currentTarget.style.background = '#f3f4f6'; e.currentTarget.style.color = '#4b5563'; e.currentTarget.style.transform = 'scale(1)'; }}
+                                                >
+                                                    <PlusOutlined style={{ fontSize: 11 }} />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Submit Button */}
                             <button
                                 onClick={handleSearch}
                                 disabled={searching}
                                 style={{
-                                    width: '100%', height: 52, borderRadius: 14,
+                                    width: '100%', height: 60, borderRadius: 16,
                                     border: 'none', cursor: searching ? 'wait' : 'pointer',
-                                    background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+                                    background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #a855f7 100%)',
+                                    backgroundSize: '200% 200%',
                                     color: '#fff', fontSize: 15, fontWeight: 700,
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
-                                    boxShadow: '0 4px 16px rgba(99,102,241,0.3)',
-                                    transition: 'all 0.2s',
-                                    opacity: searching ? 0.8 : 1,
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12,
+                                    boxShadow: '0 10px 30px -8px rgba(124, 58, 237, 0.4)',
+                                    transition: 'all 0.3s ease',
+                                    opacity: searching ? 0.85 : 1,
                                     letterSpacing: '-0.2px',
                                 }}
-                                onMouseEnter={e => { if (!searching) e.currentTarget.style.boxShadow = '0 6px 24px rgba(99,102,241,0.4)'; }}
-                                onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 4px 16px rgba(99,102,241,0.3)'; }}
+                                onMouseEnter={e => { if (!searching) { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 20px 40px -10px rgba(124, 58, 237, 0.4)'; } }}
+                                onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '0 10px 30px -8px rgba(124, 58, 237, 0.4)'; }}
                             >
                                 {searching ? <Spin size="small" style={{ filter: 'brightness(10)' }} /> : <SearchOutlined style={{ fontSize: 18 }} />}
-                                {searching ? 'Aranıyor...' : 'Araclari Listele & Fiyat Al'}
+                                {searching
+                                    ? 'Aranıyor...'
+                                    : tripType === 'roundTrip'
+                                        ? 'Araçları Listele (Gidiş-Dönüş)'
+                                        : 'Araçları Listele & Fiyat Al'}
                             </button>
+
+                            {/* Trust badges */}
+                            <div style={{
+                                display: 'flex', justifyContent: 'center', gap: 24,
+                                marginTop: 16, fontSize: 12, color: '#6b7280',
+                            }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <SafetyOutlined style={{ fontSize: 14, color: '#22c55e' }} />
+                                    <span>SSL Güvenli</span>
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <ThunderboltOutlined style={{ fontSize: 14, color: '#f59e0b' }} />
+                                    <span>Anlık Fiyatlandırma</span>
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <CustomerServiceOutlined style={{ fontSize: 14, color: '#6366f1' }} />
+                                    <span>7/24 Destek</span>
+                                </div>
+                            </div>
 
                             {/* Route Info */}
                             {routeInfo && (
