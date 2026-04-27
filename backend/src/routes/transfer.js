@@ -799,11 +799,30 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
 
             if (!passesSchedule) return false;
 
-            // TIME WINDOW CHECK (±2 hours)
-            const searchDate = new Date(pickupDateTime);
-            // Use Turkey timezone (UTC+3) for time comparison
-            const trSearchDate = new Date(searchDate.getTime() + (3 * 60 * 60 * 1000));
-            const userMin = trSearchDate.getUTCHours() * 60 + trSearchDate.getUTCMinutes();
+            // TIME WINDOW CHECK (±2 hours) — TZ-safe parsing
+            // Frontend may send either:
+            //   (a) full UTC ISO ("2026-04-29T09:00:00.000Z")  — admin wizard via dayjs.toISOString()
+            //   (b) naive Turkey-local string ("2026-04-29T12:00:00.000") — public search page
+            // Treat any input lacking an explicit timezone marker as Turkey local time so we
+            // never accidentally double-shift it by +3h (which previously turned 12:00 into 15:00).
+            const dtStr = String(pickupDateTime || '');
+            const hasExplicitTz = /Z$|[+-]\d{2}:?\d{2}$/.test(dtStr.trim());
+            let userMin;
+            if (!hasExplicitTz) {
+                const m = dtStr.match(/T(\d{2}):(\d{2})/);
+                if (m) {
+                    userMin = parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
+                } else {
+                    // Fallback for unexpected formats: original behavior
+                    const sd = new Date(dtStr);
+                    const tr = new Date(sd.getTime() + (3 * 60 * 60 * 1000));
+                    userMin = tr.getUTCHours() * 60 + tr.getUTCMinutes();
+                }
+            } else {
+                const searchDate = new Date(dtStr);
+                const trSearchDate = new Date(searchDate.getTime() + (3 * 60 * 60 * 1000));
+                userMin = trSearchDate.getUTCHours() * 60 + trSearchDate.getUTCMinutes();
+            }
             let closestMasterTime = null;
             let minOffset = Infinity;
             
