@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { Table, Tag, Button, Space, Typography, message, Input, Select, Tooltip, Popover, ColorPicker, Dropdown } from 'antd';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Table, Tag, Button, Space, Typography, message, Input, Select, Tooltip, Popover, ColorPicker, Dropdown, Checkbox, Divider } from 'antd';
 import { CarOutlined, EnvironmentOutlined, MessageOutlined, SearchOutlined, FilterFilled, SortAscendingOutlined, SortDescendingOutlined, BgColorsOutlined, HolderOutlined, DownOutlined, RightOutlined, UserOutlined, PhoneOutlined, IdcardOutlined, MoreOutlined, EyeOutlined, UndoOutlined, StopOutlined, InboxOutlined, CheckCircleOutlined, DollarOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { Resizable } from 'react-resizable';
@@ -186,7 +186,8 @@ export default function OperationsTable({
     const [editingCell, setEditingCell] = useState<{ id: string; field: string; value: any } | null>(null);
     const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
     const [editingHeader, setEditingHeader] = useState<{ key: string; value: string } | null>(null);
-    const [columnFilters, setColumnFilters] = useState<Record<string, string>>({});
+    const [columnFilters, setColumnFilters] = useState<Record<string, string[]>>({});
+    const [filterSearch, setFilterSearch] = useState<Record<string, string>>({});
     const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
     const [colorPickerVisible, setColorPickerVisible] = useState<{ airportCode: string; currentColor: string } | null>(null);
     const [columnOrder, setColumnOrder] = useState<string[]>([]);
@@ -420,11 +421,37 @@ export default function OperationsTable({
         });
     };
     
+    // Extract displayed value for a column from a booking (used for unique values + filter check)
+    const extractColValue = (key: string, b: any): string => {
+        if (key === 'airportCode') {
+            const pickupLoc = b.pickup?.rawLocation || b.pickup?.location || '';
+            const dropoffLoc = b.dropoff?.rawLocation || b.dropoff?.location || '';
+            return getAirportCode(pickupLoc) || getAirportCode(dropoffLoc) || '';
+        }
+        if (key === 'vehicleType') return b.metadata?.vehicleType || b.vehicleType || '';
+        if (key === 'pickupRegionCode') return b.pickupRegionCode || b.metadata?.pickupRegionCode || '';
+        if (key === 'dropoffRegionCode') return b.dropoffRegionCode || b.metadata?.dropoffRegionCode || '';
+        return String(b[key] ?? '');
+    };
+
+    // Compute unique values per column from current bookings list
+    const uniqueColValues = useMemo(() => {
+        const out: Record<string, string[]> = {};
+        const keys = ['bookingNumber','contactName','contactPhone','agencyName','transferType','direction','vehicleType','airportCode','pickupRegionCode','dropoffRegionCode','paymentType','paymentStatus','flightNumber','status','customerNote','internalNotes','adults'];
+        keys.forEach(k => {
+            const set = new Set<string>();
+            bookings.forEach(b => set.add(extractColValue(k, b)));
+            out[k] = Array.from(set).sort((a, b) => a.localeCompare(b, 'tr'));
+        });
+        return out;
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [bookings]);
+
     // Render column header with filter, sort, and edit
     const renderColumnHeader = (columnKey: string, defaultTitle: string, sortable: boolean = false) => {
         const isEditing = editingHeader?.key === columnKey;
         const displayTitle = columnTitles[columnKey] || defaultTitle;
-        const hasFilter = columnFilters[columnKey];
+        const hasFilter = (columnFilters[columnKey]?.length || 0) > 0;
         const isSorted = sortConfig?.key === columnKey;
         
         if (isEditing) {
@@ -462,21 +489,98 @@ export default function OperationsTable({
                 title="Çift tıklayarak başlığı düzenleyin"
             >
                 <Popover
-                    content={
-                        <div style={{ padding: 8, width: 200 }}>
-                            <Input
-                                size="small"
-                                placeholder="Filtrele..."
-                                prefix={<SearchOutlined />}
-                                value={columnFilters[columnKey] || ''}
-                                onChange={(e) => setColumnFilters(prev => ({ ...prev, [columnKey]: e.target.value }))}
-                                allowClear
-                                onPressEnter={() => {}}
-                            />
-                        </div>
-                    }
+                    content={(() => {
+                        const all = uniqueColValues[columnKey] || [];
+                        const search = filterSearch[columnKey] || '';
+                        const filtered = all.filter(v => v.toLowerCase().includes(search.toLowerCase()));
+                        const selected = columnFilters[columnKey] || [];
+                        const allChecked = filtered.length > 0 && filtered.every(v => selected.includes(v));
+                        const someChecked = filtered.some(v => selected.includes(v));
+                        const toggleAll = (checked: boolean) => {
+                            const cur = new Set(selected);
+                            filtered.forEach(v => { if (checked) cur.add(v); else cur.delete(v); });
+                            const next = Array.from(cur);
+                            setColumnFilters(prev => {
+                                const out = { ...prev };
+                                if (next.length === 0) delete out[columnKey]; else out[columnKey] = next;
+                                return out;
+                            });
+                        };
+                        const toggleOne = (v: string, checked: boolean) => {
+                            const cur = new Set(selected);
+                            if (checked) cur.add(v); else cur.delete(v);
+                            const next = Array.from(cur);
+                            setColumnFilters(prev => {
+                                const out = { ...prev };
+                                if (next.length === 0) delete out[columnKey]; else out[columnKey] = next;
+                                return out;
+                            });
+                        };
+                        return (
+                            <div style={{ padding: 4, width: 260 }} onClick={(e) => e.stopPropagation()}>
+                                <Input
+                                    size="small"
+                                    prefix={<SearchOutlined />}
+                                    placeholder="Listede ara..."
+                                    value={search}
+                                    onChange={(e) => setFilterSearch(prev => ({ ...prev, [columnKey]: e.target.value }))}
+                                    allowClear
+                                    style={{ marginBottom: 8 }}
+                                />
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, paddingBottom: 6, borderBottom: '1px solid #f0f0f0' }}>
+                                    <Checkbox
+                                        checked={allChecked}
+                                        indeterminate={!allChecked && someChecked}
+                                        onChange={(e) => toggleAll(e.target.checked)}
+                                    >
+                                        <Text style={{ fontSize: 12, fontWeight: 600 }}>(Tümünü Seç)</Text>
+                                    </Checkbox>
+                                    <Text type="secondary" style={{ fontSize: 11 }}>{filtered.length}</Text>
+                                </div>
+                                <div style={{ maxHeight: 220, overflowY: 'auto', paddingRight: 4 }}>
+                                    {filtered.length === 0 && (
+                                        <Text type="secondary" style={{ fontSize: 11, fontStyle: 'italic', display: 'block', textAlign: 'center', padding: 12 }}>
+                                            Eşleşen değer yok
+                                        </Text>
+                                    )}
+                                    {filtered.map(v => (
+                                        <div key={v} style={{ padding: '2px 0' }}>
+                                            <Checkbox
+                                                checked={selected.includes(v)}
+                                                onChange={(e) => toggleOne(v, e.target.checked)}
+                                                style={{ width: '100%' }}
+                                            >
+                                                <Text style={{ fontSize: 12 }} ellipsis={{ tooltip: v }}>
+                                                    {v || <span style={{ color: '#bbb', fontStyle: 'italic' }}>(boş)</span>}
+                                                </Text>
+                                            </Checkbox>
+                                        </div>
+                                    ))}
+                                </div>
+                                {selected.length > 0 && (
+                                    <>
+                                        <Divider style={{ margin: '8px 0' }} />
+                                        <Button
+                                            size="small"
+                                            block
+                                            onClick={() => {
+                                                setColumnFilters(prev => {
+                                                    const out = { ...prev };
+                                                    delete out[columnKey];
+                                                    return out;
+                                                });
+                                            }}
+                                        >
+                                            Temizle ({selected.length})
+                                        </Button>
+                                    </>
+                                )}
+                            </div>
+                        );
+                    })()}
                     trigger="click"
                     placement="bottom"
+                    destroyOnHidden
                 >
                     <div style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}>
                         <span>{displayTitle}</span>
@@ -1344,26 +1448,11 @@ export default function OperationsTable({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [allColumns.length]);
 
-    // Apply filters
+    // Apply filters (Excel-style: each column has an array of selected values; row passes if its value ∈ selection for every active column)
     let filteredBookings = bookings.filter(booking => {
-        return Object.entries(columnFilters).every(([key, value]) => {
-            if (!value) return true;
-            
-            if (key === 'airportCode') {
-                const pickupLoc = booking.pickup?.rawLocation || booking.pickup?.location || '';
-                const dropoffLoc = booking.dropoff?.rawLocation || booking.dropoff?.location || '';
-                const pickupCode = getAirportCode(pickupLoc);
-                const dropoffCode = getAirportCode(dropoffLoc);
-                const code = pickupCode || dropoffCode || '';
-                return code.toLowerCase().includes(value.toLowerCase());
-            }
-            if (key === 'vehicleType') {
-                const vt = booking.metadata?.vehicleType || booking.vehicleType || '';
-                return vt.toLowerCase().includes(value.toLowerCase());
-            }
-            
-            const bookingValue = String(booking[key] || '').toLowerCase();
-            return bookingValue.includes(value.toLowerCase());
+        return Object.entries(columnFilters).every(([key, values]) => {
+            if (!values || values.length === 0) return true;
+            return values.includes(extractColValue(key, booking));
         });
     });
     
