@@ -202,6 +202,14 @@ const HomePage: React.FC = () => {
     }
   };
 
+  // Swap pickup ↔ dropoff (location text + coordinates)
+  const handleSwapLocations = () => {
+    setPickup(dropoff);
+    setDropoff(pickup);
+    setPickupLocation(dropoffLocation);
+    setDropoffLocation(pickupLocation);
+  };
+
   const isAirportTransfer = isAirportLocation(pickup) || isAirportLocation(dropoff);
   const timeLabel = isAirportTransfer ? t('search.flightTime') : t('search.pickupTime');
 
@@ -300,38 +308,89 @@ const HomePage: React.FC = () => {
   // ─── TRANSFER SEARCH FORM ───
   const transferSearchForm = (
     <div>
-      <Row gutter={[16, 16]}>
-        <Col xs={24} md={12}>
-          <Text strong style={{ display: 'block', marginBottom: 8, color: theme.labelColor, fontSize: 14 }}>
-            <EnvironmentOutlined style={{ color: theme.primaryColor }} /> {t('search.from')}
-          </Text>
-          <DynamicLocationSearchInput
-            size="large"
-            placeholder={t('search.fromPlaceholder')}
-            value={pickup}
-            onChange={setPickup}
-            onSelect={(val, lat, lng) => { setPickup(val); if (lat && lng) setPickupLocation({ lat, lng }); }}
-            onMapClick={() => openMapModal('pickup')}
-            country={googleMapsSettings.country || 'TUR'}
-            style={{ borderRadius: 12 }}
-          />
-        </Col>
-        <Col xs={24} md={12}>
-          <Text strong style={{ display: 'block', marginBottom: 8, color: theme.labelColor, fontSize: 14 }}>
-            <EnvironmentOutlined style={{ color: theme.accentColor }} /> {t('search.to')}
-          </Text>
-          <DynamicLocationSearchInput
-            size="large"
-            placeholder={t('search.toPlaceholder')}
-            value={dropoff}
-            onChange={setDropoff}
-            onSelect={(val, lat, lng) => { setDropoff(val); if (lat && lng) setDropoffLocation({ lat, lng }); }}
-            onMapClick={() => openMapModal('dropoff')}
-            country={googleMapsSettings.country || 'TUR'}
-            style={{ borderRadius: 12 }}
-          />
-        </Col>
-      </Row>
+      <div style={{ position: 'relative' }}>
+        <Row gutter={[16, 16]}>
+          <Col xs={24} md={12}>
+            <Text strong style={{ display: 'block', marginBottom: 8, color: theme.labelColor, fontSize: 14 }}>
+              <EnvironmentOutlined style={{ color: theme.primaryColor }} /> {t('search.from')}
+            </Text>
+            <DynamicLocationSearchInput
+              size="large"
+              placeholder={t('search.fromPlaceholder')}
+              value={pickup}
+              onChange={setPickup}
+              onSelect={(val, lat, lng) => { setPickup(val); if (lat && lng) setPickupLocation({ lat, lng }); }}
+              onMapClick={() => openMapModal('pickup')}
+              country={googleMapsSettings.country || 'TUR'}
+              style={{ borderRadius: 12 }}
+            />
+          </Col>
+          <Col xs={24} md={12}>
+            <Text strong style={{ display: 'block', marginBottom: 8, color: theme.labelColor, fontSize: 14 }}>
+              <EnvironmentOutlined style={{ color: theme.accentColor }} /> {t('search.to')}
+            </Text>
+            <DynamicLocationSearchInput
+              size="large"
+              placeholder={t('search.toPlaceholder')}
+              value={dropoff}
+              onChange={setDropoff}
+              onSelect={(val, lat, lng) => { setDropoff(val); if (lat && lng) setDropoffLocation({ lat, lng }); }}
+              onMapClick={() => openMapModal('dropoff')}
+              country={googleMapsSettings.country || 'TUR'}
+              style={{ borderRadius: 12 }}
+            />
+          </Col>
+        </Row>
+        {/* Swap Locations Button */}
+        <button
+          type="button"
+          aria-label={t('search.swapLocations') || 'Yön değiştir'}
+          title={t('search.swapLocations') || 'Yerleri değiştir'}
+          onClick={handleSwapLocations}
+          className="swap-locations-btn"
+          style={{
+            position: 'absolute',
+            left: '50%',
+            top: '50%',
+            transform: 'translate(-50%, -50%)',
+            width: 40,
+            height: 40,
+            borderRadius: '50%',
+            border: '2px solid #fff',
+            background: theme.buttonGradient || 'linear-gradient(135deg, #f97316, #ea580c)',
+            color: '#fff',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: '0 4px 14px rgba(0,0,0,0.18), 0 0 0 4px rgba(255,255,255,0.4)',
+            zIndex: 5,
+            transition: 'transform 0.3s ease, box-shadow 0.2s ease',
+          }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.transform = 'translate(-50%, -50%) rotate(180deg) scale(1.08)';
+            (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 6px 20px rgba(0,0,0,0.25), 0 0 0 4px rgba(255,255,255,0.5)';
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.transform = 'translate(-50%, -50%) rotate(0deg) scale(1)';
+            (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 4px 14px rgba(0,0,0,0.18), 0 0 0 4px rgba(255,255,255,0.4)';
+          }}
+        >
+          <SwapOutlined style={{ fontSize: 16 }} />
+        </button>
+        <style jsx>{`
+          @media (max-width: 767px) {
+            .swap-locations-btn {
+              top: auto !important;
+              bottom: 50% !important;
+              transform: translate(-50%, 50%) rotate(90deg) !important;
+            }
+            .swap-locations-btn:hover {
+              transform: translate(-50%, 50%) rotate(270deg) scale(1.08) !important;
+            }
+          }
+        `}</style>
+      </div>
       <Row gutter={[12, 16]} style={{ marginTop: 16 }}>
         <Col xs={12} md={6}>
           <Text strong style={{ display: 'block', marginBottom: 8, color: theme.labelColor, fontSize: 14 }}>
