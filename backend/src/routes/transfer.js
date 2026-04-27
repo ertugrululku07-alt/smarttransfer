@@ -2153,8 +2153,9 @@ router.patch('/bookings/:id', authMiddleware, async (req, res) => {
         const { id } = req.params;
         const { driverId, assignedVehicleId, skipConflictCheck, internalNotes, returnToReservation, returnReason,
                 // Inline cell editing fields:
-                contactName, contactPhone, pickupDateTime, pickupLocation, dropoffLocation,
+                contactName, contactEmail, contactPhone, pickupDateTime, pickupLocation, dropoffLocation,
                 flightNumber, flightTime, adults, children, infants, price, status: newStatus, operationalStatus,
+                notes,
                 // Passenger details:
                 passengerDetails,
                 // Pool run fields:
@@ -2350,7 +2351,9 @@ router.patch('/bookings/:id', authMiddleware, async (req, res) => {
 
         // Inline field updates
         if (contactName !== undefined) updateData.contactName = contactName;
+        if (contactEmail !== undefined) updateData.contactEmail = contactEmail;
         if (contactPhone !== undefined) updateData.contactPhone = contactPhone;
+        if (notes !== undefined) updateData.specialRequests = notes;
         if (pickupDateTime !== undefined) { updateData.startDate = new Date(pickupDateTime); updateData.endDate = new Date(pickupDateTime); }
         if (adults !== undefined) updateData.adults = Number(adults);
         if (children !== undefined) updateData.children = Number(children);

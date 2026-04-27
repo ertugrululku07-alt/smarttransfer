@@ -505,6 +505,15 @@ const TransfersPage: React.FC = () => {
     const [paxOriginalPax, setPaxOriginalPax] = useState(0);
     const [paxPricingMode, setPaxPricingMode] = useState<'auto' | 'keep' | 'manual'>('keep');
     const [paxManualPrice, setPaxManualPrice] = useState(0);
+    // Reservation info fields
+    const [paxContactName, setPaxContactName] = useState('');
+    const [paxContactPhone, setPaxContactPhone] = useState('');
+    const [paxContactEmail, setPaxContactEmail] = useState('');
+    const [paxPickupDateTime, setPaxPickupDateTime] = useState<dayjs.Dayjs | null>(null);
+    const [paxPickupLocation, setPaxPickupLocation] = useState('');
+    const [paxDropoffLocation, setPaxDropoffLocation] = useState('');
+    const [paxFlightNumber, setPaxFlightNumber] = useState('');
+    const [paxNotes, setPaxNotes] = useState('');
 
     const saveCellEdit = async (bookingId: string, field: string, value: any) => {
         setCellSaving(true);
@@ -584,6 +593,16 @@ const TransfersPage: React.FC = () => {
         setPaxPricingMode(isPerPerson ? 'auto' : 'keep');
         setPaxManualPrice(currentPrice);
 
+        // ── Reservation info ──
+        setPaxContactName((booking as any).contactName || booking.passengerName || '');
+        setPaxContactPhone((booking as any).contactPhone || booking.passengerPhone || '');
+        setPaxContactEmail((booking as any).contactEmail || (booking as any).customer?.email || '');
+        setPaxPickupDateTime(booking.pickupDateTime ? dayjs(booking.pickupDateTime) : null);
+        setPaxPickupLocation(md.pickup || (booking as any).pickup || '');
+        setPaxDropoffLocation(md.dropoff || (booking as any).dropoff || '');
+        setPaxFlightNumber(booking.flightNumber || md.flightNumber || '');
+        setPaxNotes(booking.notes || md.specialRequests || '');
+
         setPaxModalBooking(booking);
         setPaxModalOpen(true);
     };
@@ -636,6 +655,14 @@ const TransfersPage: React.FC = () => {
                 adults: paxAdults,
                 children: paxChildren,
                 infants: paxInfants,
+                contactName: paxContactName,
+                contactPhone: paxContactPhone,
+                contactEmail: paxContactEmail,
+                pickupDateTime: paxPickupDateTime ? paxPickupDateTime.toISOString() : undefined,
+                pickupLocation: paxPickupLocation,
+                dropoffLocation: paxDropoffLocation,
+                flightNumber: paxFlightNumber,
+                notes: paxNotes,
                 passengerDetails: paxList.map(p => ({
                     firstName: p.firstName,
                     lastName: p.lastName,
@@ -654,12 +681,26 @@ const TransfersPage: React.FC = () => {
             // Update local state
             setBookings(prev => prev.map((b: any) => {
                 if (b.id !== paxModalBooking.id) return b;
-                const updated = { ...b, adults: paxAdults, children: paxChildren, infants: paxInfants };
+                const updated: any = { ...b, adults: paxAdults, children: paxChildren, infants: paxInfants };
                 if (reflectPrice) {
                     updated.price = Math.max(0, paxComputedNewPrice);
                     updated.total = updated.price;
                 }
+                // Reservation info
+                updated.contactName = paxContactName;
+                updated.passengerName = paxContactName;
+                updated.contactPhone = paxContactPhone;
+                updated.passengerPhone = paxContactPhone;
+                updated.contactEmail = paxContactEmail;
+                if (updated.customer) updated.customer = { ...updated.customer, name: paxContactName, phone: paxContactPhone, email: paxContactEmail };
+                if (paxPickupDateTime) updated.pickupDateTime = paxPickupDateTime.toISOString();
+                updated.flightNumber = paxFlightNumber;
+                updated.notes = paxNotes;
                 if (!updated.metadata) updated.metadata = {};
+                updated.metadata.pickup = paxPickupLocation;
+                updated.metadata.dropoff = paxDropoffLocation;
+                updated.metadata.flightNumber = paxFlightNumber;
+                updated.metadata.specialRequests = paxNotes;
                 updated.metadata.passengerDetails = payload.passengerDetails;
                 if (paxPriceDiff !== 0) {
                     updated.metadata.paxChangeNote = `${paxPaymentMethod === 'PAY_IN_VEHICLE' ? 'Araçta ödeme' : 'Bakiyeye eklendi'}: ${paxPriceDiff > 0 ? '+' : ''}${paxPriceDiff.toLocaleString('tr-TR')} ₺`;
@@ -1230,7 +1271,7 @@ const TransfersPage: React.FC = () => {
           render:(_:any,record:Booking)=>{
               const items: MenuProps['items'] = [
                   {key:'detail',label:'Detaylar',icon:<EyeOutlined/>,onClick:()=>{setSelectedBooking(record);setDetailModalVisible(true);}},
-                  {key:'editPax',label:'Yolcu & Fiyat Düzenle',icon:<TeamOutlined style={{color:'#6366f1'}}/>,onClick:()=>openPaxModal(record)},
+                  {key:'editPax',label:'Rezervasyonu Düzenle',icon:<EditOutlined style={{color:'#6366f1'}}/>,onClick:()=>openPaxModal(record)},
               ];
               if (record.status==='PENDING') {
                   items.push({type:'divider'} as any);
@@ -1496,7 +1537,7 @@ const TransfersPage: React.FC = () => {
                                 });
                             }
                         }}>Düzenle</Button>,
-                        !isEditing && <Button key="paxEdit" icon={<TeamOutlined/>} onClick={()=>{ if (selectedBooking) { setDetailModalVisible(false); openPaxModal(selectedBooking); } }} style={{background:'#eef2ff',borderColor:'#6366f1',color:'#6366f1',fontWeight:600}}>Yolcu &amp; Fiyat</Button>,
+                        !isEditing && <Button key="paxEdit" icon={<EditOutlined/>} onClick={()=>{ if (selectedBooking) { setDetailModalVisible(false); openPaxModal(selectedBooking); } }} style={{background:'#eef2ff',borderColor:'#6366f1',color:'#6366f1',fontWeight:600}}>Düzenle</Button>,
                         !isEditing && <Button key="print" icon={<PrinterOutlined/>} onClick={handlePrint}>Yazdır</Button>,
                         !isEditing && <Button key="pdf" type="primary" icon={<FilePdfOutlined/>} onClick={handleExportPDF} style={{background:'#ef4444',border:'none'}}>PDF</Button>,
                         isEditing && <Button key="cancelEdit" onClick={()=>setIsEditing(false)}>İptal</Button>,
@@ -1748,7 +1789,7 @@ const TransfersPage: React.FC = () => {
                                         </div>
                                         <div>
                                             <div style={{ fontSize: 16, fontWeight: 800, color: '#fff', letterSpacing: '-0.3px', lineHeight: 1.2 }}>
-                                                Yolcu &amp; Fiyat Düzenle
+                                                Rezervasyonu Düzenle
                                             </div>
                                             <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', fontWeight: 500 }}>
                                                 {paxModalBooking.bookingNumber}
@@ -1791,6 +1832,83 @@ const TransfersPage: React.FC = () => {
                                         <div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>Mevcut Fiyat</div>
                                         <div style={{ fontSize: 16, fontWeight: 800, color: '#6366f1', marginTop: 2, fontFamily: 'monospace' }}>
                                             ₺{paxOriginalPrice.toLocaleString('tr-TR')}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* ─── Müşteri / İletişim Bilgileri ─── */}
+                                <div style={{
+                                    background: '#fff', borderRadius: 12, padding: '12px 14px',
+                                    border: '1px solid #e8ecf1', marginBottom: 12,
+                                    boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                                }}>
+                                    <div style={{ fontSize: 12, fontWeight: 700, color: '#1e293b', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 }}>
+                                        <UserOutlined style={{ color: '#6366f1', marginRight: 6 }} />Müşteri Bilgileri
+                                    </div>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                                        <div>
+                                            <Text type="secondary" style={{ fontSize: 11, fontWeight: 600, display: 'block', marginBottom: 4 }}>Ad Soyad</Text>
+                                            <Input value={paxContactName} onChange={e => setPaxContactName(e.target.value)} prefix={<UserOutlined style={{ color: '#94a3b8' }} />} placeholder="Müşteri adı" />
+                                        </div>
+                                        <div>
+                                            <Text type="secondary" style={{ fontSize: 11, fontWeight: 600, display: 'block', marginBottom: 4 }}>Telefon</Text>
+                                            <Input value={paxContactPhone} onChange={e => setPaxContactPhone(e.target.value)} prefix={<PhoneOutlined style={{ color: '#94a3b8' }} />} placeholder="+90 5XX XXX XX XX" />
+                                        </div>
+                                        <div style={{ gridColumn: '1 / span 2' }}>
+                                            <Text type="secondary" style={{ fontSize: 11, fontWeight: 600, display: 'block', marginBottom: 4 }}>E-posta</Text>
+                                            <Input value={paxContactEmail} onChange={e => setPaxContactEmail(e.target.value)} placeholder="ornek@mail.com" type="email" />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* ─── Transfer Detayları ─── */}
+                                <div style={{
+                                    background: '#fff', borderRadius: 12, padding: '12px 14px',
+                                    border: '1px solid #e8ecf1', marginBottom: 12,
+                                    boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                                }}>
+                                    <div style={{ fontSize: 12, fontWeight: 700, color: '#1e293b', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 }}>
+                                        <CalendarOutlined style={{ color: '#6366f1', marginRight: 6 }} />Transfer Detayları
+                                    </div>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                                        <div style={{ gridColumn: '1 / span 2' }}>
+                                            <Text type="secondary" style={{ fontSize: 11, fontWeight: 600, display: 'block', marginBottom: 4 }}>Tarih & Saat</Text>
+                                            <DatePicker
+                                                showTime={{ format: 'HH:mm', minuteStep: 5 }}
+                                                format="DD.MM.YYYY HH:mm"
+                                                value={paxPickupDateTime}
+                                                onChange={(d) => setPaxPickupDateTime(d)}
+                                                style={{ width: '100%' }}
+                                                placeholder="Transfer tarih ve saati"
+                                            />
+                                        </div>
+                                        <div style={{ gridColumn: '1 / span 2' }}>
+                                            <Text type="secondary" style={{ fontSize: 11, fontWeight: 600, display: 'block', marginBottom: 4 }}>
+                                                <span style={{ color: '#10b981' }}>●</span> Alış Yeri
+                                            </Text>
+                                            <DynamicLocationSearchInput
+                                                value={paxPickupLocation}
+                                                onChange={(v) => setPaxPickupLocation(v)}
+                                                placeholder="Alış noktasını ara..."
+                                            />
+                                        </div>
+                                        <div style={{ gridColumn: '1 / span 2' }}>
+                                            <Text type="secondary" style={{ fontSize: 11, fontWeight: 600, display: 'block', marginBottom: 4 }}>
+                                                <span style={{ color: '#ef4444' }}>●</span> Bırakış Yeri
+                                            </Text>
+                                            <DynamicLocationSearchInput
+                                                value={paxDropoffLocation}
+                                                onChange={(v) => setPaxDropoffLocation(v)}
+                                                placeholder="Bırakış noktasını ara..."
+                                            />
+                                        </div>
+                                        <div>
+                                            <Text type="secondary" style={{ fontSize: 11, fontWeight: 600, display: 'block', marginBottom: 4 }}>Uçuş No</Text>
+                                            <Input value={paxFlightNumber} onChange={e => setPaxFlightNumber(e.target.value)} placeholder="TK1234" />
+                                        </div>
+                                        <div>
+                                            <Text type="secondary" style={{ fontSize: 11, fontWeight: 600, display: 'block', marginBottom: 4 }}>Notlar</Text>
+                                            <Input value={paxNotes} onChange={e => setPaxNotes(e.target.value)} placeholder="Özel istek / not" />
                                         </div>
                                     </div>
                                 </div>
