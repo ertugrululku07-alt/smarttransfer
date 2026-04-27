@@ -421,24 +421,72 @@ export default function OperationsTable({
         });
     };
     
-    // Extract displayed value for a column from a booking (used for unique values + filter check)
-    const extractColValue = (key: string, b: any): string => {
-        if (key === 'airportCode') {
-            const pickupLoc = b.pickup?.rawLocation || b.pickup?.location || '';
-            const dropoffLoc = b.dropoff?.rawLocation || b.dropoff?.location || '';
-            return getAirportCode(pickupLoc) || getAirportCode(dropoffLoc) || '';
-        }
-        if (key === 'vehicleType') return b.metadata?.vehicleType || b.vehicleType || '';
-        if (key === 'pickupRegionCode') return b.pickupRegionCode || b.metadata?.pickupRegionCode || '';
-        if (key === 'dropoffRegionCode') return b.dropoffRegionCode || b.metadata?.dropoffRegionCode || '';
-        return String(b[key] ?? '');
+    // Turkish label for status codes (must match the status cell's render logic)
+    const STATUS_LABELS: Record<string, string> = {
+        PENDING: 'Beklemede', CONFIRMED: 'Onaylandı',
+        PASSENGER_PICKED_UP: 'Yolcu Alındı', IN_PROGRESS: 'Yolcu Alındı',
+        ON_THE_WAY: 'Yolda', IN_OPERATION: 'Operasyonda', OPERASYONDA: 'Operasyonda',
+        DRIVER_ASSIGNED: 'Şöför Atandı', DRIVER_READ: 'Şöför Okudu',
+        COMPLETED: 'Tamamlandı', CANCELLED: 'İptal', NO_SHOW: 'No-Show', HAVUZDA: 'Havuzda', POOL: 'Havuzda',
     };
+    const getEffectiveStatus = (b: any): string => {
+        const overrideStatuses = ['IN_PROGRESS', 'COMPLETED', 'CANCELLED', 'NO_SHOW'];
+        let s = b.operationalStatus || b.status || b.metadata?.operationalStatus || 'PENDING';
+        if (b.status && overrideStatuses.includes(b.status)) s = b.status;
+        return s;
+    };
+
+    // Extract displayed value for a column from a booking (used for unique values + filter check)
+    // Must produce what the user actually SEES in the cell (for status/date/time formats)
+    const extractColValue = (key: string, b: any): string => {
+        switch (key) {
+            case 'bookingNumber': return String(b.bookingNumber ?? '');
+            case 'direction':     return String(b.direction ?? '');
+            case 'partnerName':   return String(b.agencyName || b.partnerName || '');
+            case 'vehicleType':   return String(b.metadata?.vehicleType || b.vehicleType || '');
+            case 'paymentType':   return String(b.paymentType || b.metadata?.paymentType || '');
+            case 'customerNote':  return String(b.customerNote ?? '');
+            case 'internalNotes': return String(b.internalNotes ?? '');
+            case 'customerName': {
+                return String(b.customerName || b.customer?.name || ((b.customer?.firstName || '') + ' ' + (b.customer?.lastName || '')).trim() || '');
+            }
+            case 'contactPhone':  return String(b.contactPhone || b.customer?.phone || b.customer?.contactPhone || '');
+            case 'date': {
+                const d = b.pickupDateTime || b.dropoffDateTime;
+                return d ? dayjs(d).format('DD.MM.YY') : '';
+            }
+            case 'time': {
+                const d = b.pickupDateTime || b.dropoffDateTime;
+                return d ? dayjs(d).format('HH:mm') : '';
+            }
+            case 'flightTime':        return String(b.metadata?.flightTime || b.flightTime || '');
+            case 'flightCode':        return String(b.flightNumber ?? '');
+            case 'pax': {
+                const total = (b.adults || 0) + (b.children || 0) + (b.infants || 0);
+                return total > 0 ? String(total) : '';
+            }
+            case 'status': {
+                const s = getEffectiveStatus(b);
+                return STATUS_LABELS[s] || s;
+            }
+            case 'airportCode': {
+                const pickupLoc = b.pickup?.rawLocation || b.pickup?.location || '';
+                const dropoffLoc = b.dropoff?.rawLocation || b.dropoff?.location || '';
+                return getAirportCode(pickupLoc) || getAirportCode(dropoffLoc) || '';
+            }
+            case 'pickupRegionCode':  return String(b.pickupRegionCode || b.metadata?.pickupRegionCode || '');
+            case 'dropoffRegionCode': return String(b.dropoffRegionCode || b.metadata?.dropoffRegionCode || '');
+            default: return String(b[key] ?? '');
+        }
+    };
+
+    // Keys that support checkbox filtering
+    const FILTERABLE_KEYS = ['bookingNumber','direction','partnerName','vehicleType','paymentType','customerNote','internalNotes','customerName','contactPhone','date','time','flightTime','flightCode','pax','status','airportCode','pickupRegionCode','dropoffRegionCode'];
 
     // Compute unique values per column from current bookings list
     const uniqueColValues = useMemo(() => {
         const out: Record<string, string[]> = {};
-        const keys = ['bookingNumber','contactName','contactPhone','agencyName','transferType','direction','vehicleType','airportCode','pickupRegionCode','dropoffRegionCode','paymentType','paymentStatus','flightNumber','status','customerNote','internalNotes','adults'];
-        keys.forEach(k => {
+        FILTERABLE_KEYS.forEach(k => {
             const set = new Set<string>();
             bookings.forEach(b => set.add(extractColValue(k, b)));
             out[k] = Array.from(set).sort((a, b) => a.localeCompare(b, 'tr'));
