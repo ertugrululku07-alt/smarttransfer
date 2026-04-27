@@ -2489,7 +2489,8 @@ router.post('/bookings/admin', authMiddleware, async (req, res) => {
             distance, duration,
             isShuttle, shuttleRouteId, shuttleMasterTime,
             currency,
-            passengerDetails
+            passengerDetails,
+            extraServices, extrasTotal, vehiclePrice
         } = req.body;
 
         const tenantId = req.tenant?.id;
@@ -2523,7 +2524,10 @@ router.post('/bookings/admin', authMiddleware, async (req, res) => {
             isShuttle: !!isShuttle,
             shuttleRouteId: shuttleRouteId || null,
             shuttleMasterTime: shuttleMasterTime || null,
-            passengerDetails: Array.isArray(passengerDetails) ? passengerDetails : []
+            passengerDetails: Array.isArray(passengerDetails) ? passengerDetails : [],
+            extraServices: Array.isArray(extraServices) ? extraServices : [],
+            extrasTotal: Number(extrasTotal || 0),
+            vehiclePrice: vehiclePrice != null ? Number(vehiclePrice) : null
         };
 
         const booking = await prisma.booking.create({

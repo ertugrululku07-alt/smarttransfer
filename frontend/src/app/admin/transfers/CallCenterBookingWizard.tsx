@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Modal, Form, Input, InputNumber, DatePicker, Button, Tag, Radio, message, Spin, Row, Col, Alert } from 'antd';
 import {
     EnvironmentOutlined, CarOutlined, UserOutlined, PhoneOutlined, MailOutlined,
@@ -10,7 +10,7 @@ import {
     SafetyCertificateOutlined, RocketOutlined,
     SwapOutlined, ArrowRightOutlined, MinusOutlined, PlusOutlined,
     LockOutlined, NotificationOutlined, ThunderboltOutlined, CustomerServiceOutlined,
-    SafetyOutlined, CloseOutlined,
+    SafetyOutlined, CloseOutlined, ShoppingOutlined, GiftOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import DynamicLocationSearchInput from '@/app/components/DynamicLocationSearchInput';
@@ -68,6 +68,52 @@ const CallCenterBookingWizard: React.FC<Props> = ({ open, onClose, onSuccess }) 
     const [customerForm] = Form.useForm();
     const [creating, setCreating] = useState(false);
 
+    // Extra services
+    const [extraServices, setExtraServices] = useState<any[]>([]);
+    const [selectedServices, setSelectedServices] = useState<Map<string, number>>(new Map());
+    const [loadingExtras, setLoadingExtras] = useState(false);
+
+    // Fetch extra services when entering Step 2 with a selected vehicle
+    useEffect(() => {
+        if (step !== 1 || !selected) return;
+        let cancelled = false;
+        (async () => {
+            try {
+                setLoadingExtras(true);
+                const res = await apiClient.get('/api/extra-services');
+                if (!cancelled && res.data?.success) {
+                    const list = (res.data.data || []).filter((s: any) =>
+                        selected.isShuttle ? !s.excludeFromShuttle : true
+                    );
+                    setExtraServices(list);
+                }
+            } catch (e) {
+                console.warn('extra-services fetch failed', e);
+            } finally {
+                if (!cancelled) setLoadingExtras(false);
+            }
+        })();
+        return () => { cancelled = true; };
+    }, [step, selected]);
+
+    const totalPaxForExtras = adults + children + infants;
+
+    const setServiceQty = (id: string, nextQty: number) => {
+        const next = new Map(selectedServices);
+        if (nextQty > 0) next.set(id, nextQty);
+        else next.delete(id);
+        setSelectedServices(next);
+    };
+
+    const extrasTotal = (() => {
+        let total = 0;
+        selectedServices.forEach((qty, id) => {
+            const s = extraServices.find(x => x.id === id);
+            if (s) total += Number(s.price) * qty;
+        });
+        return total;
+    })();
+
     const resetAll = () => {
         setStep(0);
         setPickup(''); setDropoff('');
@@ -78,6 +124,7 @@ const CallCenterBookingWizard: React.FC<Props> = ({ open, onClose, onSuccess }) 
         setAdults(1); setChildren(0); setInfants(0);
         setResults([]); setSearchError(null); setRouteInfo(null);
         setSelected(null);
+        setExtraServices([]); setSelectedServices(new Map());
         customerForm.resetFields();
     };
 
@@ -180,6 +227,21 @@ const CallCenterBookingWizard: React.FC<Props> = ({ open, onClose, onSuccess }) 
                 displayDateTime = pickupDateTime.hour(bh).minute(bm).second(0);
             }
 
+            // Build extras list for the payload (id/name/price/currency/qty/total)
+            const extrasList = Array.from(selectedServices.entries()).map(([id, qty]) => {
+                const s = extraServices.find(x => x.id === id);
+                return s ? {
+                    id: s.id,
+                    name: s.name,
+                    price: Number(s.price),
+                    currency: s.currency || 'TRY',
+                    quantity: qty,
+                    total: Number(s.price) * qty,
+                } : null;
+            }).filter(Boolean) as Array<{ id: string; name: string; price: number; currency: string; quantity: number; total: number }>;
+
+            const totalPrice = Number(selected.price) + extrasTotal;
+
             const payload = {
                 passengerName: values.passengerName,
                 passengerPhone: values.passengerPhone,
@@ -189,7 +251,10 @@ const CallCenterBookingWizard: React.FC<Props> = ({ open, onClose, onSuccess }) 
                 pickupDateTime: displayDateTime.toISOString(),
                 vehicleType: selected.vehicleType,
                 flightNumber: values.flightNumber || '',
-                price: selected.price,
+                price: totalPrice,
+                vehiclePrice: Number(selected.price),
+                extrasTotal,
+                extraServices: extrasList,
                 currency: selected.currency || 'TRY',
                 notes: values.notes || '',
                 adults: values.adults || adults,
@@ -1036,6 +1101,108 @@ const CallCenterBookingWizard: React.FC<Props> = ({ open, onClose, onSuccess }) 
                                             </Form.Item>
                                         </Col>
                                     </Row>
+                                </div>
+
+                                {/* Extra Services */}
+                                <div style={{
+                                    background: '#fff', borderRadius: 14, padding: '16px 20px',
+                                    border: '1px solid #e8ecf1', marginBottom: 16,
+                                    boxShadow: '0 1px 4px rgba(0,0,0,0.03)',
+                                }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                            <div style={{
+                                                width: 28, height: 28, borderRadius: 8,
+                                                background: '#fef3c7', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            }}>
+                                                <GiftOutlined style={{ fontSize: 13, color: '#d97706' }} />
+                                            </div>
+                                            <span style={{ fontSize: 14, fontWeight: 700, color: '#1e293b' }}>Ekstra Hizmetler</span>
+                                            <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 500 }}>(Opsiyonel)</span>
+                                        </div>
+                                        {extrasTotal > 0 && (
+                                            <span style={{
+                                                fontSize: 12, fontWeight: 700, color: '#059669',
+                                                background: '#d1fae5', padding: '4px 10px', borderRadius: 999,
+                                            }}>
+                                                +{formatPrice(extrasTotal, selected.currency || 'TRY')}
+                                            </span>
+                                        )}
+                                    </div>
+
+                                    {loadingExtras ? (
+                                        <div style={{ textAlign: 'center', padding: 16 }}><Spin size="small" /></div>
+                                    ) : extraServices.length === 0 ? (
+                                        <div style={{ fontSize: 12, color: '#94a3b8', textAlign: 'center', padding: 16 }}>
+                                            Bu araç için ekstra hizmet bulunmuyor.
+                                        </div>
+                                    ) : (
+                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+                                            {extraServices.map(svc => {
+                                                const qty = selectedServices.get(svc.id) || 0;
+                                                const active = qty > 0;
+                                                const maxQty = svc.isPerPerson ? Math.max(1, totalPaxForExtras) : 10;
+                                                return (
+                                                    <div key={svc.id} style={{
+                                                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                                        gap: 8, padding: '8px 12px', borderRadius: 10,
+                                                        background: active ? '#f0fdf4' : '#f9fafb',
+                                                        border: `1px solid ${active ? '#86efac' : '#e5e7eb'}`,
+                                                        transition: 'all 0.2s',
+                                                    }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flex: 1 }}>
+                                                            <div style={{
+                                                                width: 28, height: 28, borderRadius: 6,
+                                                                background: '#fff', border: '1px solid #e5e7eb',
+                                                                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                                                            }}>
+                                                                <ShoppingOutlined style={{ fontSize: 12, color: '#6366f1' }} />
+                                                            </div>
+                                                            <div style={{ minWidth: 0, flex: 1 }}>
+                                                                <div style={{ fontSize: 12, fontWeight: 600, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                                    {svc.name}
+                                                                </div>
+                                                                <div style={{ fontSize: 10, color: '#64748b' }}>
+                                                                    {formatPrice(Number(svc.price), svc.currency || 'TRY')} {svc.isPerPerson ? '/ kişi' : '/ adet'}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setServiceQty(svc.id, Math.max(0, qty - 1))}
+                                                                disabled={qty <= 0}
+                                                                style={{
+                                                                    width: 22, height: 22, borderRadius: 5,
+                                                                    background: '#fff', border: '1px solid #e5e7eb',
+                                                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                                    color: '#475569', cursor: qty <= 0 ? 'not-allowed' : 'pointer',
+                                                                    opacity: qty <= 0 ? 0.4 : 1, padding: 0,
+                                                                }}
+                                                            >
+                                                                <MinusOutlined style={{ fontSize: 9 }} />
+                                                            </button>
+                                                            <span style={{ minWidth: 18, textAlign: 'center', fontWeight: 700, fontSize: 12, color: '#1e293b' }}>{qty}</span>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setServiceQty(svc.id, Math.min(maxQty, qty + 1))}
+                                                                disabled={qty >= maxQty}
+                                                                style={{
+                                                                    width: 22, height: 22, borderRadius: 5,
+                                                                    background: '#fff', border: '1px solid #e5e7eb',
+                                                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                                    color: '#475569', cursor: qty >= maxQty ? 'not-allowed' : 'pointer',
+                                                                    opacity: qty >= maxQty ? 0.4 : 1, padding: 0,
+                                                                }}
+                                                            >
+                                                                <PlusOutlined style={{ fontSize: 9 }} />
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* Passengers + Payment side by side */}
