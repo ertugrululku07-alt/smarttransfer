@@ -716,19 +716,22 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
             if (routeToHubCode && originalDropoffHubCode && originalDropoffHubCode === routeToHubCode) {
                 isDropoffMatch = true;
             }
-            // 2b. Fallback: text matching + hub keyword matching (always try if no hub match)
+            // 2b. Fallback: text matching + hub keyword matching (STRICT — primary token equality only).
+            //     Loose `.includes()` previously made generic "Alanya" match every sub-zone route
+            //     ("OBA ALANYA", "TOSMUR ALANYA", ...). We now require an exact match of the
+            //     primary token (first comma/slash segment, normalized).
             if (!isDropoffMatch) {
                 const routeTo = normalizeLocation(route.toName);
                 const routeToPrimary = routeTo.split(/[\/,]/)[0].trim();
-                isDropoffMatch = (routeToPrimary === dropoffPrimaryToken || routeToPrimary.includes(dropoffPrimaryToken) || dropoffPrimaryToken.includes(routeToPrimary));
+                isDropoffMatch = (routeToPrimary === dropoffPrimaryToken);
                 if (!isDropoffMatch && originalDropoffHubCode) {
                     const dropoffHub = hubs.find(h => h.code === originalDropoffHubCode);
                     if (dropoffHub) {
-                        const routeToLower = route.toName.toLowerCase();
+                        // Compare each keyword against route's primary token using equality only.
                         const hubKeys = dropoffHub.keywords ? dropoffHub.keywords.split(',').map(k => k.trim().toLowerCase()).filter(k => k) : [];
                         hubKeys.push(dropoffHub.code.toLowerCase());
                         if (dropoffHub.name) hubKeys.push(dropoffHub.name.toLowerCase());
-                        isDropoffMatch = hubKeys.some(k => k && routeToLower.includes(k));
+                        isDropoffMatch = hubKeys.some(k => k && (k === routeToPrimary || k === routeTo));
                     }
                 }
             }
@@ -763,14 +766,12 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                             isDropoffMatch = true;
                             console.log(`[ShuttleDropoff] Inside zone "${dZone.name}" polygon`);
                         } else {
+                            // Tightened: previously a 3 km proximity allowance turned every adjacent
+                            // sub-zone into a match (Oba/Tosmur/Cikcilli all sit within 3 km of central
+                            // Alanya). Strict inside-polygon only — adjacency is no longer a match.
                             const boundary = turf.polygonToLine(zonePoly);
                             const distKm = turf.pointToLineDistance(dropPt, boundary, { units: 'kilometers' });
-                            if (distKm <= 3) {
-                                isDropoffMatch = true;
-                                console.log(`[ShuttleDropoffProximity] Dropoff ${distKm.toFixed(1)}km from zone "${dZone.name}" polygon → allowing`);
-                            } else {
-                                console.log(`[ShuttleDropoffNoMatch] Dropoff ${distKm.toFixed(1)}km from zone "${dZone.name}" polygon → no zone match`);
-                            }
+                            console.log(`[ShuttleDropoffNoMatch] Dropoff ${distKm.toFixed(1)}km from zone "${dZone.name}" polygon → outside (strict)`);
                         }
                     } catch (err) {
                         console.error('Shuttle dropoff zone polygon check error:', err.message);
