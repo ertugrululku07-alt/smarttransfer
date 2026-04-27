@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
     Table, Tag, Space, Button, Input, Typography, Card, Tooltip, Modal,
     Descriptions, message, Dropdown, MenuProps, Checkbox, Popover,
@@ -143,7 +143,8 @@ interface Booking {
 }
 
 interface ColFilter {
-    text?: string;
+    text?: string;          // legacy, kept for backwards compat
+    values?: string[];      // checkbox-based filter (Excel-style); empty => no filter
     dateRange?: [dayjs.Dayjs, dayjs.Dayjs] | null;
     minPrice?: number | null;
     maxPrice?: number | null;
@@ -266,17 +267,69 @@ interface EditableHeaderProps {
 }
 const FILTERABLE = ['bookingNumber','passengerName','agency','status','pickupDateTime','createdAt','price','pickupLoc','dropoffLoc','airportCode', 'vehicleType', 'paymentType', 'paymentStatus', 'flightNumber', 'adults'];
 
-const FilterPopover: React.FC<{ colKey: string; filter: ColFilter; onFilter: (k:string,f:ColFilter)=>void; onClear:(k:string)=>void }> = ({ colKey, filter, onFilter, onClear }) => {
+const FilterPopover: React.FC<{ colKey: string; filter: ColFilter; availableValues?: string[]; onFilter: (k:string,f:ColFilter)=>void; onClear:(k:string)=>void }> = ({ colKey, filter, availableValues = [], onFilter, onClear }) => {
     const [local, setLocal] = useState<ColFilter>({ ...filter });
-    const isActive = !!(filter.text || (filter.statuses?.length) || filter.dateRange || filter.minPrice != null || filter.maxPrice != null);
+    const [search, setSearch] = useState('');
+    const isActive = !!(filter.text || (filter.values?.length) || (filter.statuses?.length) || filter.dateRange || filter.minPrice != null || filter.maxPrice != null);
     const statusOptions = Object.entries(DEFAULT_STATUS_COLORS);
 
+    const checkboxCols = ['bookingNumber','passengerName','agency','pickupLoc','dropoffLoc','airportCode','vehicleType','paymentStatus','flightNumber','adults'];
+    const filteredValues = availableValues.filter(v => v.toLowerCase().includes(search.toLowerCase()));
+    const allChecked = filteredValues.length > 0 && filteredValues.every(v => (local.values || []).includes(v));
+    const someChecked = filteredValues.some(v => (local.values || []).includes(v));
+
+    const toggleAll = (checked: boolean) => {
+        const cur = new Set(local.values || []);
+        filteredValues.forEach(v => { if (checked) cur.add(v); else cur.delete(v); });
+        setLocal(p => ({ ...p, values: Array.from(cur) }));
+    };
+    const toggleOne = (v: string, checked: boolean) => {
+        const cur = new Set(local.values || []);
+        if (checked) cur.add(v); else cur.delete(v);
+        setLocal(p => ({ ...p, values: Array.from(cur) }));
+    };
+
     const content = (
-        <div style={{ width: 250, padding: 4 }}>
-            {['bookingNumber','passengerName','agency','pickupLoc','dropoffLoc','airportCode','vehicleType','paymentStatus','flightNumber','adults'].includes(colKey) && (
+        <div style={{ width: 280, padding: 4 }}>
+            {checkboxCols.includes(colKey) && (
                 <div style={{ marginBottom: 10 }}>
-                    <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 4 }}>Metin Ara</Text>
-                    <Input size="small" prefix={<SearchOutlined />} placeholder="Filtrele..." value={local.text||''} onChange={e=>setLocal(p=>({...p,text:e.target.value}))} allowClear />
+                    <Input
+                        size="small"
+                        prefix={<SearchOutlined />}
+                        placeholder="Listede ara..."
+                        value={search}
+                        onChange={e => setSearch(e.target.value)}
+                        allowClear
+                        style={{ marginBottom: 8 }}
+                    />
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, paddingBottom: 6, borderBottom: '1px solid #f0f0f0' }}>
+                        <Checkbox
+                            checked={allChecked}
+                            indeterminate={!allChecked && someChecked}
+                            onChange={e => toggleAll(e.target.checked)}
+                        >
+                            <Text style={{ fontSize: 12, fontWeight: 600 }}>(Tümünü Seç)</Text>
+                        </Checkbox>
+                        <Text type="secondary" style={{ fontSize: 11 }}>{filteredValues.length} öğe</Text>
+                    </div>
+                    <div style={{ maxHeight: 240, overflowY: 'auto', paddingRight: 4 }}>
+                        {filteredValues.length === 0 && (
+                            <Text type="secondary" style={{ fontSize: 11, fontStyle: 'italic', display: 'block', textAlign: 'center', padding: 12 }}>
+                                Eşleşen değer yok
+                            </Text>
+                        )}
+                        {filteredValues.map(v => (
+                            <div key={v} style={{ display: 'flex', alignItems: 'center', padding: '2px 0' }}>
+                                <Checkbox
+                                    checked={(local.values || []).includes(v)}
+                                    onChange={e => toggleOne(v, e.target.checked)}
+                                    style={{ width: '100%' }}
+                                >
+                                    <Text style={{ fontSize: 12 }} ellipsis={{ tooltip: v }}>{v || <span style={{ color: '#bbb', fontStyle: 'italic' }}>(boş)</span>}</Text>
+                                </Checkbox>
+                            </div>
+                        ))}
+                    </div>
                 </div>
             )}
             {colKey === 'status' && (
@@ -324,7 +377,7 @@ const FilterPopover: React.FC<{ colKey: string; filter: ColFilter; onFilter: (k:
     );
 };
 
-const EditableHeader: React.FC<EditableHeaderProps> = ({ colKey, title, filter, onTitleChange, onFilter, onClearFilter }) => {
+const EditableHeader: React.FC<EditableHeaderProps & { availableValues?: string[] }> = ({ colKey, title, filter, availableValues, onTitleChange, onFilter, onClearFilter }) => {
     const [editing, setEditing] = useState(false);
     const [val, setVal] = useState(title);
     useEffect(() => setVal(title), [title]);
@@ -336,7 +389,7 @@ const EditableHeader: React.FC<EditableHeaderProps> = ({ colKey, title, filter, 
             ) : (
                 <span onDoubleClick={()=>setEditing(true)} title="Çift tıkla → adı düzenle" style={{ cursor:'text', fontWeight:600 }}>{title}</span>
             )}
-            {FILTERABLE.includes(colKey) && <FilterPopover colKey={colKey} filter={filter} onFilter={onFilter} onClear={onClearFilter} />}
+            {FILTERABLE.includes(colKey) && <FilterPopover colKey={colKey} filter={filter} availableValues={availableValues} onFilter={onFilter} onClear={onClearFilter} />}
         </div>
     );
 };
@@ -860,6 +913,36 @@ const TransfersPage: React.FC = () => {
         return p || d || null;
     };
 
+    // Extract displayed value for a column from a booking row (used by both filters & unique-value derivation)
+    const extractColValue = (key: string, b: Booking): string => {
+        switch (key) {
+            case 'bookingNumber': return b.bookingNumber || '';
+            case 'passengerName': return b.passengerName || '';
+            case 'agency': return b.agencyName || b.agency?.name || b.partnerName || b.metadata?.agencyName || 'Direkt';
+            case 'pickupLoc': return getPickup(b);
+            case 'dropoffLoc': return getDropoff(b);
+            case 'airportCode': return getAirportForRow(b) || '';
+            case 'vehicleType': return b.metadata?.vehicleType || b.vehicleType || '';
+            case 'paymentStatus': return b.paymentStatus || '';
+            case 'flightNumber': return b.flightNumber || '';
+            case 'adults': return b.adults != null ? b.adults.toString() : '';
+            default: return '';
+        }
+    };
+
+    // Compute unique values per filterable column from all bookings (used for checkbox lists)
+    const checkboxFilterCols = ['bookingNumber','passengerName','agency','pickupLoc','dropoffLoc','airportCode','vehicleType','paymentStatus','flightNumber','adults'];
+    const uniqueColValues = useMemo(() => {
+        const out: Record<string, string[]> = {};
+        checkboxFilterCols.forEach(key => {
+            const set = new Set<string>();
+            bookings.forEach(b => set.add(extractColValue(key, b)));
+            out[key] = Array.from(set).sort((a, b) => a.localeCompare(b, 'tr'));
+        });
+        return out;
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [bookings]);
+
     // Filtered data
     const filteredBookings = bookings.filter(b => {
         if (searchText) {
@@ -867,17 +950,17 @@ const TransfersPage: React.FC = () => {
             if (!b.bookingNumber.toLowerCase().includes(s) && !b.passengerName.toLowerCase().includes(s) && !(b.passengerPhone||'').includes(s)) return false;
         }
         for (const [key, f] of Object.entries(colFilters)) {
-            if (key==='bookingNumber' && f.text && !b.bookingNumber.toLowerCase().includes(f.text.toLowerCase())) return false;
-            if (key==='passengerName' && f.text && !b.passengerName.toLowerCase().includes(f.text.toLowerCase())) return false;
-            if (key==='agency') {
-                const n = b.agencyName||b.agency?.name||b.partnerName||b.metadata?.agencyName||'Direkt';
-                if (f.text && !n.toLowerCase().includes(f.text.toLowerCase())) return false;
-            }
-            if (key==='pickupLoc' && f.text && !getPickup(b).toLowerCase().includes(f.text.toLowerCase())) return false;
-            if (key==='dropoffLoc' && f.text && !getDropoff(b).toLowerCase().includes(f.text.toLowerCase())) return false;
-            if (key==='airportCode' && f.text) {
-                const code = getAirportForRow(b)||'';
-                if (!code.toLowerCase().includes(f.text.toLowerCase())) return false;
+            // Excel-style checkbox filtering for text columns
+            if (checkboxFilterCols.includes(key)) {
+                if (f.values && f.values.length > 0) {
+                    const v = extractColValue(key, b);
+                    if (!f.values.includes(v)) return false;
+                } else if (f.text) {
+                    // Backwards-compat: legacy text filter
+                    const v = extractColValue(key, b).toLowerCase();
+                    if (!v.includes(f.text.toLowerCase())) return false;
+                }
+                continue;
             }
             if (key==='status' && f.statuses?.length) {
                 if (!f.statuses.includes(getEffectiveStatus(b))) return false;
@@ -894,13 +977,6 @@ const TransfersPage: React.FC = () => {
                 if (f.minPrice!=null && b.price<f.minPrice) return false;
                 if (f.maxPrice!=null && b.price>f.maxPrice) return false;
             }
-            if (key==='vehicleType' && f.text) {
-                const vt = b.metadata?.vehicleType||b.vehicleType||'';
-                if (!vt.toLowerCase().includes(f.text.toLowerCase())) return false;
-            }
-            if (key==='paymentStatus' && f.text && !(b.paymentStatus||'').toLowerCase().includes(f.text.toLowerCase())) return false;
-            if (key==='flightNumber' && f.text && !(b.flightNumber||'').toLowerCase().includes(f.text.toLowerCase())) return false;
-            if (key==='adults' && f.text && !(b.adults?.toString()||'').toLowerCase().includes(f.text.toLowerCase())) return false;
         }
         return true;
     });
@@ -960,6 +1036,7 @@ const TransfersPage: React.FC = () => {
     // Header builder — includes resize via onHeaderCell
     const makeHeader = (key: string) => ({
         title: <EditableHeader colKey={key} title={colTitles[key]||key} filter={colFilters[key]||{}}
+            availableValues={uniqueColValues[key]}
             onTitleChange={handleTitleChange} onFilter={handleApplyFilter} onClearFilter={handleClearFilter} />,
         onHeaderCell: (col: any) => ({
             width: col.width,
@@ -1137,7 +1214,7 @@ const TransfersPage: React.FC = () => {
         .map(k => ALL_COLUMNS.find(c => c.key === k))
         .filter(Boolean);
     const totalWidth = sortedColumns.reduce((sum: number, col: any) => sum + (col.width || 100), 0);
-    const activeFilterCount = Object.values(colFilters).filter(f=>f.text||(f.statuses?.length)||f.dateRange||f.minPrice!=null||f.maxPrice!=null).length;
+    const activeFilterCount = Object.values(colFilters).filter(f=>f.text||(f.values?.length)||(f.statuses?.length)||f.dateRange||f.minPrice!=null||f.maxPrice!=null).length;
 
     // Reorder-capable keys (action stays fixed at left)
     const reorderableKeys = effectiveColOrder.filter(k => k !== 'action');
@@ -1279,9 +1356,10 @@ const TransfersPage: React.FC = () => {
                     <div style={{marginBottom:12,display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}}>
                         <Text type="secondary" style={{fontSize:12}}>Aktif filtreler:</Text>
                         {Object.entries(colFilters).map(([key,f])=>{
-                            const has=f.text||(f.statuses?.length)||f.dateRange||f.minPrice!=null||f.maxPrice!=null;
+                            const has=f.text||(f.values?.length)||(f.statuses?.length)||f.dateRange||f.minPrice!=null||f.maxPrice!=null;
                             if(!has) return null;
-                            return <Tag key={key} closable onClose={()=>handleClearFilter(key)} color="blue" style={{borderRadius:20}}>{colTitles[key]||key}</Tag>;
+                            const label = (f.values?.length) ? `${colTitles[key]||key} (${f.values.length})` : (colTitles[key]||key);
+                            return <Tag key={key} closable onClose={()=>handleClearFilter(key)} color="blue" style={{borderRadius:20}}>{label}</Tag>;
                         })}
                         <Button size="small" type="link" onClick={()=>setColFilters({})} style={{color:'#ef4444'}}>Tümünü Temizle</Button>
                     </div>
