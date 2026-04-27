@@ -1230,6 +1230,7 @@ const TransfersPage: React.FC = () => {
           render:(_:any,record:Booking)=>{
               const items: MenuProps['items'] = [
                   {key:'detail',label:'Detaylar',icon:<EyeOutlined/>,onClick:()=>{setSelectedBooking(record);setDetailModalVisible(true);}},
+                  {key:'editPax',label:'Yolcu & Fiyat Düzenle',icon:<TeamOutlined style={{color:'#6366f1'}}/>,onClick:()=>openPaxModal(record)},
               ];
               if (record.status==='PENDING') {
                   items.push({type:'divider'} as any);
@@ -1495,6 +1496,7 @@ const TransfersPage: React.FC = () => {
                                 });
                             }
                         }}>Düzenle</Button>,
+                        !isEditing && <Button key="paxEdit" icon={<TeamOutlined/>} onClick={()=>{ if (selectedBooking) { setDetailModalVisible(false); openPaxModal(selectedBooking); } }} style={{background:'#eef2ff',borderColor:'#6366f1',color:'#6366f1',fontWeight:600}}>Yolcu &amp; Fiyat</Button>,
                         !isEditing && <Button key="print" icon={<PrinterOutlined/>} onClick={handlePrint}>Yazdır</Button>,
                         !isEditing && <Button key="pdf" type="primary" icon={<FilePdfOutlined/>} onClick={handleExportPDF} style={{background:'#ef4444',border:'none'}}>PDF</Button>,
                         isEditing && <Button key="cancelEdit" onClick={()=>setIsEditing(false)}>İptal</Button>,
