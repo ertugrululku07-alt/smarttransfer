@@ -37,7 +37,7 @@ const { RangePicker } = DatePicker;
 let __dragColKey: string | null = null;
 
 const DraggableResizableTitle = (props: any) => {
-    const { onResize, width, colKey, onColDrop, ...restProps } = props;
+    const { onResize, width, colKey, onColDrop, onResetWidth, ...restProps } = props;
 
     const handleDragStart = (e: React.DragEvent) => {
         if (!colKey || colKey === 'action') return;
@@ -87,6 +87,8 @@ const DraggableResizableTitle = (props: any) => {
                 <span
                     className="react-resizable-handle"
                     onClick={e => e.stopPropagation()}
+                    onDoubleClick={e => { e.stopPropagation(); if (colKey) onResetWidth?.(colKey); }}
+                    title="Çift tıkla → bu kolon genişliğini varsayılana sıfırla"
                 />
             }
             onResize={onResize}
@@ -140,6 +142,8 @@ interface Booking {
     agency?: { name: string };
     partnerName?: string;
     internalNotes?: string;
+    pickupRegionCode?: string;
+    dropoffRegionCode?: string;
 }
 
 interface ColFilter {
@@ -265,7 +269,7 @@ interface EditableHeaderProps {
     onFilter: (k: string, f: ColFilter) => void;
     onClearFilter: (k: string) => void;
 }
-const FILTERABLE = ['bookingNumber','passengerName','agency','status','pickupDateTime','createdAt','price','pickupLoc','dropoffLoc','airportCode', 'vehicleType', 'paymentType', 'paymentStatus', 'flightNumber', 'adults'];
+const FILTERABLE = ['bookingNumber','passengerName','agency','status','pickupDateTime','createdAt','price','pickupLoc','dropoffLoc','pickupRegionCode','dropoffRegionCode','airportCode', 'vehicleType', 'paymentType', 'paymentStatus', 'flightNumber', 'adults'];
 
 const FilterPopover: React.FC<{ colKey: string; filter: ColFilter; availableValues?: string[]; onFilter: (k:string,f:ColFilter)=>void; onClear:(k:string)=>void }> = ({ colKey, filter, availableValues = [], onFilter, onClear }) => {
     const [local, setLocal] = useState<ColFilter>({ ...filter });
@@ -273,7 +277,7 @@ const FilterPopover: React.FC<{ colKey: string; filter: ColFilter; availableValu
     const isActive = !!(filter.text || (filter.values?.length) || (filter.statuses?.length) || filter.dateRange || filter.minPrice != null || filter.maxPrice != null);
     const statusOptions = Object.entries(DEFAULT_STATUS_COLORS);
 
-    const checkboxCols = ['bookingNumber','passengerName','agency','pickupLoc','dropoffLoc','airportCode','vehicleType','paymentStatus','flightNumber','adults'];
+    const checkboxCols = ['bookingNumber','passengerName','agency','pickupLoc','dropoffLoc','pickupRegionCode','dropoffRegionCode','airportCode','vehicleType','paymentStatus','flightNumber','adults'];
     const filteredValues = availableValues.filter(v => v.toLowerCase().includes(search.toLowerCase()));
     const allChecked = filteredValues.length > 0 && filteredValues.every(v => (local.values || []).includes(v));
     const someChecked = filteredValues.some(v => (local.values || []).includes(v));
@@ -690,6 +694,13 @@ const TransfersPage: React.FC = () => {
     const handleResize = useCallback((key: string) => (_: any, { size }: { size: { width: number } }) => {
         setColWidths(prev => ({ ...prev, [key]: Math.max(50, size.width) }));
     }, []);
+    const handleResetWidth = useCallback((key: string) => {
+        setColWidths(prev => ({ ...prev, [key]: DEFAULT_COL_WIDTHS[key] || 100 }));
+    }, []);
+    const handleResetAllWidths = useCallback(() => {
+        setColWidths({ ...DEFAULT_COL_WIDTHS });
+        message.success('Kolon genişlikleri sıfırlandı');
+    }, []);
 
     // Handle column drop (reorder)
     const handleColDrop = useCallback((dragKey: string, dropKey: string) => {
@@ -707,7 +718,7 @@ const TransfersPage: React.FC = () => {
     // Table components — enables resizable + draggable headers
     const tableComponents = {
         header: {
-            cell: (cellProps: any) => <DraggableResizableTitle {...cellProps} onColDrop={handleColDrop} />
+            cell: (cellProps: any) => <DraggableResizableTitle {...cellProps} onColDrop={handleColDrop} onResetWidth={handleResetWidth} />
         },
     };
 
@@ -926,12 +937,14 @@ const TransfersPage: React.FC = () => {
             case 'paymentStatus': return b.paymentStatus || '';
             case 'flightNumber': return b.flightNumber || '';
             case 'adults': return b.adults != null ? b.adults.toString() : '';
+            case 'pickupRegionCode': return b.pickupRegionCode || b.metadata?.pickupRegionCode || '';
+            case 'dropoffRegionCode': return b.dropoffRegionCode || b.metadata?.dropoffRegionCode || '';
             default: return '';
         }
     };
 
     // Compute unique values per filterable column from all bookings (used for checkbox lists)
-    const checkboxFilterCols = ['bookingNumber','passengerName','agency','pickupLoc','dropoffLoc','airportCode','vehicleType','paymentStatus','flightNumber','adults'];
+    const checkboxFilterCols = ['bookingNumber','passengerName','agency','pickupLoc','dropoffLoc','pickupRegionCode','dropoffRegionCode','airportCode','vehicleType','paymentStatus','flightNumber','adults'];
     const uniqueColValues = useMemo(() => {
         const out: Record<string, string[]> = {};
         checkboxFilterCols.forEach(key => {
@@ -1220,10 +1233,17 @@ const TransfersPage: React.FC = () => {
     const reorderableKeys = effectiveColOrder.filter(k => k !== 'action');
 
     const colManagerContent = (
-        <div style={{width:280}}>
+        <div style={{width:340}}>
             <Text type="secondary" style={{fontSize:11,marginBottom:8,display:'block'}}>
-                <HolderOutlined /> Sürükle-bırak ile kolon sırası değiştir. Çift tıkla → ad düzenle.
+                <HolderOutlined /> Sürükle: sırala &nbsp;•&nbsp; Çift tıkla başlık: ad düzenle &nbsp;•&nbsp; Kenardaki çubuk: genişlik
             </Text>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6,padding:'4px 8px',background:'#f9fafb',borderRadius:6}}>
+                <Text strong style={{fontSize:11,color:'#475569'}}>Kolon</Text>
+                <Space size={16}>
+                    <Text strong style={{fontSize:11,color:'#475569',width:60,textAlign:'center'}}>Genişlik</Text>
+                    <Text strong style={{fontSize:11,color:'#475569',width:36,textAlign:'center'}}>Görün.</Text>
+                </Space>
+            </div>
             <Divider style={{margin:'8px 0'}}/>
             <div style={{display:'flex',flexDirection:'column',gap:2}}>
                 {reorderableKeys.map((key, idx) => (
@@ -1257,27 +1277,50 @@ const TransfersPage: React.FC = () => {
                             transition: 'all 0.15s'
                         }}
                     >
-                        <Space size={8}>
+                        <Space size={8} style={{flex:1,minWidth:0}}>
                             <HolderOutlined style={{color:'#9ca3af', fontSize:12}} />
-                            <Text style={{fontSize:12}}>{colTitles[key]||DEFAULT_COL_TITLES[key]||key}</Text>
+                            <Text style={{fontSize:12}} ellipsis={{tooltip:colTitles[key]||DEFAULT_COL_TITLES[key]||key}}>
+                                {colTitles[key]||DEFAULT_COL_TITLES[key]||key}
+                            </Text>
                         </Space>
-                        <Switch size="small" checked={visibleCols.includes(key)} onChange={checked=>{
-                            let next: string[];
-                            if(checked) next = [...visibleCols, key];
-                            else next = visibleCols.filter(k => k !== key);
-                            setVisibleCols(next);
-                            savePreferences({ visibleCols: next });
-                        }}/>
+                        <Space size={8}>
+                            <InputNumber
+                                size="small"
+                                min={50}
+                                max={600}
+                                step={10}
+                                value={colWidths[key] ?? DEFAULT_COL_WIDTHS[key] ?? 100}
+                                onChange={(v) => {
+                                    if (v != null) setColWidths(prev => ({ ...prev, [key]: Math.max(50, v) }));
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                                style={{ width: 60 }}
+                                controls
+                            />
+                            <Switch size="small" checked={visibleCols.includes(key)} onChange={checked=>{
+                                let next: string[];
+                                if(checked) next = [...visibleCols, key];
+                                else next = visibleCols.filter(k => k !== key);
+                                setVisibleCols(next);
+                                savePreferences({ visibleCols: next });
+                            }}/>
+                        </Space>
                     </div>
                 ))}
             </div>
             <Divider style={{margin:'8px 0'}}/>
-            <Button size="small" block onClick={()=>{
-                setVisibleCols(DEFAULT_VISIBLE_COLS);
-                setColTitles(DEFAULT_COL_TITLES);
-                setColOrder(ALL_COL_KEYS);
-                savePreferences({ visibleCols: DEFAULT_VISIBLE_COLS, colTitles: DEFAULT_COL_TITLES, colOrder: ALL_COL_KEYS });
-            }}>Varsayılana Sıfırla</Button>
+            <Space style={{width:'100%'}} direction="vertical" size={4}>
+                <Button size="small" block icon={<ReloadOutlined />} onClick={handleResetAllWidths}>
+                    Genişlikleri Sıfırla
+                </Button>
+                <Button size="small" block onClick={()=>{
+                    setVisibleCols(DEFAULT_VISIBLE_COLS);
+                    setColTitles(DEFAULT_COL_TITLES);
+                    setColOrder(ALL_COL_KEYS);
+                    setColWidths({ ...DEFAULT_COL_WIDTHS });
+                    savePreferences({ visibleCols: DEFAULT_VISIBLE_COLS, colTitles: DEFAULT_COL_TITLES, colOrder: ALL_COL_KEYS });
+                }}>Tümünü Varsayılana Sıfırla</Button>
+            </Space>
         </div>
     );
 
@@ -1857,26 +1900,27 @@ const TransfersPage: React.FC = () => {
                     .react-resizable { position: relative; background-clip: padding-box; }
                     .react-resizable-handle {
                         position: absolute;
-                        right: -4px;
+                        right: -6px;
                         bottom: 0;
                         top: 0;
-                        width: 8px;
+                        width: 14px;
                         cursor: col-resize;
                         z-index: 10;
+                        touch-action: none;
                     }
                     .react-resizable-handle::after {
                         content: '';
                         position: absolute;
-                        right: 3px;
-                        top: 50%;
-                        transform: translateY(-50%);
-                        width: 2px;
-                        height: 16px;
-                        background: #d1d5db;
+                        right: 5px;
+                        top: 25%;
+                        bottom: 25%;
+                        width: 3px;
+                        background: #cbd5e1;
                         border-radius: 2px;
-                        transition: background 0.2s;
+                        transition: background 0.2s, width 0.2s;
                     }
-                    .react-resizable-handle:hover::after { background: #6366f1; }
+                    .react-resizable-handle:hover::after { background: #6366f1; width: 4px; }
+                    .react-resizable-handle:active::after { background: #4338ca; width: 4px; }
 
                     @media print {
                         .ant-layout-sider, .ant-layout-header, header, nav, aside,
