@@ -4,7 +4,8 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import {
     Table, Tag, Space, Button, Input, Typography, Card, Tooltip, Modal,
     Descriptions, message, Dropdown, MenuProps, Checkbox, Popover,
-    DatePicker, InputNumber, Divider, Switch, Badge, Form, Select
+    DatePicker, InputNumber, Divider, Switch, Badge, Form, Select,
+    Spin, Radio
 } from 'antd';
 import {
     SearchOutlined, EyeOutlined, CheckCircleOutlined, CloseCircleOutlined,
@@ -495,9 +496,15 @@ const TransfersPage: React.FC = () => {
     const [paxChildren, setPaxChildren] = useState(0);
     const [paxInfants, setPaxInfants] = useState(0);
     const [paxList, setPaxList] = useState<{ firstName: string; lastName: string; nationality: string; type: string }[]>([]);
-    const [paxPriceDiff, setPaxPriceDiff] = useState(0);
     const [paxPaymentMethod, setPaxPaymentMethod] = useState<'ADD_TO_BALANCE' | 'PAY_IN_VEHICLE'>('ADD_TO_BALANCE');
     const [paxSaving, setPaxSaving] = useState(false);
+    // Pricing-aware fields
+    const [paxIsPerPerson, setPaxIsPerPerson] = useState(false);
+    const [paxPerSeatPrice, setPaxPerSeatPrice] = useState(0);
+    const [paxOriginalPrice, setPaxOriginalPrice] = useState(0);
+    const [paxOriginalPax, setPaxOriginalPax] = useState(0);
+    const [paxPricingMode, setPaxPricingMode] = useState<'auto' | 'keep' | 'manual'>('keep');
+    const [paxManualPrice, setPaxManualPrice] = useState(0);
 
     const saveCellEdit = async (bookingId: string, field: string, value: any) => {
         setCellSaving(true);
@@ -558,8 +565,25 @@ const TransfersPage: React.FC = () => {
             type: p.type || 'adult',
         }));
         setPaxList(mapped);
-        setPaxPriceDiff(0);
         setPaxPaymentMethod('ADD_TO_BALANCE');
+
+        // ── Detect per-person pricing & derive per-seat rate ──
+        const md = booking.metadata || {};
+        const isPerPerson = !!md.isShuttle || !!md.shuttleRouteId;
+        const originalPax = a + c + inf;
+        const currentPrice = Number(booking.price || 0);
+        // Prefer stored pricePerSeat, else derive from current price ÷ original pax
+        const storedPerSeat = Number(md.pricePerSeat || md.vehiclePrice || 0) / Math.max(1, originalPax);
+        const derivedPerSeat = originalPax > 0 ? currentPrice / originalPax : 0;
+        const perSeat = md.pricePerSeat ? Number(md.pricePerSeat) : derivedPerSeat;
+
+        setPaxIsPerPerson(isPerPerson);
+        setPaxPerSeatPrice(perSeat);
+        setPaxOriginalPrice(currentPrice);
+        setPaxOriginalPax(originalPax);
+        setPaxPricingMode(isPerPerson ? 'auto' : 'keep');
+        setPaxManualPrice(currentPrice);
+
         setPaxModalBooking(booking);
         setPaxModalOpen(true);
     };
@@ -593,6 +617,17 @@ const TransfersPage: React.FC = () => {
         setPaxList(prev => prev.map((p, i) => i === index ? { ...p, [field]: value } : p));
     };
 
+    // Compute new price based on pricing mode
+    const paxNewTotalPax = paxAdults + paxChildren + paxInfants;
+    const paxComputedNewPrice = (() => {
+        if (paxPricingMode === 'auto' && paxIsPerPerson) {
+            return Math.round(paxPerSeatPrice * paxNewTotalPax);
+        }
+        if (paxPricingMode === 'manual') return paxManualPrice;
+        return paxOriginalPrice; // 'keep'
+    })();
+    const paxPriceDiff = paxComputedNewPrice - paxOriginalPrice;
+
     const savePaxChanges = async () => {
         if (!paxModalBooking) return;
         setPaxSaving(true);
@@ -609,19 +644,19 @@ const TransfersPage: React.FC = () => {
                     type: p.type,
                 })),
             };
-            // If price diff exists, update the price
-            if (paxPriceDiff !== 0) {
-                const currentPrice = paxModalBooking.price || 0;
-                const newPrice = currentPrice + paxPriceDiff;
-                payload.price = Math.max(0, newPrice);
+            // Apply new price only if the user chose ADD_TO_BALANCE (reflect into booking total).
+            // If PAY_IN_VEHICLE, the price is kept as-is and the diff is recorded as a note for the driver.
+            const reflectPrice = paxPriceDiff !== 0 && paxPaymentMethod === 'ADD_TO_BALANCE';
+            if (reflectPrice) {
+                payload.price = Math.max(0, paxComputedNewPrice);
             }
             await apiClient.patch(`/api/transfer/bookings/${paxModalBooking.id}`, payload);
             // Update local state
             setBookings(prev => prev.map((b: any) => {
                 if (b.id !== paxModalBooking.id) return b;
                 const updated = { ...b, adults: paxAdults, children: paxChildren, infants: paxInfants };
-                if (paxPriceDiff !== 0) {
-                    updated.price = Math.max(0, (b.price || 0) + paxPriceDiff);
+                if (reflectPrice) {
+                    updated.price = Math.max(0, paxComputedNewPrice);
                     updated.total = updated.price;
                 }
                 if (!updated.metadata) updated.metadata = {};
@@ -1677,209 +1712,404 @@ const TransfersPage: React.FC = () => {
 
                 {/* ── Passenger Edit Modal ── */}
                 <Modal
-                    title={<Space><TeamOutlined style={{ color: '#6366f1' }} /><span>Yolcu Düzenle — {paxModalBooking?.bookingNumber}</span></Space>}
+                    title={null}
+                    closable={false}
                     open={paxModalOpen}
                     onCancel={() => setPaxModalOpen(false)}
-                    width={680}
-                    footer={[
-                        <Button key="cancel" onClick={() => setPaxModalOpen(false)}>Vazgeç</Button>,
-                        <Button key="save" type="primary" loading={paxSaving} onClick={savePaxChanges}
-                            style={{ background: '#6366f1' }}
-                            icon={<CheckCircleOutlined />}>
-                            Kaydet
-                        </Button>
-                    ]}
-                    styles={{ body: { maxHeight: '70vh', overflowY: 'auto' } }}
+                    width={760}
+                    centered
+                    footer={null}
+                    styles={{ body: { padding: 0, maxHeight: 'calc(100vh - 80px)', overflowY: 'auto' } }}
                 >
                     {paxModalBooking && (
                         <div>
-                            {/* Current info */}
+                            {/* ─── HEADER ─── */}
                             <div style={{
-                                background: '#f8fafc', borderRadius: 10, padding: '12px 16px',
-                                border: '1px solid #e2e8f0', marginBottom: 16, display: 'flex',
-                                justifyContent: 'space-between', alignItems: 'center',
+                                background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a78bfa 100%)',
+                                padding: '16px 22px',
+                                position: 'relative',
+                                overflow: 'hidden',
                             }}>
-                                <div>
-                                    <Text type="secondary" style={{ fontSize: 11 }}>Mevcut Fiyat</Text>
-                                    <div style={{ fontSize: 18, fontWeight: 700, color: '#6366f1', fontFamily: 'monospace' }}>
-                                        ₺{(paxModalBooking.price || 0).toLocaleString('tr-TR')}
-                                    </div>
-                                </div>
-                                <div style={{ textAlign: 'center' }}>
-                                    <Text type="secondary" style={{ fontSize: 11 }}>Araç</Text>
-                                    <div style={{ fontSize: 13, fontWeight: 600 }}>
-                                        <CarOutlined /> {paxModalBooking.metadata?.vehicleType || paxModalBooking.vehicleType || '—'}
-                                    </div>
-                                </div>
-                                <div style={{ textAlign: 'right' }}>
-                                    <Text type="secondary" style={{ fontSize: 11 }}>Müşteri</Text>
-                                    <div style={{ fontSize: 13, fontWeight: 600 }}>
-                                        <UserOutlined /> {paxModalBooking.passengerName}
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Passenger count controls */}
-                            <div style={{
-                                background: '#faf5ff', borderRadius: 10, padding: '16px',
-                                border: '1px solid #e9d5ff', marginBottom: 16,
-                            }}>
-                                <Text strong style={{ fontSize: 13, marginBottom: 12, display: 'block' }}>Kişi Sayısı</Text>
-                                {([
-                                    { key: 'adults' as const, label: 'Yetişkin', sub: '13+ yaş', val: paxAdults, min: 1, color: '#6366f1' },
-                                    { key: 'children' as const, label: 'Çocuk', sub: '3-12 yaş', val: paxChildren, min: 0, color: '#f59e0b' },
-                                    { key: 'infants' as const, label: 'Bebek', sub: '0-2 yaş', val: paxInfants, min: 0, color: '#ec4899' },
-                                ] as const).map(item => (
-                                    <div key={item.key} style={{
-                                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                                        padding: '8px 0', borderBottom: '1px solid #f3e8ff',
-                                    }}>
-                                        <div>
-                                            <Text strong style={{ fontSize: 13 }}>{item.label}</Text>
-                                            <div style={{ fontSize: 11, color: '#9ca3af' }}>{item.sub}</div>
-                                        </div>
-                                        <Space>
-                                            <Button shape="circle" size="small" icon={<MinusOutlined />}
-                                                disabled={item.val <= item.min}
-                                                onClick={() => handlePaxCountChange(item.key, -1)}
-                                                style={{ borderColor: item.color, color: item.color }}
-                                            />
-                                            <span style={{ display: 'inline-block', width: 30, textAlign: 'center', fontWeight: 700, fontSize: 16, color: item.color }}>
-                                                {item.val}
-                                            </span>
-                                            <Button shape="circle" size="small" icon={<PlusOutlined />}
-                                                onClick={() => handlePaxCountChange(item.key, 1)}
-                                                style={{ borderColor: item.color, color: item.color }}
-                                            />
-                                        </Space>
-                                    </div>
-                                ))}
-                                <div style={{ marginTop: 10, textAlign: 'center' }}>
-                                    <Tag color="purple" style={{ fontSize: 13, padding: '4px 16px', borderRadius: 20 }}>
-                                        Toplam: <strong>{paxAdults + paxChildren + paxInfants} kişi</strong>
-                                    </Tag>
-                                </div>
-                            </div>
-
-                            {/* Passenger detail list */}
-                            <div style={{ marginBottom: 16 }}>
-                                <Text strong style={{ fontSize: 13, marginBottom: 10, display: 'block' }}>
-                                    <UserOutlined style={{ marginRight: 6 }} />Yolcu Bilgileri
-                                </Text>
-                                {paxList.length === 0 && (
-                                    <div style={{ textAlign: 'center', padding: 20, color: '#9ca3af' }}>
-                                        Yolcu bilgisi yok. Kişi sayısını artırarak ekleyebilirsiniz.
-                                    </div>
-                                )}
-                                {paxList.map((p, idx) => {
-                                    const typeLabel = p.type === 'child' ? 'Çocuk' : p.type === 'infant' ? 'Bebek' : 'Yetişkin';
-                                    const typeColor = p.type === 'child' ? '#f59e0b' : p.type === 'infant' ? '#ec4899' : '#6366f1';
-                                    return (
-                                        <div key={idx} style={{
-                                            display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center',
-                                            background: '#fff', borderRadius: 8, padding: '8px 10px',
-                                            border: '1px solid #f0f0f0',
+                                <div style={{
+                                    position: 'absolute', top: -30, right: -30,
+                                    width: 140, height: 140, borderRadius: '50%',
+                                    background: 'rgba(255,255,255,0.08)',
+                                }} />
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'relative', zIndex: 1 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                        <div style={{
+                                            width: 32, height: 32, borderRadius: 8,
+                                            background: 'rgba(255,255,255,0.2)', backdropFilter: 'blur(10px)',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
                                         }}>
-                                            <Tag color={typeColor} style={{ borderRadius: 12, fontSize: 10, minWidth: 60, textAlign: 'center', margin: 0 }}>
-                                                {idx + 1}. {typeLabel}
-                                            </Tag>
-                                            <Input
-                                                size="small" placeholder="Ad" value={p.firstName}
-                                                onChange={e => handlePaxFieldChange(idx, 'firstName', e.target.value)}
-                                                style={{ flex: 1 }}
-                                            />
-                                            <Input
-                                                size="small" placeholder="Soyad" value={p.lastName}
-                                                onChange={e => handlePaxFieldChange(idx, 'lastName', e.target.value)}
-                                                style={{ flex: 1 }}
-                                            />
-                                            <Select
-                                                size="small" placeholder="Uyruk" value={p.nationality || undefined}
-                                                onChange={v => handlePaxFieldChange(idx, 'nationality', v)}
-                                                style={{ width: 100 }}
-                                                showSearch
-                                                optionFilterProp="label"
-                                                options={[
-                                                    { value: 'TR', label: '🇹🇷 TR' },
-                                                    { value: 'DE', label: '🇩🇪 DE' },
-                                                    { value: 'GB', label: '🇬🇧 GB' },
-                                                    { value: 'US', label: '🇺🇸 US' },
-                                                    { value: 'FR', label: '🇫🇷 FR' },
-                                                    { value: 'NL', label: '🇳🇱 NL' },
-                                                    { value: 'RU', label: '🇷🇺 RU' },
-                                                    { value: 'UA', label: '🇺🇦 UA' },
-                                                    { value: 'SA', label: '🇸🇦 SA' },
-                                                    { value: 'AE', label: '🇦🇪 AE' },
-                                                    { value: 'IR', label: '🇮🇷 IR' },
-                                                    { value: 'IQ', label: '🇮🇶 IQ' },
-                                                    { value: 'AZ', label: '🇦🇿 AZ' },
-                                                    { value: 'KZ', label: '🇰🇿 KZ' },
-                                                    { value: 'OTHER', label: 'Diğer' },
-                                                ]}
-                                            />
+                                            <TeamOutlined style={{ fontSize: 16, color: '#fff' }} />
                                         </div>
-                                    );
-                                })}
+                                        <div>
+                                            <div style={{ fontSize: 16, fontWeight: 800, color: '#fff', letterSpacing: '-0.3px', lineHeight: 1.2 }}>
+                                                Yolcu &amp; Fiyat Düzenle
+                                            </div>
+                                            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', fontWeight: 500 }}>
+                                                {paxModalBooking.bookingNumber}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={() => setPaxModalOpen(false)}
+                                        style={{
+                                            background: 'rgba(255,255,255,0.15)', border: 'none',
+                                            width: 28, height: 28, borderRadius: 6, color: '#fff',
+                                            fontSize: 14, cursor: 'pointer',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        }}
+                                    >×</button>
+                                </div>
                             </div>
 
-                            <Divider style={{ margin: '12px 0' }} />
-
-                            {/* Price difference section */}
-                            <div style={{
-                                background: paxPriceDiff > 0 ? '#fef2f2' : paxPriceDiff < 0 ? '#f0fdf4' : '#f8fafc',
-                                borderRadius: 10, padding: '16px',
-                                border: `1px solid ${paxPriceDiff > 0 ? '#fca5a5' : paxPriceDiff < 0 ? '#bbf7d0' : '#e2e8f0'}`,
-                            }}>
-                                <Text strong style={{ fontSize: 13, marginBottom: 10, display: 'block' }}>
-                                    <DollarOutlined style={{ marginRight: 6 }} />Fiyat Farkı
-                                </Text>
-                                <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end' }}>
-                                    <div style={{ flex: 1 }}>
-                                        <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 4 }}>
-                                            Ekstra ücret / İndirim (₺)
-                                        </Text>
-                                        <InputNumber
-                                            value={paxPriceDiff}
-                                            onChange={v => setPaxPriceDiff(v || 0)}
-                                            style={{ width: '100%' }}
-                                            formatter={v => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, '.')}
-                                            parser={v => Number(v?.replace(/\./g, '') || 0)}
-                                            addonBefore={paxPriceDiff >= 0 ? '+' : ''}
-                                            addonAfter="₺"
-                                        />
+                            <div style={{ padding: '16px 22px 14px', background: '#fafbfc' }}>
+                                {/* ─── Reservation Summary ─── */}
+                                <div style={{
+                                    background: '#fff', borderRadius: 12, padding: '12px 16px',
+                                    border: '1px solid #e8ecf1', marginBottom: 12,
+                                    display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12,
+                                    boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                                }}>
+                                    <div>
+                                        <div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>Müşteri</div>
+                                        <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                            <UserOutlined style={{ color: '#6366f1', marginRight: 4 }} />{paxModalBooking.passengerName}
+                                        </div>
                                     </div>
-                                    <div style={{ flex: 1 }}>
-                                        <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 4 }}>
-                                            Tahsilat Yöntemi
-                                        </Text>
-                                        <Select
-                                            value={paxPaymentMethod}
-                                            onChange={v => setPaxPaymentMethod(v)}
-                                            style={{ width: '100%' }}
-                                            disabled={paxPriceDiff === 0}
-                                            options={[
-                                                { value: 'ADD_TO_BALANCE', label: '💳 Bakiyeye Ekle (Fiyata Yansıt)' },
-                                                { value: 'PAY_IN_VEHICLE', label: '🚗 Araçta Ödeme' },
-                                            ]}
-                                        />
+                                    <div>
+                                        <div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>Araç</div>
+                                        <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                            <CarOutlined style={{ color: '#6366f1', marginRight: 4 }} />{paxModalBooking.metadata?.vehicleType || paxModalBooking.vehicleType || '—'}
+                                        </div>
+                                    </div>
+                                    <div style={{ textAlign: 'right' }}>
+                                        <div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>Mevcut Fiyat</div>
+                                        <div style={{ fontSize: 16, fontWeight: 800, color: '#6366f1', marginTop: 2, fontFamily: 'monospace' }}>
+                                            ₺{paxOriginalPrice.toLocaleString('tr-TR')}
+                                        </div>
                                     </div>
                                 </div>
-                                {paxPriceDiff !== 0 && (
-                                    <div style={{
-                                        marginTop: 10, padding: '8px 12px', borderRadius: 8,
-                                        background: paxPriceDiff > 0 ? '#fee2e2' : '#dcfce7',
-                                        fontSize: 12, fontWeight: 600,
-                                        color: paxPriceDiff > 0 ? '#dc2626' : '#16a34a',
-                                    }}>
-                                        {paxPriceDiff > 0
-                                            ? `+${paxPriceDiff.toLocaleString('tr-TR')} ₺ ekstra ücret ${paxPaymentMethod === 'PAY_IN_VEHICLE' ? '(araçta ödenecek)' : '(fiyata eklenecek)'}`
-                                            : `${paxPriceDiff.toLocaleString('tr-TR')} ₺ indirim uygulanacak`}
-                                        <br />
-                                        <span style={{ fontWeight: 400, color: '#6b7280' }}>
-                                            Yeni toplam: ₺{Math.max(0, (paxModalBooking?.price || 0) + paxPriceDiff).toLocaleString('tr-TR')}
+
+                                {/* ─── Pricing Type Badge ─── */}
+                                <div style={{
+                                    display: 'flex', alignItems: 'center', gap: 8,
+                                    background: paxIsPerPerson ? '#eff6ff' : '#f5f3ff',
+                                    border: `1px solid ${paxIsPerPerson ? '#bfdbfe' : '#ddd6fe'}`,
+                                    borderRadius: 10, padding: '8px 12px', marginBottom: 12, fontSize: 12,
+                                }}>
+                                    <span style={{ fontSize: 16 }}>{paxIsPerPerson ? '👥' : '🚗'}</span>
+                                    <div style={{ flex: 1 }}>
+                                        <span style={{ fontWeight: 700, color: paxIsPerPerson ? '#1d4ed8' : '#6d28d9' }}>
+                                            {paxIsPerPerson ? 'Kişi Başı Fiyatlı' : 'Sabit Araç Fiyatlı'}
+                                        </span>
+                                        <span style={{ color: '#64748b', marginLeft: 6 }}>
+                                            {paxIsPerPerson
+                                                ? `Birim: ₺${paxPerSeatPrice.toLocaleString('tr-TR', { maximumFractionDigits: 2 })} / kişi  ·  Mevcut: ${paxOriginalPax} kişi`
+                                                : 'Yolcu sayısı değişse bile araç fiyatı sabit kalır'}
                                         </span>
                                     </div>
+                                </div>
+
+                                {/* ─── Pax Counters (compact 3-col) ─── */}
+                                <div style={{
+                                    background: '#fff', borderRadius: 12, padding: '12px 14px',
+                                    border: '1px solid #e8ecf1', marginBottom: 12,
+                                    boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                                }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                                        <span style={{ fontSize: 12, fontWeight: 700, color: '#1e293b', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                                            Kişi Sayısı
+                                        </span>
+                                        <Tag color="purple" style={{ borderRadius: 999, margin: 0, fontWeight: 700 }}>
+                                            Toplam: {paxNewTotalPax} kişi
+                                        </Tag>
+                                    </div>
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+                                        {([
+                                            { key: 'adults' as const, label: 'Yetişkin', sub: '13+ yaş', val: paxAdults, min: 1, color: '#6366f1', bg: '#eef2ff' },
+                                            { key: 'children' as const, label: 'Çocuk', sub: '3-12 yaş', val: paxChildren, min: 0, color: '#f59e0b', bg: '#fef3c7' },
+                                            { key: 'infants' as const, label: 'Bebek', sub: '0-2 yaş', val: paxInfants, min: 0, color: '#ec4899', bg: '#fce7f3' },
+                                        ] as const).map(item => (
+                                            <div key={item.key} style={{
+                                                background: item.bg, borderRadius: 10, padding: '8px 10px',
+                                                border: `1px solid ${item.color}22`,
+                                            }}>
+                                                <div style={{ fontSize: 11, fontWeight: 700, color: item.color, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                                                    {item.label}
+                                                </div>
+                                                <div style={{ fontSize: 9, color: '#94a3b8', marginBottom: 6 }}>{item.sub}</div>
+                                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
+                                                    <button
+                                                        onClick={() => handlePaxCountChange(item.key, -1)}
+                                                        disabled={item.val <= item.min}
+                                                        style={{
+                                                            width: 26, height: 26, borderRadius: 6,
+                                                            background: '#fff', border: `1px solid ${item.color}66`,
+                                                            color: item.color, cursor: item.val <= item.min ? 'not-allowed' : 'pointer',
+                                                            opacity: item.val <= item.min ? 0.4 : 1,
+                                                            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0,
+                                                        }}
+                                                    ><MinusOutlined style={{ fontSize: 11 }} /></button>
+                                                    <span style={{ fontSize: 18, fontWeight: 800, color: item.color, minWidth: 22, textAlign: 'center' }}>{item.val}</span>
+                                                    <button
+                                                        onClick={() => handlePaxCountChange(item.key, 1)}
+                                                        style={{
+                                                            width: 26, height: 26, borderRadius: 6,
+                                                            background: '#fff', border: `1px solid ${item.color}66`,
+                                                            color: item.color, cursor: 'pointer',
+                                                            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0,
+                                                        }}
+                                                    ><PlusOutlined style={{ fontSize: 11 }} /></button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* ─── Pax Detail List ─── */}
+                                {paxList.length > 0 && (
+                                    <div style={{
+                                        background: '#fff', borderRadius: 12, padding: '12px 14px',
+                                        border: '1px solid #e8ecf1', marginBottom: 12,
+                                        boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                                    }}>
+                                        <div style={{ fontSize: 12, fontWeight: 700, color: '#1e293b', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
+                                            Yolcu Bilgileri (Opsiyonel)
+                                        </div>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                            {paxList.map((p, idx) => {
+                                                const typeLabel = p.type === 'child' ? 'Çocuk' : p.type === 'infant' ? 'Bebek' : 'Yetişkin';
+                                                const typeColor = p.type === 'child' ? '#f59e0b' : p.type === 'infant' ? '#ec4899' : '#6366f1';
+                                                return (
+                                                    <div key={idx} style={{
+                                                        display: 'flex', gap: 6, alignItems: 'center',
+                                                        background: '#f9fafb', borderRadius: 8, padding: '6px 8px',
+                                                        border: '1px solid #f0f0f0',
+                                                    }}>
+                                                        <Tag color={typeColor} style={{ borderRadius: 10, fontSize: 10, minWidth: 64, textAlign: 'center', margin: 0, fontWeight: 700 }}>
+                                                            {idx + 1}. {typeLabel}
+                                                        </Tag>
+                                                        <Input size="small" placeholder="Ad" value={p.firstName}
+                                                            onChange={e => handlePaxFieldChange(idx, 'firstName', e.target.value)}
+                                                            style={{ flex: 1 }} />
+                                                        <Input size="small" placeholder="Soyad" value={p.lastName}
+                                                            onChange={e => handlePaxFieldChange(idx, 'lastName', e.target.value)}
+                                                            style={{ flex: 1 }} />
+                                                        <Select size="small" placeholder="Uyruk" value={p.nationality || undefined}
+                                                            onChange={v => handlePaxFieldChange(idx, 'nationality', v)}
+                                                            style={{ width: 90 }} showSearch optionFilterProp="label"
+                                                            options={[
+                                                                { value: 'TR', label: '🇹🇷 TR' }, { value: 'DE', label: '🇩🇪 DE' },
+                                                                { value: 'GB', label: '🇬🇧 GB' }, { value: 'US', label: '🇺🇸 US' },
+                                                                { value: 'FR', label: '🇫🇷 FR' }, { value: 'NL', label: '🇳🇱 NL' },
+                                                                { value: 'RU', label: '🇷🇺 RU' }, { value: 'UA', label: '🇺🇦 UA' },
+                                                                { value: 'SA', label: '🇸🇦 SA' }, { value: 'AE', label: '🇦🇪 AE' },
+                                                                { value: 'IR', label: '🇮🇷 IR' }, { value: 'IQ', label: '🇮🇶 IQ' },
+                                                                { value: 'AZ', label: '🇦🇿 AZ' }, { value: 'KZ', label: '🇰🇿 KZ' },
+                                                                { value: 'OTHER', label: 'Diğer' },
+                                                            ]}
+                                                        />
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
                                 )}
+
+                                {/* ─── Pricing Mode Selector + Breakdown ─── */}
+                                <div style={{
+                                    background: '#fff', borderRadius: 12, padding: '14px 16px',
+                                    border: `2px solid ${paxPriceDiff > 0 ? '#fca5a5' : paxPriceDiff < 0 ? '#86efac' : '#e8ecf1'}`,
+                                    marginBottom: 4,
+                                    boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                                }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                                        <span style={{ fontSize: 12, fontWeight: 700, color: '#1e293b', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                                            <DollarOutlined style={{ color: '#6366f1', marginRight: 6 }} />Fiyat Hesaplama
+                                        </span>
+                                    </div>
+
+                                    {/* Mode buttons */}
+                                    <div style={{ display: 'grid', gridTemplateColumns: paxIsPerPerson ? 'repeat(3, 1fr)' : 'repeat(2, 1fr)', gap: 6, marginBottom: 12 }}>
+                                        {paxIsPerPerson && (
+                                            <button
+                                                onClick={() => setPaxPricingMode('auto')}
+                                                style={{
+                                                    padding: '8px 10px', borderRadius: 8, fontSize: 12, fontWeight: 700,
+                                                    cursor: 'pointer', transition: 'all 0.2s',
+                                                    border: paxPricingMode === 'auto' ? '2px solid #6366f1' : '1px solid #e5e7eb',
+                                                    background: paxPricingMode === 'auto' ? '#eef2ff' : '#fff',
+                                                    color: paxPricingMode === 'auto' ? '#4f46e5' : '#64748b',
+                                                }}
+                                            >
+                                                ⚡ Otomatik
+                                                <div style={{ fontSize: 9, fontWeight: 500, marginTop: 2, opacity: 0.8 }}>Kişi başına yansıt</div>
+                                            </button>
+                                        )}
+                                        <button
+                                            onClick={() => setPaxPricingMode('keep')}
+                                            style={{
+                                                padding: '8px 10px', borderRadius: 8, fontSize: 12, fontWeight: 700,
+                                                cursor: 'pointer', transition: 'all 0.2s',
+                                                border: paxPricingMode === 'keep' ? '2px solid #6366f1' : '1px solid #e5e7eb',
+                                                background: paxPricingMode === 'keep' ? '#eef2ff' : '#fff',
+                                                color: paxPricingMode === 'keep' ? '#4f46e5' : '#64748b',
+                                            }}
+                                        >
+                                            🔒 Sabit Tut
+                                            <div style={{ fontSize: 9, fontWeight: 500, marginTop: 2, opacity: 0.8 }}>Fiyatı değiştirme</div>
+                                        </button>
+                                        <button
+                                            onClick={() => setPaxPricingMode('manual')}
+                                            style={{
+                                                padding: '8px 10px', borderRadius: 8, fontSize: 12, fontWeight: 700,
+                                                cursor: 'pointer', transition: 'all 0.2s',
+                                                border: paxPricingMode === 'manual' ? '2px solid #6366f1' : '1px solid #e5e7eb',
+                                                background: paxPricingMode === 'manual' ? '#eef2ff' : '#fff',
+                                                color: paxPricingMode === 'manual' ? '#4f46e5' : '#64748b',
+                                            }}
+                                        >
+                                            ✏️ Elle Gir
+                                            <div style={{ fontSize: 9, fontWeight: 500, marginTop: 2, opacity: 0.8 }}>Yeni toplam</div>
+                                        </button>
+                                    </div>
+
+                                    {/* Manual price input */}
+                                    {paxPricingMode === 'manual' && (
+                                        <div style={{ marginBottom: 10 }}>
+                                            <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 4 }}>
+                                                Yeni Toplam Fiyat (₺)
+                                            </Text>
+                                            <InputNumber
+                                                value={paxManualPrice}
+                                                onChange={v => setPaxManualPrice(Number(v) || 0)}
+                                                style={{ width: '100%' }}
+                                                min={0}
+                                                formatter={v => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, '.')}
+                                                parser={v => Number(v?.replace(/\./g, '') || 0)}
+                                                addonAfter="₺"
+                                            />
+                                        </div>
+                                    )}
+
+                                    {/* Price breakdown */}
+                                    <div style={{
+                                        display: 'grid', gridTemplateColumns: '1fr auto 1fr',
+                                        gap: 12, alignItems: 'center',
+                                        background: '#f9fafb', borderRadius: 10, padding: '10px 14px',
+                                    }}>
+                                        <div>
+                                            <div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase' }}>Eski Fiyat</div>
+                                            <div style={{ fontSize: 16, fontWeight: 700, color: '#64748b', fontFamily: 'monospace' }}>
+                                                ₺{paxOriginalPrice.toLocaleString('tr-TR')}
+                                            </div>
+                                        </div>
+                                        <div style={{
+                                            width: 36, height: 36, borderRadius: '50%',
+                                            background: paxPriceDiff > 0 ? '#fee2e2' : paxPriceDiff < 0 ? '#dcfce7' : '#f1f5f9',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            color: paxPriceDiff > 0 ? '#dc2626' : paxPriceDiff < 0 ? '#16a34a' : '#94a3b8',
+                                            fontSize: 14, fontWeight: 800,
+                                        }}>
+                                            {paxPriceDiff > 0 ? '↑' : paxPriceDiff < 0 ? '↓' : '='}
+                                        </div>
+                                        <div style={{ textAlign: 'right' }}>
+                                            <div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase' }}>Yeni Fiyat</div>
+                                            <div style={{
+                                                fontSize: 18, fontWeight: 800, fontFamily: 'monospace',
+                                                color: paxPriceDiff > 0 ? '#dc2626' : paxPriceDiff < 0 ? '#16a34a' : '#1e293b',
+                                            }}>
+                                                ₺{paxComputedNewPrice.toLocaleString('tr-TR')}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Diff strip + payment method */}
+                                    {paxPriceDiff !== 0 && (
+                                        <>
+                                            <div style={{
+                                                marginTop: 10, padding: '8px 12px', borderRadius: 8,
+                                                background: paxPriceDiff > 0 ? '#fef2f2' : '#f0fdf4',
+                                                border: `1px solid ${paxPriceDiff > 0 ? '#fecaca' : '#bbf7d0'}`,
+                                                fontSize: 12, fontWeight: 700,
+                                                color: paxPriceDiff > 0 ? '#dc2626' : '#16a34a',
+                                                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                            }}>
+                                                <span>
+                                                    {paxPriceDiff > 0 ? '+' : ''}{paxPriceDiff.toLocaleString('tr-TR')} ₺ {paxPriceDiff > 0 ? 'Ekstra Ücret' : 'İndirim'}
+                                                </span>
+                                                {paxIsPerPerson && paxPricingMode === 'auto' && (
+                                                    <span style={{ fontSize: 10, fontWeight: 500, color: '#64748b' }}>
+                                                        ({paxNewTotalPax - paxOriginalPax > 0 ? '+' : ''}{paxNewTotalPax - paxOriginalPax} kişi × ₺{paxPerSeatPrice.toLocaleString('tr-TR', { maximumFractionDigits: 2 })})
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div style={{ marginTop: 10 }}>
+                                                <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 4, fontWeight: 600 }}>
+                                                    Tahsilat Yöntemi
+                                                </Text>
+                                                <Radio.Group
+                                                    value={paxPaymentMethod}
+                                                    onChange={e => setPaxPaymentMethod(e.target.value)}
+                                                    style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, width: '100%' }}
+                                                >
+                                                    <Radio.Button value="ADD_TO_BALANCE" style={{ height: 38, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 600 }}>
+                                                        💳 Fiyata Yansıt
+                                                    </Radio.Button>
+                                                    <Radio.Button value="PAY_IN_VEHICLE" style={{ height: 38, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 600 }}>
+                                                        🚗 Araçta Ödeme
+                                                    </Radio.Button>
+                                                </Radio.Group>
+                                                <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 4 }}>
+                                                    {paxPaymentMethod === 'ADD_TO_BALANCE'
+                                                        ? 'Yeni fiyat rezervasyonun toplam tutarı olarak kaydedilecek.'
+                                                        : 'Rezervasyon toplamı değişmeyecek; fark şoför tarafından araçta tahsil edilecek.'}
+                                                </div>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* ─── Footer Actions ─── */}
+                            <div style={{
+                                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                                padding: '12px 22px', background: '#fff',
+                                borderTop: '1px solid #f0f0f0',
+                            }}>
+                                <button
+                                    onClick={() => setPaxModalOpen(false)}
+                                    style={{
+                                        height: 40, padding: '0 18px', borderRadius: 10,
+                                        border: '1.5px solid #e2e8f0', background: '#fff',
+                                        color: '#475569', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                                    }}
+                                >
+                                    Vazgeç
+                                </button>
+                                <button
+                                    onClick={savePaxChanges}
+                                    disabled={paxSaving}
+                                    style={{
+                                        height: 44, padding: '0 24px', borderRadius: 10, border: 'none',
+                                        background: paxPriceDiff !== 0
+                                            ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
+                                            : 'linear-gradient(135deg, #6366f1 0%, #7c3aed 100%)',
+                                        color: '#fff', fontSize: 14, fontWeight: 700,
+                                        cursor: paxSaving ? 'wait' : 'pointer',
+                                        display: 'flex', alignItems: 'center', gap: 8,
+                                        boxShadow: '0 4px 14px rgba(99,102,241,0.35)',
+                                        opacity: paxSaving ? 0.7 : 1,
+                                    }}
+                                >
+                                    {paxSaving ? <Spin size="small" /> : <CheckCircleOutlined />}
+                                    {paxPriceDiff !== 0
+                                        ? `Kaydet  ·  ₺${paxComputedNewPrice.toLocaleString('tr-TR')}`
+                                        : 'Kaydet'}
+                                </button>
                             </div>
                         </div>
                     )}
