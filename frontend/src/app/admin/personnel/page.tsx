@@ -113,8 +113,11 @@ const PersonnelListPage = () => {
             ]);
             if (personnelRes.data.success) setData(personnelRes.data.data);
             if (tenantRes.data.success && tenantRes.data.data.tenant.settings) {
+                const ts = tenantRes.data.data.tenant.settings;
                 settingsForm.setFieldsValue({
-                    salaryPaymentDay: tenantRes.data.data.tenant.settings.salaryPaymentDay || 1
+                    salaryPaymentDay: ts.salaryPaymentDay || 1,
+                    driverAlarmEnabled: ts.driverSettings?.alarmEnabled !== false,
+                    driverAlarmMinutes: ts.driverSettings?.alarmMinutes ?? 30,
                 });
             }
         } catch {
@@ -280,9 +283,13 @@ const PersonnelListPage = () => {
         try {
             const vals = await settingsForm.validateFields();
             setSavingSettings(true);
-            const tenantRes = await apiClient.get('/api/tenant/info');
-            const currentSettings = tenantRes.data.data.tenant.settings || {};
-            await apiClient.put('/api/tenant/settings', { ...currentSettings, salaryPaymentDay: vals.salaryPaymentDay });
+            await apiClient.put('/api/tenant/settings', {
+                salaryPaymentDay: vals.salaryPaymentDay,
+                driverSettings: {
+                    alarmEnabled: vals.driverAlarmEnabled !== false,
+                    alarmMinutes: Number(vals.driverAlarmMinutes) || 30,
+                },
+            });
             message.success('Ayarlar kaydedildi');
             setSettingsModal(false);
         } catch (e: any) {
@@ -892,6 +899,31 @@ const PersonnelListPage = () => {
                                 <Select placeholder="Gün seçin">
                                     {Array.from({ length: 28 }, (_, i) => i + 1).map(day => (
                                         <Option key={day} value={day}>Her ayın {day}. günü</Option>
+                                    ))}
+                                </Select>
+                            </Form.Item>
+
+                            <Divider style={{ fontSize: 13, color: '#6366f1', fontWeight: 600 }}>
+                                <CarOutlined /> Şöför Uygulaması Ayarları
+                            </Divider>
+
+                            <Form.Item
+                                name="driverAlarmEnabled"
+                                valuePropName="checked"
+                                tooltip="Şöföre yaklaşan transferinden önce alarm çalar (uyumaması / geç kalmaması için)."
+                            >
+                                <Checkbox>Ön-Transfer Alarmı Aktif</Checkbox>
+                            </Form.Item>
+
+                            <Form.Item
+                                name="driverAlarmMinutes"
+                                label="Alarm Süresi (transferin kaç dakika öncesinde çalsın?)"
+                                rules={[{ required: true, message: 'Süre zorunludur' }]}
+                                tooltip="Belirtilen dakika kala şöför uygulamasında alarm çalar (şöför 'Hazırım' diyene kadar)."
+                            >
+                                <Select placeholder="Süre seçin">
+                                    {[10, 15, 20, 30, 45, 60, 90, 120].map(m => (
+                                        <Option key={m} value={m}>{m} dakika önce</Option>
                                     ))}
                                 </Select>
                             </Form.Item>

@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   StyleSheet, View, Text, FlatList, TouchableOpacity, RefreshControl,
   Linking, Platform, Alert, Modal, TextInput, ScrollView,
-  ActivityIndicator, Image, Animated
+  ActivityIndicator, Image, Animated, Vibration, AppState
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
@@ -10,6 +10,8 @@ import { useSocket } from '../../context/SocketContext';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
+import { Audio } from 'expo-av';
+import * as Notifications from 'expo-notifications';
 import { Brand, StatusColors } from '../../constants/theme';
 
 const API_URL = 'https://backend-production-69e7.up.railway.app/api';
@@ -65,22 +67,142 @@ export default function JobListScreen() {
   const [tenantCurrencies, setTenantCurrencies] = useState<string[]>(['TRY', 'EUR', 'USD']);
   const [defaultCurrency, setDefaultCurrency] = useState('TRY');
   const [extrasModal, setExtrasModal] = useState<{ visible: boolean; extras: any[] }>({ visible: false, extras: [] });
+  const [expandedCustomer, setExpandedCustomer] = useState<Record<string, boolean>>({});
+  // ── Pre-trip Alarm ──
+  const [alarmSettings, setAlarmSettings] = useState<{ enabled: boolean; minutes: number }>({ enabled: true, minutes: 30 });
+  const [alarmModal, setAlarmModal] = useState<{ visible: boolean; job: any | null }>({ visible: false, job: null });
+  const acknowledgedAlarmsRef = useRef<Set<string>>(new Set()); // booking ids/groupKeys whose alarm was already acknowledged
+  const alarmSoundRef = useRef<Audio.Sound | null>(null);
+  const vibrationLoopRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
-    // Fetch tenant currencies on mount
+    // Fetch tenant currencies + driver settings on mount
     (async () => {
       try {
-        const res = await fetch(`${API_URL}/driver/currencies`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        const json = await res.json();
-        if (json.success && json.data) {
-          setTenantCurrencies(json.data.currencies || ['TRY', 'EUR', 'USD']);
-          setDefaultCurrency(json.data.defaultCurrency || 'TRY');
+        const [curRes, setRes] = await Promise.all([
+          fetch(`${API_URL}/driver/currencies`, { headers: { 'Authorization': `Bearer ${token}` } }),
+          fetch(`${API_URL}/driver/settings`, { headers: { 'Authorization': `Bearer ${token}` } }),
+        ]);
+        const curJson = await curRes.json();
+        if (curJson.success && curJson.data) {
+          setTenantCurrencies(curJson.data.currencies || ['TRY', 'EUR', 'USD']);
+          setDefaultCurrency(curJson.data.defaultCurrency || 'TRY');
         }
-      } catch (e) { console.warn('Failed to fetch currencies', e); }
+        const setJson = await setRes.json();
+        if (setJson.success && setJson.data) {
+          setAlarmSettings({
+            enabled: setJson.data.alarmEnabled !== false,
+            minutes: Number(setJson.data.alarmMinutes) || 30,
+          });
+        }
+      } catch (e) { console.warn('Failed to fetch driver config', e); }
     })();
+
+    // Configure audio mode for alarm to play even in silent mode
+    Audio.setAudioModeAsync({
+      playsInSilentModeIOS: true,
+      shouldDuckAndroid: false,
+      staysActiveInBackground: false,
+    }).catch(() => {});
+
+    // Request notification permissions for background alerts
+    Notifications.requestPermissionsAsync().catch(() => {});
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowAlert: true, shouldPlaySound: true, shouldSetBadge: false,
+        shouldShowBanner: true, shouldShowList: true,
+      } as any),
+    });
   }, []);
+
+  // ── Alarm checker: every 20 seconds, check upcoming jobs ──
+  useEffect(() => {
+    if (!alarmSettings.enabled) return;
+    const checkUpcoming = () => {
+      const now = Date.now();
+      const thresholdMs = alarmSettings.minutes * 60 * 1000;
+      // Iterate jobs (private + shuttle groups) and find first un-acknowledged within threshold
+      for (const j of jobs) {
+        const jobKey = j._isShuttleGroup ? j.groupKey : j.id;
+        if (!jobKey || acknowledgedAlarmsRef.current.has(jobKey)) continue;
+        const startStr = j.startDate || j.bookings?.[0]?.pickupDateTime;
+        if (!startStr) continue;
+        const startMs = new Date(startStr).getTime();
+        if (isNaN(startMs)) continue;
+        const diff = startMs - now;
+        // Trigger if within threshold AND in future (don't trigger for past jobs)
+        if (diff > 0 && diff <= thresholdMs) {
+          if (!alarmModal.visible) {
+            triggerAlarm(j);
+          }
+          break;
+        }
+      }
+    };
+    checkUpcoming(); // immediate check
+    const interval = setInterval(checkUpcoming, 20000); // every 20s
+    return () => clearInterval(interval);
+  }, [jobs, alarmSettings, alarmModal.visible]);
+
+  const triggerAlarm = async (job: any) => {
+    setAlarmModal({ visible: true, job });
+    // Vibration loop
+    Vibration.vibrate([0, 800, 400, 800], true);
+    // Sound loop
+    try {
+      const { sound } = await Audio.Sound.createAsync(
+        require('../../assets/sounds/alert.mp3'),
+        { shouldPlay: true, isLooping: true, volume: 1.0 }
+      );
+      alarmSoundRef.current = sound;
+    } catch (e) {
+      // Sound asset may not exist yet — fall back to system notification ping
+      console.warn('Alarm sound load failed, using haptics only:', e);
+    }
+  };
+
+  const stopAlarm = async () => {
+    Vibration.cancel();
+    if (vibrationLoopRef.current) { clearInterval(vibrationLoopRef.current); vibrationLoopRef.current = null; }
+    if (alarmSoundRef.current) {
+      try { await alarmSoundRef.current.stopAsync(); await alarmSoundRef.current.unloadAsync(); } catch {}
+      alarmSoundRef.current = null;
+    }
+  };
+
+  const acknowledgeAlarm = async () => {
+    const j = alarmModal.job;
+    if (j) {
+      const jobKey = j._isShuttleGroup ? j.groupKey : j.id;
+      if (jobKey) acknowledgedAlarmsRef.current.add(jobKey);
+    }
+    await stopAlarm();
+    setAlarmModal({ visible: false, job: null });
+  };
+
+  const snoozeAlarm = async () => {
+    // Snooze: stop alarm but DON'T mark as acknowledged — will re-trigger on next check
+    await stopAlarm();
+    setAlarmModal({ visible: false, job: null });
+    // Temporarily mark as acknowledged for 5 minutes only
+    const j = alarmModal.job;
+    if (j) {
+      const jobKey = j._isShuttleGroup ? j.groupKey : j.id;
+      if (jobKey) {
+        acknowledgedAlarmsRef.current.add(jobKey);
+        setTimeout(() => { acknowledgedAlarmsRef.current.delete(jobKey); }, 5 * 60 * 1000);
+      }
+    }
+  };
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => { stopAlarm(); };
+  }, []);
+
+  const toggleCustomer = (id: string) => {
+    setExpandedCustomer(prev => ({ ...prev, [id]: !prev[id] }));
+  };
 
   useEffect(() => { fetchJobs(); }, [filter]);
 
@@ -329,9 +451,6 @@ export default function JobListScreen() {
       </View>
     );
   };
-
-  const [expandedCustomer, setExpandedCustomer] = useState<Record<string, boolean>>({});
-  const toggleCustomer = (id: string) => setExpandedCustomer(prev => ({ ...prev, [id]: !prev[id] }));
 
   // ─── FLASHING EXTRAS BUTTON ───
   const FlashingExtrasBtn = ({ extras, onPress }: { extras: any[], onPress: () => void }) => {
@@ -687,6 +806,75 @@ export default function JobListScreen() {
         </View>
       </Modal>
 
+      {/* ───────── PRE-TRIP ALARM MODAL ───────── */}
+      <Modal visible={alarmModal.visible} animationType="fade" transparent statusBarTranslucent>
+        <View style={st.alarmOverlay}>
+          <View style={st.alarmCard}>
+            <View style={st.alarmIconWrap}>
+              <Ionicons name="alarm" size={56} color="#fff" />
+            </View>
+            <Text style={st.alarmTitle}>YAKLAŞAN TRANSFER!</Text>
+            <Text style={st.alarmSubtitle}>
+              {alarmSettings.minutes} dakika içinde başlıyor
+            </Text>
+
+            {alarmModal.job && (() => {
+              const j = alarmModal.job;
+              const date = j.startDate ? new Date(j.startDate) : null;
+              const time = date ? date.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }) : '--:--';
+              const minutesLeft = date ? Math.max(0, Math.floor((date.getTime() - Date.now()) / 60000)) : alarmSettings.minutes;
+              const title = j._isShuttleGroup ? j.routeName : (j.contactName || 'Transfer');
+              const pickup = j._isShuttleGroup ? (j.bookings?.[0]?.pickup || j.pickup) : j.metadata?.pickup;
+              const dropoff = j._isShuttleGroup ? j.dropoff : j.metadata?.dropoff;
+              const totalPax = j._isShuttleGroup
+                ? j.bookings.reduce((s: number, b: any) => s + (b.adults || 0) + (b.children || 0) + (b.infants || 0), 0)
+                : (j.adults || 0) + (j.children || 0) + (j.infants || 0);
+              return (
+                <View style={st.alarmJobBox}>
+                  <View style={st.alarmRow}>
+                    <Ionicons name="time" size={20} color="#dc2626" />
+                    <Text style={st.alarmTime}>{time}</Text>
+                    <View style={st.alarmCountdown}>
+                      <Text style={st.alarmCountdownText}>{minutesLeft} dk kaldı</Text>
+                    </View>
+                  </View>
+                  <Text style={st.alarmJobTitle} numberOfLines={2}>{title}</Text>
+                  {pickup ? (
+                    <View style={st.alarmRow}>
+                      <View style={st.dotGreen} />
+                      <Text style={st.alarmAddrText} numberOfLines={2}>{pickup}</Text>
+                    </View>
+                  ) : null}
+                  {dropoff ? (
+                    <View style={st.alarmRow}>
+                      <View style={st.dotRed} />
+                      <Text style={st.alarmAddrText} numberOfLines={2}>{dropoff}</Text>
+                    </View>
+                  ) : null}
+                  {totalPax > 0 && (
+                    <View style={st.alarmRow}>
+                      <Ionicons name="people" size={14} color="#64748b" />
+                      <Text style={st.alarmMeta}>{totalPax} Pax</Text>
+                    </View>
+                  )}
+                </View>
+              );
+            })()}
+
+            <View style={st.alarmBtnRow}>
+              <TouchableOpacity style={[st.alarmBtn, st.alarmBtnSnooze]} onPress={snoozeAlarm}>
+                <Ionicons name="time-outline" size={18} color="#fff" />
+                <Text style={st.alarmBtnText}>5 dk Ertele</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[st.alarmBtn, st.alarmBtnAck]} onPress={acknowledgeAlarm}>
+                <Ionicons name="checkmark-circle" size={20} color="#fff" />
+                <Text style={st.alarmBtnText}>Hazırım</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Extras Details Modal */}
       <Modal visible={extrasModal.visible} animationType="fade" transparent>
         <View style={st.modalOverlay}>
@@ -918,4 +1106,54 @@ const st = StyleSheet.create({
   extraModalItemName: { flex: 1, fontSize: 15, fontWeight: '600', color: '#1e293b' },
   extraModalItemQtyBadge: { backgroundColor: '#eef2ff', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
   extraModalItemQtyText: { fontSize: 13, fontWeight: '800', color: Brand.primary },
+
+  // ─── Pre-trip Alarm modal ───
+  alarmOverlay: {
+    flex: 1, backgroundColor: 'rgba(220, 38, 38, 0.92)',
+    alignItems: 'center', justifyContent: 'center', padding: 24,
+  },
+  alarmCard: {
+    backgroundColor: '#fff', borderRadius: 24, padding: 24,
+    width: '100%', maxWidth: 420,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.4, shadowRadius: 20, elevation: 20,
+  },
+  alarmIconWrap: {
+    width: 88, height: 88, borderRadius: 44,
+    backgroundColor: '#dc2626', alignSelf: 'center',
+    alignItems: 'center', justifyContent: 'center',
+    marginBottom: 12, marginTop: -60,
+    shadowColor: '#dc2626', shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.5, shadowRadius: 12, elevation: 10,
+  },
+  alarmTitle: {
+    fontSize: 22, fontWeight: '900', color: '#dc2626',
+    textAlign: 'center', letterSpacing: 0.5, marginBottom: 4,
+  },
+  alarmSubtitle: {
+    fontSize: 14, color: '#64748b', textAlign: 'center',
+    fontWeight: '600', marginBottom: 16,
+  },
+  alarmJobBox: {
+    backgroundColor: '#fef2f2', borderRadius: 14, padding: 14,
+    borderWidth: 2, borderColor: '#fecaca', marginBottom: 16, gap: 8,
+  },
+  alarmRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  alarmTime: { fontSize: 22, fontWeight: '900', color: '#dc2626', flex: 1 },
+  alarmCountdown: {
+    backgroundColor: '#dc2626', paddingHorizontal: 10, paddingVertical: 4,
+    borderRadius: 12,
+  },
+  alarmCountdownText: { color: '#fff', fontWeight: '800', fontSize: 12 },
+  alarmJobTitle: { fontSize: 15, fontWeight: '700', color: '#0f172a' },
+  alarmAddrText: { fontSize: 12, color: '#475569', flex: 1, fontWeight: '500' },
+  alarmMeta: { fontSize: 12, color: '#64748b', fontWeight: '600' },
+  alarmBtnRow: { flexDirection: 'row', gap: 10 },
+  alarmBtn: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 6, paddingVertical: 14, borderRadius: 12,
+  },
+  alarmBtnSnooze: { backgroundColor: '#94a3b8' },
+  alarmBtnAck: { backgroundColor: '#16a34a' },
+  alarmBtnText: { color: '#fff', fontWeight: '800', fontSize: 14 },
 });

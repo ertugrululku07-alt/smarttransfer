@@ -466,6 +466,29 @@ router.put('/bookings/:id/payment-received', authMiddleware, ensureDriver, async
 
 
 
+// GET /api/driver/settings
+// Returns driver-related tenant settings (alarm minutes, etc.)
+router.get('/settings', authMiddleware, ensureDriver, async (req, res) => {
+    try {
+        const tenant = await prisma.tenant.findUnique({
+            where: { id: req.user.tenantId },
+            select: { settings: true }
+        });
+        const ds = tenant?.settings?.driverSettings || {};
+        res.json({
+            success: true,
+            data: {
+                alarmMinutes: typeof ds.alarmMinutes === 'number' ? ds.alarmMinutes : 30,
+                alarmEnabled: ds.alarmEnabled !== false, // default true
+                alarmSound: ds.alarmSound || 'default',
+            }
+        });
+    } catch (error) {
+        console.error('Driver settings error:', error);
+        res.status(500).json({ success: false, error: 'Server error' });
+    }
+});
+
 // GET /api/driver/currencies
 // Returns tenant's supported currencies and default currency
 router.get('/currencies', authMiddleware, ensureDriver, async (req, res) => {
