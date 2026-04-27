@@ -417,49 +417,58 @@ export default function JobListScreen() {
     );
   };
 
-  // ─── RENDER ITEM ───
-  const renderItem = ({ item }: { item: any }) => {
-    // Shuttle Group
+  // ─── Helper: shorten address to 2-3 words for compact display ───
+  const shortAddr = (addr: string): string => {
+    if (!addr) return '-';
+    // Take first comma-separated chunk and trim
+    const first = addr.split(',')[0].trim();
+    // If too long, take first 22 chars
+    return first.length > 24 ? first.substring(0, 22) + '…' : first;
+  };
+
+  // ─── RENDER ITEM (Compact tabular row) ───
+  const renderItem = ({ item, index }: { item: any; index: number }) => {
+    const orderLabel = `${index + 1}.İŞ`;
+
+    // Shuttle Group ────────────────────────────────────────────────
     if (item._isShuttleGroup) {
       const expanded = expandedGroups[item.groupKey];
       const totalPax = item.bookings.reduce((s: number, b: any) => s + (b.adults || 0) + (b.children || 0) + (b.infants || 0), 0);
       const date = new Date(item.startDate);
-      const time = date.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
-      const dayStr = date.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' });
-      const statusCfg = StatusColors[item.status] || { bg: '#f3f4f6', text: '#6b7280', label: item.status };
+      const time = item.masterTime || date.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+      const dirCode = item.pickupCode && item.dropoffCode ? `${item.pickupCode}-${item.dropoffCode}` : (item.direction || 'TRF');
+      const dirColor = item.direction === 'ARV' ? '#3b82f6' : item.direction === 'DEP' ? '#f59e0b' : '#7c3aed';
+      const meetingPlace = shortAddr(item.bookings[0]?.pickup || item.pickup || 'Çeşitli');
+      const statusCfg = StatusColors[item.status] || { bg: '#f3f4f6', text: '#6b7280', label: '' };
 
       return (
-        <View style={st.card}>
-          {/* Shuttle badge */}
-          <View style={st.shuttleBadge}>
-            <Ionicons name="bus" size={12} color="#7c3aed" />
-            <Text style={st.shuttleBadgeText}>Shuttle Transfer</Text>
-          </View>
-
-          <View style={st.cardHeader}>
-            <View style={st.dateTimeBadge}>
-              <Text style={st.dateLabel}>{dayStr}</Text>
-              <View style={st.timeBadge}><Ionicons name="time-outline" size={12} color="#fff" /><Text style={st.timeText}>{time}</Text></View>
-              <Text style={st.paxInfo}>{item.bookings.length} Müşteri • {totalPax} Pax</Text>
+        <View style={st.compactWrap}>
+          <TouchableOpacity style={st.compactRow} activeOpacity={0.7} onPress={() => toggleGroup(item.groupKey)}>
+            <View style={[st.orderBadge, { backgroundColor: '#f5f3ff' }]}>
+              <Text style={[st.orderText, { color: '#7c3aed' }]}>{orderLabel}</Text>
             </View>
-            <View style={[st.statusBadge, { backgroundColor: statusCfg.bg }]}>
-              <Text style={[st.statusText, { color: statusCfg.text }]}>{statusCfg.label}</Text>
+            <View style={st.timeCol}>
+              <Text style={st.timeBig}>{time}</Text>
+              <View style={st.typeChipShuttle}><Ionicons name="bus" size={9} color="#7c3aed" /><Text style={st.typeChipShuttleText}>SHUTTLE</Text></View>
             </View>
-          </View>
-
-          {/* Show destination airport name */}
-          <View style={st.shuttleDestRow}>
-            <Ionicons name="airplane" size={16} color={Brand.primary} />
-            <Text style={st.shuttleDestText}>{extractDestinationName(item.dropoff)}</Text>
-          </View>
-
-          <TouchableOpacity style={st.expandBtn} onPress={() => toggleGroup(item.groupKey)}>
-            <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={18} color={Brand.primary} />
-            <Text style={st.expandText}>{expanded ? 'Müşterileri Gizle' : 'Müşterileri Göster'}</Text>
+            <View style={st.placeCol}>
+              <Text style={st.placeText} numberOfLines={1}>{item.routeName}</Text>
+              <Text style={st.placeSub} numberOfLines={1}>{item.bookings.length} müşteri · {totalPax} Pax · {meetingPlace}</Text>
+            </View>
+            <View style={[st.dirBadge, { backgroundColor: `${dirColor}18`, borderColor: `${dirColor}55` }]}>
+              <Text style={[st.dirText, { color: dirColor }]}>{dirCode}</Text>
+            </View>
+            <View style={st.detayBtn}>
+              <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={16} color="#fff" />
+            </View>
           </TouchableOpacity>
 
           {expanded && (
-            <View style={st.customerList}>
+            <View style={st.expandedSection}>
+              <View style={st.expandedHeader}>
+                <Text style={st.expandedTitle}>{item.routeName}</Text>
+                {statusCfg.label ? <View style={[st.statusBadge, { backgroundColor: statusCfg.bg }]}><Text style={[st.statusText, { color: statusCfg.text }]}>{statusCfg.label}</Text></View> : null}
+              </View>
               {item.bookings.map((b: any, i: number) => (
                 <View key={b.id}>
                   <CustomerRow c={b} onCall={() => Linking.openURL(`tel:${b.customerPhone || b.contactPhone}`)} />
@@ -473,81 +482,49 @@ export default function JobListScreen() {
       );
     }
 
-    // Private Transfer
+    // Private Transfer ─────────────────────────────────────────────
     const date = new Date(item.startDate);
     const time = date.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
-    const dayStr = date.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' });
     const from = item.metadata?.pickup || item.product?.transferData?.pickupZones?.[0]?.name || 'Belirtilmemiş';
     const to = item.metadata?.dropoff || item.product?.transferData?.dropoffZones?.[0]?.name || 'Belirtilmemiş';
-    const lat = item.metadata?.pickupLat || 0;
-    const lng = item.metadata?.pickupLng || 0;
     const customerName = item.contactName || (item.customer?.firstName ? `${item.customer.firstName} ${item.customer.lastName || ''}`.trim() : 'Misafir');
-    const phone = item.contactPhone || item.customer?.phone;
-    const email = item.contactEmail || item.customer?.email;
-    const iAdults = item.adults || 0;
-    const iChildren = item.children || 0;
-    const iInfants = item.infants || 0;
+    const iAdults = item.adults || 0, iChildren = item.children || 0, iInfants = item.infants || 0;
     const pax = iAdults + iChildren + iInfants;
-    const iPaxParts: string[] = [];
-    if (iAdults > 0) iPaxParts.push(`${iAdults}Y`);
-    if (iChildren > 0) iPaxParts.push(`${iChildren}Ç`);
-    if (iInfants > 0) iPaxParts.push(`${iInfants}B`);
-    const flightNo = item.flightNumber || item.metadata?.flightNumber;
-    const privateExtras: any[] = item.metadata?.extraServices || [];
-    const hasPrivateExtras = privateExtras.length > 0;
-    const statusCfg = StatusColors[item.status] || { bg: '#f3f4f6', text: '#6b7280', label: item.status };
+    // Direction code: try to detect airport in either side
+    const fromU = String(from).toLowerCase();
+    const toU = String(to).toLowerCase();
+    const isFromAirport = fromU.includes('havaliman') || fromU.includes('airport') || /\bayt\b|\bgzp\b/.test(fromU);
+    const isToAirport = toU.includes('havaliman') || toU.includes('airport') || /\bayt\b|\bgzp\b/.test(toU);
+    const dirType = isFromAirport && !isToAirport ? 'ARV' : isToAirport && !isFromAirport ? 'DEP' : 'TRF';
+    const dirCode = dirType;
+    const dirColor = dirType === 'ARV' ? '#3b82f6' : dirType === 'DEP' ? '#f59e0b' : '#64748b';
+    const statusCfg = StatusColors[item.status] || { bg: '#f3f4f6', text: '#6b7280', label: '' };
     const ack = item.metadata?.acknowledgedAt;
 
     return (
-      <View style={st.card}>
-        <View style={st.privateBadge}>
-          <Ionicons name="car-sport" size={12} color={Brand.primary} />
-          <Text style={st.privateBadgeText}>Özel Transfer</Text>
+      <TouchableOpacity
+        style={st.compactRow}
+        activeOpacity={0.7}
+        onPress={() => router.push({ pathname: '/job/[id]', params: { id: item.id } })}
+      >
+        <View style={[st.orderBadge, { backgroundColor: '#eef2ff' }]}>
+          <Text style={[st.orderText, { color: Brand.primary }]}>{orderLabel}</Text>
         </View>
-
-        <View style={st.cardHeader}>
-          <View style={st.dateTimeBadge}>
-            <Text style={st.dayText}>{dayStr}</Text>
-            <View style={st.timeBadge}><Ionicons name="time-outline" size={12} color="#fff" /><Text style={st.timeText}>{time}</Text></View>
-          </View>
-          <View style={[st.statusBadge, { backgroundColor: statusCfg.bg }]}>
-            <Text style={[st.statusText, { color: statusCfg.text }]}>{statusCfg.label}</Text>
-          </View>
+        <View style={st.timeCol}>
+          <Text style={st.timeBig}>{time}</Text>
+          <View style={st.typeChipPrivate}><Ionicons name="car-sport" size={9} color={Brand.primary} /><Text style={st.typeChipPrivateText}>ÖZEL</Text></View>
         </View>
-
-        <View style={st.route}>
-          <View style={st.routeRow}><View style={st.dotGreen} /><Text style={st.routeText} numberOfLines={1}>{from}</Text></View>
-          <View style={st.routeLine} />
-          <View style={st.routeRow}><View style={st.dotRed} /><Text style={st.routeText} numberOfLines={1}>{to}</Text></View>
+        <View style={st.placeCol}>
+          <Text style={st.placeText} numberOfLines={1}>{customerName}</Text>
+          <Text style={st.placeSub} numberOfLines={1}>{shortAddr(from)} → {shortAddr(to)} · {pax} Pax{ack ? ' · ✓' : ''}</Text>
         </View>
-
-        {/* Customer Info */}
-        <View style={st.infoBlock}>
-          <View style={st.infoRow}><Ionicons name="person" size={14} color="#64748b" /><Text style={st.infoText}>{customerName}</Text></View>
-          {phone ? <View style={st.infoRow}><Ionicons name="call" size={14} color="#64748b" /><TouchableOpacity onPress={() => Linking.openURL(`tel:${phone}`)}><Text style={[st.infoText, { color: Brand.primary }]}>{phone}</Text></TouchableOpacity></View> : null}
-          {email ? <View style={st.infoRow}><Ionicons name="mail" size={14} color="#64748b" /><Text style={st.infoText}>{email}</Text></View> : null}
-          <View style={st.infoRow}><Ionicons name="people" size={14} color="#64748b" /><Text style={st.infoText}>{pax} Pax{(iChildren > 0 || iInfants > 0) ? ` (${iPaxParts.join('+')})` : ''}</Text></View>
-          {flightNo ? <View style={st.infoRow}><Ionicons name="airplane" size={14} color="#64748b" /><Text style={st.infoText}>{flightNo}</Text></View> : null}
+        <View style={[st.dirBadge, { backgroundColor: `${dirColor}18`, borderColor: `${dirColor}55` }]}>
+          <Text style={[st.dirText, { color: dirColor }]}>{dirCode}</Text>
         </View>
-
-        {/* Extra Services */}
-        {hasPrivateExtras && (
-          <FlashingExtrasBtn extras={privateExtras} onPress={() => setExtrasModal({ visible: true, extras: privateExtras })} />
-        )}
-
-        {/* Quick actions row */}
-        <View style={st.quickRow}>
-          <TouchableOpacity style={st.quickBtn} onPress={() => router.push({ pathname: '/job/[id]', params: { id: item.id } })}>
-            <Ionicons name="eye-outline" size={14} color="#64748b" /><Text style={st.quickText}>Detay</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[st.quickBtn, st.navBtn]} onPress={() => openNav(lat, lng, from)}>
-            <Ionicons name="navigate" size={14} color="#fff" /><Text style={[st.quickText, { color: '#fff' }]}>Navigasyon</Text>
-          </TouchableOpacity>
+        <View style={st.detayBtn}>
+          <Ionicons name="chevron-forward" size={16} color="#fff" />
         </View>
-
-        {/* 3 Buttons */}
-        <ThreeButtons bookingId={item.id} status={item.status} acknowledgedAt={ack} paymentMethod={item.metadata?.paymentMethod} total={Number(item.total || 0)} currency={item.currency} />
-      </View>
+      </TouchableOpacity>
     );
   };
 
@@ -764,7 +741,50 @@ const st = StyleSheet.create({
   activeTab: { backgroundColor: Brand.primary },
   tabText: { color: '#64748b', fontWeight: '600', fontSize: 13 },
   activeTabText: { color: '#fff' },
-  list: { paddingHorizontal: 16, paddingBottom: 20 },
+  list: { paddingHorizontal: 12, paddingBottom: 20 },
+
+  // ─── Compact tabular row (new design) ───
+  compactWrap: { marginBottom: 6 },
+  compactRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: '#fff', borderRadius: 12, paddingVertical: 8, paddingHorizontal: 10,
+    marginBottom: 6,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 3, elevation: 1,
+    borderWidth: 1, borderColor: '#f1f5f9',
+  },
+  orderBadge: {
+    width: 38, height: 38, borderRadius: 10,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  orderText: { fontSize: 10, fontWeight: '800' },
+  timeCol: { alignItems: 'center', minWidth: 56, gap: 2 },
+  timeBig: { fontSize: 16, fontWeight: '800', color: '#0f172a', letterSpacing: -0.3 },
+  typeChipShuttle: { flexDirection: 'row', alignItems: 'center', gap: 2, backgroundColor: '#f5f3ff', paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4 },
+  typeChipShuttleText: { fontSize: 8, fontWeight: '800', color: '#7c3aed', letterSpacing: 0.3 },
+  typeChipPrivate: { flexDirection: 'row', alignItems: 'center', gap: 2, backgroundColor: '#eef2ff', paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4 },
+  typeChipPrivateText: { fontSize: 8, fontWeight: '800', color: Brand.primary, letterSpacing: 0.3 },
+  placeCol: { flex: 1, gap: 2 },
+  placeText: { fontSize: 13, fontWeight: '700', color: '#0f172a' },
+  placeSub: { fontSize: 11, color: '#64748b', fontWeight: '500' },
+  dirBadge: {
+    paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8,
+    borderWidth: 1, alignItems: 'center', justifyContent: 'center', minWidth: 56,
+  },
+  dirText: { fontSize: 11, fontWeight: '800', letterSpacing: 0.3 },
+  detayBtn: {
+    width: 32, height: 32, borderRadius: 10,
+    backgroundColor: Brand.primary,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  expandedSection: {
+    backgroundColor: '#fff', borderRadius: 12, padding: 12, marginTop: -2, marginBottom: 6,
+    borderWidth: 1, borderColor: '#e2e8f0',
+  },
+  expandedHeader: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    marginBottom: 8, paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: '#f1f5f9',
+  },
+  expandedTitle: { fontSize: 14, fontWeight: '800', color: '#0f172a', flex: 1 },
 
   // Card
   card: { backgroundColor: '#fff', borderRadius: 16, padding: 14, marginBottom: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 },

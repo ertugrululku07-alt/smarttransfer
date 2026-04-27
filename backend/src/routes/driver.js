@@ -117,6 +117,41 @@ router.get('/bookings', authMiddleware, ensureDriver, async (req, res) => {
             return vt.includes('shuttle') || vt.includes('paylaşımlı') || tt === 'shuttle' || b.metadata?.shuttleRouteId;
         };
 
+        // ── Resolve hubs for proper ARV/DEP/TRF naming (same logic as operations.js shuttle-runs) ──
+        const tenantInfo = await prisma.tenant.findUnique({
+            where: { id: req.user.tenantId },
+            select: { settings: true }
+        });
+        const hubs = tenantInfo?.settings?.hubs || [];
+        const trLower = (s) => (s || '').toLocaleLowerCase('tr');
+        function getAbbrAndType(fromStr, toStr) {
+            let fromCode = null, toCode = null, fromIsAirport = false, toIsAirport = false;
+            for (const hub of hubs) {
+                const keys = hub.keywords ? hub.keywords.split(',').map(k => trLower(k).trim()) : [];
+                if (hub.code) keys.push(trLower(hub.code));
+                if (hub.name) keys.push(trLower(hub.name));
+                const isAirportHub = hub.name && (trLower(hub.name).includes('havaliman') || trLower(hub.name).includes('airport') || ['ayt', 'gzp'].includes(trLower(hub.code)));
+                if (!fromCode && keys.some(k => k && trLower(fromStr).includes(k))) {
+                    fromCode = hub.code || '???';
+                    if (isAirportHub) fromIsAirport = true;
+                }
+                if (!toCode && keys.some(k => k && trLower(toStr).includes(k))) {
+                    toCode = hub.code || '???';
+                    if (isAirportHub) toIsAirport = true;
+                }
+            }
+            const safeUpper = s => (s || '').substring(0, 3).toUpperCase();
+            if (!fromCode) fromCode = safeUpper(fromStr) || '???';
+            if (!toCode) toCode = safeUpper(toStr) || '???';
+            const fLower = trLower(fromStr), tLower = trLower(toStr);
+            let type = 'TRF';
+            if (toIsAirport && !fromIsAirport) type = 'DEP';
+            else if (fromIsAirport && !toIsAirport) type = 'ARV';
+            else if (tLower.includes('havaliman') || tLower.includes('airport')) type = 'DEP';
+            else if (fLower.includes('havaliman') || fLower.includes('airport')) type = 'ARV';
+            return { fromCode, toCode, type };
+        }
+
         const privateBookings = [];
         const shuttleGroups = {};
 
@@ -125,18 +160,36 @@ router.get('/bookings', authMiddleware, ensureDriver, async (req, res) => {
                 const m = b.metadata || {};
                 const routeId = m.shuttleRouteId;
                 const masterTime = m.shuttleMasterTime || '';
-                const dropoff = String(m.dropoff || '').trim().substring(0, 60).toLowerCase().replace(/\s+/g, ' ');
-                const key = routeId
-                    ? `ROUTE::${routeId}${masterTime ? '::' + masterTime : ''}`
-                    : `ADHOC::${dropoff}${masterTime ? '::' + masterTime : ''}`;
+                const pickup = String(m.pickup || '').trim();
+                const dropoff = String(m.dropoff || '').trim();
+                const { fromCode, toCode, type: dirType } = getAbbrAndType(pickup, dropoff);
+
+                // Group key (same logic shape as operations.js for consistency)
+                let key;
+                if (routeId) {
+                    key = `ROUTE::${routeId}${masterTime ? '::' + masterTime : ''}`;
+                } else {
+                    const regionCode = dirType === 'ARV' ? toCode : fromCode;
+                    key = `ADHOC::${dirType}::${regionCode}${masterTime ? '::' + masterTime : ''}`;
+                }
+
+                // Build proper run name: e.g. "ARV Sefer 10:00-11:00" or "AYT - ALY ARV"
+                const dirLabel = dirType === 'ARV' ? 'ARV Sefer' : dirType === 'DEP' ? 'DEP Sefer' : 'Transfer';
+                const routeName = masterTime
+                    ? `${dirLabel} ${masterTime}`
+                    : `${fromCode} - ${toCode} ${dirType}`;
 
                 if (!shuttleGroups[key]) {
                     shuttleGroups[key] = {
                         _isShuttleGroup: true,
                         groupKey: key,
-                        routeName: m.dropoff || 'Shuttle',
-                        pickup: m.pickup || 'Çeşitli Noktalar',
-                        dropoff: m.dropoff || 'Bilinmeyen',
+                        routeName,
+                        direction: dirType,        // 'ARV' | 'DEP' | 'TRF'
+                        pickupCode: fromCode,      // e.g. 'AYT'
+                        dropoffCode: toCode,       // e.g. 'ALY'
+                        masterTime: masterTime || null,
+                        pickup: pickup || 'Çeşitli Noktalar',
+                        dropoff: dropoff || 'Bilinmeyen',
                         startDate: b.startDate,
                         status: b.status,
                         vehicleType: m.vehicleType || 'Shuttle',
