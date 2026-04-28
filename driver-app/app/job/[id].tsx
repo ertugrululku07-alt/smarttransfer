@@ -1,12 +1,21 @@
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Platform, Linking, ActivityIndicator, Alert, Modal, TextInput } from 'react-native';
+import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Platform, Linking, ActivityIndicator, Alert, Modal, TextInput, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAuth } from '../../context/AuthContext';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { Brand, StatusColors } from '../../constants/theme';
 
 const API_URL = 'https://backend-production-69e7.up.railway.app/api';
+
+const NO_SHOW_REASON_LABELS: Record<string, string> = {
+    CUSTOMER_NOT_FOUND: 'Müşteri buluşma noktasında değildi',
+    CUSTOMER_NO_RESPONSE: 'Müşteri telefonu açmadı',
+    WRONG_LOCATION: 'Yanlış adres / lokasyon',
+    CUSTOMER_REFUSED: 'Müşteri transferi kabul etmedi',
+    OTHER: 'Diğer',
+};
 
 export default function JobDetailScreen() {
     const { id } = useLocalSearchParams();
@@ -20,6 +29,12 @@ export default function JobDetailScreen() {
     const [paymentSaving, setPaymentSaving] = useState(false);
     const [tenantCurrencies, setTenantCurrencies] = useState<string[]>(['TRY', 'EUR', 'USD']);
     const [defaultCurrency, setDefaultCurrency] = useState('TRY');
+    // ── No-Show ──
+    const [noShowModal, setNoShowModal] = useState(false);
+    const [noShowReason, setNoShowReason] = useState('CUSTOMER_NOT_FOUND');
+    const [noShowDescription, setNoShowDescription] = useState('');
+    const [noShowPhoto, setNoShowPhoto] = useState<string | null>(null);
+    const [noShowSaving, setNoShowSaving] = useState(false);
 
     useEffect(() => {
         // Fetch tenant currencies on mount
@@ -48,8 +63,9 @@ export default function JobDetailScreen() {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const json = await res.json();
+            let loaded: any = null;
             if (json.success && json.data) {
-                setJob(json.data);
+                loaded = json.data;
             } else {
                 // Fallback: fetch list and filter (for backward compatibility)
                 const listRes = await fetch(`${API_URL}/driver/bookings?type=all`, {
@@ -57,14 +73,108 @@ export default function JobDetailScreen() {
                 });
                 const listJson = await listRes.json();
                 if (listJson.success) {
-                    const found = listJson.data.find((j: any) => j.id === id);
-                    setJob(found || null);
+                    loaded = listJson.data.find((j: any) => j.id === id) || null;
+                }
+            }
+            setJob(loaded);
+
+            // ── Auto-acknowledge: detayı açtığı an "okundu" işaretle ──
+            // Yalnızca henüz okunmamış ve transfer sürmüyor/tamamlanmamışsa.
+            if (loaded && !loaded.acknowledgedAt && !loaded.metadata?.acknowledgedAt
+                && (loaded.status === 'CONFIRMED' || loaded.status === 'ASSIGNED')) {
+                try {
+                    await fetch(`${API_URL}/driver/bookings/${id}/acknowledge`, {
+                        method: 'PUT',
+                        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+                    });
+                    // Local state güncelle (admin'de anında görünmesi için socket zaten emit ediyor)
+                    setJob((prev: any) => prev ? {
+                        ...prev,
+                        acknowledgedAt: new Date().toISOString(),
+                        metadata: { ...(prev.metadata || {}), acknowledgedAt: new Date().toISOString() }
+                    } : prev);
+                } catch (ackErr) {
+                    // Sessiz: okundu işareti kritik değil
+                    console.warn('Auto-acknowledge failed', ackErr);
                 }
             }
         } catch (e) {
             console.error(e);
         } finally {
             setLoading(false);
+        }
+    };
+
+    // ── No-Show: foto + açıklama + zaman damgası ──
+    const pickNoShowPhoto = async () => {
+        try {
+            const perm = await ImagePicker.requestCameraPermissionsAsync();
+            if (!perm.granted) {
+                // Kamera izni yoksa galeriden seç
+                const galleryPerm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+                if (!galleryPerm.granted) {
+                    Alert.alert('İzin Gerekli', 'Foto çekmek için kamera veya galeri izni gerekli.');
+                    return;
+                }
+                const result = await ImagePicker.launchImageLibraryAsync({
+                    mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                    quality: 0.6,
+                    base64: true,
+                });
+                if (!result.canceled && result.assets[0]) {
+                    const asset = result.assets[0];
+                    setNoShowPhoto(asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri);
+                }
+                return;
+            }
+            const result = await ImagePicker.launchCameraAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                quality: 0.6,
+                base64: true,
+            });
+            if (!result.canceled && result.assets[0]) {
+                const asset = result.assets[0];
+                setNoShowPhoto(asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri);
+            }
+        } catch (e: any) {
+            Alert.alert('Hata', 'Foto alınamadı: ' + (e?.message || ''));
+        }
+    };
+
+    const submitNoShow = async () => {
+        if (!noShowReason) {
+            Alert.alert('Uyarı', 'Lütfen bir sebep seçin');
+            return;
+        }
+        setNoShowSaving(true);
+        try {
+            const res = await fetch(`${API_URL}/driver/bookings/${id}/no-show`, {
+                method: 'PUT',
+                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    reason: noShowReason,
+                    description: noShowDescription || null,
+                    photo: noShowPhoto || null,
+                }),
+            });
+            const json = await res.json();
+            if (!json.success) {
+                Alert.alert('Hata', json.error || 'No-Show kaydedilemedi');
+                return;
+            }
+            setJob({ ...job, status: 'NO_SHOW' });
+            setNoShowModal(false);
+            setNoShowReason('CUSTOMER_NOT_FOUND');
+            setNoShowDescription('');
+            setNoShowPhoto(null);
+            Alert.alert(
+                '✓ No-Show Kaydedildi',
+                `Müşteri gelmedi olarak işaretlendi.\nZaman: ${new Date().toLocaleString('tr-TR')}\nDelil olarak admin paneline iletildi.`
+            );
+        } catch (e) {
+            Alert.alert('Hata', 'Bağlantı hatası');
+        } finally {
+            setNoShowSaving(false);
         }
     };
 
@@ -294,10 +404,66 @@ export default function JobDetailScreen() {
                     </View>
 
                     {(job.status === 'CONFIRMED' || job.status === 'ASSIGNED') && (
-                        <TouchableOpacity style={[styles.fullBtn, { backgroundColor: Brand.success }]} onPress={handlePickup}>
-                            <Ionicons name="checkmark-circle" size={20} color="#fff" />
-                            <Text style={styles.fullBtnText}>Müşteri Alındı</Text>
-                        </TouchableOpacity>
+                        <>
+                            {/* Okundu indicator (auto-set) */}
+                            {(job.acknowledgedAt || job.metadata?.acknowledgedAt) && (
+                                <View style={styles.readBadge}>
+                                    <Ionicons name="eye" size={14} color="#3b82f6" />
+                                    <Text style={styles.readBadgeText}>Okundu (otomatik)</Text>
+                                </View>
+                            )}
+                            <View style={styles.actionRow}>
+                                <TouchableOpacity
+                                    style={[styles.actionBtn, { backgroundColor: Brand.success, flex: 2 }]}
+                                    onPress={handlePickup}
+                                >
+                                    <Ionicons name="checkmark-circle" size={18} color="#fff" />
+                                    <Text style={styles.actionBtnText}>Müşteri Alındı</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={[styles.actionBtn, { backgroundColor: Brand.danger, flex: 1 }]}
+                                    onPress={() => setNoShowModal(true)}
+                                >
+                                    <Ionicons name="person-remove" size={18} color="#fff" />
+                                    <Text style={styles.actionBtnText}>No-Show</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </>
+                    )}
+
+                    {job.status === 'NO_SHOW' && (
+                        <View style={[styles.fullBtn, { backgroundColor: Brand.danger, opacity: 0.9 }]}>
+                            <Ionicons name="person-remove" size={20} color="#fff" />
+                            <Text style={styles.fullBtnText}>Müşteri Gelmedi (No-Show)</Text>
+                        </View>
+                    )}
+                    {job.status === 'NO_SHOW' && job.metadata?.noShowReportedAt && (
+                        <View style={styles.noShowEvidence}>
+                            <Text style={styles.noShowEvidenceTitle}>📋 No-Show Kaydı</Text>
+                            <Text style={styles.noShowEvidenceLine}>
+                                <Text style={styles.noShowEvidenceLabel}>Zaman: </Text>
+                                {new Date(job.metadata.noShowReportedAt).toLocaleString('tr-TR')}
+                            </Text>
+                            {job.metadata.noShowReason && (
+                                <Text style={styles.noShowEvidenceLine}>
+                                    <Text style={styles.noShowEvidenceLabel}>Sebep: </Text>
+                                    {NO_SHOW_REASON_LABELS[job.metadata.noShowReason] || job.metadata.noShowReason}
+                                </Text>
+                            )}
+                            {job.metadata.noShowDescription && (
+                                <Text style={styles.noShowEvidenceLine}>
+                                    <Text style={styles.noShowEvidenceLabel}>Açıklama: </Text>
+                                    {job.metadata.noShowDescription}
+                                </Text>
+                            )}
+                            {job.metadata.noShowPhoto && (
+                                <Image
+                                    source={{ uri: job.metadata.noShowPhoto }}
+                                    style={styles.noShowPhotoPreview}
+                                    resizeMode="cover"
+                                />
+                            )}
+                        </View>
                     )}
 
                     {job.status === 'IN_PROGRESS' && (
@@ -387,6 +553,95 @@ export default function JobDetailScreen() {
                             </TouchableOpacity>
                         </View>
                     </View>
+                </View>
+            </Modal>
+
+            {/* ════════ NO-SHOW MODAL ════════ */}
+            <Modal visible={noShowModal} animationType="slide" transparent>
+                <View style={styles.modalOverlay}>
+                    <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'flex-end' }} keyboardShouldPersistTaps="handled">
+                        <View style={styles.modalCard}>
+                            <View style={styles.modalHeader}>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                    <Ionicons name="person-remove" size={22} color={Brand.danger} />
+                                    <Text style={styles.modalTitle}>Müşteri Gelmedi (No-Show)</Text>
+                                </View>
+                                <TouchableOpacity onPress={() => setNoShowModal(false)}>
+                                    <Ionicons name="close" size={24} color="#64748b" />
+                                </TouchableOpacity>
+                            </View>
+
+                            <View style={styles.noShowWarn}>
+                                <Ionicons name="warning" size={16} color="#92400e" />
+                                <Text style={styles.noShowWarnText}>
+                                    Bu kayıt admin paneline delil olarak iletilir. Zaman damgası otomatik kaydedilir.
+                                </Text>
+                            </View>
+
+                            <Text style={styles.modalLabel}>Sebep *</Text>
+                            <View style={{ gap: 6 }}>
+                                {Object.entries(NO_SHOW_REASON_LABELS).map(([key, label]) => (
+                                    <TouchableOpacity
+                                        key={key}
+                                        style={[styles.reasonChip, noShowReason === key && styles.reasonChipActive]}
+                                        onPress={() => setNoShowReason(key)}
+                                    >
+                                        <Ionicons
+                                            name={noShowReason === key ? "radio-button-on" : "radio-button-off"}
+                                            size={18}
+                                            color={noShowReason === key ? Brand.danger : '#94a3b8'}
+                                        />
+                                        <Text style={[styles.reasonChipText, noShowReason === key && styles.reasonChipTextActive]}>{label}</Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+
+                            <Text style={styles.modalLabel}>Açıklama (opsiyonel)</Text>
+                            <TextInput
+                                style={styles.descInput}
+                                multiline
+                                numberOfLines={3}
+                                placeholder="Olayı kısaca açıklayın (örn: 30 dakika bekledim, telefon kapalıydı...)"
+                                placeholderTextColor="#94a3b8"
+                                value={noShowDescription}
+                                onChangeText={setNoShowDescription}
+                            />
+
+                            <Text style={styles.modalLabel}>Fotoğraf (delil olarak)</Text>
+                            {noShowPhoto ? (
+                                <View style={styles.photoPreviewWrap}>
+                                    <Image source={{ uri: noShowPhoto }} style={styles.photoPreview} resizeMode="cover" />
+                                    <TouchableOpacity style={styles.photoRemove} onPress={() => setNoShowPhoto(null)}>
+                                        <Ionicons name="close-circle" size={28} color="#dc2626" />
+                                    </TouchableOpacity>
+                                </View>
+                            ) : (
+                                <TouchableOpacity style={styles.photoBtn} onPress={pickNoShowPhoto}>
+                                    <Ionicons name="camera" size={22} color={Brand.primary} />
+                                    <Text style={styles.photoBtnText}>Fotoğraf Çek / Seç</Text>
+                                </TouchableOpacity>
+                            )}
+
+                            <View style={styles.modalBtnRow}>
+                                <TouchableOpacity style={styles.modalCancel} onPress={() => setNoShowModal(false)}>
+                                    <Text style={styles.modalCancelText}>İptal</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={[styles.modalSubmit, { backgroundColor: Brand.danger }, noShowSaving && { opacity: 0.6 }]}
+                                    onPress={submitNoShow}
+                                    disabled={noShowSaving}
+                                >
+                                    {noShowSaving
+                                        ? <ActivityIndicator color="#fff" size="small" />
+                                        : <>
+                                            <Ionicons name="checkmark-circle" size={16} color="#fff" />
+                                            <Text style={styles.modalSubmitText}>Onayla & Kaydet</Text>
+                                        </>
+                                    }
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    </ScrollView>
                 </View>
             </Modal>
         </SafeAreaView>
@@ -613,4 +868,67 @@ const styles = StyleSheet.create({
     modalCancelText: { color: '#64748b', fontWeight: '600', fontSize: 14 },
     modalSubmit: { flex: 1, flexDirection: 'row', paddingVertical: 12, borderRadius: 12, backgroundColor: '#059669', alignItems: 'center', justifyContent: 'center', gap: 6 },
     modalSubmitText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+
+    // ── Okundu badge ──
+    readBadge: {
+        flexDirection: 'row', alignItems: 'center', gap: 6,
+        backgroundColor: '#dbeafe', borderColor: '#93c5fd', borderWidth: 1,
+        paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10,
+        alignSelf: 'flex-start', marginBottom: 10,
+    },
+    readBadgeText: { color: '#1e40af', fontSize: 12, fontWeight: '700' },
+
+    // ── Alındı / No-Show row ──
+    actionRow: { flexDirection: 'row', gap: 8 },
+    actionBtn: {
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+        gap: 6, paddingVertical: 14, borderRadius: 14,
+    },
+    actionBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+
+    // ── No-Show evidence card on already-reported view ──
+    noShowEvidence: {
+        marginTop: 12, padding: 12,
+        backgroundColor: '#fef2f2', borderRadius: 12,
+        borderWidth: 1, borderColor: '#fecaca',
+    },
+    noShowEvidenceTitle: { fontSize: 13, fontWeight: '800', color: '#991b1b', marginBottom: 6 },
+    noShowEvidenceLine: { fontSize: 13, color: '#374151', lineHeight: 20, marginBottom: 4 },
+    noShowEvidenceLabel: { fontWeight: '700', color: '#64748b' },
+    noShowPhotoPreview: { width: '100%', height: 200, borderRadius: 10, marginTop: 8 },
+
+    // ── No-Show modal ──
+    noShowWarn: {
+        flexDirection: 'row', alignItems: 'center', gap: 8,
+        backgroundColor: '#fef3c7', borderRadius: 10,
+        paddingHorizontal: 12, paddingVertical: 10,
+        marginTop: 4, marginBottom: 4,
+    },
+    noShowWarnText: { flex: 1, fontSize: 12, color: '#92400e', fontWeight: '600', lineHeight: 17 },
+    reasonChip: {
+        flexDirection: 'row', alignItems: 'center', gap: 8,
+        paddingHorizontal: 12, paddingVertical: 10,
+        backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e2e8f0',
+        borderRadius: 10,
+    },
+    reasonChipActive: { backgroundColor: '#fef2f2', borderColor: '#fca5a5' },
+    reasonChipText: { fontSize: 13, color: '#475569', fontWeight: '500', flex: 1 },
+    reasonChipTextActive: { color: '#991b1b', fontWeight: '700' },
+    descInput: {
+        backgroundColor: '#f9fafb', borderRadius: 12, borderWidth: 1.5, borderColor: '#e5e7eb',
+        paddingHorizontal: 14, paddingVertical: 10, fontSize: 14, color: '#111827',
+        textAlignVertical: 'top', minHeight: 70,
+    },
+    photoBtn: {
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+        gap: 8, paddingVertical: 14, borderRadius: 12,
+        backgroundColor: '#eff6ff', borderWidth: 1.5, borderColor: '#bfdbfe', borderStyle: 'dashed',
+    },
+    photoBtnText: { color: Brand.primary, fontWeight: '700', fontSize: 14 },
+    photoPreviewWrap: { position: 'relative' },
+    photoPreview: { width: '100%', height: 180, borderRadius: 12 },
+    photoRemove: {
+        position: 'absolute', top: 6, right: 6,
+        backgroundColor: '#fff', borderRadius: 14,
+    },
 });

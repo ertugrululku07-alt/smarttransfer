@@ -594,6 +594,201 @@ server.listen(PORT, () => {
   // Also run once immediately on startup
   setTimeout(sendSilentPushToDrivers, 5000);
   console.log('📡 Silent push job started (every 30 seconds)');
+
+  // ==========================================================================
+  // FLIGHT TRACKING JOB — Notify drivers about flight delays / landings (every 5 min)
+  // ==========================================================================
+  // Helper: send a visible push notification to a driver
+  const sendDriverPush = async (driver, title, body, data = {}) => {
+    try {
+      if (!driver?.pushToken || !Expo.isExpoPushToken(driver.pushToken)) return;
+      const msg = {
+        to: driver.pushToken,
+        sound: 'default',
+        priority: 'high',
+        channelId: 'flight-alerts',
+        title, body,
+        data: { type: 'FLIGHT_ALERT', ...data },
+      };
+      const chunks = expo.chunkPushNotifications([msg]);
+      for (const chunk of chunks) {
+        await expo.sendPushNotificationsAsync(chunk).catch(e => console.warn('[FlightPush] send err:', e.message));
+      }
+    } catch (e) {
+      console.warn('[FlightPush] error:', e.message);
+    }
+  };
+
+  const checkUpcomingFlights = async () => {
+    try {
+      const now = new Date();
+      const horizonMs = 4 * 60 * 60 * 1000; // next 4 hours
+      const startMax = new Date(now.getTime() + horizonMs);
+      const startMin = new Date(now.getTime() - 30 * 60 * 1000); // include slightly past pickups (delayed flights)
+
+      // Tenants with flight tracking enabled
+      const tenants = await prisma.tenant.findMany({
+        where: { settings: { path: ['flightTracking', 'enabled'], equals: true } },
+        select: { id: true, settings: true }
+      });
+      if (!tenants.length) return;
+
+      for (const t of tenants) {
+        const apiKey = t.settings?.flightTracking?.apiKey;
+        if (!apiKey) continue;
+
+        // Bookings in window with flight number and assigned driver, not finished
+        const bookings = await prisma.booking.findMany({
+          where: {
+            tenantId: t.id,
+            status: { in: ['CONFIRMED', 'ASSIGNED'] },
+            startDate: { gte: startMin, lte: startMax },
+            driverId: { not: null },
+            OR: [
+              { flightNumber: { not: null } },
+              { metadata: { path: ['flightNumber'], not: null } },
+            ],
+          },
+          select: { id: true, flightNumber: true, metadata: true, startDate: true, driverId: true, contactName: true, pickup: true }
+        });
+
+        // Group by flight number to minimise API calls
+        const byFlight = new Map();
+        for (const b of bookings) {
+          const fn = (b.flightNumber || b.metadata?.flightNumber || '').toUpperCase().replace(/\s+/g, '');
+          if (!fn) continue;
+          if (!byFlight.has(fn)) byFlight.set(fn, []);
+          byFlight.get(fn).push(b);
+        }
+
+        for (const [flightIata, group] of byFlight) {
+          // Cache: skip if last check < 8 minutes ago for this flight (across all bookings)
+          const lastCheckedMs = Math.max(...group.map(b => {
+            const ts = b.metadata?.flightLastCheckedAt;
+            return ts ? new Date(ts).getTime() : 0;
+          }));
+          if (Date.now() - lastCheckedMs < 8 * 60 * 1000) continue;
+
+          // Fetch from AviationStack
+          let flightInfo = null;
+          try {
+            const url = `http://api.aviationstack.com/v1/flights?access_key=${encodeURIComponent(apiKey)}&flight_iata=${encodeURIComponent(flightIata)}&limit=3`;
+            const fetchResp = await fetch(url);
+            const json = await fetchResp.json();
+            if (json?.data?.length) {
+              // Pick the one nearest to today
+              const today = new Date().toISOString().substring(0, 10);
+              flightInfo = json.data.find(f => (f.flight_date || '').startsWith(today)) || json.data[0];
+            }
+          } catch (e) {
+            console.warn('[FlightCheck] fetch err for', flightIata, e.message);
+            continue;
+          }
+          if (!flightInfo) continue;
+
+          const status = flightInfo.flight_status; // scheduled | active | landed | cancelled
+          const arrSched = flightInfo.arrival?.scheduled ? new Date(flightInfo.arrival.scheduled) : null;
+          const arrEst = flightInfo.arrival?.estimated ? new Date(flightInfo.arrival.estimated)
+            : (flightInfo.arrival?.actual ? new Date(flightInfo.arrival.actual) : null);
+          const arrActual = flightInfo.arrival?.actual ? new Date(flightInfo.arrival.actual) : null;
+          const depSched = flightInfo.departure?.scheduled ? new Date(flightInfo.departure.scheduled) : null;
+          const depEst = flightInfo.departure?.estimated ? new Date(flightInfo.departure.estimated)
+            : (flightInfo.departure?.actual ? new Date(flightInfo.departure.actual) : null);
+          const arrDelayMin = arrSched && arrEst ? Math.round((arrEst.getTime() - arrSched.getTime()) / 60000) : (flightInfo.arrival?.delay || 0);
+          const depDelayMin = depSched && depEst ? Math.round((depEst.getTime() - depSched.getTime()) / 60000) : (flightInfo.departure?.delay || 0);
+
+          for (const b of group) {
+            const meta = b.metadata || {};
+            const driver = await prisma.user.findUnique({ where: { id: b.driverId }, select: { id: true, fullName: true, pushToken: true } });
+            if (!driver) continue;
+
+            // Direction: ARV if dropoff is airport-related (heuristic based on iata or status)
+            // Easiest: use metadata.transferDirection if set, else infer
+            const direction = meta.transferDirection
+              || meta.direction
+              || (String(b.pickup || '').toLowerCase().includes('havaliman') || String(b.pickup || '').toLowerCase().includes('airport') ? 'ARV' : 'DEP');
+
+            const updates = {
+              flightLastCheckedAt: new Date().toISOString(),
+              flightStatus: status,
+              flightArrSched: arrSched?.toISOString() || null,
+              flightArrEst: arrEst?.toISOString() || null,
+              flightArrActual: arrActual?.toISOString() || null,
+              flightArrDelayMin: arrDelayMin,
+              flightDepDelayMin: depDelayMin,
+            };
+
+            // ── ARV: 10 minutes before landing notification ──
+            if (direction === 'ARV' && arrEst) {
+              const minsToLanding = (arrEst.getTime() - Date.now()) / 60000;
+              if (minsToLanding > 0 && minsToLanding <= 12 && !meta.flightNotified10Min) {
+                await sendDriverPush(
+                  driver,
+                  '✈️ Uçak 10 Dakikaya İniyor',
+                  `${flightIata} - ${b.contactName || 'Müşteriniz'} | ~${Math.round(minsToLanding)} dk sonra inecek. Havalimanına yanaşmaya hazırlanın.`,
+                  { bookingId: b.id, flightNumber: flightIata, kind: 'TEN_MIN_BEFORE' }
+                );
+                updates.flightNotified10Min = true;
+              }
+            }
+
+            // ── ARV: Plane landed notification ──
+            if (direction === 'ARV' && (status === 'landed' || arrActual) && !meta.flightNotifiedLanded) {
+              await sendDriverPush(
+                driver,
+                '🛬 Uçak İndi',
+                `${flightIata} - ${b.contactName || 'Müşteriniz'} indi. Buluşma noktasına gidin.`,
+                { bookingId: b.id, flightNumber: flightIata, kind: 'LANDED' }
+              );
+              updates.flightNotifiedLanded = true;
+            }
+
+            // ── ARV delay: arrival is delayed ≥15 min and not yet notified for this delay tier ──
+            if (direction === 'ARV' && arrDelayMin >= 15) {
+              const lastNotifiedDelay = meta.flightArrDelayNotifiedMin || 0;
+              if (arrDelayMin - lastNotifiedDelay >= 15) { // notify on every +15 min change
+                await sendDriverPush(
+                  driver,
+                  '⏰ Uçak Rötarlı',
+                  `${flightIata} - ${b.contactName || 'Müşteriniz'} | ${arrDelayMin} dk gecikme. Tahmini iniş: ${arrEst ? arrEst.toLocaleString('tr-TR', { hour: '2-digit', minute: '2-digit' }) : '-'}`,
+                  { bookingId: b.id, flightNumber: flightIata, kind: 'ARV_DELAY', delayMin: arrDelayMin }
+                );
+                updates.flightArrDelayNotifiedMin = arrDelayMin;
+              }
+            }
+
+            // ── DEP delay: customer's outbound flight delayed → driver should know to wait/postpone ──
+            if (direction === 'DEP' && depDelayMin >= 15) {
+              const lastNotifiedDelay = meta.flightDepDelayNotifiedMin || 0;
+              if (depDelayMin - lastNotifiedDelay >= 15) {
+                await sendDriverPush(
+                  driver,
+                  '⏰ Müşterinin Uçağı Rötarlı',
+                  `${flightIata} - ${b.contactName || 'Müşteriniz'} | ${depDelayMin} dk gecikme. Pickup saatini buna göre ayarlayın.`,
+                  { bookingId: b.id, flightNumber: flightIata, kind: 'DEP_DELAY', delayMin: depDelayMin }
+                );
+                updates.flightDepDelayNotifiedMin = depDelayMin;
+              }
+            }
+
+            // Persist updates to booking metadata
+            await prisma.booking.update({
+              where: { id: b.id },
+              data: { metadata: { ...meta, ...updates } }
+            }).catch(e => console.warn('[FlightCheck] booking update err:', e.message));
+          }
+        }
+      }
+    } catch (err) {
+      console.error('[FlightCheck] job error:', err.message);
+    }
+  };
+
+  // Run every 5 minutes — uçak verisi 5 dk granülarite ile yeterli
+  setInterval(checkUpcomingFlights, 5 * 60 * 1000);
+  // First run after 30s to let server settle
+  setTimeout(checkUpcomingFlights, 30 * 1000);
+  console.log('✈️  Flight tracking job scheduled (every 5 minutes)');
 });
 
 // Trigger restart for env load
