@@ -15,10 +15,6 @@ const { Title, Text } = Typography;
 const STATUS_INFO: Record<string, { label: string; color: string }> = {
     PENDING: { label: 'Onay Bekliyor', color: 'orange' },
     CONFIRMED: { label: 'Onaylandı', color: 'cyan' },
-    ON_WAY: { label: 'Şoför Yolda', color: 'blue' },
-    ARRIVED: { label: 'Şoför Geldi', color: 'geekblue' },
-    PICKUP: { label: 'Alındınız', color: 'purple' },
-    STARTED: { label: 'Yolculuk Başladı', color: 'purple' },
     IN_PROGRESS: { label: 'Devam Ediyor', color: 'magenta' },
     COMPLETED: { label: 'Tamamlandı', color: 'green' },
     CANCELLED: { label: 'İptal', color: 'red' },

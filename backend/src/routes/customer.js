@@ -134,7 +134,7 @@ router.get('/bookings', authMiddleware, ensureCustomer, async (req, res) => {
 
         let statusFilter = {};
         if (status === 'active') {
-            statusFilter = { status: { in: ['PENDING', 'CONFIRMED', 'ON_WAY', 'ARRIVED', 'PICKUP', 'STARTED', 'IN_PROGRESS'] } };
+            statusFilter = { status: { in: ['PENDING', 'CONFIRMED', 'IN_PROGRESS'] } };
         } else if (status === 'past') {
             statusFilter = { status: { in: ['COMPLETED', 'CANCELLED', 'NO_SHOW'] } };
         }
@@ -232,7 +232,7 @@ router.get('/bookings/:id', authMiddleware, ensureCustomer, async (req, res) => 
             ? Math.round((new Date(booking.startDate).getTime() - Date.now()) / 60000)
             : null;
         const trackingAvailable = (
-            ['ON_WAY', 'ARRIVED', 'PICKUP', 'STARTED', 'IN_PROGRESS'].includes(booking.status)
+            booking.status === 'IN_PROGRESS'
         ) || (
             ['CONFIRMED', 'PENDING'].includes(booking.status) &&
             minutesUntilPickup !== null && minutesUntilPickup <= 30 && minutesUntilPickup >= -120
@@ -299,7 +299,7 @@ router.get('/bookings/:id/driver-location', authMiddleware, ensureCustomer, asyn
         const minutesUntilPickup = booking.startDate
             ? (new Date(booking.startDate).getTime() - Date.now()) / 60000
             : null;
-        const inProgress = ['ON_WAY', 'ARRIVED', 'PICKUP', 'STARTED', 'IN_PROGRESS'].includes(booking.status);
+        const inProgress = booking.status === 'IN_PROGRESS';
         const allowed = inProgress || (minutesUntilPickup !== null && minutesUntilPickup <= 30 && minutesUntilPickup >= -180);
         if (!allowed) {
             return res.status(403).json({

@@ -42,17 +42,11 @@ interface BookingItem {
 const STATUS_INFO: Record<string, { label: string; color: string }> = {
     PENDING: { label: 'Onay Bekliyor', color: 'orange' },
     CONFIRMED: { label: 'Onaylandı', color: 'cyan' },
-    ON_WAY: { label: 'Şoför Yolda', color: 'blue' },
-    ARRIVED: { label: 'Şoför Geldi', color: 'geekblue' },
-    PICKUP: { label: 'Alındınız', color: 'purple' },
-    STARTED: { label: 'Yolculuk Başladı', color: 'purple' },
     IN_PROGRESS: { label: 'Devam Ediyor', color: 'magenta' },
     COMPLETED: { label: 'Tamamlandı', color: 'green' },
     CANCELLED: { label: 'İptal', color: 'red' },
     NO_SHOW: { label: 'Gelmedi', color: 'red' },
 };
-
-const ACTIVE_STATUSES = ['PENDING', 'CONFIRMED', 'ON_WAY', 'ARRIVED', 'PICKUP', 'STARTED', 'IN_PROGRESS'];
 
 const fmtMoney = (amount: number | string, currency: string) => {
     const n = Number(amount || 0);
