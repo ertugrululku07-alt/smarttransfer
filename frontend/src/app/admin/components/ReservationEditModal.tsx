@@ -319,7 +319,61 @@ const ReservationEditModal: React.FC<ReservationEditModalProps> = ({ open, booki
                                     </div>
                                     <div>
                                         <Text type="secondary" style={{ fontSize: 11, fontWeight: 600, display: 'block', marginBottom: 4 }}>Uçuş No</Text>
-                                        <Input value={flightNumber} onChange={e => setFlightNumber(e.target.value)} placeholder="TK1234" />
+                                        <div style={{ display: 'flex', gap: 6 }}>
+                                            <Input value={flightNumber} onChange={e => setFlightNumber(e.target.value)} placeholder="TK1234" style={{ flex: 1 }} />
+                                            <Button
+                                                onClick={async () => {
+                                                    if (!flightNumber) { message.warning('Önce uçuş numarası girin'); return; }
+                                                    const date = pickupDateTime ? pickupDateTime.format('YYYY-MM-DD') : '';
+                                                    const hide = message.loading('Uçuş bilgisi sorgulanıyor...', 0);
+                                                    try {
+                                                        const res = await apiClient.get('/api/driver/flight-status', {
+                                                            params: { flightNumber, date }
+                                                        });
+                                                        hide();
+                                                        if (res.data.success && res.data.data) {
+                                                            const f = res.data.data;
+                                                            const arrSched = f.arrival?.scheduled ? dayjs(f.arrival.scheduled).format('DD.MM.YYYY HH:mm') : '-';
+                                                            const arrEst = f.arrival?.estimated ? dayjs(f.arrival.estimated).format('DD.MM.YYYY HH:mm') : (f.arrival?.actual ? dayjs(f.arrival.actual).format('DD.MM.YYYY HH:mm') : '-');
+                                                            const delayLabel = f.computedDelayMin > 0 ? `🔴 ${f.computedDelayMin} dk gecikme` : (f.computedDelayMin < 0 ? `🟢 ${-f.computedDelayMin} dk erken` : '🟢 Zamanında');
+                                                            Modal.info({
+                                                                title: `✈️ ${f.flightNumber} - ${f.airline || ''}`,
+                                                                width: 480,
+                                                                content: (
+                                                                    <div style={{ fontSize: 13, lineHeight: 1.8 }}>
+                                                                        <div><strong>Durum:</strong> {f.status}</div>
+                                                                        <div><strong>Kalkış:</strong> {f.departure?.airport} ({f.departure?.iata})</div>
+                                                                        <div><strong>Varış:</strong> {f.arrival?.airport} ({f.arrival?.iata})</div>
+                                                                        <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid #eee' }}>
+                                                                            <div><strong>Planlanan varış:</strong> {arrSched}</div>
+                                                                            <div><strong>Tahmini/Gerçek:</strong> {arrEst}</div>
+                                                                            <div style={{ marginTop: 6, fontWeight: 700, fontSize: 14 }}>{delayLabel}</div>
+                                                                        </div>
+                                                                    </div>
+                                                                ),
+                                                            });
+                                                        } else {
+                                                            message.warning(res.data.message || 'Uçuş bulunamadı');
+                                                        }
+                                                    } catch (e: any) {
+                                                        hide();
+                                                        const errData = e?.response?.data;
+                                                        if (errData?.needsConfiguration) {
+                                                            Modal.warning({
+                                                                title: 'Uçuş Takibi Yapılandırılmadı',
+                                                                content: 'AviationStack API anahtarınızı Ayarlar → Personel Yönetimi → Ayarlar bölümünden girin.',
+                                                            });
+                                                        } else {
+                                                            message.error(errData?.error || e.message);
+                                                        }
+                                                    }
+                                                }}
+                                                title="Uçuş Durumunu Kontrol Et"
+                                                style={{ background: '#0ea5e9', color: '#fff', border: 'none' }}
+                                            >
+                                                ✈️ Kontrol
+                                            </Button>
+                                        </div>
                                     </div>
                                     <div>
                                         <Text type="secondary" style={{ fontSize: 11, fontWeight: 600, display: 'block', marginBottom: 4 }}>Notlar</Text>

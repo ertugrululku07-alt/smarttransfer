@@ -1994,6 +1994,96 @@ router.get('/fuel', authMiddleware, ensureDriver, async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// FLIGHT STATUS (AviationStack proxy)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// GET /api/driver/flight-status?flightNumber=TK1234&date=YYYY-MM-DD
+// Proxy to AviationStack. Requires tenant.settings.flightTracking.apiKey
+// Used by both admin (manual flight check) and could be triggered automatically later.
+router.get('/flight-status', authMiddleware, async (req, res) => {
+    try {
+        const { flightNumber, date } = req.query;
+        if (!flightNumber) {
+            return res.status(400).json({ success: false, error: 'flightNumber gerekli' });
+        }
+
+        const tenant = await prisma.tenant.findUnique({
+            where: { id: req.user.tenantId },
+            select: { settings: true }
+        });
+        const ft = tenant?.settings?.flightTracking || {};
+        if (!ft.enabled || !ft.apiKey) {
+            return res.status(400).json({
+                success: false,
+                error: 'Uçuş takibi aktif değil. Ayarlardan AviationStack API anahtarınızı girin.',
+                needsConfiguration: true,
+            });
+        }
+
+        // AviationStack v1 endpoint
+        const flightIata = String(flightNumber).trim().toUpperCase().replace(/\s+/g, '');
+        const url = `http://api.aviationstack.com/v1/flights?access_key=${encodeURIComponent(ft.apiKey)}&flight_iata=${encodeURIComponent(flightIata)}&limit=5`;
+
+        const fetchResp = await fetch(url);
+        const json = await fetchResp.json();
+
+        if (json.error) {
+            return res.status(400).json({ success: false, error: `AviationStack: ${json.error.message || json.error.info || 'Sorgu hatası'}` });
+        }
+
+        const flights = Array.isArray(json.data) ? json.data : [];
+        // Filter by date if provided (date format: YYYY-MM-DD)
+        let target = flights;
+        if (date) {
+            target = flights.filter(f => {
+                const d = f.flight_date || (f.departure?.scheduled || '').substring(0, 10);
+                return d === date;
+            });
+            if (target.length === 0) target = flights;
+        }
+        const f = target[0] || flights[0];
+        if (!f) {
+            return res.json({ success: true, data: null, message: 'Uçuş bulunamadı' });
+        }
+
+        // Compute delay in minutes (compare scheduled vs estimated/actual arrival)
+        const sched = f.arrival?.scheduled ? new Date(f.arrival.scheduled).getTime() : null;
+        const actual = f.arrival?.actual ? new Date(f.arrival.actual).getTime()
+            : (f.arrival?.estimated ? new Date(f.arrival.estimated).getTime() : null);
+        const delayMin = sched && actual ? Math.round((actual - sched) / 60000) : (f.arrival?.delay || 0);
+
+        res.json({
+            success: true,
+            data: {
+                flightNumber: f.flight?.iata || flightIata,
+                airline: f.airline?.name || null,
+                status: f.flight_status || 'unknown', // scheduled, active, landed, cancelled, incident, diverted
+                departure: {
+                    airport: f.departure?.airport,
+                    iata: f.departure?.iata,
+                    scheduled: f.departure?.scheduled,
+                    estimated: f.departure?.estimated,
+                    actual: f.departure?.actual,
+                    delayMin: f.departure?.delay || 0,
+                },
+                arrival: {
+                    airport: f.arrival?.airport,
+                    iata: f.arrival?.iata,
+                    scheduled: f.arrival?.scheduled,
+                    estimated: f.arrival?.estimated,
+                    actual: f.arrival?.actual,
+                    delayMin: f.arrival?.delay || 0,
+                },
+                computedDelayMin: delayMin,
+            }
+        });
+    } catch (error) {
+        console.error('Flight status error:', error);
+        res.status(500).json({ success: false, error: 'Uçuş bilgisi alınamadı: ' + error.message });
+    }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // SOS / EMERGENCY ALERTS
 // ─────────────────────────────────────────────────────────────────────────────
 

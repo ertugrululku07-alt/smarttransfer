@@ -118,6 +118,8 @@ const PersonnelListPage = () => {
                     salaryPaymentDay: ts.salaryPaymentDay || 1,
                     driverAlarmEnabled: ts.driverSettings?.alarmEnabled !== false,
                     driverAlarmMinutes: ts.driverSettings?.alarmMinutes ?? 30,
+                    flightTrackingEnabled: ts.flightTracking?.enabled === true,
+                    flightTrackingApiKey: ts.flightTracking?.apiKey || '',
                 });
             }
         } catch {
@@ -288,6 +290,10 @@ const PersonnelListPage = () => {
                 driverSettings: {
                     alarmEnabled: vals.driverAlarmEnabled !== false,
                     alarmMinutes: Number(vals.driverAlarmMinutes) || 30,
+                },
+                flightTracking: {
+                    enabled: !!vals.flightTrackingEnabled,
+                    apiKey: vals.flightTrackingApiKey || '',
                 },
             });
             message.success('Ayarlar kaydedildi');
@@ -926,6 +932,26 @@ const PersonnelListPage = () => {
                                         <Option key={m} value={m}>{m} dakika önce</Option>
                                     ))}
                                 </Select>
+                            </Form.Item>
+
+                            <Divider style={{ fontSize: 13, color: '#0ea5e9', fontWeight: 600 }}>
+                                ✈️ Uçuş Takibi (AviationStack)
+                            </Divider>
+
+                            <Form.Item
+                                name="flightTrackingEnabled"
+                                valuePropName="checked"
+                                tooltip="AviationStack API ile müşteri uçuş numarasının gerçek varanış saatini sorgular. ARV transferlerde gecikme olunca pickup saati güncellenir."
+                            >
+                                <Checkbox>Uçuş Takibi Aktif</Checkbox>
+                            </Form.Item>
+
+                            <Form.Item
+                                name="flightTrackingApiKey"
+                                label="AviationStack API Anahtarı"
+                                tooltip="https://aviationstack.com/ üzerinden ücretsiz veya ücretli plan ile API anahtarı alın."
+                            >
+                                <Input.Password placeholder="API anahtarınızı girin" autoComplete="off" />
                             </Form.Item>
                         </Form>
                     </div>

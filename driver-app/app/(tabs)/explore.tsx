@@ -77,6 +77,9 @@ export default function JobListScreen() {
   // ── Pre-trip Alarm ──
   const [alarmSettings, setAlarmSettings] = useState<{ enabled: boolean; minutes: number }>({ enabled: true, minutes: 30 });
   const [alarmModal, setAlarmModal] = useState<{ visible: boolean; job: any | null }>({ visible: false, job: null });
+  // ── Late-warning per job (jobKey -> { etaMin, lateBy }) ──
+  const [lateWarnings, setLateWarnings] = useState<Record<string, { etaMin: number; lateBy: number }>>({});
+  const lastLateAlertRef = useRef<Set<string>>(new Set()); // already-alerted jobKeys (don't spam)
   const acknowledgedAlarmsRef = useRef<Set<string>>(new Set()); // booking ids/groupKeys whose alarm was already acknowledged
   const alarmSoundRef = useRef<Audio.Sound | null>(null);
   const vibrationLoopRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -149,6 +152,82 @@ export default function JobListScreen() {
     const interval = setInterval(checkUpcoming, 20000); // every 20s
     return () => clearInterval(interval);
   }, [jobs, alarmSettings, alarmModal.visible]);
+
+  // ── Late-warning checker: every 90s computes ETA via Haversine + 50 km/h avg ──
+  useEffect(() => {
+    let cancelled = false;
+    const haversineKm = (lat1: number, lng1: number, lat2: number, lng2: number) => {
+      const toRad = (d: number) => (d * Math.PI) / 180;
+      const R = 6371;
+      const dLat = toRad(lat2 - lat1);
+      const dLng = toRad(lng2 - lng1);
+      const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+      return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    };
+
+    const checkLate = async () => {
+      try {
+        const { status } = await Location.getForegroundPermissionsAsync();
+        if (status !== 'granted') return;
+        const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        if (cancelled) return;
+        const myLat = pos.coords.latitude;
+        const myLng = pos.coords.longitude;
+        const now = Date.now();
+        const newWarnings: Record<string, { etaMin: number; lateBy: number }> = {};
+
+        for (const j of jobs) {
+          if (j.status === 'COMPLETED' || j.status === 'CANCELLED' || j.status === 'NO_SHOW' || j.status === 'IN_PROGRESS') continue;
+          const startStr = j.startDate || j.bookings?.[0]?.pickupDateTime;
+          if (!startStr) continue;
+          const startMs = new Date(startStr).getTime();
+          if (isNaN(startMs)) continue;
+          const minToStart = (startMs - now) / 60000;
+          // Only check upcoming jobs in next 90 min
+          if (minToStart < -5 || minToStart > 90) continue;
+
+          // Pickup coords
+          let pLat: number | undefined, pLng: number | undefined;
+          if (j._isShuttleGroup) {
+            pLat = j.bookings?.[0]?.metadata?.pickupLat;
+            pLng = j.bookings?.[0]?.metadata?.pickupLng;
+          } else {
+            pLat = j.metadata?.pickupLat;
+            pLng = j.metadata?.pickupLng;
+          }
+          if (!pLat || !pLng || pLat === 0 || pLng === 0) continue;
+
+          const distKm = haversineKm(myLat, myLng, pLat, pLng);
+          // Avg 50 km/h with 20% road-factor buffer → effective 40 km/h
+          const etaMin = Math.ceil((distKm / 40) * 60) + 5; // +5 min boarding buffer
+          const lateBy = Math.round(etaMin - minToStart);
+
+          const jobKey = j._isShuttleGroup ? j.groupKey : j.id;
+          if (lateBy > 0 && jobKey) {
+            newWarnings[jobKey] = { etaMin, lateBy };
+            // Show one-time toast alert per job
+            if (!lastLateAlertRef.current.has(jobKey) && lateBy >= 5) {
+              lastLateAlertRef.current.add(jobKey);
+              const title = j._isShuttleGroup ? j.routeName : (j.contactName || 'Transfer');
+              Alert.alert(
+                '⚠️ Geç Kalabilirsin!',
+                `${title}\n\nTahmini varış: ${etaMin} dk\nPickup'a kalan: ${Math.max(0, Math.round(minToStart))} dk\n\n~${lateBy} dakika geç kalman bekleniyor. Hemen yola çık!`
+              );
+              // Auto-clear so re-trigger after 10 min if still late
+              setTimeout(() => { lastLateAlertRef.current.delete(jobKey); }, 10 * 60 * 1000);
+            }
+          }
+        }
+        if (!cancelled) setLateWarnings(newWarnings);
+      } catch (e) {
+        // Silent — location may be unavailable
+      }
+    };
+
+    checkLate();
+    const interval = setInterval(checkLate, 90 * 1000); // every 90s
+    return () => { cancelled = true; clearInterval(interval); };
+  }, [jobs]);
 
   const triggerAlarm = async (job: any) => {
     setAlarmModal({ visible: true, job });
@@ -609,10 +688,17 @@ export default function JobListScreen() {
       const dirColor = item.direction === 'ARV' ? '#3b82f6' : item.direction === 'DEP' ? '#f59e0b' : '#7c3aed';
       const meetingPlace = shortAddr(item.bookings[0]?.pickup || item.pickup || 'Çeşitli');
       const statusCfg = StatusColors[item.status] || { bg: '#f3f4f6', text: '#6b7280', label: '' };
+      const lateW = lateWarnings[item.groupKey];
 
       return (
         <View style={st.compactWrap}>
-          <TouchableOpacity style={st.compactRow} activeOpacity={0.7} onPress={() => toggleGroup(item.groupKey)}>
+          {lateW && (
+            <View style={st.lateBadge}>
+              <Ionicons name="warning" size={10} color="#fff" />
+              <Text style={st.lateBadgeText}>~{lateW.lateBy} dk geç kalabilirsin</Text>
+            </View>
+          )}
+          <TouchableOpacity style={[st.compactRow, lateW && st.compactRowLate]} activeOpacity={0.7} onPress={() => toggleGroup(item.groupKey)}>
             <View style={[st.orderBadge, { backgroundColor: '#f5f3ff' }]}>
               <Text style={[st.orderText, { color: '#7c3aed' }]}>{orderLabel}</Text>
             </View>
@@ -669,10 +755,18 @@ export default function JobListScreen() {
     const dirColor = dirType === 'ARV' ? '#3b82f6' : dirType === 'DEP' ? '#f59e0b' : '#64748b';
     const statusCfg = StatusColors[item.status] || { bg: '#f3f4f6', text: '#6b7280', label: '' };
     const ack = item.metadata?.acknowledgedAt;
+    const lateW = lateWarnings[item.id];
 
     return (
+      <View style={st.compactWrap}>
+        {lateW && (
+          <View style={st.lateBadge}>
+            <Ionicons name="warning" size={10} color="#fff" />
+            <Text style={st.lateBadgeText}>~{lateW.lateBy} dk geç kalabilirsin</Text>
+          </View>
+        )}
       <TouchableOpacity
-        style={st.compactRow}
+        style={[st.compactRow, lateW && st.compactRowLate]}
         activeOpacity={0.7}
         onPress={() => router.push({ pathname: '/job/[id]', params: { id: item.id } })}
       >
@@ -694,6 +788,7 @@ export default function JobListScreen() {
           <Ionicons name="chevron-forward" size={16} color="#fff" />
         </View>
       </TouchableOpacity>
+      </View>
     );
   };
 
@@ -1298,4 +1393,15 @@ const st = StyleSheet.create({
     shadowOpacity: 0.3, shadowRadius: 4, elevation: 3,
   },
   sosHeaderBtnText: { color: '#fff', fontWeight: '900', fontSize: 12, letterSpacing: 1 },
+
+  // ─── Late warning badge & row ───
+  compactRowLate: { borderColor: '#fb923c', borderWidth: 2 },
+  lateBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: '#f97316',
+    paddingHorizontal: 8, paddingVertical: 3,
+    borderRadius: 6, alignSelf: 'flex-start',
+    marginLeft: 14, marginBottom: -2, zIndex: 2,
+  },
+  lateBadgeText: { color: '#fff', fontWeight: '800', fontSize: 10 },
 });
