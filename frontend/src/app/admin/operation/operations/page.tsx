@@ -195,6 +195,11 @@ const ColSortableItem = ({
 export default function OperationsPage() {
     const [bookings, setBookings] = useState<any[]>([]);
     const [editReservationModal, setEditReservationModal] = useState<{ booking: any } | null>(null);
+    // ── SOS / Emergency alerts ──
+    const [sosAlerts, setSosAlerts] = useState<any[]>([]);
+    const [sosDetailModal, setSosDetailModal] = useState<any | null>(null);
+    const [sosResolveNote, setSosResolveNote] = useState('');
+    const [sosResolving, setSosResolving] = useState(false);
     const [loading, setLoading] = useState(true);
     const [vehicles, setVehicles] = useState<any[]>([]);
     const [drivers, setDrivers] = useState<any[]>([]);
@@ -1555,11 +1560,28 @@ export default function OperationsPage() {
             fetchShuttleRunsRef.current(true);
         };
 
+        // ── SOS handlers ──
+        const handleSosNew = (alert: any) => {
+            setSosAlerts(prev => [alert, ...prev.filter(a => a.id !== alert.id)]);
+            // Audible chime via system beep — admin attention!
+            try { new Audio('/sounds/alert.mp3').play().catch(() => {}); } catch {}
+            message.error({
+                content: `🚨 SOS: ${alert.driverName} — ${alert.type === 'ACCIDENT' ? 'Kaza' : alert.type === 'VEHICLE' ? 'Araç Arızası' : alert.type === 'PASSENGER' ? 'Müşteri Sorunu' : alert.type === 'MEDICAL' ? 'Sağlık' : 'Acil'}`,
+                duration: 8,
+                style: { marginTop: 60 }
+            });
+        };
+        const handleSosResolved = (alert: any) => {
+            setSosAlerts(prev => prev.map(a => a.id === alert.id ? alert : a));
+        };
+
         socket.on('booking_status_update', handleStatusUpdate);
         socket.on('new_booking', handleNewBooking);
         socket.on('shuttle_runs_updated', handleShuttleRunsUpdated);
         socket.on('booking_acknowledged', handleAcknowledged);
         socket.on('booking_payment_update', handlePaymentUpdate);
+        socket.on('sos:new', handleSosNew);
+        socket.on('sos:resolved', handleSosResolved);
 
         return () => {
             socket.off('booking_status_update', handleStatusUpdate);
@@ -1567,8 +1589,39 @@ export default function OperationsPage() {
             socket.off('shuttle_runs_updated', handleShuttleRunsUpdated);
             socket.off('booking_acknowledged', handleAcknowledged);
             socket.off('booking_payment_update', handlePaymentUpdate);
+            socket.off('sos:new', handleSosNew);
+            socket.off('sos:resolved', handleSosResolved);
         };
     }, [socket, filters.transferType, filters.direction]);
+
+    // Initial SOS fetch
+    useEffect(() => {
+        (async () => {
+            try {
+                const res = await apiClient.get('/api/driver/admin-sos');
+                if (res.data.success) setSosAlerts(res.data.data || []);
+            } catch (e) { /* silent */ }
+        })();
+    }, []);
+
+    const handleResolveSos = async () => {
+        if (!sosDetailModal) return;
+        setSosResolving(true);
+        try {
+            await apiClient.put(`/api/driver/admin-sos/${sosDetailModal.id}/resolve`, { note: sosResolveNote });
+            setSosAlerts(prev => prev.map(a => a.id === sosDetailModal.id
+                ? { ...a, status: 'RESOLVED', resolvedAt: new Date().toISOString(), resolvedNote: sosResolveNote }
+                : a
+            ));
+            message.success('SOS kapatıldı');
+            setSosDetailModal(null);
+            setSosResolveNote('');
+        } catch (e: any) {
+            message.error('Kapatılamadı: ' + (e?.response?.data?.error || e.message));
+        } finally {
+            setSosResolving(false);
+        }
+    };
 
     const handleResize = (index: number) => (_e: any, { size }: any) => {
         const newColumns = [...columnConfig];
@@ -5759,6 +5812,131 @@ export default function OperationsPage() {
                                 </div>
                             );
                         })()}
+                    </Modal>
+
+                    {/* ══════ SOS ALERT BANNER ══════ */}
+                    {sosAlerts.filter(a => a.status === 'ACTIVE').length > 0 && (
+                        <div style={{
+                            position: 'fixed', top: 70, right: 24, zIndex: 9999,
+                            background: 'linear-gradient(135deg, #dc2626, #991b1b)',
+                            color: '#fff', borderRadius: 12, padding: '12px 16px',
+                            boxShadow: '0 8px 24px rgba(220, 38, 38, 0.5)',
+                            display: 'flex', alignItems: 'center', gap: 12,
+                            animation: 'sosPulse 1.2s infinite',
+                            maxWidth: 380, cursor: 'pointer',
+                        }} onClick={() => {
+                            const active = sosAlerts.find(a => a.status === 'ACTIVE');
+                            if (active) setSosDetailModal(active);
+                        }}>
+                            <div style={{ fontSize: 28 }}>🚨</div>
+                            <div style={{ flex: 1 }}>
+                                <div style={{ fontSize: 11, opacity: 0.85, fontWeight: 600, letterSpacing: 1 }}>ACİL DURUM</div>
+                                <div style={{ fontSize: 14, fontWeight: 800 }}>
+                                    {sosAlerts.filter(a => a.status === 'ACTIVE').length} aktif SOS uyarısı
+                                </div>
+                                <div style={{ fontSize: 12, opacity: 0.9, marginTop: 2 }}>
+                                    En son: {sosAlerts.filter(a => a.status === 'ACTIVE')[0]?.driverName}
+                                </div>
+                            </div>
+                            <div style={{ fontSize: 20 }}>›</div>
+                        </div>
+                    )}
+                    <style>{`
+                        @keyframes sosPulse {
+                            0%, 100% { box-shadow: 0 8px 24px rgba(220, 38, 38, 0.5); transform: scale(1); }
+                            50% { box-shadow: 0 12px 32px rgba(220, 38, 38, 0.8); transform: scale(1.02); }
+                        }
+                    `}</style>
+
+                    {/* ══════ SOS DETAY MODAL ══════ */}
+                    <Modal
+                        open={!!sosDetailModal}
+                        onCancel={() => { setSosDetailModal(null); setSosResolveNote(''); }}
+                        title={
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                <span style={{
+                                    width: 38, height: 38, borderRadius: 10,
+                                    background: 'linear-gradient(135deg, #ef4444, #dc2626)',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    fontSize: 20,
+                                }}>🚨</span>
+                                <div>
+                                    <div style={{ fontWeight: 800, fontSize: 16, color: '#991b1b' }}>SOS / Acil Durum Detayı</div>
+                                    <div style={{ fontSize: 12, color: '#94a3b8', fontWeight: 400 }}>
+                                        {sosDetailModal?.driverName} — {sosDetailModal?.createdAt ? dayjs(sosDetailModal.createdAt).format('DD.MM.YYYY HH:mm:ss') : ''}
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                        footer={
+                            sosDetailModal?.status === 'ACTIVE' ? (
+                                <Space>
+                                    <Button onClick={() => { setSosDetailModal(null); setSosResolveNote(''); }}>Kapat</Button>
+                                    <Button type="primary" danger onClick={handleResolveSos} loading={sosResolving}>
+                                        Çözüldü Olarak İşaretle
+                                    </Button>
+                                </Space>
+                            ) : (
+                                <Button onClick={() => { setSosDetailModal(null); setSosResolveNote(''); }}>Kapat</Button>
+                            )
+                        }
+                        width={520}
+                    >
+                        {sosDetailModal && (
+                            <div style={{ paddingTop: 8 }}>
+                                {sosDetailModal.status === 'RESOLVED' && (
+                                    <div style={{ background: '#dcfce7', border: '1px solid #86efac', borderRadius: 8, padding: '8px 12px', marginBottom: 12, color: '#166534', fontWeight: 600, fontSize: 13 }}>
+                                        ✓ Çözüldü — {sosDetailModal.resolvedBy} · {dayjs(sosDetailModal.resolvedAt).format('DD.MM.YYYY HH:mm')}
+                                    </div>
+                                )}
+                                <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr', gap: '8px 12px', fontSize: 13 }}>
+                                    <span style={{ color: '#94a3b8', fontWeight: 600 }}>Şoför:</span>
+                                    <span style={{ fontWeight: 700, color: '#1e293b' }}>{sosDetailModal.driverName}</span>
+                                    {sosDetailModal.driverPhone && (<>
+                                        <span style={{ color: '#94a3b8', fontWeight: 600 }}>Telefon:</span>
+                                        <a href={`tel:${sosDetailModal.driverPhone}`} style={{ fontWeight: 700, color: '#6366f1' }}>📞 {sosDetailModal.driverPhone}</a>
+                                    </>)}
+                                    <span style={{ color: '#94a3b8', fontWeight: 600 }}>Tür:</span>
+                                    <span style={{ fontWeight: 700 }}>
+                                        {sosDetailModal.type === 'ACCIDENT' ? '🚗 Kaza' :
+                                         sosDetailModal.type === 'VEHICLE' ? '🔧 Araç Arızası' :
+                                         sosDetailModal.type === 'PASSENGER' ? '👤 Müşteri Sorunu' :
+                                         sosDetailModal.type === 'MEDICAL' ? '🏥 Sağlık' : '⚠️ Diğer'}
+                                    </span>
+                                    {sosDetailModal.message && (<>
+                                        <span style={{ color: '#94a3b8', fontWeight: 600 }}>Mesaj:</span>
+                                        <span style={{ fontWeight: 600, color: '#334155', background: '#fef2f2', padding: '6px 10px', borderRadius: 6, border: '1px solid #fecaca' }}>{sosDetailModal.message}</span>
+                                    </>)}
+                                    {sosDetailModal.address && (<>
+                                        <span style={{ color: '#94a3b8', fontWeight: 600 }}>Adres:</span>
+                                        <span style={{ fontWeight: 600, color: '#1e293b' }}>{sosDetailModal.address}</span>
+                                    </>)}
+                                    {sosDetailModal.lat && sosDetailModal.lng && (<>
+                                        <span style={{ color: '#94a3b8', fontWeight: 600 }}>Konum:</span>
+                                        <a href={`https://www.google.com/maps?q=${sosDetailModal.lat},${sosDetailModal.lng}`} target="_blank" rel="noreferrer" style={{ color: '#6366f1', fontWeight: 700 }}>
+                                            📍 {sosDetailModal.lat.toFixed(5)}, {sosDetailModal.lng.toFixed(5)} (Haritada Aç)
+                                        </a>
+                                    </>)}
+                                </div>
+                                {sosDetailModal.status === 'ACTIVE' && (
+                                    <div style={{ marginTop: 16 }}>
+                                        <div style={{ fontSize: 12, color: '#94a3b8', fontWeight: 600, marginBottom: 4 }}>Çözüm Notu (opsiyonel)</div>
+                                        <Input.TextArea
+                                            rows={2}
+                                            placeholder="Hangi aksiyonu aldınız? (örn: Yardım gönderildi, müşteri taksiye yönlendirildi...)"
+                                            value={sosResolveNote}
+                                            onChange={e => setSosResolveNote(e.target.value)}
+                                        />
+                                    </div>
+                                )}
+                                {sosDetailModal.resolvedNote && (
+                                    <div style={{ marginTop: 12 }}>
+                                        <div style={{ fontSize: 12, color: '#94a3b8', fontWeight: 600, marginBottom: 4 }}>Çözüm Notu</div>
+                                        <div style={{ fontSize: 13, color: '#334155', background: '#f8fafc', padding: '8px 12px', borderRadius: 6, border: '1px solid #e2e8f0' }}>{sosDetailModal.resolvedNote}</div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </Modal>
 
                     {/* ══════ RESERVATION EDIT MODAL ══════ */}

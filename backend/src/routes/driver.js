@@ -1993,5 +1993,123 @@ router.get('/fuel', authMiddleware, ensureDriver, async (req, res) => {
     }
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// SOS / EMERGENCY ALERTS
+// ─────────────────────────────────────────────────────────────────────────────
+
+// POST /api/driver/sos
+// Driver triggers an emergency / SOS alert
+router.post('/sos', authMiddleware, ensureDriver, async (req, res) => {
+    try {
+        const { lat, lng, address, message, type } = req.body || {};
+        const tenant = await prisma.tenant.findUnique({
+            where: { id: req.user.tenantId },
+            select: { settings: true }
+        });
+        const settings = tenant?.settings || {};
+        const alerts = Array.isArray(settings.sosAlerts) ? settings.sosAlerts : [];
+
+        const newAlert = {
+            id: `sos_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+            driverId: req.user.id,
+            driverName: req.user.fullName || `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim(),
+            driverPhone: req.user.phone || null,
+            type: type || 'GENERAL', // GENERAL | ACCIDENT | VEHICLE | PASSENGER | MEDICAL
+            message: message || '',
+            lat: lat ? Number(lat) : null,
+            lng: lng ? Number(lng) : null,
+            address: address || null,
+            status: 'ACTIVE', // ACTIVE | RESOLVED
+            createdAt: new Date().toISOString(),
+            resolvedAt: null,
+            resolvedBy: null,
+            resolvedNote: null,
+        };
+
+        // Keep only the most recent 50 alerts to prevent unbounded growth
+        const updated = [newAlert, ...alerts].slice(0, 50);
+
+        await prisma.tenant.update({
+            where: { id: req.user.tenantId },
+            data: { settings: { ...settings, sosAlerts: updated } }
+        });
+
+        // Real-time broadcast to admin room
+        const io = req.app.get('io');
+        if (io) {
+            io.to(`tenant_${req.user.tenantId}`).emit('sos:new', newAlert);
+        }
+
+        res.json({ success: true, data: newAlert });
+    } catch (error) {
+        console.error('Driver SOS error:', error);
+        res.status(500).json({ success: false, error: 'SOS gönderilemedi' });
+    }
+});
+
+// GET /api/admin/sos (mounted via this same router under /api/driver/admin-sos to avoid creating a new file)
+// Returns all active SOS alerts for the tenant
+router.get('/admin-sos', authMiddleware, async (req, res) => {
+    try {
+        if (!['TENANT_ADMIN', 'SUPER_ADMIN', 'TENANT_STAFF', 'OPERATION'].includes(req.user.roleType) &&
+            !['TENANT_ADMIN', 'SUPER_ADMIN', 'OPERATION'].includes(req.user.roleCode)) {
+            return res.status(403).json({ success: false, error: 'Forbidden' });
+        }
+        const tenant = await prisma.tenant.findUnique({
+            where: { id: req.user.tenantId },
+            select: { settings: true }
+        });
+        const alerts = Array.isArray(tenant?.settings?.sosAlerts) ? tenant.settings.sosAlerts : [];
+        res.json({ success: true, data: alerts });
+    } catch (error) {
+        console.error('Admin SOS list error:', error);
+        res.status(500).json({ success: false, error: 'SOS listesi alınamadı' });
+    }
+});
+
+// PUT /api/driver/admin-sos/:id/resolve
+// Admin resolves a SOS alert
+router.put('/admin-sos/:id/resolve', authMiddleware, async (req, res) => {
+    try {
+        if (!['TENANT_ADMIN', 'SUPER_ADMIN', 'TENANT_STAFF', 'OPERATION'].includes(req.user.roleType) &&
+            !['TENANT_ADMIN', 'SUPER_ADMIN', 'OPERATION'].includes(req.user.roleCode)) {
+            return res.status(403).json({ success: false, error: 'Forbidden' });
+        }
+        const { id } = req.params;
+        const { note } = req.body || {};
+        const tenant = await prisma.tenant.findUnique({
+            where: { id: req.user.tenantId },
+            select: { settings: true }
+        });
+        const settings = tenant?.settings || {};
+        const alerts = Array.isArray(settings.sosAlerts) ? settings.sosAlerts : [];
+        const idx = alerts.findIndex(a => a.id === id);
+        if (idx === -1) return res.status(404).json({ success: false, error: 'SOS bulunamadı' });
+
+        alerts[idx] = {
+            ...alerts[idx],
+            status: 'RESOLVED',
+            resolvedAt: new Date().toISOString(),
+            resolvedBy: req.user.fullName || req.user.id,
+            resolvedNote: note || null,
+        };
+
+        await prisma.tenant.update({
+            where: { id: req.user.tenantId },
+            data: { settings: { ...settings, sosAlerts: alerts } }
+        });
+
+        const io = req.app.get('io');
+        if (io) {
+            io.to(`tenant_${req.user.tenantId}`).emit('sos:resolved', alerts[idx]);
+        }
+
+        res.json({ success: true, data: alerts[idx] });
+    } catch (error) {
+        console.error('Resolve SOS error:', error);
+        res.status(500).json({ success: false, error: 'SOS kapatılamadı' });
+    }
+});
+
 module.exports = router;
 

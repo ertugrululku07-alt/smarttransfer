@@ -12,6 +12,7 @@ import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { Audio } from 'expo-av';
 import * as Notifications from 'expo-notifications';
+import * as Location from 'expo-location';
 import { Brand, StatusColors } from '../../constants/theme';
 
 const API_URL = 'https://backend-production-69e7.up.railway.app/api';
@@ -68,6 +69,11 @@ export default function JobListScreen() {
   const [defaultCurrency, setDefaultCurrency] = useState('TRY');
   const [extrasModal, setExtrasModal] = useState<{ visible: boolean; extras: any[] }>({ visible: false, extras: [] });
   const [expandedCustomer, setExpandedCustomer] = useState<Record<string, boolean>>({});
+  // ── SOS / Emergency ──
+  const [sosModal, setSosModal] = useState(false);
+  const [sosType, setSosType] = useState<string>('GENERAL');
+  const [sosMessage, setSosMessage] = useState('');
+  const [sosSending, setSosSending] = useState(false);
   // ── Pre-trip Alarm ──
   const [alarmSettings, setAlarmSettings] = useState<{ enabled: boolean; minutes: number }>({ enabled: true, minutes: 30 });
   const [alarmModal, setAlarmModal] = useState<{ visible: boolean; job: any | null }>({ visible: false, job: null });
@@ -202,6 +208,50 @@ export default function JobListScreen() {
 
   const toggleCustomer = (id: string) => {
     setExpandedCustomer(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const sendSos = async () => {
+    setSosSending(true);
+    let lat: number | undefined, lng: number | undefined, address: string | undefined;
+    try {
+      // Best-effort location capture
+      const { status } = await Location.getForegroundPermissionsAsync();
+      if (status === 'granted') {
+        const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        lat = pos.coords.latitude;
+        lng = pos.coords.longitude;
+        try {
+          const rev = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });
+          if (rev?.[0]) {
+            const r = rev[0];
+            address = [r.street, r.district, r.city, r.region].filter(Boolean).join(', ');
+          }
+        } catch {}
+      }
+    } catch (e) {
+      console.warn('Location capture failed for SOS:', e);
+    }
+
+    try {
+      const res = await fetch(`${API_URL}/driver/sos`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: sosType, message: sosMessage, lat, lng, address }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        Alert.alert('✓ SOS Gönderildi', 'Yönetim ekibi bilgilendirildi. En kısa sürede sizinle iletişime geçilecek.');
+        setSosModal(false);
+        setSosMessage('');
+        setSosType('GENERAL');
+      } else {
+        Alert.alert('Hata', json.error || 'SOS gönderilemedi');
+      }
+    } catch (e: any) {
+      Alert.alert('Hata', e?.message || 'Bağlantı hatası');
+    } finally {
+      setSosSending(false);
+    }
   };
 
   useEffect(() => { fetchJobs(); }, [filter]);
@@ -652,6 +702,10 @@ export default function JobListScreen() {
       <View style={st.header}>
         <Ionicons name="briefcase" size={22} color={Brand.primary} />
         <Text style={st.title}>Operasyon Listesi</Text>
+        <TouchableOpacity onPress={() => setSosModal(true)} style={st.sosHeaderBtn}>
+          <Ionicons name="warning" size={16} color="#fff" />
+          <Text style={st.sosHeaderBtnText}>SOS</Text>
+        </TouchableOpacity>
         <TouchableOpacity onPress={fetchJobs} style={{ padding: 4 }}>
           <Ionicons name="refresh-outline" size={22} color={Brand.textSecondary} />
         </TouchableOpacity>
@@ -869,6 +923,84 @@ export default function JobListScreen() {
               <TouchableOpacity style={[st.alarmBtn, st.alarmBtnAck]} onPress={acknowledgeAlarm}>
                 <Ionicons name="checkmark-circle" size={20} color="#fff" />
                 <Text style={st.alarmBtnText}>Hazırım</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ───────── SOS / Emergency Modal ───────── */}
+      <Modal visible={sosModal} animationType="slide" transparent>
+        <View style={st.modalOverlay}>
+          <View style={st.modalCard}>
+            <View style={st.modalHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <View style={{ width: 36, height: 36, borderRadius: 10, background: 'linear-gradient(135deg,#ef4444,#dc2626)', alignItems: 'center', justifyContent: 'center', backgroundColor: '#dc2626' } as any}>
+                  <Ionicons name="warning" size={20} color="#fff" />
+                </View>
+                <View>
+                  <Text style={st.modalTitle}>SOS / Acil Durum</Text>
+                  <Text style={{ fontSize: 11, color: '#94a3b8' }}>Yönetim ekibine acil bildirim gönder</Text>
+                </View>
+              </View>
+              <TouchableOpacity onPress={() => setSosModal(false)} disabled={sosSending}>
+                <Ionicons name="close" size={24} color="#64748b" />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={st.modalLabel}>Acil Durum Türü</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+              {[
+                { v: 'ACCIDENT', l: '🚗 Kaza', c: '#dc2626' },
+                { v: 'VEHICLE', l: '🔧 Araç Arızası', c: '#f59e0b' },
+                { v: 'PASSENGER', l: '👤 Müşteri Sorunu', c: '#7c3aed' },
+                { v: 'MEDICAL', l: '🏥 Sağlık', c: '#0ea5e9' },
+                { v: 'GENERAL', l: '⚠️ Diğer', c: '#64748b' },
+              ].map(t => (
+                <TouchableOpacity
+                  key={t.v}
+                  style={{
+                    paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10,
+                    borderWidth: 2, borderColor: sosType === t.v ? t.c : '#e2e8f0',
+                    backgroundColor: sosType === t.v ? `${t.c}15` : '#fff',
+                  }}
+                  onPress={() => setSosType(t.v)}
+                >
+                  <Text style={{ fontSize: 13, fontWeight: '700', color: sosType === t.v ? t.c : '#64748b' }}>{t.l}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <Text style={st.modalLabel}>Açıklama (opsiyonel)</Text>
+            <TextInput
+              style={st.modalInput}
+              placeholder="Kısa açıklama yazın..."
+              placeholderTextColor="#94a3b8"
+              value={sosMessage}
+              onChangeText={setSosMessage}
+              multiline
+              numberOfLines={3}
+              maxLength={300}
+            />
+
+            <View style={{ backgroundColor: '#fef2f2', borderRadius: 8, padding: 10, marginVertical: 8, flexDirection: 'row', gap: 8, alignItems: 'flex-start' }}>
+              <Ionicons name="information-circle" size={16} color="#dc2626" />
+              <Text style={{ fontSize: 11, color: '#991b1b', flex: 1, lineHeight: 16 }}>
+                Konum bilgin otomatik alınır ve yönetim ekibine iletilir. Çok acil bir durumda 112 / 155'i de aramayı unutma.
+              </Text>
+            </View>
+
+            <View style={st.modalBtnRow}>
+              <TouchableOpacity style={st.modalCancel} onPress={() => setSosModal(false)} disabled={sosSending}>
+                <Text style={st.modalCancelText}>İptal</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[st.modalSubmit, { backgroundColor: '#dc2626' }, sosSending && { opacity: 0.6 }]}
+                onPress={sendSos}
+                disabled={sosSending}
+              >
+                {sosSending ? <ActivityIndicator color="#fff" size="small" /> : <Ionicons name="warning" size={16} color="#fff" />}
+                <Text style={st.modalSubmitText}>{sosSending ? 'Gönderiliyor...' : 'SOS Gönder'}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1156,4 +1288,14 @@ const st = StyleSheet.create({
   alarmBtnSnooze: { backgroundColor: '#94a3b8' },
   alarmBtnAck: { backgroundColor: '#16a34a' },
   alarmBtnText: { color: '#fff', fontWeight: '800', fontSize: 14 },
+
+  // ─── SOS button in header ───
+  sosHeaderBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: '#dc2626', paddingHorizontal: 10, paddingVertical: 6,
+    borderRadius: 8,
+    shadowColor: '#dc2626', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3, shadowRadius: 4, elevation: 3,
+  },
+  sosHeaderBtnText: { color: '#fff', fontWeight: '900', fontSize: 12, letterSpacing: 1 },
 });
