@@ -469,6 +469,11 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, selectedKey = 'dash
                   key: 'personnel-list',
                   label: 'Personel Listesi',
                   onClick: () => router.push('/admin/personnel')
+                },
+                {
+                  key: 'driver-ratings',
+                  label: 'Şoför Puanlama',
+                  onClick: () => router.push('/admin/personnel/ratings')
                 }
               ]
             },

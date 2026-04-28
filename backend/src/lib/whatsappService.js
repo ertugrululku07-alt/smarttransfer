@@ -227,6 +227,83 @@ async function sendBookingWhatsApp(tenantId, booking) {
 }
 
 /**
+ * Send rating request WhatsApp to customer after transfer is COMPLETED.
+ * Uses a JWT token so the link is self-validating (no DB lookup table needed).
+ */
+async function sendRatingRequestWhatsApp(tenantId, booking) {
+    try {
+        const config = await getWhatsAppSettings(tenantId);
+        if (!config) return { success: true, skipped: true };
+
+        if (!booking.contactPhone) return { success: false, error: 'Telefon yok' };
+
+        // Avoid sending twice
+        if (booking.metadata?.ratingRequestSentAt) {
+            return { success: true, skipped: true, reason: 'already_sent' };
+        }
+
+        const { settings, tenant } = config;
+
+        // Skip if rating system disabled by admin
+        if (settings.ratingDisabled === true) return { success: true, skipped: true };
+
+        const { generateRatingToken } = require('../routes/ratings');
+        const token = generateRatingToken(booking.id, tenantId);
+
+        const branding = tenant?.settings?.branding || {};
+        const companyName = branding.companyName || tenant?.name || 'SmartTransfer';
+        const baseUrl = settings.publicBaseUrl || branding.siteUrl || process.env.PUBLIC_SITE_URL || 'https://smarttransfer.example.com';
+        const rateUrl = `${baseUrl.replace(/\/$/, '')}/rate/${token}`;
+
+        const driverName = booking.driver?.fullName || 'Şoförümüz';
+
+        const defaultMsg =
+            `🌟 *Yolculuğunuz Tamamlandı*\n\n` +
+            `Sayın *{{passengerName}}*,\n` +
+            `*{{companyName}}* ailesi olarak bizi tercih ettiğiniz için teşekkür ederiz.\n\n` +
+            `Şoförümüz *{{driverName}}* hakkında değerlendirmenizi öğrenmek bizim için çok kıymetli.\n\n` +
+            `⭐ Lütfen 30 saniyenizi ayırın:\n` +
+            `{{rateUrl}}\n\n` +
+            `_PNR: {{bookingNumber}}_`;
+
+        const template = settings.ratingMessage || defaultMsg;
+        const message = renderMessage(template, {
+            passengerName: booking.contactName || '',
+            companyName,
+            driverName,
+            rateUrl,
+            bookingNumber: booking.bookingNumber || '',
+        });
+
+        const result = await sendWhatsAppMessage(tenantId, booking.contactPhone, message);
+
+        // Mark as sent so we don't spam
+        try {
+            await prisma.booking.update({
+                where: { id: booking.id },
+                data: {
+                    metadata: {
+                        ...(booking.metadata || {}),
+                        ratingRequestSentAt: new Date().toISOString(),
+                        ratingToken: token,
+                    }
+                }
+            });
+        } catch (e) {
+            console.warn('[WHATSAPP] Could not persist ratingRequestSentAt:', e.message);
+        }
+
+        if (result.success) {
+            console.log(`[WHATSAPP] Rating request sent to ${booking.contactPhone} (${booking.bookingNumber})`);
+        }
+        return result;
+    } catch (error) {
+        console.error(`[WHATSAPP] Rating request failed for ${booking.bookingNumber}:`, error.message);
+        return { success: false, error: error.message };
+    }
+}
+
+/**
  * Send a test WhatsApp message
  */
 async function sendTestWhatsApp(tenantId, phone) {
@@ -268,6 +345,7 @@ _{{companyName}}_
 module.exports = {
     sendWhatsAppMessage,
     sendBookingWhatsApp,
+    sendRatingRequestWhatsApp,
     sendTestWhatsApp,
     normalizePhone,
     renderMessage,

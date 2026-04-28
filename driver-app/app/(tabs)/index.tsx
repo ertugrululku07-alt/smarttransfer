@@ -38,7 +38,7 @@ export default function DashboardScreen() {
     }
     return url;
   };
-  const [stats, setStats] = useState({ todayJobs: 0, completedJobs: 0, rating: 4.9 });
+  const [stats, setStats] = useState({ todayJobs: 0, completedJobs: 0, rating: 0, ratingCount: 0 });
   const [loading, setLoading] = useState(false);
   const [locationActive, setLocationActive] = useState(false);
   const [emergencyModal, setEmergencyModal] = useState(false);
@@ -384,13 +384,13 @@ export default function DashboardScreen() {
           <Text style={st.statValue}>{stats.completedJobs}</Text>
           <Text style={st.statLabel}>Tamamlanan</Text>
         </TouchableOpacity>
-        <View style={[st.statCard, st.statCardWarning]}>
+        <TouchableOpacity style={[st.statCard, st.statCardWarning]} activeOpacity={0.7} onPress={() => router.push('/ratings')}>
           <View style={[st.statIconBox, { backgroundColor: 'rgba(245,158,11,0.12)' }]}>
             <Ionicons name="star" size={20} color={Brand.warning} />
           </View>
-          <Text style={st.statValue}>{stats.rating}</Text>
-          <Text style={st.statLabel}>Puan</Text>
-        </View>
+          <Text style={st.statValue}>{stats.ratingCount > 0 ? stats.rating.toFixed(1) : '—'}</Text>
+          <Text style={st.statLabel}>Puan{stats.ratingCount > 0 ? ` (${stats.ratingCount})` : ''}</Text>
+        </TouchableOpacity>
       </View>
 
       {/* ─── QUICK ACTIONS ─── */}

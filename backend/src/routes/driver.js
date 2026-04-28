@@ -52,12 +52,28 @@ router.get('/dashboard', authMiddleware, ensureDriver, async (req, res) => {
             })
         ]);
 
+        // Calculate real rating average from submitted ratings
+        const ratedBookings = await prisma.booking.findMany({
+            where: {
+                driverId: req.user.id,
+                metadata: { path: ['rating', 'submittedAt'], not: null }
+            },
+            select: { metadata: true }
+        });
+        const ratingScores = ratedBookings
+            .map(b => Number(b.metadata?.rating?.overall))
+            .filter(n => Number.isFinite(n) && n > 0);
+        const rating = ratingScores.length > 0
+            ? Math.round((ratingScores.reduce((s, n) => s + n, 0) / ratingScores.length) * 10) / 10
+            : 0;
+
         res.json({
             success: true,
             data: {
                 todayJobs,
                 completedJobs,
-                rating: 4.9 // Placeholder or calculated from reviews
+                rating,
+                ratingCount: ratingScores.length
             }
         });
     } catch (error) {
@@ -363,7 +379,8 @@ router.put('/bookings/:id/status', authMiddleware, ensureDriver, async (req, res
 
         const booking = await prisma.booking.update({
             where: { id: id, driverId: req.user.id },
-            data: updateData
+            data: updateData,
+            include: { driver: { select: { fullName: true } } }
         });
 
         const io = req.app.get('io');
@@ -383,6 +400,18 @@ router.put('/bookings/:id/status', authMiddleware, ensureDriver, async (req, res
                 pickedUpAt: updateData.pickedUpAt,
                 droppedOffAt: updateData.droppedOffAt
             });
+        }
+
+        // ── COMPLETED ⇒ trigger rating WhatsApp (fire-and-forget) ──
+        if (status === 'COMPLETED' && booking.contactPhone) {
+            try {
+                const { sendRatingRequestWhatsApp } = require('../lib/whatsappService');
+                sendRatingRequestWhatsApp(booking.tenantId, booking).catch(err => {
+                    console.error('[RatingWA] background send failed:', err.message);
+                });
+            } catch (e) {
+                console.warn('[RatingWA] hook setup failed:', e.message);
+            }
         }
 
         res.json({ success: true, data: booking });

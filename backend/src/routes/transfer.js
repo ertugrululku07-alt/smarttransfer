@@ -2947,6 +2947,23 @@ router.put('/bookings/:id/status', authMiddleware, async (req, res) => {
             }
         });
 
+        // ── COMPLETED ⇒ trigger rating WhatsApp (fire-and-forget) ──
+        if (status === 'COMPLETED' && currentBooking.status !== 'COMPLETED' && updatedBooking?.contactPhone) {
+            try {
+                const { sendRatingRequestWhatsApp } = require('../lib/whatsappService');
+                // Reload with driver info
+                const fullBooking = await prisma.booking.findUnique({
+                    where: { id },
+                    include: { driver: { select: { fullName: true } } }
+                });
+                sendRatingRequestWhatsApp(req.tenant.id, fullBooking).catch(err => {
+                    console.error('[RatingWA] background send failed:', err.message);
+                });
+            } catch (e) {
+                console.warn('[RatingWA] hook setup failed:', e.message);
+            }
+        }
+
         res.json({
             success: true,
             data: updatedBooking,

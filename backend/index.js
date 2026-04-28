@@ -289,9 +289,13 @@ app.post('/api/transfers/search', tenantMiddleware, async (req, res) => {
 
 const driverRoutes = require('./src/routes/driver');
 const messageRoutes = require('./src/routes/messages');
+const ratingsRoutes = require('./src/routes/ratings');
 
 app.use('/api/driver', driverRoutes);
 app.use('/api/messages', messageRoutes);
+// Ratings: admin endpoints need tenantMiddleware (resolves req.tenant via header)
+// Public endpoints do their own tenant resolution from JWT token, so middleware order is fine
+app.use('/api/ratings', tenantMiddleware, ratingsRoutes);
 
 // ============================================================================
 // ERROR HANDLING
