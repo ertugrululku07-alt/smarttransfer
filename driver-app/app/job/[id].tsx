@@ -167,10 +167,7 @@ export default function JobDetailScreen() {
             setNoShowReason('CUSTOMER_NOT_FOUND');
             setNoShowDescription('');
             setNoShowPhoto(null);
-            Alert.alert(
-                '✓ No-Show Kaydedildi',
-                `Müşteri gelmedi olarak işaretlendi.\nZaman: ${new Date().toLocaleString('tr-TR')}\nDelil olarak admin paneline iletildi.`
-            );
+            // No-Show kayıt bilgi ekranı kaldırıldı (kullanıcı isteği). Sayfa otomatik NO_SHOW durumuna geçer.
         } catch (e) {
             Alert.alert('Hata', 'Bağlantı hatası');
         } finally {
@@ -191,7 +188,7 @@ export default function JobDetailScreen() {
             const json = await res.json();
             if (json.success) {
                 setJob({ ...job, status });
-                Alert.alert('Başarılı', `Durum güncellendi: ${StatusColors[status]?.label || status}`);
+                // 'Durum güncellendi' bilgi ekranı kaldırıldı (kullanıcı isteği)
             }
         } catch (e) {
             Alert.alert('Hata', 'Durum güncellenirken bir sorun oluştu.');
@@ -231,7 +228,7 @@ export default function JobDetailScreen() {
                 return;
             }
             await updateStatus('IN_PROGRESS');
-            Alert.alert('Başarılı', `${amount} ${collectedCurrency} ödeme alındı.`);
+            // Ödeme alındı bilgi ekranı kaldırıldı (kullanıcı isteği)
             setPaymentModal(false);
         } catch {
             Alert.alert('Hata', 'Bağlantı hatası');

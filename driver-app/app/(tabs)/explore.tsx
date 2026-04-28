@@ -453,7 +453,7 @@ export default function JobListScreen() {
       // 2. Update status to IN_PROGRESS
       setJobs(prev => prev.map(j => j.id === paymentModal.bookingId ? { ...j, status: 'IN_PROGRESS' } : j)); // Optimistic UI
       await updateStatus(paymentModal.bookingId, 'IN_PROGRESS');
-      Alert.alert('Başarılı', `${amount} ${collectedCurrency} ödeme alındı, müşteri alındı olarak işaretlendi.`);
+      // Ödeme alındı bilgi ekranı kaldırıldı (kullanıcı isteği)
       setPaymentModal({ visible: false, bookingId: null, expectedAmount: 0, expectedCurrency: 'TRY' });
     } catch {
       Alert.alert('Hata', 'Bağlantı hatası');

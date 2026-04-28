@@ -253,11 +253,8 @@ function AuthGuard() {
 
     // Register push token when authenticated (only once per session)
     registerPushToken(token);
-    // Prompt battery optimization only once per app session
-    if (!batteryPromptDone.current) {
-      batteryPromptDone.current = true;
-      promptBatteryOptimization();
-    }
+    // Pil optimizasyon uyarı ekranı kaldırıldı (kullanıcı isteği). 
+    // Cihaz ayarlarına yönlendirme yapılmıyor; arkaplan izinleri OS akışı ile alınıyor.
   }, [token, isLoading, segments]);
 
   // Handle notification taps (when app is opened from notification)

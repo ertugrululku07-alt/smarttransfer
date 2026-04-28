@@ -138,24 +138,7 @@ export default function DashboardScreen() {
           { title: 'Arka Plan Konum İzni', message: 'Arka planda konum takibi için "Her zaman izin ver" seçeneğini seçin.', buttonPositive: 'Ayarlara Git' }
         );
 
-        // Show AutoStart prompt once
-        const hasShownAutoStart = await AsyncStorage.getItem('hasShownAutoStart');
-        if (!hasShownAutoStart) {
-          Alert.alert(
-            'Kesintisiz Takip İçin',
-            'Telefonunuz yeniden başladığında veya uygulama kapalıyken konum takibinin devam etmesi için cihaz ayarlarından "Otomatik Başlatma" (Auto Start) veya "Arka Planda Çalışma" iznini vermeniz gerekmektedir.',
-            [
-              { text: 'İptal', onPress: () => AsyncStorage.setItem('hasShownAutoStart', 'true') },
-              { 
-                text: 'Ayarlara Git', 
-                onPress: () => {
-                  AsyncStorage.setItem('hasShownAutoStart', 'true');
-                  NativeLocation?.openAutoStartSettings();
-                } 
-              }
-            ]
-          );
-        }
+        // AutoStart bilgi ekranı kaldırıldı (kullanıcı isteği).
       } catch (e) { console.warn('Permission error:', e); }
     }
     
