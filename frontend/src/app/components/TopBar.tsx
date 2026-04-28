@@ -77,6 +77,7 @@ const TopBar: React.FC = () => {
     if (combined.includes('AGENCY')) return '/agency';
     if (combined.includes('PARTNER')) return '/partner';
     if (combined.includes('DRIVER')) return '/driver';
+    if (combined.includes('CUSTOMER')) return '/account';
 
     // Admin, SUPER_ADMIN, TENANT_ADMIN, PLATFORM_OPS, Staff vs. → hepsini /admin'e gönder
     return '/admin';
