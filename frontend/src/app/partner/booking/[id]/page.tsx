@@ -41,7 +41,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
             try {
                 const token = localStorage.getItem('token');
                 if (!token) { router.push('/login'); return; }
-                const response = await fetch(`${(process.env.NEXT_PUBLIC_API_URL || 'https://smarttransfer-backend-production.up.railway.app').replace(/[\r\n]+/g, '').trim()}/api/transfer/bookings/${id}`, {
+                const response = await fetch(`${(process.env.NEXT_PUBLIC_API_URL || 'https://backend-production-69e7.up.railway.app').replace(/[\r\n]+/g, '').trim()}/api/transfer/bookings/${id}`, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
                 if (response.ok) {
@@ -63,7 +63,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
             const body = status === 'COMPLETED'
                 ? { status: 'COMPLETED', subStatus: 'COMPLETED' }
                 : { status: status === 'CONFIRMED' ? 'CONFIRMED' : 'CANCELLED', subStatus: status === 'CONFIRMED' ? 'PARTNER_ACCEPTED' : 'PARTNER_REJECTED' };
-            const response = await fetch(`${(process.env.NEXT_PUBLIC_API_URL || 'https://smarttransfer-backend-production.up.railway.app').replace(/[\r\n]+/g, '').trim()}/api/transfer/bookings/${booking.id}/status`, {
+            const response = await fetch(`${(process.env.NEXT_PUBLIC_API_URL || 'https://backend-production-69e7.up.railway.app').replace(/[\r\n]+/g, '').trim()}/api/transfer/bookings/${booking.id}/status`, {
                 method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify(body)
             });

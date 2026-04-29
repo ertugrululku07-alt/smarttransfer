@@ -13,7 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { isMessagesScreenOpen } from './_layout';
 
-const API_URL = 'https://backend-production-69e7.up.railway.app/api';
+const API_URL = 'http://187.127.76.249/api';
 
 function AudioPlayer({ url, isMe, time }: { url: string; isMe: boolean; time: string }) {
     const [sound, setSound] = useState<Audio.Sound | null>(null);

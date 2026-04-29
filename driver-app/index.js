@@ -17,7 +17,7 @@ const LOCATION_TASK_NAME = 'background-location-task';
 const BG_FETCH_TASK_NAME = 'background-sync-task';
 const BACKGROUND_NOTIFICATION_TASK = 'background-notification-task';
 
-const API_URL = 'https://backend-production-69e7.up.railway.app/api';
+const API_URL = 'http://187.127.76.249/api';
 
 // Throttle & debounce tracking
 let lastForegroundSyncMs = 0;

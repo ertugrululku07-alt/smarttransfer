@@ -15,7 +15,7 @@ import * as Notifications from 'expo-notifications';
 import * as Location from 'expo-location';
 import { Brand, StatusColors } from '../../constants/theme';
 
-const API_URL = 'https://backend-production-69e7.up.railway.app/api';
+const API_URL = 'http://187.127.76.249/api';
 
 // Extract short airport/destination name from full address
 const extractDestinationName = (address: string): string => {

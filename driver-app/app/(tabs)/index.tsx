@@ -18,7 +18,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { NativeLocation } = NativeModules;
 
-const API_URL = 'https://backend-production-69e7.up.railway.app/api';
+const API_URL = 'http://187.127.76.249/api';
 const LOCATION_TASK_NAME = 'background-location-task';
 
 

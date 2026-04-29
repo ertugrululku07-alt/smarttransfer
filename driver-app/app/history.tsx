@@ -10,7 +10,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Brand, StatusColors } from '../constants/theme';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
-const API_URL = 'https://backend-production-69e7.up.railway.app/api';
+const API_URL = 'http://187.127.76.249/api';
 
 const formatTRDate = (d: Date) => d.toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 const toApiDate = (d: Date) => d.toISOString().split('T')[0];

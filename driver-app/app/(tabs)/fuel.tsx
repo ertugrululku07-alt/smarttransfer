@@ -11,7 +11,7 @@ import { Brand } from '../../constants/theme';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 
-const API_URL = 'https://backend-production-69e7.up.railway.app/api';
+const API_URL = 'http://187.127.76.249/api';
 
 interface VehicleInfo {
   id: string;

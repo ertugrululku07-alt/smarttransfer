@@ -9,7 +9,7 @@ import { Platform, BackHandler, AppState, AppStateStatus, NativeModules } from '
 const { NativeLocation } = NativeModules;
 
 const LOCATION_TASK_NAME = 'background-location-task';
-const API_URL = 'https://backend-production-69e7.up.railway.app/api';
+const API_URL = 'http://187.127.76.249/api';
 const TOKEN_REFRESH_INTERVAL = 10 * 60 * 1000; // Refresh token every 10 minutes proactively
 
 interface AuthContextType {

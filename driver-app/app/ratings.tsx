@@ -8,7 +8,7 @@ import { router } from 'expo-router';
 import { useAuth } from '../context/AuthContext';
 import { Brand } from '../constants/theme';
 
-const API_URL = 'https://backend-production-69e7.up.railway.app/api';
+const API_URL = 'http://187.127.76.249/api';
 
 interface RatingItem {
     bookingId: string;
