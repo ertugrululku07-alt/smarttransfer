@@ -1414,7 +1414,7 @@ export default function OperationsPage() {
                         // Fix customer name mapping
                         contactName: item.contactName || item.customer?.name || item.passengerName || '',
                         // Fix agency name mapping
-                        agencyName: item.agencyName || item.agency?.name || item.partnerName || (item.agencyId ? `Acente#${item.agencyId.slice(-4)}` : null),
+                        agencyName: item.agencyName || item.agency?.name || (item.agencyId ? `Acente#${item.agencyId.slice(-4)}` : (item.customerId ? 'Müşteri' : null)),
                         customer: {
                             ...item.customer,
                             name: item.contactName || item.customer?.name || item.passengerName || '',
@@ -2588,7 +2588,7 @@ export default function OperationsPage() {
                         pax: (item.adults || 1) + (item.children || 0) + (item.infants || 0),
                         assignedVehicleId: item.assignedVehicleId || item.metadata?.vehicleId || null,
                         contactName: item.contactName || item.customer?.name || item.passengerName || '',
-                        agencyName: item.agencyName || item.agency?.name || item.partnerName || (item.agencyId ? `Acente#${item.agencyId.slice(-4)}` : null),
+                        agencyName: item.agencyName || item.agency?.name || (item.agencyId ? `Acente#${item.agencyId.slice(-4)}` : (item.customerId ? 'Müşteri' : null)),
                         customer: {
                             ...item.customer,
                             name: item.contactName || item.customer?.name || item.passengerName || '',

@@ -1406,15 +1406,163 @@ router.post('/book', optionalAuthMiddleware, async (req, res) => {
             });
         };
         
+        // ── Coupon / Campaign Discount ──
+        const couponCode = bookingData.couponCode || req.body.couponCode;
+        let appliedDiscount = 0;
+        let appliedCampaignId = null;
+
+        if (couponCode) {
+            try {
+                const campaign = await prisma.campaign.findFirst({
+                    where: { code: couponCode.toUpperCase(), tenantId, isActive: true }
+                });
+                if (campaign) {
+                    const now = new Date();
+                    const totalAmount = Number(bookingData.price || req.body.price || 0);
+                    const withinDate = now >= campaign.startDate && now <= campaign.endDate;
+                    const withinLimit = campaign.usageLimit === null || campaign.usedCount < campaign.usageLimit;
+                    const meetsMin = !campaign.minOrderAmount || totalAmount >= Number(campaign.minOrderAmount);
+                    const vehicleOk = campaign.vehicleTypes.length === 0 || campaign.vehicleTypes.includes(bookingData.vehicleType || req.body.vehicleType || '');
+
+                    let userOk = true;
+                    if (userId && campaign.usageLimitPerUser !== null) {
+                        const userUsages = await prisma.campaignUsage.count({ where: { campaignId: campaign.id, userId } });
+                        if (userUsages >= campaign.usageLimitPerUser) userOk = false;
+                    }
+
+                    if (withinDate && withinLimit && meetsMin && vehicleOk && userOk) {
+                        if (campaign.discountType === 'PERCENTAGE') {
+                            appliedDiscount = totalAmount * Number(campaign.discountValue) / 100;
+                            if (campaign.maxDiscount && appliedDiscount > Number(campaign.maxDiscount)) {
+                                appliedDiscount = Number(campaign.maxDiscount);
+                            }
+                        } else {
+                            appliedDiscount = Number(campaign.discountValue);
+                        }
+                        appliedDiscount = Math.min(appliedDiscount, totalAmount);
+                        appliedDiscount = Math.round(appliedDiscount * 100) / 100;
+                        appliedCampaignId = campaign.id;
+                    }
+                }
+            } catch (couponErr) {
+                console.error('[Coupon] validation error (non-blocking):', couponErr);
+            }
+        }
+
+        // Inject discount into booking data before creation
+        const injectDiscount = (data) => {
+            if (appliedDiscount > 0 && !data._discountApplied) {
+                const origPrice = Number(data.price || 0);
+                data.price = Math.round((origPrice - appliedDiscount) * 100) / 100;
+                data._discountApplied = true;
+                data._originalPrice = origPrice;
+                data._couponDiscount = appliedDiscount;
+                data._couponCode = couponCode?.toUpperCase();
+            }
+            return data;
+        };
+
         // Create outbound booking
-        const outboundBooking = await createBooking(outbound || req.body);
+        const outboundData = injectDiscount(outbound || { ...req.body });
+        let outboundBooking = await createBooking(outboundData);
         
-        // Create return booking if round trip
+        // Create return booking if round trip (no double-discount)
         let returnBooking = null;
         if (isRoundTripFormat && returnPayload) {
             returnBooking = await createBooking(returnPayload, outboundBooking.bookingNumber);
         }
-        
+
+        // Record coupon usage + update campaign counter
+        if (appliedCampaignId && appliedDiscount > 0) {
+            try {
+                await prisma.campaignUsage.create({
+                    data: {
+                        campaignId: appliedCampaignId,
+                        userId: userId || null,
+                        bookingId: outboundBooking.id,
+                        discount: appliedDiscount,
+                    }
+                });
+                await prisma.campaign.update({
+                    where: { id: appliedCampaignId },
+                    data: { usedCount: { increment: 1 } }
+                });
+                // Store coupon info in booking metadata
+                await prisma.booking.update({
+                    where: { id: outboundBooking.id },
+                    data: {
+                        discount: appliedDiscount,
+                        metadata: {
+                            ...(outboundBooking.metadata || {}),
+                            couponCode: couponCode?.toUpperCase(),
+                            couponDiscount: appliedDiscount,
+                            originalPrice: outboundData._originalPrice,
+                        }
+                    }
+                });
+            } catch (usageErr) {
+                console.error('[Coupon] usage record error (non-blocking):', usageErr);
+            }
+        }
+
+        // ── Loyalty Points Earn ──
+        if (userId) {
+            try {
+                const tenantForLoyalty = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { settings: true } });
+                const loyaltySettings = tenantForLoyalty?.settings?.loyalty;
+                if (loyaltySettings?.enabled) {
+                    const pointsPerUnit = loyaltySettings.pointsPerUnit || 10;
+                    const totalSpent = Number(outboundBooking.total) + (returnBooking ? Number(returnBooking.total) : 0);
+                    const earnedPoints = Math.floor(totalSpent * pointsPerUnit);
+                    if (earnedPoints > 0) {
+                        await prisma.loyaltyTransaction.create({
+                            data: {
+                                tenantId,
+                                userId,
+                                type: 'EARN',
+                                points: earnedPoints,
+                                bookingId: outboundBooking.id,
+                                description: `Rezervasyon #${outboundBooking.bookingNumber} - ${earnedPoints} puan kazanıldı`,
+                            }
+                        });
+                    }
+                }
+            } catch (loyaltyErr) {
+                console.error('[Loyalty] earn error (non-blocking):', loyaltyErr);
+            }
+        }
+
+        // ── Server-side Auto-Approve ──
+        // If the tenant has autoApproveMode enabled, push the freshly created booking
+        // straight into Operation or Pool (CONFIRMED + metadata.operationalStatus) without
+        // requiring an admin to open the Rezervasyonlar page.
+        try {
+            const tenantForAuto = await prisma.tenant.findUnique({
+                where: { id: tenantId },
+                select: { settings: true }
+            });
+            const mode = tenantForAuto?.settings?.operationSettings?.autoApproveMode;
+            if (mode === 'operation' || mode === 'pool') {
+                const subStatus = mode === 'operation' ? 'IN_OPERATION' : 'IN_POOL';
+                const applyAutoApprove = async (b) => {
+                    if (!b) return b;
+                    const updated = await prisma.booking.update({
+                        where: { id: b.id },
+                        data: {
+                            status: 'CONFIRMED',
+                            metadata: { ...(b.metadata || {}), operationalStatus: subStatus }
+                        }
+                    });
+                    return updated;
+                };
+                outboundBooking = await applyAutoApprove(outboundBooking);
+                if (returnBooking) returnBooking = await applyAutoApprove(returnBooking);
+                console.log(`[AutoApprove] tenant=${tenantId} mode=${mode} → ${outboundBooking.bookingNumber}${returnBooking ? ', ' + returnBooking.bookingNumber : ''}`);
+            }
+        } catch (autoErr) {
+            console.error('[AutoApprove] failed (non-blocking):', autoErr);
+        }
+
         const booking = outboundBooking; // For backward compatibility
 
         const io = req.app.get('io');
@@ -1655,6 +1803,7 @@ router.get('/bookings', authMiddleware, async (req, res) => {
             vehicleId: b.metadata?.assignedVehicleId || b.metadata?.vehicleId || null, // UI compatibility
             // Nested relations mapping expected by the frontend:
             customer: b.customer,
+            customerId: b.customerId || null,
             agencyName: b.agency?.name || b.agency?.companyName || b.customer?.agency?.name || b.customer?.agency?.companyName || b.metadata?.agencyName || null,
             agencyId: b.agencyId || b.customer?.agency?.id || null,
             // Fatura alanları
@@ -3350,6 +3499,197 @@ router.post('/partner/assign', authMiddleware, async (req, res) => {
     } catch (error) {
         console.error('Partner assign error:', error);
         res.status(500).json({ success: false, error: 'Atama yapılamadı' });
+    }
+});
+
+// ════════════════════════════════════════════════════════════════════
+// GUEST BOOKING TRACKING (Public – no auth required)
+// Verified by bookingNumber + contactEmail (or last-4 of contactPhone)
+// ════════════════════════════════════════════════════════════════════
+
+/**
+ * GET /api/transfer/track
+ * Query: bookingNumber, email (or phone last-4 as `phone4`)
+ */
+router.get('/track', async (req, res) => {
+    try {
+        const { bookingNumber, email, phone4 } = req.query;
+        if (!bookingNumber) {
+            return res.status(400).json({ success: false, error: 'Rezervasyon numarası gerekli' });
+        }
+        if (!email && !phone4) {
+            return res.status(400).json({ success: false, error: 'E-posta veya telefon son 4 hanesi gerekli' });
+        }
+
+        const tenantId = req.tenant?.id;
+        const booking = await prisma.booking.findFirst({
+            where: { bookingNumber: String(bookingNumber), ...(tenantId ? { tenantId } : {}) },
+            select: {
+                id: true, bookingNumber: true,
+                status: true, paymentStatus: true,
+                startDate: true, total: true, currency: true,
+                contactName: true, contactPhone: true, contactEmail: true,
+                adults: true, children: true, infants: true,
+                pickedUpAt: true, droppedOffAt: true,
+                specialRequests: true, metadata: true, createdAt: true,
+                driver: {
+                    select: {
+                        id: true, fullName: true, phone: true, avatar: true,
+                        metadata: true,
+                    }
+                }
+            }
+        });
+
+        if (!booking) {
+            return res.status(404).json({ success: false, error: 'Rezervasyon bulunamadı' });
+        }
+
+        // Verify identity: email OR last-4 of phone
+        const emailMatch = email && booking.contactEmail &&
+            booking.contactEmail.toLowerCase().trim() === String(email).toLowerCase().trim();
+        const phoneRaw = (booking.contactPhone || '').replace(/\D/g, '');
+        const phoneMatch = phone4 && phoneRaw.endsWith(String(phone4).replace(/\D/g, ''));
+        if (!emailMatch && !phoneMatch) {
+            return res.status(403).json({ success: false, error: 'Kimlik doğrulama başarısız. E-posta veya telefon numarası eşleşmiyor.' });
+        }
+
+        // Build clean response (same shape as /api/customer/bookings/:id)
+        const meta = booking.metadata || {};
+        const cleanMeta = {
+            pickup: meta.pickup,
+            dropoff: meta.dropoff,
+            pickupCoordinates: meta.pickupCoordinates,
+            dropoffCoordinates: meta.dropoffCoordinates,
+            vehicleType: meta.vehicleType,
+            vehiclePlate: meta.vehiclePlate,
+            flightNumber: meta.flightNumber,
+            paymentMethod: meta.paymentMethod,
+            rating: meta.rating ? { overall: meta.rating.overall, submittedAt: meta.rating.submittedAt } : null,
+            ratingToken: meta.ratingToken,
+        };
+
+        const minutesUntilPickup = booking.startDate
+            ? Math.round((new Date(booking.startDate).getTime() - Date.now()) / 60000)
+            : null;
+        const trackingAvailable = (
+            booking.status === 'IN_PROGRESS'
+        ) || (
+            ['CONFIRMED', 'PENDING'].includes(booking.status) &&
+            minutesUntilPickup !== null && minutesUntilPickup <= 30 && minutesUntilPickup >= -120
+        );
+
+        let driverInfo = null;
+        if (booking.driver) {
+            const dm = booking.driver.metadata || {};
+            driverInfo = {
+                id: booking.driver.id,
+                fullName: booking.driver.fullName,
+                // Only expose phone if tracking is active
+                phone: trackingAvailable ? booking.driver.phone : null,
+                avatar: booking.driver.avatar,
+                vehicleType: dm.vehicleType || cleanMeta.vehicleType || null,
+                vehiclePlate: dm.licensePlate || dm.vehiclePlate || cleanMeta.vehiclePlate || null,
+                vehicleColor: dm.vehicleColor || null,
+                vehicleModel: dm.vehicleModel || null,
+                rating: null,
+                ratingCount: 0,
+            };
+            try {
+                const rated = await prisma.booking.findMany({
+                    where: { driverId: booking.driver.id, metadata: { path: ['rating', 'submittedAt'], not: null } },
+                    select: { metadata: true },
+                });
+                const scores = rated.map(b => Number(b.metadata?.rating?.overall)).filter(n => Number.isFinite(n) && n > 0);
+                driverInfo.rating = scores.length ? Math.round((scores.reduce((s, n) => s + n, 0) / scores.length) * 10) / 10 : null;
+                driverInfo.ratingCount = scores.length;
+            } catch { /* non-fatal */ }
+        }
+
+        res.json({
+            success: true,
+            data: {
+                ...booking,
+                metadata: cleanMeta,
+                driver: driverInfo,
+                minutesUntilPickup,
+                trackingAvailable,
+            }
+        });
+    } catch (error) {
+        console.error('[Track] error:', error);
+        res.status(500).json({ success: false, error: 'Sorgu yapılamadı' });
+    }
+});
+
+/**
+ * GET /api/transfer/track/:id/driver-location
+ * Query: email (or phone4) for verification
+ */
+router.get('/track/:id/driver-location', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { email, phone4 } = req.query;
+        if (!email && !phone4) {
+            return res.status(400).json({ success: false, error: 'E-posta veya telefon son 4 hanesi gerekli' });
+        }
+
+        const tenantId = req.tenant?.id;
+        const booking = await prisma.booking.findFirst({
+            where: { id: String(id), ...(tenantId ? { tenantId } : {}) },
+            select: { id: true, status: true, startDate: true, driverId: true, contactEmail: true, contactPhone: true }
+        });
+        if (!booking) return res.status(404).json({ success: false, error: 'Rezervasyon bulunamadı' });
+
+        const emailMatch = email && booking.contactEmail &&
+            booking.contactEmail.toLowerCase().trim() === String(email).toLowerCase().trim();
+        const phoneRaw = (booking.contactPhone || '').replace(/\D/g, '');
+        const phoneMatch = phone4 && phoneRaw.endsWith(String(phone4).replace(/\D/g, ''));
+        if (!emailMatch && !phoneMatch) {
+            return res.status(403).json({ success: false, error: 'Kimlik doğrulama başarısız' });
+        }
+
+        if (!booking.driverId) return res.status(404).json({ success: false, error: 'Henüz şoför atanmamış' });
+
+        const minutesUntilPickup = booking.startDate
+            ? (new Date(booking.startDate).getTime() - Date.now()) / 60000 : null;
+        const inProgress = booking.status === 'IN_PROGRESS';
+        const allowed = inProgress || (minutesUntilPickup !== null && minutesUntilPickup <= 30 && minutesUntilPickup >= -180);
+        if (!allowed) {
+            return res.status(403).json({
+                success: false,
+                error: 'Şoför konumu transfer zamanına 30 dakika kala paylaşılır',
+                minutesUntilPickup
+            });
+        }
+
+        const onlineDrivers = req.app.get('onlineDrivers') || {};
+        const info = onlineDrivers[booking.driverId];
+        let location = info?.location || null;
+        let lastSeen = info?.lastSeen || null;
+        if (!location) {
+            const driver = await prisma.user.findUnique({
+                where: { id: booking.driverId },
+                select: { metadata: true, lastSeenAt: true }
+            });
+            const dm = driver?.metadata || {};
+            if (dm.lastLat && dm.lastLng) {
+                location = { lat: Number(dm.lastLat), lng: Number(dm.lastLng), heading: dm.lastHeading || 0, speed: dm.lastSpeed || 0 };
+            }
+            if (driver?.lastSeenAt) lastSeen = new Date(driver.lastSeenAt).getTime();
+        }
+
+        res.json({
+            success: true,
+            data: {
+                location,
+                online: !!info?.location,
+                lastSeen,
+            }
+        });
+    } catch (error) {
+        console.error('[Track] driver-location error:', error);
+        res.status(500).json({ success: false, error: 'Konum alınamadı' });
     }
 });
 

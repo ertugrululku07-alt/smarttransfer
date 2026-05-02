@@ -107,7 +107,7 @@ const HomePage: React.FC = () => {
   const [heroImages, setHeroImages] = useState<string[]>([]);
   const [googleMapsSettings, setGoogleMapsSettings] = useState<{ country?: string }>({});
   const [heroBackground, setHeroBackground] = useState<{ type: 'image' | 'video', videoUrl: string }>({ type: 'image', videoUrl: '' });
-  const [homepageSections, setHomepageSections] = useState<string[]>(['howItWorks', 'whyUs', 'stats', 'popularRoutes', 'testimonials', 'faq', 'cta']);
+  const [homepageSections, setHomepageSections] = useState<string[]>(['howItWorks', 'whyUs', 'stats', 'popularRoutes', 'bookingLookup', 'testimonials', 'faq', 'cta']);
 
   // Dynamic homepage content from tenant settings
   const [faqItems, setFaqItems] = useState<{ question: string; answer: string }[]>([]);
@@ -142,6 +142,32 @@ const HomePage: React.FC = () => {
   const [selectedTransfer, setSelectedTransfer] = useState<TransferOption | null>(null);
   const [bookingLoading, setBookingLoading] = useState(false);
   const [form] = Form.useForm();
+
+  // Coupon
+  const [couponCode, setCouponCode] = useState('');
+  const [couponResult, setCouponResult] = useState<{ discount: number; name: string; code: string; newTotal: number } | null>(null);
+  const [couponLoading, setCouponLoading] = useState(false);
+  const [couponError, setCouponError] = useState('');
+
+  const validateCoupon = async () => {
+    if (!couponCode.trim()) return;
+    setCouponLoading(true);
+    setCouponResult(null);
+    setCouponError('');
+    try {
+      const res = await axios.post(`${API_BASE}/api/campaigns/validate`, {
+        code: couponCode.trim(),
+        orderAmount: selectedTransfer?.price || 0,
+        vehicleType: selectedTransfer?.vehicleType || '',
+      });
+      if (res.data.success) setCouponResult(res.data.data);
+    } catch (e: any) {
+      setCouponError(e?.response?.data?.error || 'Ge\u00e7ersiz kupon');
+      setCouponResult(null);
+    } finally {
+      setCouponLoading(false);
+    }
+  };
 
   useEffect(() => {
     const fetchConfig = async () => {
@@ -280,6 +306,7 @@ const HomePage: React.FC = () => {
           flightNumber: values.flightNumber || null, flightArrivalTime: null,
           meetAndGreet: values.meetAndGreet || false, notes: values.notes || '',
           childAges, babySeat: babySeatRequired,
+          couponCode: couponResult?.code || undefined,
         };
         const res = await axios.post(`${API_BASE}/api/bookings`, payload);
         if (res.data?.success) {
@@ -797,6 +824,50 @@ const HomePage: React.FC = () => {
                   </div>
                 </div>
               );
+            case 'bookingLookup':
+              return (
+                <div key="bookingLookup" style={{ background: theme.testimonialBg, padding: 'clamp(48px, 8vw, 80px) 16px' }}>
+                  <div style={{ maxWidth: 900, margin: '0 auto' }}>
+                    <div style={{ textAlign: 'center', marginBottom: 40 }}>
+                      <Text style={{ color: theme.sectionAccent, fontWeight: 600, fontSize: 13, textTransform: 'uppercase' as const, letterSpacing: 2 }}>Rezervasyon Takip</Text>
+                      <Title level={2} style={{ marginTop: 8, marginBottom: 8 }}>Rezervasyonunuzu Sorgulayın</Title>
+                      <Text type="secondary" style={{ fontSize: 15 }}>Rezervasyon numaranızı ve e-posta adresinizi girerek transferinizin durumunu, atanan şoförü ve aracı öğrenin.</Text>
+                    </div>
+                    <Card style={{ borderRadius: 16, boxShadow: '0 4px 24px rgba(0,0,0,.07)', border: 'none' }} styles={{ body: { padding: '32px 36px' } }}>
+                      <Form
+                        layout="vertical"
+                        onFinish={(vals: any) => {
+                          const id = String(vals.identifier || '').trim();
+                          const bn = String(vals.bookingNumber || '').trim();
+                          if (!bn || !id) { message.warning('Rezervasyon numarası ve e-posta / telefon gerekli'); return; }
+                          const params = new URLSearchParams({ bookingNumber: bn });
+                          if (id.includes('@')) params.set('email', id);
+                          else params.set('phone4', id.replace(/\D/g, '').slice(-4));
+                          router.push(`/track?${params.toString()}`);
+                        }}
+                      >
+                        <Row gutter={[16, 0]}>
+                          <Col xs={24} sm={10}>
+                            <Form.Item name="bookingNumber" label="Rezervasyon Numarası" rules={[{ required: true, message: 'Rezervasyon numarası girin' }]}>
+                              <Input size="large" placeholder="TR-20260501-1234" prefix={<CheckCircleOutlined style={{ color: '#9ca3af' }} />} allowClear />
+                            </Form.Item>
+                          </Col>
+                          <Col xs={24} sm={10}>
+                            <Form.Item name="identifier" label="E-posta veya Telefon Son 4 Hanesi" rules={[{ required: true, message: 'E-posta veya telefon son 4 hanesi girin' }]}>
+                              <Input size="large" placeholder="ornek@email.com veya 4567" prefix={<SearchOutlined style={{ color: '#9ca3af' }} />} allowClear />
+                            </Form.Item>
+                          </Col>
+                          <Col xs={24} sm={4} style={{ display: 'flex', alignItems: 'flex-end', paddingBottom: 24 }}>
+                            <Button type="primary" htmlType="submit" size="large" icon={<ArrowRightOutlined />} block style={{ background: theme.primaryColor, borderColor: theme.primaryColor, borderRadius: 8 }}>
+                              Sorgula
+                            </Button>
+                          </Col>
+                        </Row>
+                      </Form>
+                    </Card>
+                  </div>
+                </div>
+              );
             default:
               return null;
           }
@@ -841,6 +912,31 @@ const HomePage: React.FC = () => {
               </>
             )}
             <Form.Item label={t('booking.notes')} name="notes"><Input.TextArea rows={3} placeholder={t('booking.notesPlaceholder')} /></Form.Item>
+            <Divider style={{ margin: '12px 0' }} />
+            <div style={{ marginBottom: 8 }}>
+              <Text strong style={{ fontSize: 13, color: '#4f46e5' }}>Kupon Kodu</Text>
+            </div>
+            <Space.Compact style={{ width: '100%' }}>
+              <Input
+                value={couponCode}
+                onChange={e => { setCouponCode(e.target.value); setCouponResult(null); setCouponError(''); }}
+                placeholder="SUMMER25"
+                style={{ textTransform: 'uppercase' }}
+                allowClear
+              />
+              <Button type="primary" loading={couponLoading} onClick={validateCoupon}
+                style={{ background: '#4f46e5', borderColor: '#4f46e5' }}>Uygula</Button>
+            </Space.Compact>
+            {couponResult && (
+              <div style={{ marginTop: 8, padding: '8px 12px', background: '#f0fdf4', borderRadius: 8, border: '1px solid #bbf7d0' }}>
+                <Text style={{ color: '#059669', fontWeight: 600 }}>
+                  \u2714 {couponResult.name} \u2014 {couponResult.discount.toFixed(2)}\u20ac indirim
+                </Text>
+              </div>
+            )}
+            {couponError && (
+              <div style={{ marginTop: 8 }}><Text type="danger" style={{ fontSize: 13 }}>{couponError}</Text></div>
+            )}
           </Form>
         </Modal>
       </Content>

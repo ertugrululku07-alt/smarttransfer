@@ -85,17 +85,19 @@ model Tenant {
   deletedAt DateTime? // Soft delete
 
   // Injected Relations
-  accounts        Account[]
-  banks           Bank[]
-  messages        Message[]
-  agencies        Agency[]
-  agencyDeposits  AgencyDeposit[]
-  extraServices   ExtraService[]
-  transactions    Transaction[]
-  zones           Zone[]
-  activityLogs    ActivityLog[]
-  speedViolations SpeedViolation[]
-  fuelRecords     FuelRecord[]
+  accounts             Account[]
+  banks                Bank[]
+  messages             Message[]
+  agencies             Agency[]
+  agencyDeposits       AgencyDeposit[]
+  extraServices        ExtraService[]
+  transactions         Transaction[]
+  zones                Zone[]
+  activityLogs         ActivityLog[]
+  speedViolations      SpeedViolation[]
+  fuelRecords          FuelRecord[]
+  campaigns            Campaign[]
+  loyaltyTransactions  LoyaltyTransaction[]
 
   @@index([status])
   @@index([slug])
@@ -199,6 +201,8 @@ model User {
   fuelRecords            FuelRecord[]            @relation("DriverFuelRecords")
   customerChats          ChatSession[]           @relation("CustomerChats")
   agentChats             ChatSession[]           @relation("AgentChats")
+  campaignUsages         CampaignUsage[]
+  loyaltyTransactions    LoyaltyTransaction[]
   // Financial Snapshot
   balance                Decimal                 @default(0) @db.Decimal(15, 2)
   debit                  Decimal                 @default(0) @db.Decimal(15, 2)
@@ -872,6 +876,10 @@ model Booking {
   // Payments
   payments          Payment[]
   driverCollections DriverCollection[]
+
+  // Loyalty & Campaigns
+  campaignUsages      CampaignUsage[]
+  loyaltyTransactions LoyaltyTransaction[]
 
   // Pickup/Dropoff Tracking (Actual times recorded by driver)
   pickedUpAt   DateTime? // When driver picked up the customer
@@ -1902,4 +1910,109 @@ enum ChatSender {
   USER
   BOT
   ADMIN
+}
+
+// ============================================================================
+// CAMPAIGN & COUPON SYSTEM
+// ============================================================================
+
+model Campaign {
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+
+  name        String
+  description String?
+  code        String // Coupon code (e.g. SUMMER20)
+
+  // Discount
+  discountType   DiscountType
+  discountValue  Decimal  @db.Decimal(10, 2) // 20 for 20% or 20 for 20 TRY
+  maxDiscount    Decimal? @db.Decimal(10, 2) // Cap for percentage discounts
+  minOrderAmount Decimal? @db.Decimal(10, 2) // Min order to apply
+
+  // Validity
+  startDate DateTime
+  endDate   DateTime
+
+  // Limits
+  usageLimit        Int? // Total max uses (null = unlimited)
+  usageLimitPerUser Int? // Max uses per user (null = unlimited)
+  usedCount         Int  @default(0)
+
+  // Filters
+  vehicleTypes String[] @default([])
+
+  // Status
+  isActive Boolean @default(true)
+
+  // Relations
+  usages CampaignUsage[]
+
+  metadata  Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, code])
+  @@index([tenantId, isActive])
+  @@index([code])
+}
+
+enum DiscountType {
+  PERCENTAGE
+  FIXED_AMOUNT
+}
+
+model CampaignUsage {
+  id         String   @id @default(uuid())
+  campaignId String
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  bookingId String?
+  booking   Booking? @relation(fields: [bookingId], references: [id])
+
+  discount Decimal @db.Decimal(10, 2) // Actual discount applied
+
+  createdAt DateTime @default(now())
+
+  @@index([campaignId])
+  @@index([userId])
+  @@index([bookingId])
+}
+
+// ============================================================================
+// LOYALTY PROGRAM
+// ============================================================================
+// Program settings (tiers, points-per-unit, etc.) are stored in Tenant.settings.loyalty
+
+model LoyaltyTransaction {
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  type   LoyaltyTxType
+  points Int // Positive = earn, negative = redeem
+
+  bookingId   String?
+  booking     Booking? @relation(fields: [bookingId], references: [id])
+  description String?
+
+  createdAt DateTime @default(now())
+
+  @@index([tenantId, userId])
+  @@index([userId])
+  @@index([bookingId])
+}
+
+enum LoyaltyTxType {
+  EARN
+  REDEEM
+  EXPIRE
+  BONUS
+  ADJUST
 }

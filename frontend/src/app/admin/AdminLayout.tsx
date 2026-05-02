@@ -21,7 +21,9 @@ import {
   HomeOutlined,
   BellOutlined,
   WarningOutlined,
-  CloseCircleOutlined
+  CloseCircleOutlined,
+  GiftOutlined,
+  TagOutlined
 } from '@ant-design/icons';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../context/AuthContext';
@@ -164,6 +166,8 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, selectedKey = 'dash
               case 'personnel-list': return 'personnel-definitions';
               case 'general-reports':
               case 'logs': return 'reports';
+              case 'campaigns':
+              case 'loyalty': return 'campaigns-loyalty';
               case 'site-settings':
               case 'pages':
               case 'users':
@@ -474,6 +478,23 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, selectedKey = 'dash
                   key: 'driver-ratings',
                   label: 'Şoför Puanlama',
                   onClick: () => router.push('/admin/personnel/ratings')
+                }
+              ]
+            },
+            {
+              key: 'campaigns-loyalty',
+              icon: <GiftOutlined />,
+              label: 'Kampanyalar & Sadakat',
+              children: [
+                {
+                  key: 'campaigns',
+                  label: 'Kampanya Yönetimi',
+                  onClick: () => router.push('/admin/campaigns')
+                },
+                {
+                  key: 'loyalty',
+                  label: 'Sadakat Programı',
+                  onClick: () => router.push('/admin/loyalty')
                 }
               ]
             },

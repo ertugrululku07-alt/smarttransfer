@@ -105,6 +105,32 @@ const TransferBookingContent: React.FC = () => {
     const [bookingSuccess, setBookingSuccess] = useState(false);
     const [bookingNumber, setBookingNumber] = useState<string | null>(null);
 
+    // Coupon
+    const [couponCode, setCouponCode] = useState('');
+    const [couponResult, setCouponResult] = useState<{ discount: number; name: string; code: string; newTotal: number; campaignId: string } | null>(null);
+    const [couponLoading, setCouponLoading] = useState(false);
+    const [couponError, setCouponError] = useState('');
+
+    const validateCoupon = async () => {
+        if (!couponCode.trim()) return;
+        setCouponLoading(true);
+        setCouponResult(null);
+        setCouponError('');
+        try {
+            const res = await apiClient.post('/api/campaigns/validate', {
+                code: couponCode.trim(),
+                orderAmount: grandTotal || convertedVehiclePrice,
+                vehicleType: vehicleDetails?.vehicleType || '',
+            });
+            if (res.data.success) setCouponResult(res.data.data);
+        } catch (e: any) {
+            setCouponError(e?.response?.data?.error || 'Ge\u00e7ersiz kupon kodu');
+            setCouponResult(null);
+        } finally {
+            setCouponLoading(false);
+        }
+    };
+
     // Params
     const vehicleId = searchParams.get('vehicleId');
     const returnVehicleId = searchParams.get('returnVehicleId');
@@ -525,7 +551,8 @@ const TransferBookingContent: React.FC = () => {
                 } : undefined,
                 // Round trip info for linking
                 isRoundTrip: isRoundTrip,
-                tripLeg: 'OUTBOUND'
+                tripLeg: 'OUTBOUND',
+                couponCode: couponResult?.code || undefined,
             };
 
             // Build return payload if round trip
@@ -1098,6 +1125,29 @@ const TransferBookingContent: React.FC = () => {
 
                                 <Divider />
 
+                                <Title level={5}>Kupon Kodu</Title>
+                                <Space.Compact style={{ width: '100%', marginBottom: 16 }}>
+                                    <Input
+                                        value={couponCode}
+                                        onChange={e => { setCouponCode(e.target.value); setCouponResult(null); setCouponError(''); }}
+                                        placeholder="SUMMER25"
+                                        style={{ textTransform: 'uppercase' }}
+                                        allowClear
+                                    />
+                                    <Button type="primary" loading={couponLoading} onClick={validateCoupon}
+                                        style={{ background: '#4f46e5', borderColor: '#4f46e5' }}>Uygula</Button>
+                                </Space.Compact>
+                                {couponResult && (
+                                    <div style={{ marginBottom: 16, padding: '8px 12px', background: '#f0fdf4', borderRadius: 8, border: '1px solid #bbf7d0' }}>
+                                        <Text style={{ color: '#059669', fontWeight: 600 }}>
+                                            \u2714 {couponResult.name} \u2014 {formatPrice(couponResult.discount, selectedCurrency)} indirim
+                                        </Text>
+                                    </div>
+                                )}
+                                {couponError && (
+                                    <div style={{ marginBottom: 16 }}><Text type="danger" style={{ fontSize: 13 }}>{couponError}</Text></div>
+                                )}
+
                                 <Title level={5}>Ödeme Yöntemi</Title>
                                 <Form.Item name="paymentMethod">
                                     <Radio.Group>
@@ -1282,11 +1332,19 @@ const TransferBookingContent: React.FC = () => {
 
                                 <Divider style={{ margin: '12px 0' }} />
 
+                                {/* Coupon Discount */}
+                                {couponResult && (
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                                        <Text style={{ color: '#059669', fontSize: 13 }}>Kupon ({couponResult.code})</Text>
+                                        <Text style={{ color: '#059669', fontWeight: 700 }}>-{formatPrice(couponResult.discount, selectedCurrency)}</Text>
+                                    </div>
+                                )}
+
                                 {/* Grand Total */}
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <Title level={5} style={{ margin: 0 }}>Toplam Tutar</Title>
                                     <Title level={3} style={{ margin: 0, color: '#52c41a' }}>
-                                        {formatPrice(grandTotal, selectedCurrency)}
+                                        {formatPrice(couponResult ? grandTotal - couponResult.discount : grandTotal, selectedCurrency)}
                                     </Title>
                                 </div>
 

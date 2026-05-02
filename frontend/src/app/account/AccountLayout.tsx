@@ -12,6 +12,7 @@ import {
     DashboardOutlined,
     RightOutlined,
     LeftOutlined,
+    GiftOutlined,
 } from '@ant-design/icons';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '../context/AuthContext';
@@ -25,6 +26,7 @@ const NAV_ITEMS = [
     { key: 'dashboard', icon: <DashboardOutlined />, label: 'Anasayfa', path: '/account' },
     { key: 'bookings',  icon: <CarOutlined />,       label: 'Rezervasyonlarım', path: '/account/bookings' },
     { key: 'messages',  icon: <MessageOutlined />,   label: 'Mesajlar', path: '/account/messages' },
+    { key: 'loyalty',   icon: <GiftOutlined />,      label: 'Sadakat Puanım', path: '/account/loyalty' },
     { key: 'profile',   icon: <UserOutlined />,      label: 'Profilim', path: '/account/profile' },
 ];
 
@@ -39,6 +41,7 @@ const AccountLayout: React.FC<AccountLayoutProps> = ({ children }) => {
     const selectedKey = (() => {
         if (pathname.startsWith('/account/bookings')) return 'bookings';
         if (pathname.startsWith('/account/messages')) return 'messages';
+        if (pathname.startsWith('/account/loyalty')) return 'loyalty';
         if (pathname.startsWith('/account/profile')) return 'profile';
         return 'dashboard';
     })();

@@ -94,7 +94,7 @@ router.get('/settings', async (req, res) => {
  */
 router.put('/settings', authMiddleware, async (req, res) => {
     try {
-        const { googleMaps, heroBackground, definitions, salaryPaymentDay, hubs, siteTheme, branding, homepageSections, homepageFaq, homepageStats, homepageRoutes, homepageFeatures, customTheme, timeDefinitions, socialMedia, emailSettings, emailTemplate, whatsappSettings, driverSettings, flightTracking } = req.body;
+        const { googleMaps, heroBackground, definitions, salaryPaymentDay, hubs, siteTheme, branding, homepageSections, homepageFaq, homepageStats, homepageRoutes, homepageFeatures, customTheme, timeDefinitions, socialMedia, emailSettings, emailTemplate, whatsappSettings, driverSettings, flightTracking, operationSettings } = req.body;
 
         // Check permission
         if (req.user.roleType !== 'TENANT_ADMIN' && req.user.roleType !== 'SUPER_ADMIN') {
@@ -164,7 +164,11 @@ router.put('/settings', authMiddleware, async (req, res) => {
             flightTracking: flightTracking ? {
                 ...currentSettings.flightTracking,
                 ...flightTracking
-            } : currentSettings.flightTracking
+            } : currentSettings.flightTracking,
+            operationSettings: operationSettings ? {
+                ...currentSettings.operationSettings,
+                ...operationSettings
+            } : currentSettings.operationSettings
         };
 
         const updatedTenant = await prisma.tenant.update({

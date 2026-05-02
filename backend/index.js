@@ -110,6 +110,10 @@ app.use('/api/dashboard', tenantMiddleware, dashboardRoutes);
 // Transfer module routes
 app.use('/api/transfer', tenantMiddleware, transferRoutes);
 
+// Campaigns & Loyalty routes
+const campaignRoutes = require('./src/routes/campaigns');
+app.use('/api/campaigns', tenantMiddleware, campaignRoutes);
+
 // Vehicle routes
 const vehicleRoutes = require('./src/routes/vehicles');
 app.use('/api/vehicles', tenantMiddleware, vehicleRoutes);

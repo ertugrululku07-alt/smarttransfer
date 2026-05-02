@@ -815,7 +815,7 @@ const TransfersPage: React.FC = () => {
 
     useEffect(() => {
         const init = async () => {
-            // 1. Load preferences
+            // 1. Load personal UI preferences (column titles, colors, visibility, ordering)
             let savedMode: 'off'|'operation'|'pool' = 'off';
             try {
                 const metaRes = await apiClient.get('/api/auth/metadata');
@@ -825,13 +825,27 @@ const TransfersPage: React.FC = () => {
                     if (prefs.visibleCols) setVisibleCols(prefs.visibleCols);
                     if (prefs.statusColors) setStatusColors(prefs.statusColors);
                     if (prefs.colOrder) setColOrder(prefs.colOrder);
-                    if (prefs.autoApprove) { savedMode = prefs.autoApprove; setAutoApprove(savedMode); autoApproveRef.current = savedMode; }
+                    // Legacy fallback: older per-user autoApprove value (migrated to tenant below)
+                    if (prefs.autoApprove) { savedMode = prefs.autoApprove; }
                 } else {
                     setStatusColors(loadColors());
                 }
             } catch {
                 setStatusColors(loadColors());
             }
+            // 1b. Auto-approve mode is now a TENANT-level setting so the backend can
+            //     apply it to new bookings even when no admin has the page open.
+            try {
+                const tenantRes = await apiClient.get('/api/tenant/info');
+                const tenantMode = tenantRes.data?.data?.tenant?.settings?.operationSettings?.autoApproveMode;
+                if (tenantMode === 'off' || tenantMode === 'operation' || tenantMode === 'pool') {
+                    savedMode = tenantMode;
+                }
+            } catch {
+                // ignore — fall back to legacy per-user value already captured in savedMode
+            }
+            setAutoApprove(savedMode);
+            autoApproveRef.current = savedMode;
             // 2. Load bookings
             setLoading(true);
             let bookingsList: Booking[] = [];
@@ -1009,7 +1023,7 @@ const TransfersPage: React.FC = () => {
         switch (key) {
             case 'bookingNumber': return b.bookingNumber || '';
             case 'passengerName': return b.passengerName || '';
-            case 'agency': return b.agencyName || b.agency?.name || b.partnerName || b.metadata?.agencyName || 'Direkt';
+            case 'agency': return b.agencyName || b.agency?.name || b.metadata?.agencyName || ((b as any).customerId ? 'Müşteri' : 'Direkt');
             case 'pickupLoc': return getPickup(b);
             case 'dropoffLoc': return getDropoff(b);
             case 'airportCode': return getAirportForRow(b) || '';
@@ -1079,7 +1093,7 @@ const TransfersPage: React.FC = () => {
         'Rezervasyon No': b.bookingNumber,
         'Transfer Zamanı': dayjs(b.pickupDateTime).format('DD.MM.YYYY HH:mm'),
         'Kayıt Tarihi': dayjs(b.createdAt).format('DD.MM.YYYY HH:mm'),
-        'Acente': b.agencyName||b.agency?.name||'Direkt',
+        'Acente': b.agencyName||b.agency?.name||((b as any).customerId?'Müşteri':'Direkt'),
         'Yolcu': b.passengerName,
         'Telefon': b.passengerPhone,
         'Alış Yeri': getPickup(b),
@@ -1153,8 +1167,8 @@ const TransfersPage: React.FC = () => {
           sorter:(a:Booking,b:Booking)=>dayjs(a.createdAt).unix()-dayjs(b.createdAt).unix(),
           render:(d:string)=><Space orientation="vertical" size={0}><Text style={{fontSize:12}}>{dayjs(d).format('DD.MM.YYYY')}</Text><Text type="secondary" style={{fontSize:11}}>{dayjs(d).format('HH:mm')}</Text></Space>},
         { ...makeHeader('agency'), key:'agency', width:colWidths.agency,
-          sorter:(a:Booking,b:Booking)=>{const na=a.agencyName||a.agency?.name||'Direkt';const nb=b.agencyName||b.agency?.name||'Direkt';return na.localeCompare(nb);},
-          render:(_:any,r:any)=>{const n=r.agencyName||r.agency?.name||r.partnerName||r.metadata?.agencyName||'Direkt';return <Text strong style={{fontSize:12}}>{n}</Text>;}},
+          sorter:(a:Booking,b:Booking)=>{const na=a.agencyName||a.agency?.name||((a as any).customerId?'Müşteri':'Direkt');const nb=b.agencyName||b.agency?.name||((b as any).customerId?'Müşteri':'Direkt');return na.localeCompare(nb);},
+          render:(_:any,r:any)=>{const n=r.agencyName||r.agency?.name||r.metadata?.agencyName||(r.customerId?'Müşteri':'Direkt');return <Text strong style={{fontSize:12}}>{n}</Text>;}},
         { ...makeHeader('passengerName'), dataIndex:'passengerName', key:'passengerName', width:colWidths.passengerName,
           sorter:(a:Booking,b:Booking)=>a.passengerName.localeCompare(b.passengerName),
           render:(text:string,r:Booking)=><Space orientation="vertical" size={0}>{renderEditableCell(r, 'contactName', <Text strong style={{fontSize:12}}>{text}</Text>)}{renderEditableCell(r, 'contactPhone', <Text type="secondary" style={{fontSize:11}}>{r.passengerPhone}</Text>)}</Space>},
@@ -1437,11 +1451,19 @@ const TransfersPage: React.FC = () => {
                             onChange={(val: 'off'|'operation'|'pool') => {
                                 setAutoApprove(val);
                                 autoApproveRef.current = val;
+                                // Persist at tenant level so the backend can apply it to
+                                // new bookings even when no admin has this page open.
+                                apiClient.put('/api/tenant/settings', {
+                                    operationSettings: { autoApproveMode: val }
+                                }).catch(() => {
+                                    message.error('Tenant ayarı kaydedilemedi');
+                                });
+                                // Also keep legacy per-user pref in sync (non-blocking)
                                 savePreferences({ autoApprove: val });
                                 if (val === 'off') {
-                                    message.info('Otomatik onaylama kapatıldı');
+                                    message.info('Otomatik onaylama kapatıldı (sistem geneli)');
                                 } else {
-                                    message.success(`Otomatik: ${val === 'operation' ? 'Operasyona Aktar' : 'Havuza At'} aktif`);
+                                    message.success(`Otomatik: ${val === 'operation' ? 'Operasyona Aktar' : 'Havuza At'} aktif (sistem geneli)`);
                                     bulkAutoApprove(val);
                                 }
                             }}
