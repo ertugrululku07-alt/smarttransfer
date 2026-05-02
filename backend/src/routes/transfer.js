@@ -7,6 +7,7 @@ const { authMiddleware, optionalAuthMiddleware } = require('../middleware/auth')
 const turf = require('@turf/turf');
 const flexpolyline = require('@here/flexpolyline');
 
+const bcrypt = require('bcryptjs');
 const router = express.Router();
 const prisma = require('../lib/prisma');
 
@@ -3032,6 +3033,324 @@ router.get('/popular-routes', async (req, res) => {
         success: true,
         data: popularRoutes
     });
+});
+
+// ============================================================================
+// PARTNER DRIVER MANAGEMENT
+// ============================================================================
+
+/**
+ * GET /api/transfer/partner/my-drivers
+ * List all drivers belonging to the logged-in partner
+ */
+router.get('/partner/my-drivers', authMiddleware, async (req, res) => {
+    try {
+        const partnerId = req.user.id;
+
+        const drivers = await prisma.user.findMany({
+            where: { partnerId, deletedAt: null },
+            select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                fullName: true,
+                email: true,
+                phone: true,
+                avatar: true,
+                status: true,
+                lastSeenAt: true,
+                lastLocationLat: true,
+                lastLocationLng: true,
+                lastLoginAt: true,
+                pushToken: true,
+                createdAt: true,
+                bookingsAsDriver: {
+                    where: {
+                        productType: 'TRANSFER',
+                        status: { in: ['CONFIRMED', 'IN_PROGRESS'] }
+                    },
+                    select: {
+                        id: true,
+                        bookingNumber: true,
+                        contactName: true,
+                        startDate: true,
+                        metadata: true,
+                        pickedUpAt: true,
+                        droppedOffAt: true,
+                    },
+                    orderBy: { startDate: 'asc' },
+                    take: 5,
+                },
+            },
+            orderBy: { firstName: 'asc' },
+        });
+
+        const driversWithStatus = drivers.map(d => {
+            const activeBooking = d.bookingsAsDriver.find(b => b.pickedUpAt && !b.droppedOffAt);
+            const nextBooking = d.bookingsAsDriver[0] || null;
+            const isOnline = d.lastSeenAt && (Date.now() - new Date(d.lastSeenAt).getTime()) < 10 * 60 * 1000;
+            return {
+                id: d.id,
+                firstName: d.firstName,
+                lastName: d.lastName,
+                fullName: d.fullName,
+                email: d.email,
+                phone: d.phone,
+                avatar: d.avatar,
+                status: d.status,
+                isOnline,
+                lastSeenAt: d.lastSeenAt,
+                lastLocation: d.lastLocationLat ? { lat: d.lastLocationLat, lng: d.lastLocationLng } : null,
+                hasPushToken: !!d.pushToken,
+                activeBookingsCount: d.bookingsAsDriver.length,
+                activeBooking: activeBooking ? {
+                    id: activeBooking.id,
+                    bookingNumber: activeBooking.bookingNumber,
+                    customerName: activeBooking.contactName,
+                    pickedUpAt: activeBooking.pickedUpAt,
+                } : null,
+                nextBooking: nextBooking ? {
+                    id: nextBooking.id,
+                    bookingNumber: nextBooking.bookingNumber,
+                    customerName: nextBooking.contactName,
+                    startDate: nextBooking.startDate,
+                    pickup: nextBooking.metadata?.pickup,
+                } : null,
+                createdAt: d.createdAt,
+            };
+        });
+
+        res.json({ success: true, data: driversWithStatus });
+    } catch (error) {
+        console.error('Get partner drivers error:', error);
+        res.status(500).json({ success: false, error: 'Şoförler alınamadı' });
+    }
+});
+
+/**
+ * POST /api/transfer/partner/drivers
+ * Partner creates a new driver account under their team
+ */
+router.post('/partner/drivers', authMiddleware, async (req, res) => {
+    try {
+        const partnerId = req.user.id;
+        const tenantId = req.tenant?.id || req.user.tenantId;
+        const { firstName, lastName, email, phone, password } = req.body;
+
+        if (!firstName || !lastName || !email || !password) {
+            return res.status(400).json({ success: false, error: 'Ad, soyad, e-posta ve şifre zorunludur' });
+        }
+
+        // Check if email exists
+        const existing = await prisma.user.findFirst({
+            where: { tenantId, email: email.toLowerCase().trim() }
+        });
+        if (existing) {
+            return res.status(400).json({ success: false, error: 'Bu e-posta adresi zaten kullanılıyor' });
+        }
+
+        // Find DRIVER role
+        const driverRole = await prisma.role.findFirst({
+            where: { tenantId, type: 'DRIVER' }
+        });
+        if (!driverRole) {
+            return res.status(500).json({ success: false, error: 'DRIVER rolü bulunamadı' });
+        }
+
+        const passwordHash = await bcrypt.hash(password, 12);
+
+        const driver = await prisma.user.create({
+            data: {
+                tenantId,
+                firstName: firstName.trim(),
+                lastName: lastName.trim(),
+                fullName: `${firstName.trim()} ${lastName.trim()}`,
+                email: email.toLowerCase().trim(),
+                phone: phone?.trim() || null,
+                passwordHash,
+                roleId: driverRole.id,
+                partnerId,
+                status: 'ACTIVE',
+                metadata: { createdByPartner: true, partnerCreatedAt: new Date().toISOString() },
+            },
+            select: {
+                id: true, firstName: true, lastName: true, fullName: true,
+                email: true, phone: true, status: true, createdAt: true,
+            },
+        });
+
+        res.json({
+            success: true,
+            data: driver,
+            message: `${driver.fullName} başarıyla eklendi`
+        });
+    } catch (error) {
+        console.error('Create partner driver error:', error);
+        res.status(500).json({ success: false, error: 'Şoför oluşturulamadı' });
+    }
+});
+
+/**
+ * PUT /api/transfer/partner/drivers/:driverId
+ * Partner updates driver info
+ */
+router.put('/partner/drivers/:driverId', authMiddleware, async (req, res) => {
+    try {
+        const partnerId = req.user.id;
+        const { driverId } = req.params;
+        const { firstName, lastName, phone, password, status } = req.body;
+
+        // Verify driver belongs to this partner
+        const driver = await prisma.user.findFirst({
+            where: { id: driverId, partnerId }
+        });
+        if (!driver) {
+            return res.status(404).json({ success: false, error: 'Şoför bulunamadı' });
+        }
+
+        const updateData = {};
+        if (firstName) { updateData.firstName = firstName.trim(); }
+        if (lastName) { updateData.lastName = lastName.trim(); }
+        if (firstName || lastName) {
+            updateData.fullName = `${(firstName || driver.firstName).trim()} ${(lastName || driver.lastName).trim()}`;
+        }
+        if (phone !== undefined) { updateData.phone = phone?.trim() || null; }
+        if (status) { updateData.status = status; }
+        if (password) { updateData.passwordHash = await bcrypt.hash(password, 12); }
+
+        const updated = await prisma.user.update({
+            where: { id: driverId },
+            data: updateData,
+            select: {
+                id: true, firstName: true, lastName: true, fullName: true,
+                email: true, phone: true, status: true,
+            },
+        });
+
+        res.json({ success: true, data: updated, message: 'Şoför bilgileri güncellendi' });
+    } catch (error) {
+        console.error('Update partner driver error:', error);
+        res.status(500).json({ success: false, error: 'Şoför güncellenemedi' });
+    }
+});
+
+/**
+ * DELETE /api/transfer/partner/drivers/:driverId
+ * Partner soft-deletes a driver
+ */
+router.delete('/partner/drivers/:driverId', authMiddleware, async (req, res) => {
+    try {
+        const partnerId = req.user.id;
+        const { driverId } = req.params;
+
+        const driver = await prisma.user.findFirst({
+            where: { id: driverId, partnerId }
+        });
+        if (!driver) {
+            return res.status(404).json({ success: false, error: 'Şoför bulunamadı' });
+        }
+
+        await prisma.user.update({
+            where: { id: driverId },
+            data: { status: 'INACTIVE', deletedAt: new Date() }
+        });
+
+        res.json({ success: true, message: `${driver.fullName} kaldırıldı` });
+    } catch (error) {
+        console.error('Delete partner driver error:', error);
+        res.status(500).json({ success: false, error: 'Şoför silinemedi' });
+    }
+});
+
+/**
+ * POST /api/transfer/partner/assign
+ * Partner assigns a booking to one of their drivers + vehicle
+ */
+router.post('/partner/assign', authMiddleware, async (req, res) => {
+    try {
+        const partnerId = req.user.id;
+        const { bookingId, driverId, vehicleId } = req.body;
+
+        if (!bookingId || !driverId) {
+            return res.status(400).json({ success: false, error: 'Rezervasyon ve şoför seçimi zorunludur' });
+        }
+
+        // Verify driver belongs to this partner
+        const driver = await prisma.user.findFirst({
+            where: { id: driverId, partnerId, status: 'ACTIVE' }
+        });
+        if (!driver) {
+            return res.status(400).json({ success: false, error: 'Şoför bulunamadı veya aktif değil' });
+        }
+
+        // Verify vehicle belongs to this partner (if provided)
+        if (vehicleId) {
+            const vehicle = await prisma.vehicle.findFirst({
+                where: { id: vehicleId, ownerId: partnerId, status: 'ACTIVE' }
+            });
+            if (!vehicle) {
+                return res.status(400).json({ success: false, error: 'Araç bulunamadı veya size ait değil' });
+            }
+        }
+
+        // Get booking
+        const booking = await prisma.booking.findUnique({ where: { id: bookingId } });
+        if (!booking) {
+            return res.status(404).json({ success: false, error: 'Rezervasyon bulunamadı' });
+        }
+
+        // Update booking with driver assignment
+        const updatedMetadata = {
+            ...(booking.metadata || {}),
+            assignedByPartnerId: partnerId,
+            partnerDriverId: driverId,
+            partnerDriverName: driver.fullName,
+            partnerVehicleId: vehicleId || null,
+            operationalStatus: 'DRIVER_ASSIGNED',
+            assignedAt: new Date().toISOString(),
+        };
+
+        const updated = await prisma.booking.update({
+            where: { id: bookingId },
+            data: {
+                driverId,
+                confirmedBy: partnerId,
+                status: 'CONFIRMED',
+                confirmedAt: new Date(),
+                metadata: updatedMetadata,
+            },
+            select: {
+                id: true, bookingNumber: true, status: true, driverId: true,
+                contactName: true, startDate: true, metadata: true,
+            },
+        });
+
+        // Send push notification to driver if they have a token
+        if (driver.pushToken) {
+            try {
+                const { Expo } = require('expo-server-sdk');
+                const expo = new Expo();
+                await expo.sendPushNotificationsAsync([{
+                    to: driver.pushToken,
+                    sound: 'default',
+                    title: '🚗 Yeni Transfer Atandı',
+                    body: `${booking.contactName} - ${booking.metadata?.pickup || 'Transfer'}`,
+                    data: { type: 'booking_assigned', bookingId: booking.id },
+                }]);
+            } catch (pushErr) {
+                console.warn('Push notification failed:', pushErr.message);
+            }
+        }
+
+        res.json({
+            success: true,
+            data: updated,
+            message: `Transfer ${driver.fullName} adlı şoföre atandı`
+        });
+    } catch (error) {
+        console.error('Partner assign error:', error);
+        res.status(500).json({ success: false, error: 'Atama yapılamadı' });
+    }
 });
 
 module.exports = router;

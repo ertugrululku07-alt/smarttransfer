@@ -1,13 +1,54 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Card, Form, Input, Button, Typography, message, Row, Col, Tabs, Avatar, Skeleton } from 'antd';
+import { Card, Form, Input, Button, Typography, message, Row, Col, Tabs, Avatar, Skeleton, Select, Space } from 'antd';
 import { UserOutlined, LockOutlined, MailOutlined, PhoneOutlined, SaveOutlined } from '@ant-design/icons';
 import AccountGuard from '../AccountGuard';
 import AccountLayout from '../AccountLayout';
 import api from '@/lib/api-client';
+import { countryList } from '@/lib/countryData';
 
 const { Title, Text } = Typography;
+const { Option } = Select;
+
+// Sort countries: Priority first, then alphabetical
+const PRIORITY_CODES = ['TR', 'DE', 'GB', 'RU', 'NL', 'UA', 'FR', 'US', 'SA', 'AE'];
+const SORTED_COUNTRIES = [
+    ...countryList.filter((c: any) => PRIORITY_CODES.includes(c.code)),
+    ...countryList.filter((c: any) => !PRIORITY_CODES.includes(c.code)),
+];
+
+// Parse existing phone string into { prefix, number, country }
+// Phone may be stored as "+90 555 123 45 67" or just "5551234567"
+function parsePhone(raw: string | null | undefined, savedCountry?: string | null): { prefix: string; number: string; country: string } {
+    const phone = String(raw || '').trim();
+    if (!phone) {
+        const fallbackCountry = (savedCountry || 'TR').toUpperCase();
+        const c = countryList.find((x: any) => x.code === fallbackCountry);
+        return { prefix: c ? '+' + c.phone : '+90', number: '', country: fallbackCountry };
+    }
+    // Try to match a leading + dial code
+    const m = phone.match(/^\+(\d{1,4})\s*(.*)$/);
+    if (m) {
+        const dial = m[1];
+        const rest = m[2].trim();
+        // Prefer the country saved in metadata if it matches the same dial code
+        let country = savedCountry || '';
+        if (country) {
+            const sc = countryList.find((x: any) => x.code === country.toUpperCase() && String(x.phone) === dial);
+            if (!sc) country = '';
+        }
+        if (!country) {
+            const c = countryList.find((x: any) => String(x.phone) === dial);
+            country = c ? c.code : 'TR';
+        }
+        return { prefix: '+' + dial, number: rest, country: country.toUpperCase() };
+    }
+    // No prefix in stored phone, fall back to savedCountry
+    const country = (savedCountry || 'TR').toUpperCase();
+    const c = countryList.find((x: any) => x.code === country);
+    return { prefix: c ? '+' + c.phone : '+90', number: phone, country };
+}
 
 export default function CustomerProfilePage() {
     const [profile, setProfile] = useState<any>(null);
@@ -22,13 +63,18 @@ export default function CustomerProfilePage() {
             try {
                 const res = await api.get('/api/customer/me');
                 if (res.data.success) {
-                    setProfile(res.data.data);
+                    const d = res.data.data;
+                    setProfile(d);
+                    const savedCountry = d?.metadata?.phoneCountry || d?.metadata?.nationality || null;
+                    const parsed = parsePhone(d.phone, savedCountry);
                     infoForm.setFieldsValue({
-                        firstName: res.data.data.firstName || '',
-                        lastName: res.data.data.lastName || '',
-                        fullName: res.data.data.fullName || '',
-                        email: res.data.data.email || '',
-                        phone: res.data.data.phone || '',
+                        firstName: d.firstName || '',
+                        lastName: d.lastName || '',
+                        fullName: d.fullName || '',
+                        email: d.email || '',
+                        phoneCountry: parsed.country,
+                        phonePrefix: parsed.prefix,
+                        phoneNumber: parsed.number,
                     });
                 }
             } catch (e: any) {
@@ -42,7 +88,17 @@ export default function CustomerProfilePage() {
     const saveInfo = async (values: any) => {
         setSavingInfo(true);
         try {
-            const res = await api.put('/api/customer/me', values);
+            const numberOnly = String(values.phoneNumber || '').trim();
+            const prefix = String(values.phonePrefix || '+90').trim();
+            const fullPhone = numberOnly ? `${prefix} ${numberOnly}` : '';
+            const payload = {
+                firstName: values.firstName,
+                lastName: values.lastName,
+                fullName: values.fullName,
+                phone: fullPhone,
+                phoneCountry: values.phoneCountry || null,
+            };
+            const res = await api.put('/api/customer/me', payload);
             if (res.data.success) {
                 message.success('Bilgiler güncellendi');
                 setProfile((p: any) => ({ ...p, ...res.data.data }));
@@ -52,6 +108,12 @@ export default function CustomerProfilePage() {
         } finally {
             setSavingInfo(false);
         }
+    };
+
+    // When the country changes, sync the dial prefix to the new country's code
+    const onCountryChange = (code: string) => {
+        const c = countryList.find((x: any) => x.code === code);
+        if (c) infoForm.setFieldsValue({ phonePrefix: '+' + c.phone });
     };
 
     const savePassword = async (values: any) => {
@@ -142,8 +204,46 @@ export default function CustomerProfilePage() {
                                                         <Form.Item label="E-posta" name="email">
                                                             <Input prefix={<MailOutlined />} disabled />
                                                         </Form.Item>
-                                                        <Form.Item label="Telefon" name="phone">
-                                                            <Input prefix={<PhoneOutlined />} placeholder="+90 ..." />
+                                                        <Form.Item label="Telefon" required style={{ marginBottom: 8 }}>
+                                                            <Space.Compact style={{ width: '100%' }}>
+                                                                <Form.Item name="phoneCountry" noStyle initialValue="TR">
+                                                                    <Select
+                                                                        style={{ width: 150 }}
+                                                                        showSearch
+                                                                        optionFilterProp="children"
+                                                                        filterOption={(input, option) =>
+                                                                            String((option as any)?.label || '').toLowerCase().includes(input.toLowerCase())
+                                                                        }
+                                                                        popupMatchSelectWidth={300}
+                                                                        onChange={onCountryChange}
+                                                                    >
+                                                                        {SORTED_COUNTRIES.map((c: any) => (
+                                                                            <Option key={c.code} value={c.code} label={c.label}>
+                                                                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                                                    <img
+                                                                                        src={`https://flagcdn.com/w20/${c.code.toLowerCase()}.png`}
+                                                                                        srcSet={`https://flagcdn.com/w40/${c.code.toLowerCase()}.png 2x`}
+                                                                                        width="20"
+                                                                                        alt={c.code}
+                                                                                        style={{ borderRadius: 2 }}
+                                                                                    />
+                                                                                    <span>{c.code} (+{c.phone})</span>
+                                                                                    <span style={{ color: '#999', fontSize: 12, marginLeft: 'auto' }}>{c.label}</span>
+                                                                                </div>
+                                                                            </Option>
+                                                                        ))}
+                                                                    </Select>
+                                                                </Form.Item>
+                                                                <Form.Item name="phonePrefix" noStyle initialValue="+90">
+                                                                    <Input style={{ width: 70 }} readOnly />
+                                                                </Form.Item>
+                                                                <Form.Item name="phoneNumber" noStyle>
+                                                                    <Input prefix={<PhoneOutlined />} placeholder="555 123 45 67" style={{ width: 'calc(100% - 220px)' }} />
+                                                                </Form.Item>
+                                                            </Space.Compact>
+                                                            <Text type="secondary" style={{ fontSize: 11 }}>
+                                                                Seçtiğiniz ülke kodu uyruk olarak da kabul edilir.
+                                                            </Text>
                                                         </Form.Item>
                                                         <Button type="primary" htmlType="submit" icon={<SaveOutlined />} loading={savingInfo}>
                                                             Kaydet

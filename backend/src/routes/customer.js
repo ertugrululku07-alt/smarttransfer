@@ -64,7 +64,7 @@ router.get('/me', authMiddleware, ensureCustomer, async (req, res) => {
 // PUT /api/customer/me
 router.put('/me', authMiddleware, ensureCustomer, async (req, res) => {
     try {
-        const { firstName, lastName, fullName, phone, avatar } = req.body;
+        const { firstName, lastName, fullName, phone, avatar, phoneCountry, nationality } = req.body;
 
         const data = {};
         if (firstName !== undefined) data.firstName = String(firstName).trim();
@@ -80,12 +80,30 @@ router.put('/me', authMiddleware, ensureCustomer, async (req, res) => {
             data.fullName = `${fn} ${ln}`.trim();
         }
 
+        // Merge phoneCountry / nationality into metadata (selected country code is also treated as nationality)
+        if (phoneCountry !== undefined || nationality !== undefined) {
+            const current = await prisma.user.findUnique({
+                where: { id: req.user.id },
+                select: { metadata: true }
+            });
+            const meta = (current && current.metadata && typeof current.metadata === 'object') ? { ...current.metadata } : {};
+            if (phoneCountry !== undefined) {
+                meta.phoneCountry = phoneCountry ? String(phoneCountry).toUpperCase() : null;
+                // The selected country code is accepted as the customer's nationality
+                if (nationality === undefined) meta.nationality = meta.phoneCountry;
+            }
+            if (nationality !== undefined) {
+                meta.nationality = nationality ? String(nationality).toUpperCase() : null;
+            }
+            data.metadata = meta;
+        }
+
         const updated = await prisma.user.update({
             where: { id: req.user.id },
             data,
             select: {
                 id: true, fullName: true, firstName: true, lastName: true,
-                email: true, phone: true, avatar: true
+                email: true, phone: true, avatar: true, metadata: true
             }
         });
         res.json({ success: true, data: updated });

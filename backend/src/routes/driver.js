@@ -6,7 +6,7 @@ const { authMiddleware } = require('../middleware/auth');
 
 // Middleware to ensure user is a driver
 const ensureDriver = (req, res, next) => {
-    if (req.user.roleCode !== 'DRIVER' && req.user.roleType !== 'DRIVER' && req.user.roleType !== 'PARTNER') {
+    if (req.user.roleCode !== 'DRIVER' && req.user.roleType !== 'DRIVER') {
         return res.status(403).json({ success: false, error: 'Access denied. Drivers only.' });
     }
     next();

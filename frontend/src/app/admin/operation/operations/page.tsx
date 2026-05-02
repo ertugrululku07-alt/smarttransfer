@@ -1502,16 +1502,27 @@ export default function OperationsPage() {
     useEffect(() => {
         if (!socket) return;
 
-        const handleStatusUpdate = (data: { bookingId: string, status: string, driverId?: string }) => {
-            // Immediate optimistic update for private bookings
+        const handleStatusUpdate = (data: { bookingId: string, status: string, driverId?: string, pickedUpAt?: string | null, droppedOffAt?: string | null }) => {
+            // Live state update — no refetch, no page flash
+            const patch: any = {
+                status: data.status,
+                operationalStatus: data.status,
+            };
+            if (data.pickedUpAt !== undefined) patch.pickedUpAt = data.pickedUpAt;
+            if (data.droppedOffAt !== undefined) patch.droppedOffAt = data.droppedOffAt;
+
             setBookings(prev => prev.map(b =>
-                b.id === data.bookingId
-                    ? { ...b, status: data.status, driverId: data.driverId || b.driverId }
-                    : b
+                b.id === data.bookingId ? { ...b, ...patch } : b
             ));
-            // Also re-fetch private bookings to pick up full metadata changes
-            fetchBookingsRef.current();
-            fetchShuttleRunsRef.current(true);
+            // Also update the same booking inside any open shuttle run (live)
+            setShuttleRuns(prev => prev.map((run: any) => ({
+                ...run,
+                bookings: (run.bookings || []).map((b: any) =>
+                    b.id === data.bookingId ? { ...b, ...patch } : b
+                ),
+            })));
+            // Prevent socket echo from forcing a re-fetch immediately after
+            shuttleActionTimeRef.current = Date.now();
         };
 
         const handleNewBooking = () => {
@@ -2261,7 +2272,8 @@ export default function OperationsPage() {
                 })).filter((run: any) => run.bookings.length > 0 || run.isManual);
 
                 // Final list: backend runs + remaining empty manual runs for this date
-                const finalRuns = [...filteredBackendRuns, ...localManualsForDate.filter(lp => !filteredBackendRuns.some((br: any) => br.runKey === lp.runKey))];
+                // Backend now suffixes manual runKey with ::DEP/::ARV/::ARA, so match by prefix
+                const finalRuns = [...filteredBackendRuns, ...localManualsForDate.filter(lp => !filteredBackendRuns.some((br: any) => br.runKey === lp.runKey || (br.runKey || '').startsWith(`${lp.runKey}::`)))];
                 finalRuns.sort((a, b) => (a.departureTime || '99:99').localeCompare(b.departureTime || '99:99'));
                 
                 setShuttleRuns(finalRuns);
@@ -2370,18 +2382,39 @@ export default function OperationsPage() {
             if (!targetRun) return;
 
             // --- DEP vs ARV Validation ---
-            const determineType = (routeStr: string) => {
-                const s = (routeStr || '').toUpperCase();
-                if (s.includes(' DEP')) return 'DEP';
-                if (s.includes(' ARV')) return 'ARV';
-                return 'TRF';
+            // Compute trip type from a booking's actual pickup/dropoff (most reliable)
+            const computeBookingType = (b: any): 'DEP' | 'ARV' | 'ARA' => {
+                const airportKeywords = ['havaliman', 'airport', 'hava alan', 'havaalan'];
+                const iata = /\b[A-Z]{3}\b/;
+                const pickup = String(b?.pickupLocation || b?.pickup || b?.metadata?.pickup || '').toLocaleLowerCase('tr');
+                const dropoff = String(b?.dropoffLocation || b?.dropoff || b?.metadata?.dropoff || '').toLocaleLowerCase('tr');
+                const pIsAir = airportKeywords.some(k => pickup.includes(k)) || iata.test(pickup.toUpperCase());
+                const dIsAir = airportKeywords.some(k => dropoff.includes(k)) || iata.test(dropoff.toUpperCase());
+                if (pIsAir && !dIsAir) return 'ARV';
+                if (!pIsAir && dIsAir) return 'DEP';
+                return 'ARA';
             };
-            const sType = determineType(sourceRun.routeName);
-            const tType = determineType(targetRun.routeName);
-            
-            if ((sType === 'DEP' && tType === 'ARV') || (sType === 'ARV' && tType === 'DEP')) {
-                 message.error(`Hata: ${sType === 'DEP' ? 'Gidiş (DEP)' : 'Geliş (ARV)'} müşterisini ${tType === 'DEP' ? 'Gidiş (DEP)' : 'Geliş (ARV)'} seferine taşıyamazsınız!`);
-                 return;
+            // Prefer explicit tripType from run metadata; fall back to booking-based detection
+            const runType = (r: any): 'DEP' | 'ARV' | 'ARA' | null => {
+                const t = (r?.tripType || '').toUpperCase();
+                if (t === 'DEP' || t === 'ARV' || t === 'ARA') return t;
+                // Fallback: derive from first booking, else from routeName string
+                if (r?.bookings?.[0]) return computeBookingType(r.bookings[0]);
+                const s = String(r?.routeName || '').toUpperCase();
+                if (s.includes(' DEP') || s.includes('DEP)')) return 'DEP';
+                if (s.includes(' ARV') || s.includes('ARV)')) return 'ARV';
+                if (s.startsWith('ARA ') || s.includes(' ARA ') || s.includes('ARA)')) return 'ARA';
+                return null;
+            };
+            const movingBooking = sourceRun.bookings.find((b: any) => b.id === passengerId);
+            const sType = movingBooking ? computeBookingType(movingBooking) : runType(sourceRun);
+            const tType = runType(targetRun);
+
+            // Block only on true opposite directions. ARA (intra) may coexist but not cross with DEP/ARV.
+            if (sType && tType && sType !== tType) {
+                const label = (t: string) => t === 'DEP' ? 'Gidiş (DEP)' : t === 'ARV' ? 'Geliş (ARV)' : 'Ara (ARA)';
+                message.error(`Hata: ${label(sType)} müşterisini ${label(tType)} seferine taşıyamazsınız!`);
+                return;
             }
 
             try {
@@ -2390,7 +2423,8 @@ export default function OperationsPage() {
                     manualRunId: targetRun.isManual ? (targetRun.manualRunId || targetRun.runKey) : null,
                     shuttleRouteId: targetRun.isManual ? null : (targetRun.shuttleRouteId || null),
                     shuttleMasterTime: targetRun.isManual ? targetRun.departureTime : (targetRun._originalMasterTime || null),
-                    manualRunName: targetRun.isManual ? targetRun.routeName : (targetRun.routeName || null)
+                    manualRunName: targetRun.isManual ? targetRun.routeName : (targetRun.routeName || null),
+                    tripType: tType || null,
                 };
                 if (targetRun.bookings && targetRun.bookings.length > 0) {
                     payload.sampleBookingId = targetRun.bookings[0].id;

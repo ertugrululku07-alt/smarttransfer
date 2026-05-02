@@ -158,6 +158,40 @@ const TransferBookingContent: React.FC = () => {
         }
     }, [vehicleId, returnVehicleId]);
 
+    // Auto-fill traveller info from logged-in customer profile
+    useEffect(() => {
+        const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+        if (!token) return;
+        (async () => {
+            try {
+                const res = await apiClient.get('/api/customer/me');
+                if (!res.data?.success) return;
+                const d = res.data.data || {};
+                // Parse stored phone "+90 555 123 45 67" → prefix + number
+                const raw = String(d.phone || '').trim();
+                const savedCountry = (d.metadata?.phoneCountry || d.metadata?.nationality || '').toUpperCase();
+                let prefix = '+90';
+                let number = raw;
+                const m = raw.match(/^\+(\d{1,4})\s*(.*)$/);
+                if (m) {
+                    prefix = '+' + m[1];
+                    number = m[2].trim();
+                } else if (savedCountry) {
+                    const c = countryList.find((x: any) => x.code === savedCountry);
+                    if (c) prefix = '+' + c.phone;
+                }
+                form.setFieldsValue({
+                    fullName: d.fullName || `${d.firstName || ''} ${d.lastName || ''}`.trim() || undefined,
+                    email: d.email || undefined,
+                    prefix,
+                    phone: number || undefined,
+                });
+            } catch {
+                // Not logged in or fetch failed — silently skip auto-fill
+            }
+        })();
+    }, [form]);
+
     // Initialize passenger list form with correct types
     useEffect(() => {
         if (passengers) {

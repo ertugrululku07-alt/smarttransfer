@@ -89,9 +89,10 @@ export default function LoginScreen() {
             const data = await response.json();
             if (data.success) {
                 const { user, token: newToken, refreshToken } = data.data;
-                const isDriver = user.role?.code === 'DRIVER' || user.role?.type === 'DRIVER' || user.role?.type === 'PARTNER';
+                const isDriver = user.role?.code === 'DRIVER' || user.role?.type === 'DRIVER';
                 if (!isDriver) {
-                    Alert.alert('Yetkisiz Giriş', 'Bu uygulama yalnızca sürücüler içindir.');
+                    const isPartner = user.role?.code === 'PARTNER' || user.role?.type === 'PARTNER';
+                    Alert.alert('Yetkisiz Giriş', isPartner ? 'Partnerler için SmartTransfer Partner uygulamasını kullanın.' : 'Bu uygulama yalnızca sürücüler içindir.');
                     return;
                 }
                 if (rememberMe) {

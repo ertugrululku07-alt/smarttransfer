@@ -178,6 +178,11 @@ model User {
   agency               Agency?  @relation(fields: [agencyId], references: [id])
   agencyCommissionRate Decimal? @db.Decimal(5, 2)
 
+  // Partner-Driver hierarchy
+  partnerId String? // If this driver belongs to a partner (patron)
+  partner   User?   @relation("PartnerDrivers", fields: [partnerId], references: [id])
+  drivers   User[]  @relation("PartnerDrivers") // Drivers under this partner
+
   // Relations
   bookingsAsCustomer     Booking[]               @relation("CustomerBookings")
   bookingsAsAgent        Booking[]               @relation("AgentBookings")
@@ -208,6 +213,7 @@ model User {
   @@unique([tenantId, email])
   @@index([tenantId, status])
   @@index([email])
+  @@index([partnerId])
 }
 
 enum UserStatus {
