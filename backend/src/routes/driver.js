@@ -180,20 +180,18 @@ router.get('/bookings', authMiddleware, ensureDriver, async (req, res) => {
                 const dropoff = String(m.dropoff || '').trim();
                 const { fromCode, toCode, type: dirType } = getAbbrAndType(pickup, dropoff);
 
-                // Group key (same logic shape as operations.js for consistency)
+                // Group key — include date so different days/runs never merge
+                const dateStr = b.startDate ? new Date(b.startDate).toISOString().slice(0, 10) : 'nodate';
                 let key;
                 if (routeId) {
-                    key = `ROUTE::${routeId}${masterTime ? '::' + masterTime : ''}`;
+                    key = `ROUTE::${routeId}::${dateStr}${masterTime ? '::' + masterTime : ''}`;
                 } else {
                     const regionCode = dirType === 'ARV' ? toCode : fromCode;
-                    key = `ADHOC::${dirType}::${regionCode}${masterTime ? '::' + masterTime : ''}`;
+                    key = `ADHOC::${dirType}::${regionCode}::${dateStr}${masterTime ? '::' + masterTime : ''}`;
                 }
 
-                // Build proper run name: e.g. "ARV Sefer 10:00-11:00" or "AYT - ALY ARV"
-                const dirLabel = dirType === 'ARV' ? 'ARV Sefer' : dirType === 'DEP' ? 'DEP Sefer' : 'Transfer';
-                const routeName = masterTime
-                    ? `${dirLabel} ${masterTime}`
-                    : `${fromCode} - ${toCode} ${dirType}`;
+                // Build proper run name using hub codes: e.g. "ALY - AYT DEP" or "AYT - ALY ARV"
+                const routeName = `${fromCode} – ${toCode} ${dirType}`;
 
                 if (!shuttleGroups[key]) {
                     shuttleGroups[key] = {
@@ -212,6 +210,11 @@ router.get('/bookings', authMiddleware, ensureDriver, async (req, res) => {
                         bookings: []
                     };
                 }
+                // Compute individual pickup time for this customer
+                const custPickup = b.startDate
+                    ? new Date(b.startDate).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Istanbul' })
+                    : null;
+
                 shuttleGroups[key].bookings.push({
                     id: b.id,
                     bookingNumber: b.bookingNumber,
@@ -227,7 +230,11 @@ router.get('/bookings', authMiddleware, ensureDriver, async (req, res) => {
                     infants: b.infants || 0,
                     pickup: m.pickup || '',
                     dropoff: m.dropoff || '',
+                    pickupTime: custPickup,
+                    pickupRegionCode: m.pickupRegionCode || fromCode || null,
+                    dropoffRegionCode: m.dropoffRegionCode || toCode || null,
                     flightNumber: m.flightNumber || b.flightNumber || null,
+                    startDate: b.startDate,
                     status: b.status,
                     acknowledgedAt: m.acknowledgedAt || null,
                     notes: b.specialRequests || m.notes || null,
@@ -235,19 +242,38 @@ router.get('/bookings', authMiddleware, ensureDriver, async (req, res) => {
                     currency: b.currency || 'TRY',
                     paymentStatus: b.paymentStatus,
                     paymentMethod: m.paymentMethod || null,
+                    extraServices: m.extraServices || [],
                     metadata: m
                 });
                 // Update group status based on individual statuses
                 if (b.status === 'IN_PROGRESS') shuttleGroups[key].status = 'IN_PROGRESS';
+                // Track earliest startDate for group
+                if (!shuttleGroups[key].startDate || new Date(b.startDate) < new Date(shuttleGroups[key].startDate)) {
+                    shuttleGroups[key].startDate = b.startDate;
+                }
             } else {
                 privateBookings.push(b);
             }
         });
 
+        // Sort shuttle bookings within each group by their individual startDate (pickup order)
+        Object.values(shuttleGroups).forEach(group => {
+            group.bookings.sort((a, b) => {
+                const ta = a.startDate ? new Date(a.startDate).getTime() : 0;
+                const tb = b.startDate ? new Date(b.startDate).getTime() : 0;
+                return ta - tb;
+            });
+        });
+
         // Merge: shuttle groups + private bookings, sorted by startDate
         const grouped = [
             ...Object.values(shuttleGroups),
-            ...privateBookings.map(b => ({ ...b, _isShuttleGroup: false }))
+            ...privateBookings.map(b => ({
+                ...b,
+                _isShuttleGroup: false,
+                pickupRegionCode: b.metadata?.pickupRegionCode || null,
+                dropoffRegionCode: b.metadata?.dropoffRegionCode || null,
+            }))
         ].sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
 
         res.json({ success: true, data: grouped });

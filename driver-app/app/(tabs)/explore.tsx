@@ -616,7 +616,7 @@ export default function JobListScreen() {
     const pax = cAdults + cChildren + cInfants;
     const paxParts: string[] = [];
     if (cAdults > 0) paxParts.push(`${cAdults}Y`);
-    if (cChildren > 0) paxParts.push(`${cChildren}Ç`);
+    if (cChildren > 0) paxParts.push(`${cChildren}\u00c7`);
     if (cInfants > 0) paxParts.push(`${cInfants}B`);
     const isExpanded = expandedCustomer[c.id];
     const pickupAddr = c.pickup || c.metadata?.pickup || '';
@@ -625,11 +625,25 @@ export default function JobListScreen() {
     const pickupLng = c.metadata?.pickupLng || 0;
     const extras: any[] = c.extraServices || c.metadata?.extraServices || [];
     const hasExtras = extras.length > 0;
+    const custPickupTime = c.pickupTime || (c.startDate ? new Date(c.startDate).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }) : null);
+    const regionCode = c.pickupRegionCode || c.dropoffRegionCode || null;
     return (
       <View>
         <TouchableOpacity style={[st.customerRow, hasExtras && st.customerRowExtras]} onPress={() => toggleCustomer(c.id)} activeOpacity={0.7}>
           <View style={{ flex: 1 }}>
-            <Text style={st.customerName}>{name.trim()}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              {custPickupTime && (
+                <View style={{ backgroundColor: '#dbeafe', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: '#1d4ed8' }}>{custPickupTime}</Text>
+                </View>
+              )}
+              {regionCode && (
+                <View style={{ backgroundColor: '#fef3c7', paddingHorizontal: 5, paddingVertical: 2, borderRadius: 4 }}>
+                  <Text style={{ fontSize: 10, fontWeight: '700', color: '#92400e' }}>{regionCode}</Text>
+                </View>
+              )}
+              <Text style={st.customerName}>{name.trim()}</Text>
+            </View>
             <View style={st.customerMeta}>
               {phone ? <Text style={st.customerPhone}>{phone}</Text> : null}
               {c.customerEmail ? <Text style={st.customerEmail}>{c.customerEmail}</Text> : null}
@@ -724,6 +738,31 @@ export default function JobListScreen() {
                 <Text style={st.expandedTitle}>{item.routeName}</Text>
                 {statusCfg.label ? <View style={[st.statusBadge, { backgroundColor: statusCfg.bg }]}><Text style={[st.statusText, { color: statusCfg.text }]}>{statusCfg.label}</Text></View> : null}
               </View>
+              {/* Multi-waypoint navigation for all customers */}
+              {item.bookings.length > 0 && (
+                <TouchableOpacity
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#4f46e5', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, marginBottom: 8, alignSelf: 'stretch' }}
+                  onPress={() => {
+                    const waypoints = item.bookings
+                      .filter((b: any) => (b.metadata?.pickupLat && b.metadata?.pickupLng))
+                      .map((b: any) => `${b.metadata.pickupLat},${b.metadata.pickupLng}`);
+                    if (waypoints.length === 0) {
+                      Alert.alert('Uyarı', 'Müşteri konum bilgisi bulunamadı.');
+                      return;
+                    }
+                    // Google Maps multi-stop: last waypoint is destination, rest are waypoints
+                    const dest = waypoints[waypoints.length - 1];
+                    const wp = waypoints.slice(0, -1).join('|');
+                    const url = wp
+                      ? `https://www.google.com/maps/dir/?api=1&destination=${dest}&waypoints=${wp}&travelmode=driving`
+                      : `https://www.google.com/maps/dir/?api=1&destination=${dest}&travelmode=driving`;
+                    Linking.openURL(url);
+                  }}
+                >
+                  <Ionicons name="navigate" size={16} color="#fff" />
+                  <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>Tüm Müşterilere Navigasyon ({item.bookings.length} nokta)</Text>
+                </TouchableOpacity>
+              )}
               {item.bookings.map((b: any, i: number) => (
                 <View key={b.id}>
                   <CustomerRow c={b} onCall={() => Linking.openURL(`tel:${b.customerPhone || b.contactPhone}`)} />
@@ -779,7 +818,9 @@ export default function JobListScreen() {
         </View>
         <View style={st.placeCol}>
           <Text style={st.placeText} numberOfLines={1}>{customerName}</Text>
-          <Text style={st.placeSub} numberOfLines={1}>{shortAddr(from)} → {shortAddr(to)} · {pax} Pax{ack ? ' · ✓' : ''}</Text>
+          <Text style={st.placeSub} numberOfLines={1}>
+            {item.pickupRegionCode ? `[${item.pickupRegionCode}] ` : ''}{shortAddr(from)} \u2192 {shortAddr(to)} \u00b7 {pax} Pax{ack ? ' \u00b7 \u2713' : ''}
+          </Text>
         </View>
         <View style={[st.dirBadge, { backgroundColor: `${dirColor}18`, borderColor: `${dirColor}55` }]}>
           <Text style={[st.dirText, { color: dirColor }]}>{dirCode}</Text>

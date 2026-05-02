@@ -10,7 +10,7 @@ const { authMiddleware } = require('../middleware/auth');
 // HELPER: check admin/operator role
 // ────────────────────────────────────────────────────────────────
 const ensureAdmin = (req, res, next) => {
-    const roleType = req.user?.role?.type;
+    const roleType = req.user?.roleType;
     if (!['SUPER_ADMIN', 'TENANT_ADMIN', 'TENANT_STAFF'].includes(roleType)) {
         return res.status(403).json({ success: false, error: 'Yetkisiz erişim' });
     }
@@ -18,7 +18,7 @@ const ensureAdmin = (req, res, next) => {
 };
 
 const ensureCustomer = (req, res, next) => {
-    const roleType = req.user?.role?.type;
+    const roleType = req.user?.roleType;
     if (roleType !== 'CUSTOMER') {
         return res.status(403).json({ success: false, error: 'Müşteri erişimi gerekli' });
     }
