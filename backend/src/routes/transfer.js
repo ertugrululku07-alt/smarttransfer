@@ -3774,7 +3774,7 @@ router.get('/airport-arrivals', authMiddleware, async (req, res) => {
             where: {
                 productType: 'TRANSFER',
                 startDate: { gte: dayStart, lte: dayEnd },
-                status: { in: ['CONFIRMED', 'PENDING', 'IN_PROGRESS'] },
+                status: { in: ['CONFIRMED', 'PENDING', 'IN_PROGRESS', 'COMPLETED'] },
             },
             include: {
                 customer: true,
@@ -3847,11 +3847,11 @@ router.get('/airport-arrivals', authMiddleware, async (req, res) => {
                 pickupDateTime: b.startDate,
                 // Vehicle & Driver
                 vehicleType: b.metadata?.vehicleType || null,
-                vehiclePlate: vehicle?.plateNumber || null,
-                vehicleBrand: vehicle ? `${vehicle.brand} ${vehicle.model}` : null,
+                vehiclePlate: vehicle?.plateNumber || b.metadata?.vehiclePlate || null,
+                vehicleBrand: vehicle ? `${vehicle.brand} ${vehicle.model}` : (b.metadata?.vehicleBrand || null),
                 vehicleColor: vehicle?.color || null,
-                driverName: b.driver ? `${b.driver.firstName} ${b.driver.lastName}` : null,
-                driverPhone: b.driver?.phone || null,
+                driverName: b.driver ? `${b.driver.firstName} ${b.driver.lastName}` : (b.metadata?.handoffDriverName || null),
+                driverPhone: b.driver?.phone || (b.metadata?.handoffDriverPhone || null),
                 driverId: b.driverId || null,
                 // Greeting
                 greetingStatus: b.metadata?.greetingStatus || 'WAITING',
@@ -3918,7 +3918,7 @@ router.patch('/greeting-status', authMiddleware, async (req, res) => {
             DELAYED:    'FLIGHT_DELAYED',
             LANDED:     'FLIGHT_LANDED',
             MET:        'CUSTOMER_MET',
-            HANDED_OFF: 'COMPLETED',
+            HANDED_OFF: 'DRIVER_ASSIGNED',
             NO_SHOW:    'NO_SHOW',
             CANCELLED:  'CANCELLED',
         };
@@ -3989,7 +3989,7 @@ router.patch('/greeting-status', authMiddleware, async (req, res) => {
             }
             updateData.driverId = resolvedUserId;
             metadata.driverId = resolvedUserId;
-            metadata.operationalStatus = 'COMPLETED';
+            metadata.operationalStatus = 'DRIVER_ASSIGNED';
 
             // Find vehicle assigned to this driver
             const tenantId = req.user.tenantId || booking.tenantId;
@@ -4006,8 +4006,10 @@ router.patch('/greeting-status', authMiddleware, async (req, res) => {
                 metadata.vehicleBrand = `${vehicle.brand || ''} ${vehicle.model || ''}`.trim();
             }
 
-            // Add timeline note about driver assignment
-            const driverUser = await prisma.user.findUnique({ where: { id: resolvedUserId }, select: { fullName: true } }).catch(() => null);
+            // Store driver name/phone in metadata for display
+            const driverUser = await prisma.user.findUnique({ where: { id: resolvedUserId }, select: { fullName: true, phone: true } }).catch(() => null);
+            metadata.handoffDriverName = driverUser?.fullName || `${personnel?.firstName || ''} ${personnel?.lastName || ''}`.trim();
+            metadata.handoffDriverPhone = driverUser?.phone || personnel?.phone || null;
             metadata.greeterNotes.push({
                 text: `Şoför atandı: ${driverUser?.fullName || personnel?.firstName + ' ' + personnel?.lastName}${vehicle ? ` (${vehicle.plateNumber})` : ''}`,
                 by: `${req.user.firstName} ${req.user.lastName}`,
@@ -4018,10 +4020,7 @@ router.patch('/greeting-status', authMiddleware, async (req, res) => {
             });
         }
 
-        // ── HANDED_OFF / COMPLETED → also update booking status ──
-        if (status === 'HANDED_OFF') {
-            updateData.status = 'COMPLETED';
-        }
+        // ── CANCELLED → update booking status ──
         if (status === 'CANCELLED') {
             updateData.status = 'CANCELLED';
         }

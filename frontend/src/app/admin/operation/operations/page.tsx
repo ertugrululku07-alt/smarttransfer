@@ -1605,7 +1605,6 @@ export default function OperationsPage() {
                     updated.metadata = { ...(updated.metadata || {}), operationalStatus: data.operationalStatus, greetingStatus: data.greetingStatus };
                 }
                 if (data.driverId) updated.driverId = data.driverId;
-                if (data.operationalStatus === 'COMPLETED') updated.status = 'COMPLETED';
                 if (data.operationalStatus === 'CANCELLED') updated.status = 'CANCELLED';
                 return updated;
             }));
