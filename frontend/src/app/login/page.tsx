@@ -22,7 +22,9 @@ const LoginPage: React.FC = () => {
       if (refreshToken) localStorage.setItem('refreshToken', refreshToken);
       message.success('Giriş başarılı!');
       setTimeout(() => {
-        if (user.role.type === 'SUPER_ADMIN' || user.role.type === 'TENANT_ADMIN') {
+        if (user.role.type === 'AIRPORT_STAFF' || user.role.code === 'AIRPORT_STAFF') {
+          window.location.href = '/admin/operation/airport-greeting';
+        } else if (['SUPER_ADMIN', 'TENANT_ADMIN', 'TENANT_MANAGER', 'TENANT_STAFF', 'PLATFORM_OPS'].includes(user.role.type)) {
           window.location.href = '/admin';
         } else if (user.role.type === 'PARTNER' || user.role.code === 'PARTNER') {
           window.location.href = '/partner';
