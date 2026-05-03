@@ -10,7 +10,8 @@ import {
     ReloadOutlined, SearchOutlined, PhoneOutlined, CarOutlined,
     EnvironmentOutlined, CalendarOutlined, IdcardOutlined, TeamOutlined,
     CheckCircleOutlined, ClockCircleOutlined, CloseCircleOutlined,
-    ExclamationCircleOutlined, SendOutlined, UserOutlined
+    ExclamationCircleOutlined, SendOutlined, UserOutlined, LoadingOutlined,
+    GlobalOutlined, SwapRightOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import 'dayjs/locale/tr';
@@ -68,6 +69,7 @@ export default function AirportGreetingPage() {
     const [noteModal, setNoteModal] = useState<{ visible: boolean; bookingId: string; bookingNumber: string }>({ visible: false, bookingId: '', bookingNumber: '' });
     const [noteText, setNoteText] = useState('');
     const [detailModal, setDetailModal] = useState<{ visible: boolean; record: any | null }>({ visible: false, record: null });
+    const [flightModal, setFlightModal] = useState<{ visible: boolean; flightNumber: string; loading: boolean; data: any | null; record: any | null }>({ visible: false, flightNumber: '', loading: false, data: null, record: null });
     const refreshTimer = useRef<any>(null);
 
     /* ── Fetch ── */
@@ -151,6 +153,21 @@ export default function AirportGreetingPage() {
         } catch { message.error('Not eklenemedi'); }
     };
 
+    /* ── Fetch flight info ── */
+    const fetchFlightInfo = async (flightNumber: string, record: any) => {
+        setFlightModal({ visible: true, flightNumber, loading: true, data: null, record });
+        try {
+            const res = await apiClient.get('/api/flight/status', { params: { flightNumber } });
+            if (res.data.success) {
+                setFlightModal(prev => ({ ...prev, loading: false, data: res.data.data }));
+            } else {
+                setFlightModal(prev => ({ ...prev, loading: false, data: null }));
+            }
+        } catch {
+            setFlightModal(prev => ({ ...prev, loading: false, data: null }));
+        }
+    };
+
     /* ── Handle delay ── */
     const handleDelay = (bookingId: string) => {
         Modal.confirm({
@@ -199,7 +216,16 @@ export default function AirportGreetingPage() {
                 const fs = FLIGHT_STATUS[r.flightStatus] || FLIGHT_STATUS.ON_TIME;
                 return (
                     <div>
-                        <div style={{ fontWeight: 800, fontSize: 14, color: '#1e293b', fontFamily: 'monospace' }}>
+                        <div
+                            onClick={() => r.flightNumber && fetchFlightInfo(r.flightNumber, r)}
+                            style={{
+                                fontWeight: 800, fontSize: 14, color: r.flightNumber ? '#0ea5e9' : '#1e293b',
+                                fontFamily: 'monospace', cursor: r.flightNumber ? 'pointer' : 'default',
+                                textDecoration: r.flightNumber ? 'underline' : 'none',
+                                textDecorationStyle: 'dotted' as const,
+                            }}
+                            title={r.flightNumber ? 'Uçuş bilgisi için tıklayın' : ''}
+                        >
                             {r.flightNumber || '-'}
                         </div>
                         <div style={{ fontSize: 11, fontWeight: 600, color: '#64748b' }}>
@@ -557,6 +583,262 @@ export default function AirportGreetingPage() {
                         }}
                     />
                 </Card>
+
+                {/* ═══ FLIGHT INFO MODAL ═══ */}
+                <Modal
+                    open={flightModal.visible}
+                    onCancel={() => setFlightModal({ visible: false, flightNumber: '', loading: false, data: null, record: null })}
+                    footer={null}
+                    width={560}
+                    title={null}
+                    styles={{ body: { padding: 0 } }}
+                >
+                    {(() => {
+                        const fm = flightModal;
+                        const fd = fm.data;
+                        const rec = fm.record;
+
+                        // Flight status styling
+                        const statusMap: Record<string, { label: string; color: string; bg: string }> = {
+                            scheduled: { label: 'Planlandı', color: '#d97706', bg: '#fffbeb' },
+                            active:    { label: 'Havada', color: '#2563eb', bg: '#eff6ff' },
+                            landed:    { label: 'İndi', color: '#16a34a', bg: '#f0fdf4' },
+                            cancelled: { label: 'İptal', color: '#dc2626', bg: '#fef2f2' },
+                            diverted:  { label: 'Yön Değiştirdi', color: '#ea580c', bg: '#fff7ed' },
+                        };
+                        const st = fd ? (statusMap[fd.status] || statusMap.scheduled) : statusMap.scheduled;
+
+                        // Calculate progress percentage
+                        let progressPct = 0;
+                        if (fd) {
+                            if (fd.status === 'landed') progressPct = 100;
+                            else if (fd.status === 'active' && fd.departure?.scheduled && fd.arrival?.scheduled) {
+                                const depTime = new Date(fd.departure.scheduled).getTime();
+                                const arrTime = new Date(fd.arrival.estimated || fd.arrival.scheduled).getTime();
+                                const now = Date.now();
+                                if (arrTime > depTime) {
+                                    progressPct = Math.min(95, Math.max(5, ((now - depTime) / (arrTime - depTime)) * 100));
+                                }
+                            } else if (fd.status === 'scheduled') progressPct = 0;
+                        }
+
+                        // Altitude display
+                        const altitude = fd?.live?.altitude ? `${Math.round(fd.live.altitude * 0.3048)}m (FL${Math.round(fd.live.altitude / 100)})` : null;
+
+                        return (
+                            <div>
+                                {/* Header */}
+                                <div style={{
+                                    background: 'linear-gradient(135deg, #0c4a6e, #0369a1, #0ea5e9)',
+                                    padding: '20px 24px', color: '#fff',
+                                    borderRadius: '8px 8px 0 0',
+                                }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                        <div>
+                                            <div style={{ fontSize: 24, fontWeight: 900, fontFamily: 'monospace', letterSpacing: 1 }}>
+                                                {fm.flightNumber}
+                                            </div>
+                                            {fd?.departure?.airport && (
+                                                <div style={{ fontSize: 12, opacity: 0.8, marginTop: 2 }}>
+                                                    {fd.departure.airport}
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div style={{
+                                            padding: '4px 12px', borderRadius: 6,
+                                            background: st.bg, color: st.color,
+                                            fontWeight: 700, fontSize: 12,
+                                        }}>
+                                            {fm.loading ? <LoadingOutlined spin /> : st.label}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div style={{ padding: '20px 24px' }}>
+                                    {fm.loading ? (
+                                        <div style={{ textAlign: 'center', padding: '40px 0' }}>
+                                            <LoadingOutlined spin style={{ fontSize: 32, color: '#0ea5e9' }} />
+                                            <div style={{ marginTop: 12, color: '#64748b', fontSize: 13 }}>Uçuş bilgileri yükleniyor...</div>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            {/* Route Visualization */}
+                                            <div style={{
+                                                background: '#f8fafc', borderRadius: 12, padding: '20px',
+                                                border: '1px solid #e2e8f0', marginBottom: 16,
+                                            }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                                                    <div style={{ textAlign: 'center' }}>
+                                                        <div style={{ fontSize: 20, fontWeight: 900, color: '#1e293b' }}>
+                                                            {fd?.departure?.airport?.match(/\(([A-Z]{3})\)/)?.[1] || rec?.pickup?.match(/\b(AYT|GZP|DAL|IST|SAW|ESB|ADB|BJV|DLM)\b/i)?.[1]?.toUpperCase() || 'DEP'}
+                                                        </div>
+                                                        <div style={{ fontSize: 10, color: '#94a3b8', maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                            {fd?.departure?.airport || 'Kalkış'}
+                                                        </div>
+                                                        <div style={{ fontSize: 12, fontWeight: 700, color: '#1e293b', marginTop: 4 }}>
+                                                            {fd?.departure?.scheduled ? dayjs(fd.departure.scheduled).format('HH:mm') : '-'}
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Flight Path Animation */}
+                                                    <div style={{ flex: 1, margin: '0 16px', position: 'relative' }}>
+                                                        <div style={{
+                                                            height: 3, background: '#e2e8f0', borderRadius: 2,
+                                                            position: 'relative', overflow: 'visible',
+                                                        }}>
+                                                            <div style={{
+                                                                height: '100%', borderRadius: 2,
+                                                                background: 'linear-gradient(90deg, #0ea5e9, #38bdf8)',
+                                                                width: `${progressPct}%`,
+                                                                transition: 'width 1s ease',
+                                                            }} />
+                                                            {/* Plane Icon */}
+                                                            <div style={{
+                                                                position: 'absolute',
+                                                                left: `${Math.max(0, Math.min(92, progressPct - 4))}%`,
+                                                                top: -12,
+                                                                fontSize: 20,
+                                                                transition: 'left 1s ease',
+                                                                filter: fd?.status === 'active' ? 'none' : 'grayscale(0.5)',
+                                                            }}>
+                                                                ✈️
+                                                            </div>
+                                                        </div>
+                                                        {fd?.status === 'active' && altitude && (
+                                                            <div style={{ textAlign: 'center', marginTop: 10, fontSize: 10, color: '#64748b' }}>
+                                                                🔼 {altitude}
+                                                                {fd.live?.speed_horizontal ? ` · ${Math.round(fd.live.speed_horizontal)} km/h` : ''}
+                                                            </div>
+                                                        )}
+                                                    </div>
+
+                                                    <div style={{ textAlign: 'center' }}>
+                                                        <div style={{ fontSize: 20, fontWeight: 900, color: '#1e293b' }}>
+                                                            {fd?.arrival?.airport?.match(/\(([A-Z]{3})\)/)?.[1] || rec?.pickup?.match(/\b(AYT|GZP|DAL|IST|SAW|ESB|ADB|BJV|DLM)\b/i)?.[1]?.toUpperCase() || 'ARR'}
+                                                        </div>
+                                                        <div style={{ fontSize: 10, color: '#94a3b8', maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                            {fd?.arrival?.airport || 'Varış'}
+                                                        </div>
+                                                        <div style={{ fontSize: 12, fontWeight: 700, color: '#1e293b', marginTop: 4 }}>
+                                                            {fd?.arrival?.scheduled ? dayjs(fd.arrival.scheduled).format('HH:mm') : (rec?.flightTime || '-')}
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Progress bar label */}
+                                                {fd?.status === 'active' && (
+                                                    <div style={{ textAlign: 'center', fontSize: 11, color: '#0369a1', fontWeight: 600, marginTop: 4 }}>
+                                                        Uçuş devam ediyor — %{Math.round(progressPct)} tamamlandı
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* Time Details */}
+                                            <div style={{
+                                                display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12,
+                                                marginBottom: 16,
+                                            }}>
+                                                <div style={{ background: '#f8fafc', borderRadius: 8, padding: 12, border: '1px solid #e2e8f0' }}>
+                                                    <div style={{ fontSize: 9, color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase', marginBottom: 4 }}>Planlanan Varış</div>
+                                                    <div style={{ fontSize: 16, fontWeight: 800, color: '#1e293b' }}>
+                                                        {fd?.arrival?.scheduled ? dayjs(fd.arrival.scheduled).format('HH:mm') : (rec?.flightTime || '-')}
+                                                    </div>
+                                                </div>
+                                                <div style={{ background: fd?.arrival?.estimated ? '#f0fdf4' : '#f8fafc', borderRadius: 8, padding: 12, border: `1px solid ${fd?.arrival?.estimated ? '#86efac' : '#e2e8f0'}` }}>
+                                                    <div style={{ fontSize: 9, color: fd?.arrival?.estimated ? '#16a34a' : '#94a3b8', fontWeight: 700, textTransform: 'uppercase', marginBottom: 4 }}>Tahmini Varış</div>
+                                                    <div style={{ fontSize: 16, fontWeight: 800, color: fd?.arrival?.estimated ? '#16a34a' : '#1e293b' }}>
+                                                        {fd?.arrival?.estimated ? dayjs(fd.arrival.estimated).format('HH:mm') : '-'}
+                                                    </div>
+                                                </div>
+                                                {fd?.arrival?.actual && (
+                                                    <div style={{ gridColumn: '1 / -1', background: '#f0fdf4', borderRadius: 8, padding: 12, border: '1px solid #86efac' }}>
+                                                        <div style={{ fontSize: 9, color: '#16a34a', fontWeight: 700, textTransform: 'uppercase', marginBottom: 4 }}>Gerçek Varış</div>
+                                                        <div style={{ fontSize: 16, fontWeight: 800, color: '#16a34a' }}>
+                                                            {dayjs(fd.arrival.actual).format('HH:mm')}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* Live Data */}
+                                            {fd?.live && !fd.live.is_ground && (
+                                                <div style={{
+                                                    background: 'linear-gradient(135deg, #eff6ff, #f0f9ff)', borderRadius: 10,
+                                                    padding: 14, border: '1px solid #bae6fd', marginBottom: 16,
+                                                }}>
+                                                    <div style={{ fontSize: 10, color: '#0369a1', fontWeight: 700, textTransform: 'uppercase', marginBottom: 8 }}>Canlı Uçuş Verisi</div>
+                                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+                                                        <div>
+                                                            <div style={{ fontSize: 9, color: '#64748b' }}>Yükseklik</div>
+                                                            <div style={{ fontWeight: 700, fontSize: 13, color: '#1e293b' }}>{altitude || '-'}</div>
+                                                        </div>
+                                                        <div>
+                                                            <div style={{ fontSize: 9, color: '#64748b' }}>Hız</div>
+                                                            <div style={{ fontWeight: 700, fontSize: 13, color: '#1e293b' }}>
+                                                                {fd.live.speed_horizontal ? `${Math.round(fd.live.speed_horizontal)} km/h` : '-'}
+                                                            </div>
+                                                        </div>
+                                                        <div>
+                                                            <div style={{ fontSize: 9, color: '#64748b' }}>Konum</div>
+                                                            <div style={{ fontWeight: 700, fontSize: 11, color: '#1e293b', fontFamily: 'monospace' }}>
+                                                                {fd.live.latitude ? `${fd.live.latitude.toFixed(2)}°, ${fd.live.longitude.toFixed(2)}°` : '-'}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Customer Info from booking */}
+                                            {rec && (
+                                                <div style={{ background: '#faf5ff', borderRadius: 8, padding: 12, border: '1px solid #e9d5ff', marginBottom: 16 }}>
+                                                    <div style={{ fontSize: 9, color: '#7c3aed', fontWeight: 700, textTransform: 'uppercase', marginBottom: 6 }}>Bu Uçuştaki Müşteri</div>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                                        <div>
+                                                            <div style={{ fontWeight: 700, fontSize: 13, color: '#1e293b' }}>{rec.passengerName}</div>
+                                                            <div style={{ fontSize: 11, color: '#64748b' }}>{rec.bookingNumber} · {(rec.adults || 1) + (rec.children || 0) + (rec.infants || 0)} Pax</div>
+                                                        </div>
+                                                        {rec.passengerPhone && (
+                                                            <a href={`tel:${rec.passengerPhone}`} style={{
+                                                                display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px',
+                                                                background: '#7c3aed', color: '#fff', borderRadius: 6, fontSize: 11,
+                                                                fontWeight: 600, textDecoration: 'none', height: 'fit-content',
+                                                            }}>
+                                                                <PhoneOutlined /> Ara
+                                                            </a>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Flightradar24 Button */}
+                                            <Button
+                                                type="primary"
+                                                block
+                                                size="large"
+                                                icon={<GlobalOutlined />}
+                                                onClick={() => window.open(`https://www.flightradar24.com/${fm.flightNumber}`, '_blank')}
+                                                style={{
+                                                    borderRadius: 10, fontWeight: 700, height: 44,
+                                                    background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+                                                    border: 'none', fontSize: 14,
+                                                    boxShadow: '0 4px 16px rgba(245,158,11,0.3)',
+                                                }}
+                                            >
+                                                Flightradar24'te Canlı İzle
+                                            </Button>
+
+                                            {!fd && (
+                                                <div style={{ textAlign: 'center', marginTop: 12, fontSize: 11, color: '#94a3b8' }}>
+                                                    API verisi alınamadı — Flightradar24 butonuyla canlı takip yapabilirsiniz
+                                                </div>
+                                            )}
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+                        );
+                    })()}
+                </Modal>
 
                 {/* ═══ NOTE MODAL ═══ */}
                 <Modal
