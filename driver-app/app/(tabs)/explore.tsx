@@ -738,29 +738,22 @@ export default function JobListScreen() {
                 <Text style={st.expandedTitle}>{item.routeName}</Text>
                 {statusCfg.label ? <View style={[st.statusBadge, { backgroundColor: statusCfg.bg }]}><Text style={[st.statusText, { color: statusCfg.text }]}>{statusCfg.label}</Text></View> : null}
               </View>
-              {/* Multi-waypoint navigation for all customers */}
+              {/* In-app shuttle map with all customers */}
               {item.bookings.length > 0 && (
                 <TouchableOpacity
                   style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#4f46e5', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, marginBottom: 8, alignSelf: 'stretch' }}
                   onPress={() => {
-                    const waypoints = item.bookings
-                      .filter((b: any) => (b.metadata?.pickupLat && b.metadata?.pickupLng))
-                      .map((b: any) => `${b.metadata.pickupLat},${b.metadata.pickupLng}`);
-                    if (waypoints.length === 0) {
-                      Alert.alert('Uyarı', 'Müşteri konum bilgisi bulunamadı.');
-                      return;
-                    }
-                    // Google Maps multi-stop: last waypoint is destination, rest are waypoints
-                    const dest = waypoints[waypoints.length - 1];
-                    const wp = waypoints.slice(0, -1).join('|');
-                    const url = wp
-                      ? `https://www.google.com/maps/dir/?api=1&destination=${dest}&waypoints=${wp}&travelmode=driving`
-                      : `https://www.google.com/maps/dir/?api=1&destination=${dest}&travelmode=driving`;
-                    Linking.openURL(url);
+                    router.push({
+                      pathname: '/job/shuttle-map' as any,
+                      params: {
+                        bookings: JSON.stringify(item.bookings),
+                        routeName: item.routeName || 'Shuttle',
+                      }
+                    });
                   }}
                 >
-                  <Ionicons name="navigate" size={16} color="#fff" />
-                  <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>Tüm Müşterilere Navigasyon ({item.bookings.length} nokta)</Text>
+                  <Ionicons name="map" size={16} color="#fff" />
+                  <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>Haritada Göster ({item.bookings.length} müşteri)</Text>
                 </TouchableOpacity>
               )}
               {item.bookings.map((b: any, i: number) => (
@@ -859,7 +852,7 @@ export default function JobListScreen() {
         data={jobs}
         renderItem={renderItem}
         keyExtractor={(item: any) => item.groupKey || item.id}
-        extraData={jobs}
+        extraData={[jobs, expandedGroups]}
         contentContainerStyle={st.list}
         refreshControl={<RefreshControl refreshing={loading} onRefresh={fetchJobs} />}
         ListEmptyComponent={

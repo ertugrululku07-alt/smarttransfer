@@ -57,7 +57,12 @@
       "edgeToEdgeEnabled": false,
       "predictiveBackGestureEnabled": false,
       "softwareKeyboardLayoutMode": "pan",
-      "googleServicesFile": "./google-services.json"
+      "googleServicesFile": "./google-services.json",
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyCVVINwCpTLm8RGGZ-y4aMOXYtZbVH4tNo"
+        }
+      }
     },
     "web": {
       "output": "static",
