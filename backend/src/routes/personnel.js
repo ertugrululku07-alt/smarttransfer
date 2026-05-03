@@ -148,7 +148,8 @@ router.post('/', authMiddleware, async (req, res) => {
                             roleCode === 'OPERATION' ? 'Operasyon' :
                                 roleCode === 'RESERVATION' ? 'Rezervasyon' :
                                     roleCode === 'AIRPORT_STAFF' ? 'Havalimanı Karşılama' : 'Personel',
-                    type: 'TENANT_STAFF' // Using generic staff type
+                    type: roleCode === 'AIRPORT_STAFF' ? 'AIRPORT_STAFF' :
+                        roleCode === 'DRIVER' ? 'DRIVER' : 'TENANT_STAFF'
                 }
             });
         }
@@ -284,6 +285,37 @@ router.put('/:id', authMiddleware, async (req, res) => {
         if (data.photo !== undefined) updatePayload.photo = data.photo;
         if (data.metadata !== undefined) updatePayload.metadata = data.metadata;
         if (linkedUserId && !existing.userId) updatePayload.userId = linkedUserId;
+
+        // When jobTitle changes, also update the linked user's role
+        if (data.jobTitle !== undefined && data.jobTitle !== existing.jobTitle && (existing.userId || linkedUserId)) {
+            const targetUserId = existing.userId || linkedUserId;
+            let roleCode = 'TENANT_STAFF';
+            if (['DRIVER', 'ACCOUNTANT', 'OPERATION', 'RESERVATION', 'AIRPORT_STAFF'].includes(data.jobTitle)) {
+                roleCode = data.jobTitle;
+            }
+            let role = await prisma.role.findFirst({
+                where: { tenantId, code: roleCode }
+            });
+            if (!role) {
+                role = await prisma.role.create({
+                    data: {
+                        tenantId,
+                        code: roleCode,
+                        name: roleCode === 'DRIVER' ? 'Sürücü' :
+                            roleCode === 'ACCOUNTANT' ? 'Muhasebe' :
+                                roleCode === 'OPERATION' ? 'Operasyon' :
+                                    roleCode === 'RESERVATION' ? 'Rezervasyon' :
+                                        roleCode === 'AIRPORT_STAFF' ? 'Havalimanı Karşılama' : 'Personel',
+                        type: roleCode === 'AIRPORT_STAFF' ? 'AIRPORT_STAFF' :
+                            roleCode === 'DRIVER' ? 'DRIVER' : 'TENANT_STAFF'
+                    }
+                });
+            }
+            await prisma.user.update({
+                where: { id: targetUserId },
+                data: { roleId: role.id }
+            }).catch(err => console.error('Role update failed:', err));
+        }
 
         // When terminating, also deactivate the linked user account
         if (data.isActive === false && existing.userId) {
