@@ -3889,7 +3889,7 @@ router.get('/airport-arrivals', authMiddleware, async (req, res) => {
  */
 router.patch('/greeting-status', authMiddleware, async (req, res) => {
     try {
-        const { bookingId, status, flightStatus, estimatedLanding, notes } = req.body;
+        const { bookingId, status, flightStatus, estimatedLanding, notes, driverId } = req.body;
 
         if (!bookingId || !status) {
             return res.status(400).json({ success: false, error: 'bookingId ve status gereklidir' });
@@ -3911,6 +3911,20 @@ router.patch('/greeting-status', authMiddleware, async (req, res) => {
         // Update greeting status
         metadata.greetingStatus = status;
         metadata.greeterId = req.user.id;
+        metadata.greeterName = `${req.user.firstName} ${req.user.lastName}`;
+
+        // ── Sync operationalStatus so operations screen reflects greeting changes ──
+        const GREETING_TO_OP_STATUS = {
+            DELAYED:    'FLIGHT_DELAYED',
+            LANDED:     'FLIGHT_LANDED',
+            MET:        'CUSTOMER_MET',
+            HANDED_OFF: 'COMPLETED',
+            NO_SHOW:    'NO_SHOW',
+            CANCELLED:  'CANCELLED',
+        };
+        if (GREETING_TO_OP_STATUS[status]) {
+            metadata.operationalStatus = GREETING_TO_OP_STATUS[status];
+        }
 
         // Status-specific timestamps
         if (status === 'LANDED') {
@@ -3965,10 +3979,70 @@ router.patch('/greeting-status', authMiddleware, async (req, res) => {
             updateData.droppedOffAt = new Date();
         }
 
-        await prisma.booking.update({
+        // ── Driver assignment on HANDED_OFF ──
+        if (status === 'HANDED_OFF' && driverId) {
+            // Resolve driver: could be userId or personnelId
+            let resolvedUserId = driverId;
+            const personnel = await prisma.personnel.findFirst({ where: { id: driverId, deletedAt: null } });
+            if (personnel?.userId) {
+                resolvedUserId = personnel.userId;
+            }
+            updateData.driverId = resolvedUserId;
+            metadata.driverId = resolvedUserId;
+            metadata.operationalStatus = 'COMPLETED';
+
+            // Find vehicle assigned to this driver
+            const tenantId = req.user.tenantId || booking.tenantId;
+            const allVehicles = await prisma.vehicle.findMany({
+                where: { tenantId, status: 'ACTIVE' },
+                select: { id: true, plateNumber: true, metadata: true, brand: true, model: true }
+            });
+            const vehicle = allVehicles.find(v => 
+                v.metadata?.driverId === resolvedUserId || v.metadata?.driverId === driverId
+            );
+            if (vehicle) {
+                metadata.assignedVehicleId = vehicle.id;
+                metadata.vehiclePlate = vehicle.plateNumber;
+                metadata.vehicleBrand = `${vehicle.brand || ''} ${vehicle.model || ''}`.trim();
+            }
+
+            // Add timeline note about driver assignment
+            const driverUser = await prisma.user.findUnique({ where: { id: resolvedUserId }, select: { fullName: true } }).catch(() => null);
+            metadata.greeterNotes.push({
+                text: `Şoför atandı: ${driverUser?.fullName || personnel?.firstName + ' ' + personnel?.lastName}${vehicle ? ` (${vehicle.plateNumber})` : ''}`,
+                by: `${req.user.firstName} ${req.user.lastName}`,
+                byId: req.user.id,
+                at: now,
+                status: 'HANDED_OFF',
+                isSystem: true,
+            });
+        }
+
+        // ── HANDED_OFF / COMPLETED → also update booking status ──
+        if (status === 'HANDED_OFF') {
+            updateData.status = 'COMPLETED';
+        }
+        if (status === 'CANCELLED') {
+            updateData.status = 'CANCELLED';
+        }
+
+        const updatedBooking = await prisma.booking.update({
             where: { id: bookingId },
             data: updateData,
         });
+
+        // ── Emit socket event so operations page updates in real-time ──
+        const io = req.app.get('io');
+        if (io) {
+            io.to('admin_monitoring').emit('greeting_status_update', {
+                bookingId,
+                greetingStatus: status,
+                operationalStatus: metadata.operationalStatus,
+                driverId: updateData.driverId || booking.driverId,
+                greeterName: metadata.greeterName,
+                timestamp: now,
+            });
+        }
 
         res.json({ success: true, message: 'Durum güncellendi', status });
     } catch (error) {
@@ -4015,6 +4089,68 @@ router.post('/greeting-note', authMiddleware, async (req, res) => {
     } catch (error) {
         console.error('[Airport] greeting-note error:', error);
         res.status(500).json({ success: false, error: 'Not eklenemedi' });
+    }
+});
+
+/**
+ * GET /api/transfer/greeting-drivers
+ * Returns active drivers/personnel for the tenant (for airport staff to pick a driver)
+ */
+router.get('/greeting-drivers', authMiddleware, async (req, res) => {
+    try {
+        const tenantId = req.user.tenantId || req.tenant?.id;
+        if (!tenantId) return res.status(400).json({ success: false, error: 'Tenant bulunamadı' });
+
+        const personnel = await prisma.personnel.findMany({
+            where: {
+                tenantId,
+                isActive: true,
+                deletedAt: null,
+                jobTitle: { in: ['DRIVER', 'OPERATION', 'TENANT_STAFF'] }
+            },
+            include: {
+                user: { select: { id: true, fullName: true, phone: true, avatar: true } }
+            },
+            orderBy: { firstName: 'asc' }
+        });
+
+        // Also get vehicles to show which driver has which car
+        const vehicles = await prisma.vehicle.findMany({
+            where: { tenantId, status: 'ACTIVE' },
+            select: { id: true, plateNumber: true, brand: true, model: true, metadata: true }
+        });
+
+        const vehicleByDriver = {};
+        vehicles.forEach(v => {
+            if (v.metadata?.driverId) {
+                vehicleByDriver[v.metadata.driverId] = v;
+            }
+        });
+
+        const drivers = personnel
+            .filter(p => p.userId || p.user)
+            .map(p => {
+                const userId = p.userId || p.user?.id;
+                const vehicle = vehicleByDriver[userId] || vehicleByDriver[p.id];
+                return {
+                    id: p.id,
+                    userId,
+                    name: p.user?.fullName || `${p.firstName} ${p.lastName}`,
+                    phone: p.user?.phone || p.phone,
+                    avatar: p.user?.avatar || p.photo,
+                    jobTitle: p.jobTitle,
+                    vehicle: vehicle ? {
+                        id: vehicle.id,
+                        plate: vehicle.plateNumber,
+                        brand: `${vehicle.brand || ''} ${vehicle.model || ''}`.trim()
+                    } : null
+                };
+            });
+
+        res.json({ success: true, data: drivers });
+    } catch (error) {
+        console.error('[Airport] greeting-drivers error:', error);
+        res.status(500).json({ success: false, error: 'Şoför listesi alınamadı' });
     }
 });
 

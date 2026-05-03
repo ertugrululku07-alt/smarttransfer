@@ -688,6 +688,10 @@ export default function OperationsPage() {
         DRIVER_ASSIGNED: 'Şöför Atandı',
         DRIVER_READ: 'Şöför Okudu',
         HAVUZDA: 'Havuzda',
+        FLIGHT_DELAYED: 'Uçuş Rötarlı',
+        FLIGHT_LANDED: 'Uçak İndi',
+        CUSTOMER_MET: 'Müşteri Karşılandı',
+        NO_SHOW: 'Gelmedi',
     };
     const DEFAULT_COLORS: Record<string, string> = {
         PENDING: '#e6f4ff',
@@ -701,6 +705,10 @@ export default function OperationsPage() {
         DRIVER_ASSIGNED: '#d8b4fe',
         DRIVER_READ: '#a5f3fc',
         HAVUZDA: '#fff0f6',
+        FLIGHT_DELAYED: '#fff7ed',
+        FLIGHT_LANDED: '#eff6ff',
+        CUSTOMER_MET: '#f3e8ff',
+        NO_SHOW: '#fef2f2',
     };
     const [statusColors, setStatusColors] = useState<Record<string, string>>(DEFAULT_COLORS);
     const [airportColors, setAirportColors] = useState<Record<string, string>>({});
@@ -1586,6 +1594,32 @@ export default function OperationsPage() {
             setSosAlerts(prev => prev.map(a => a.id === alert.id ? alert : a));
         };
 
+        // ── Greeting status update from airport staff ──
+        const handleGreetingUpdate = (data: { bookingId: string, greetingStatus: string, operationalStatus: string, driverId?: string, greeterName?: string }) => {
+            if (!data?.bookingId) return;
+            setBookings(prev => prev.map(b => {
+                if (b.id !== data.bookingId) return b;
+                const updated = { ...b };
+                if (data.operationalStatus) {
+                    updated.operationalStatus = data.operationalStatus;
+                    updated.metadata = { ...(updated.metadata || {}), operationalStatus: data.operationalStatus, greetingStatus: data.greetingStatus };
+                }
+                if (data.driverId) updated.driverId = data.driverId;
+                if (data.operationalStatus === 'COMPLETED') updated.status = 'COMPLETED';
+                if (data.operationalStatus === 'CANCELLED') updated.status = 'CANCELLED';
+                return updated;
+            }));
+            // Also update shuttle runs
+            setShuttleRuns(prev => prev.map((run: any) => ({
+                ...run,
+                bookings: (run.bookings || []).map((b: any) => {
+                    if (b.id !== data.bookingId) return b;
+                    return { ...b, operationalStatus: data.operationalStatus, metadata: { ...(b.metadata || {}), operationalStatus: data.operationalStatus, greetingStatus: data.greetingStatus } };
+                }),
+            })));
+            shuttleActionTimeRef.current = Date.now();
+        };
+
         socket.on('booking_status_update', handleStatusUpdate);
         socket.on('new_booking', handleNewBooking);
         socket.on('shuttle_runs_updated', handleShuttleRunsUpdated);
@@ -1593,6 +1627,7 @@ export default function OperationsPage() {
         socket.on('booking_payment_update', handlePaymentUpdate);
         socket.on('sos:new', handleSosNew);
         socket.on('sos:resolved', handleSosResolved);
+        socket.on('greeting_status_update', handleGreetingUpdate);
 
         return () => {
             socket.off('booking_status_update', handleStatusUpdate);
@@ -1602,6 +1637,7 @@ export default function OperationsPage() {
             socket.off('booking_payment_update', handlePaymentUpdate);
             socket.off('sos:new', handleSosNew);
             socket.off('sos:resolved', handleSosResolved);
+            socket.off('greeting_status_update', handleGreetingUpdate);
         };
     }, [socket, filters.transferType, filters.direction]);
 

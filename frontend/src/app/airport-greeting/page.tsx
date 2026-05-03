@@ -70,6 +70,10 @@ export default function AirportGreetingStandalonePage() {
     const [noteText, setNoteText] = useState('');
     const [detailModal, setDetailModal] = useState<{ visible: boolean; record: any | null }>({ visible: false, record: null });
     const [flightModal, setFlightModal] = useState<{ visible: boolean; flightNumber: string; loading: boolean; data: any | null; record: any | null }>({ visible: false, flightNumber: '', loading: false, data: null, record: null });
+    const [handoffModal, setHandoffModal] = useState<{ visible: boolean; bookingId: string; bookingNumber: string; passengerName: string }>({ visible: false, bookingId: '', bookingNumber: '', passengerName: '' });
+    const [driverList, setDriverList] = useState<any[]>([]);
+    const [driverListLoading, setDriverListLoading] = useState(false);
+    const [selectedDriver, setSelectedDriver] = useState<string | null>(null);
     const refreshTimer = useRef<any>(null);
 
     /* ── Fetch ── */
@@ -190,6 +194,47 @@ export default function AirportGreetingStandalonePage() {
                 });
             },
         });
+    };
+
+    /* ── Fetch drivers for handoff ── */
+    const fetchDrivers = async () => {
+        setDriverListLoading(true);
+        try {
+            const res = await apiClient.get('/api/transfer/greeting-drivers');
+            if (res.data.success) {
+                setDriverList(res.data.data);
+            }
+        } catch { /* silent */ }
+        finally { setDriverListLoading(false); }
+    };
+
+    /* ── Handle handoff (Teslim Edildi) ── */
+    const handleHandoff = (record: any) => {
+        if (record.driverId) {
+            // Driver already assigned, just update status
+            updateStatus(record.id, 'HANDED_OFF');
+        } else {
+            // No driver assigned — show driver selection modal
+            setSelectedDriver(null);
+            setHandoffModal({
+                visible: true,
+                bookingId: record.id,
+                bookingNumber: record.bookingNumber,
+                passengerName: record.passengerName,
+            });
+            fetchDrivers();
+        }
+    };
+
+    /* ── Confirm handoff with selected driver ── */
+    const confirmHandoff = async () => {
+        if (!selectedDriver) {
+            message.warning('Lütfen bir şoför seçin');
+            return;
+        }
+        await updateStatus(handoffModal.bookingId, 'HANDED_OFF', { driverId: selectedDriver });
+        setHandoffModal({ visible: false, bookingId: '', bookingNumber: '', passengerName: '' });
+        setSelectedDriver(null);
     };
 
     /* ── Handle no show ── */
@@ -388,7 +433,7 @@ export default function AirportGreetingStandalonePage() {
                                 type="primary"
                                 size="small"
                                 icon={nextInfo.icon}
-                                onClick={() => updateStatus(r.id, nextStatus!)}
+                                onClick={() => nextStatus === 'HANDED_OFF' ? handleHandoff(r) : updateStatus(r.id, nextStatus!)}
                                 style={{
                                     borderRadius: 6, fontWeight: 700, fontSize: 11,
                                     background: nextInfo.color, border: 'none', height: 28,
@@ -930,6 +975,84 @@ export default function AirportGreetingStandalonePage() {
                             </div>
                         );
                     })()}
+                </Modal>
+
+                {/* ═══ DRIVER SELECTION MODAL ═══ */}
+                <Modal
+                    title={<div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <CarOutlined style={{ color: '#6366f1' }} />
+                        <span>Şoför Seçin — Teslim Et</span>
+                    </div>}
+                    open={handoffModal.visible}
+                    onCancel={() => setHandoffModal({ visible: false, bookingId: '', bookingNumber: '', passengerName: '' })}
+                    onOk={confirmHandoff}
+                    okText="Teslim Et"
+                    cancelText="Vazgeç"
+                    okButtonProps={{
+                        disabled: !selectedDriver,
+                        style: { background: selectedDriver ? 'linear-gradient(135deg, #8b5cf6, #6366f1)' : undefined, border: 'none', fontWeight: 700 }
+                    }}
+                    width={500}
+                >
+                    <div style={{ marginBottom: 12, padding: '8px 12px', borderRadius: 8, background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                        <div style={{ fontSize: 12, color: '#64748b' }}>Müşteri</div>
+                        <div style={{ fontWeight: 700, fontSize: 14, color: '#1e293b' }}>{handoffModal.passengerName}</div>
+                        <div style={{ fontSize: 11, color: '#94a3b8', fontFamily: 'monospace' }}>{handoffModal.bookingNumber}</div>
+                    </div>
+                    <div style={{ fontSize: 12, color: '#64748b', marginBottom: 8 }}>
+                        Şoför atanmamış. Lütfen müşteriyi teslim edeceğiniz şoförü seçin:
+                    </div>
+                    {driverListLoading ? (
+                        <div style={{ textAlign: 'center', padding: 30 }}>
+                            <LoadingOutlined style={{ fontSize: 24, color: '#6366f1' }} />
+                            <div style={{ marginTop: 8, color: '#94a3b8', fontSize: 12 }}>Şoförler yükleniyor...</div>
+                        </div>
+                    ) : (
+                        <div style={{ maxHeight: 320, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            {driverList.length === 0 ? (
+                                <div style={{ textAlign: 'center', padding: 20, color: '#94a3b8' }}>Uygun şoför bulunamadı</div>
+                            ) : driverList.map(d => (
+                                <div
+                                    key={d.id}
+                                    onClick={() => setSelectedDriver(d.userId || d.id)}
+                                    style={{
+                                        padding: '10px 14px', borderRadius: 10, cursor: 'pointer',
+                                        border: `2px solid ${selectedDriver === (d.userId || d.id) ? '#6366f1' : '#e2e8f0'}`,
+                                        background: selectedDriver === (d.userId || d.id) ? '#eef2ff' : '#fff',
+                                        transition: 'all 0.15s',
+                                        display: 'flex', alignItems: 'center', gap: 12,
+                                    }}
+                                >
+                                    <div style={{
+                                        width: 36, height: 36, borderRadius: 8,
+                                        background: selectedDriver === (d.userId || d.id) ? 'linear-gradient(135deg, #6366f1, #8b5cf6)' : '#f1f5f9',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        color: selectedDriver === (d.userId || d.id) ? '#fff' : '#64748b',
+                                        fontWeight: 700, fontSize: 14,
+                                    }}>
+                                        {d.avatar ? (
+                                            <img src={d.avatar} alt="" style={{ width: 36, height: 36, borderRadius: 8, objectFit: 'cover' }} />
+                                        ) : (
+                                            d.name?.charAt(0)?.toUpperCase() || <UserOutlined />
+                                        )}
+                                    </div>
+                                    <div style={{ flex: 1 }}>
+                                        <div style={{ fontWeight: 700, fontSize: 13, color: '#1e293b' }}>{d.name}</div>
+                                        {d.phone && <div style={{ fontSize: 11, color: '#64748b' }}><PhoneOutlined style={{ fontSize: 9, marginRight: 3 }} />{d.phone}</div>}
+                                    </div>
+                                    {d.vehicle && (
+                                        <div style={{ textAlign: 'right' }}>
+                                            <div style={{ fontSize: 11, fontWeight: 600, color: '#334155' }}>{d.vehicle.plate}</div>
+                                            <div style={{ fontSize: 10, color: '#94a3b8' }}>{d.vehicle.brand}</div>
+                                        </div>
+                                    )}
+                                    {selectedDriver === (d.userId || d.id) && (
+                                        <CheckCircleOutlined style={{ color: '#6366f1', fontSize: 18 }} />
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </Modal>
 
                 {/* ═══ STYLES ═══ */}
