@@ -799,6 +799,70 @@ server.listen(PORT, () => {
   // First run after 30s to let server settle
   setTimeout(checkUpcomingFlights, 30 * 1000);
   console.log('✈️  Flight tracking job scheduled (every 5 minutes)');
+
+  // ==========================================================================
+  // AUTO-APPROVE JOB — Process PENDING bookings every 60s (server-side)
+  // Works independently of frontend; reads tenant.settings.operationSettings.autoApproveMode
+  // ==========================================================================
+  const runAutoApproveJob = async () => {
+    try {
+      // Find tenants with autoApproveMode enabled
+      const tenants = await prisma.tenant.findMany({
+        where: { isActive: true },
+        select: { id: true, settings: true }
+      });
+
+      for (const t of tenants) {
+        const mode = t.settings?.operationSettings?.autoApproveMode;
+        if (mode !== 'operation' && mode !== 'pool') continue;
+
+        const subStatus = mode === 'operation' ? 'IN_OPERATION' : 'IN_POOL';
+
+        // Find PENDING bookings for this tenant
+        const pending = await prisma.booking.findMany({
+          where: {
+            tenantId: t.id,
+            status: 'PENDING',
+            productType: 'TRANSFER',
+          },
+          select: { id: true, bookingNumber: true, metadata: true }
+        });
+
+        if (pending.length === 0) continue;
+
+        let ok = 0;
+        for (const b of pending) {
+          try {
+            await prisma.booking.update({
+              where: { id: b.id },
+              data: {
+                status: 'CONFIRMED',
+                metadata: { ...(b.metadata || {}), operationalStatus: subStatus }
+              }
+            });
+            ok++;
+          } catch (e) {
+            console.warn(`[AutoApproveJob] Failed for ${b.bookingNumber}:`, e.message);
+          }
+        }
+        if (ok > 0) {
+          console.log(`[AutoApproveJob] tenant=${t.id} mode=${mode} → ${ok}/${pending.length} bookings approved`);
+          // Notify connected admins
+          if (io) {
+            io.to('admin_monitoring').emit('bookings_auto_approved', { count: ok, mode });
+          }
+        }
+      }
+    } catch (err) {
+      console.error('[AutoApproveJob] error:', err.message);
+    }
+  };
+
+  // Run every 60 seconds
+  setInterval(runAutoApproveJob, 60 * 1000);
+  // First run after 10s
+  setTimeout(runAutoApproveJob, 10 * 1000);
+  console.log('⚡ Auto-approve job started (every 60 seconds)');
 });
 
 // Trigger restart for env load

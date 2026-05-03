@@ -2739,16 +2739,39 @@ router.post('/bookings/admin', authMiddleware, async (req, res) => {
             }
         });
 
+        // ── Server-side Auto-Approve (Admin bookings) ──
+        let finalBooking = booking;
+        try {
+            const tenantForAuto = await prisma.tenant.findUnique({
+                where: { id: tenantId },
+                select: { settings: true }
+            });
+            const mode = tenantForAuto?.settings?.operationSettings?.autoApproveMode;
+            if (mode === 'operation' || mode === 'pool') {
+                const subStatus = mode === 'operation' ? 'IN_OPERATION' : 'IN_POOL';
+                finalBooking = await prisma.booking.update({
+                    where: { id: booking.id },
+                    data: {
+                        status: 'CONFIRMED',
+                        metadata: { ...(booking.metadata || {}), operationalStatus: subStatus }
+                    }
+                });
+                console.log(`[AutoApprove-Admin] tenant=${tenantId} mode=${mode} → ${finalBooking.bookingNumber}`);
+            }
+        } catch (autoErr) {
+            console.error('[AutoApprove-Admin] failed (non-blocking):', autoErr);
+        }
+
         const io = req.app.get('io');
         if (io) {
-            io.to('admin_monitoring').emit('new_booking', booking);
+            io.to('admin_monitoring').emit('new_booking', finalBooking);
         }
 
         // Send voucher email (async, don't block response)
-        if (booking.contactEmail) {
+        if (finalBooking.contactEmail) {
             try {
                 const { sendBookingVoucher } = require('../lib/emailService');
-                sendBookingVoucher(tenantId, booking).catch(err => {
+                sendBookingVoucher(tenantId, finalBooking).catch(err => {
                     console.error('[EMAIL] Voucher send failed (background):', err.message);
                 });
             } catch (emailErr) {
@@ -2757,10 +2780,10 @@ router.post('/bookings/admin', authMiddleware, async (req, res) => {
         }
 
         // Send WhatsApp voucher (async, don't block response)
-        if (booking.contactPhone) {
+        if (finalBooking.contactPhone) {
             try {
                 const { sendBookingWhatsApp } = require('../lib/whatsappService');
-                sendBookingWhatsApp(tenantId, booking).catch(err => {
+                sendBookingWhatsApp(tenantId, finalBooking).catch(err => {
                     console.error('[WHATSAPP] Voucher send failed (background):', err.message);
                 });
             } catch (waErr) {
@@ -2768,7 +2791,7 @@ router.post('/bookings/admin', authMiddleware, async (req, res) => {
             }
         }
 
-        res.json({ success: true, data: booking });
+        res.json({ success: true, data: finalBooking });
     } catch (error) {
         console.error('Create booking admin error:', error);
         res.status(500).json({ success: false, error: 'Rezervasyon oluşturulamadı' });
