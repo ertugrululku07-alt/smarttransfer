@@ -3865,6 +3865,10 @@ router.get('/airport-arrivals', authMiddleware, async (req, res) => {
                 greeterName: b.metadata?.greeterId ? (greeterMap[b.metadata.greeterId] || null) : null,
                 // Agency
                 agencyName: b.agency?.name || b.agency?.companyName || b.metadata?.agencyName || null,
+                // Shuttle metadata for run grouping
+                shuttleRouteId: b.metadata?.shuttleRouteId || null,
+                shuttleMasterTime: b.metadata?.shuttleMasterTime || null,
+                manualRunId: b.metadata?.manualRunId || null,
                 // Timestamps
                 pickedUpAt: b.pickedUpAt,
                 droppedOffAt: b.droppedOffAt,

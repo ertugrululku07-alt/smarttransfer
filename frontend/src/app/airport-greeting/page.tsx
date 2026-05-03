@@ -74,6 +74,9 @@ export default function AirportGreetingStandalonePage() {
     const [driverList, setDriverList] = useState<any[]>([]);
     const [driverListLoading, setDriverListLoading] = useState(false);
     const [selectedDriver, setSelectedDriver] = useState<string | null>(null);
+    const [moveModal, setMoveModal] = useState<{ visible: boolean; bookingId: string; bookingNumber: string; passengerName: string; currentRunKey?: string }>({ visible: false, bookingId: '', bookingNumber: '', passengerName: '' });
+    const [shuttleRuns, setShuttleRuns] = useState<any[]>([]);
+    const [shuttleRunsLoading, setShuttleRunsLoading] = useState(false);
     const refreshTimer = useRef<any>(null);
 
     /* ── Fetch ── */
@@ -247,6 +250,61 @@ export default function AirportGreetingStandalonePage() {
             cancelText: 'Vazgeç',
             onOk: () => updateStatus(bookingId, 'NO_SHOW', { notes: 'Müşteri havalimanında bulunamadı' }),
         });
+    };
+
+    /* ── Shuttle: fetch runs for move modal ── */
+    const fetchShuttleRuns = async () => {
+        setShuttleRunsLoading(true);
+        try {
+            const res = await apiClient.get('/api/operations/shuttle-runs', { params: { date: selectedDate.format('YYYY-MM-DD') } });
+            if (res.data.success) {
+                setShuttleRuns(res.data.data || []);
+            }
+        } catch { /* silent */ }
+        finally { setShuttleRunsLoading(false); }
+    };
+
+    /* ── Shuttle: open move modal ── */
+    const handleMovePassenger = (record: any) => {
+        setMoveModal({
+            visible: true,
+            bookingId: record.id,
+            bookingNumber: record.bookingNumber,
+            passengerName: record.passengerName,
+            currentRunKey: record.manualRunId || record.shuttleRouteId || '',
+        });
+        fetchShuttleRuns();
+    };
+
+    /* ── Shuttle: execute move ── */
+    const executeMovePassenger = async (targetRun: any) => {
+        try {
+            // Find a sample booking in the target run to adopt its metadata
+            const sampleBookingId = targetRun.bookings?.[0]?.id;
+            const body: any = {
+                bookingIds: [moveModal.bookingId],
+                sampleBookingId,
+                targetBookingIds: targetRun.bookings?.map((b: any) => b.id) || [],
+            };
+            if (!sampleBookingId) {
+                body.targetRun = {
+                    shuttleRouteId: targetRun.shuttleRouteId,
+                    shuttleMasterTime: targetRun.departureTime,
+                    manualRunId: targetRun.runKey?.includes('MANUAL') ? targetRun.runKey.replace('MANUAL::', '') : null,
+                    tripType: targetRun.tripType,
+                };
+            }
+            const res = await apiClient.post('/api/operations/shuttle-runs/move', body);
+            if (res.data.success) {
+                message.success('Müşteri başarıyla taşındı');
+                setMoveModal({ visible: false, bookingId: '', bookingNumber: '', passengerName: '' });
+                fetchArrivals();
+            } else {
+                message.error(res.data.message || res.data.error || 'Taşıma başarısız');
+            }
+        } catch (err: any) {
+            message.error(err?.response?.data?.message || 'Taşıma hatası');
+        }
     };
 
     /* ── Columns ── */
@@ -460,6 +518,14 @@ export default function AirportGreetingStandalonePage() {
                                     onClick={() => setNoteModal({ visible: true, bookingId: r.id, bookingNumber: r.bookingNumber })}
                                     style={{ borderRadius: 5, fontSize: 10, height: 24, flex: 1 }}>
                                     Not
+                                </Button>
+                            )}
+                            {!isFinished && ((r.vehicleType || '').toLowerCase().includes('shuttle') || (r.vehicleType || '').toLowerCase().includes('paylaşımlı') || r.shuttleRouteId) && (
+                                <Button size="small"
+                                    icon={<SwapRightOutlined style={{ fontSize: 10 }} />}
+                                    onClick={() => handleMovePassenger(r)}
+                                    style={{ borderRadius: 5, fontSize: 10, height: 24, flex: 1, color: '#6366f1', borderColor: '#c7d2fe' }}>
+                                    Sefer
                                 </Button>
                             )}
                             <Button size="small" type="link"
@@ -1051,6 +1117,91 @@ export default function AirportGreetingStandalonePage() {
                                     )}
                                 </div>
                             ))}
+                        </div>
+                    )}
+                </Modal>
+
+                {/* ═══ SHUTTLE MOVE MODAL ═══ */}
+                <Modal
+                    title={<div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <SwapRightOutlined style={{ color: '#6366f1' }} />
+                        <span>Sefer Değiştir</span>
+                    </div>}
+                    open={moveModal.visible}
+                    onCancel={() => setMoveModal({ visible: false, bookingId: '', bookingNumber: '', passengerName: '' })}
+                    footer={null}
+                    width={560}
+                >
+                    <div style={{ marginBottom: 12, padding: '8px 12px', borderRadius: 8, background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                        <div style={{ fontSize: 12, color: '#64748b' }}>Taşınacak Müşteri</div>
+                        <div style={{ fontWeight: 700, fontSize: 14, color: '#1e293b' }}>{moveModal.passengerName}</div>
+                        <div style={{ fontSize: 11, color: '#94a3b8', fontFamily: 'monospace' }}>{moveModal.bookingNumber}</div>
+                    </div>
+                    <div style={{ fontSize: 12, color: '#64748b', marginBottom: 8 }}>
+                        Müşteriyi taşımak istediğiniz seferi seçin:
+                    </div>
+                    {shuttleRunsLoading ? (
+                        <div style={{ textAlign: 'center', padding: 30 }}>
+                            <LoadingOutlined style={{ fontSize: 24, color: '#6366f1' }} />
+                            <div style={{ marginTop: 8, color: '#94a3b8', fontSize: 12 }}>Seferler yükleniyor...</div>
+                        </div>
+                    ) : (
+                        <div style={{ maxHeight: 400, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            {shuttleRuns.length === 0 ? (
+                                <div style={{ textAlign: 'center', padding: 20, color: '#94a3b8' }}>Bugün için shuttle seferi bulunamadı</div>
+                            ) : shuttleRuns.map((run: any, idx: number) => {
+                                const isCurrent = run.runKey === moveModal.currentRunKey ||
+                                    run.bookings?.some((b: any) => b.id === moveModal.bookingId);
+                                const paxCount = run.bookings?.length || 0;
+                                return (
+                                    <div
+                                        key={run.runKey || idx}
+                                        onClick={() => !isCurrent && executeMovePassenger(run)}
+                                        style={{
+                                            padding: '10px 14px', borderRadius: 10,
+                                            cursor: isCurrent ? 'not-allowed' : 'pointer',
+                                            border: `2px solid ${isCurrent ? '#86efac' : '#e2e8f0'}`,
+                                            background: isCurrent ? '#f0fdf4' : '#fff',
+                                            opacity: isCurrent ? 0.7 : 1,
+                                            transition: 'all 0.15s',
+                                            display: 'flex', alignItems: 'center', gap: 12,
+                                        }}
+                                    >
+                                        <div style={{
+                                            width: 44, height: 44, borderRadius: 10,
+                                            background: isCurrent ? '#dcfce7' : 'linear-gradient(135deg, #eef2ff, #e0e7ff)',
+                                            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                                        }}>
+                                            <div style={{ fontWeight: 800, fontSize: 14, color: isCurrent ? '#16a34a' : '#4f46e5', lineHeight: 1 }}>
+                                                {run.departureTime || '--:--'}
+                                            </div>
+                                            <div style={{ fontSize: 8, color: '#94a3b8', fontWeight: 600 }}>
+                                                {run.tripType || ''}
+                                            </div>
+                                        </div>
+                                        <div style={{ flex: 1 }}>
+                                            <div style={{ fontWeight: 700, fontSize: 13, color: '#1e293b' }}>
+                                                {run.routeName || 'Shuttle'}
+                                            </div>
+                                            <div style={{ fontSize: 11, color: '#64748b' }}>
+                                                {paxCount} müşteri
+                                                {run.maxSeats ? ` / ${run.maxSeats} koltuk` : ''}
+                                            </div>
+                                            {run.bookings && run.bookings.length > 0 && (
+                                                <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 2 }}>
+                                                    {run.bookings.slice(0, 3).map((b: any) => b.contactName).join(', ')}
+                                                    {run.bookings.length > 3 && ` +${run.bookings.length - 3}`}
+                                                </div>
+                                            )}
+                                        </div>
+                                        {isCurrent ? (
+                                            <Tag color="green" style={{ fontSize: 10, borderRadius: 6 }}>Mevcut</Tag>
+                                        ) : (
+                                            <SwapRightOutlined style={{ color: '#6366f1', fontSize: 18 }} />
+                                        )}
+                                    </div>
+                                );
+                            })}
                         </div>
                     )}
                 </Modal>
