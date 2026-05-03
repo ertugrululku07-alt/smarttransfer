@@ -1727,7 +1727,16 @@ router.get('/bookings', authMiddleware, async (req, res) => {
                         agency: true
                     }
                 },
-                agency: true
+                agency: true,
+                driver: {
+                    select: {
+                        id: true,
+                        firstName: true,
+                        lastName: true,
+                        phone: true,
+                        avatar: true,
+                    }
+                }
             },
             orderBy: {
                 createdAt: 'desc'
@@ -1764,8 +1773,24 @@ router.get('/bookings', authMiddleware, async (req, res) => {
             roleMap[u.id] = u.role?.type; // e.g. 'PARTNER', 'SUPER_ADMIN'
         });
 
+        // 4. Collect all unique vehicle IDs from metadata and fetch vehicle details
+        const vehicleIds = [...new Set(
+            bookings.map(b => b.metadata?.assignedVehicleId || b.metadata?.vehicleId).filter(Boolean)
+        )];
+        const vehicleMap = {};
+        if (vehicleIds.length > 0) {
+            const vehicles = await prisma.vehicle.findMany({
+                where: { id: { in: vehicleIds } },
+                select: { id: true, plateNumber: true, brand: true, model: true, color: true },
+            });
+            vehicles.forEach(v => { vehicleMap[v.id] = v; });
+        }
+
         // Map DB format to Frontend format
-        const mappedBookings = bookings.map(b => ({
+        const mappedBookings = bookings.map(b => {
+            const vehId = b.metadata?.assignedVehicleId || b.metadata?.vehicleId || null;
+            const vehicle = vehId ? vehicleMap[vehId] : null;
+            return {
             id: b.id,
             bookingNumber: b.bookingNumber,
             vehicleType: b.metadata?.vehicleType || 'Unknown',
@@ -1799,8 +1824,15 @@ router.get('/bookings', authMiddleware, async (req, res) => {
             partnerName: b.confirmedBy ? (userMap[b.confirmedBy] || 'Bilinmiyor') : null, // Map Partner Name
             partnerRole: b.confirmedBy ? (roleMap[b.confirmedBy] || 'UNKNOWN') : null, // Map Partner Role
             driverId: b.metadata?.driverId || b.driverId || null, // Driver assignment
-            assignedVehicleId: b.metadata?.assignedVehicleId || b.metadata?.vehicleId || null, // Vehicle assignment
-            vehicleId: b.metadata?.assignedVehicleId || b.metadata?.vehicleId || null, // UI compatibility
+            assignedVehicleId: vehId, // Vehicle assignment
+            vehicleId: vehId, // UI compatibility
+            // Driver details from relation
+            driverName: b.driver ? `${b.driver.firstName} ${b.driver.lastName}` : null,
+            driverPhone: b.driver?.phone || null,
+            // Vehicle details from lookup
+            vehiclePlate: vehicle?.plateNumber || null,
+            vehicleBrand: vehicle ? `${vehicle.brand} ${vehicle.model}` : null,
+            vehicleColor: vehicle?.color || null,
             // Nested relations mapping expected by the frontend:
             customer: b.customer,
             customerId: b.customerId || null,
@@ -1813,7 +1845,8 @@ router.get('/bookings', authMiddleware, async (req, res) => {
             // Pickup/Dropoff tracking timestamps
             pickedUpAt: b.pickedUpAt,
             droppedOffAt: b.droppedOffAt
-        }));
+            };
+        });
 
         res.json({
             success: true,

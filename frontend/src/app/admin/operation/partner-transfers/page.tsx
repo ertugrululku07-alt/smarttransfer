@@ -7,7 +7,8 @@ import {
 import {
     ReloadOutlined, CarOutlined, EnvironmentOutlined, CalendarOutlined,
     UserOutlined, TeamOutlined, SearchOutlined, PhoneOutlined,
-    SwapOutlined, ClockCircleOutlined, GlobalOutlined
+    SwapOutlined, ClockCircleOutlined, GlobalOutlined,
+    CheckCircleOutlined, DollarOutlined, IdcardOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import 'dayjs/locale/tr';
@@ -30,7 +31,6 @@ export default function PartnerTransfersPage() {
             if (response.data.success) {
                 const allBookings = response.data.data;
                 const partnerBookings = allBookings.filter((b: any) =>
-                    b.status === 'CONFIRMED' &&
                     b.partnerName &&
                     b.partnerRole === 'PARTNER'
                 );
@@ -51,12 +51,17 @@ export default function PartnerTransfersPage() {
     const filteredBookings = bookings.filter((b: any) => {
         if (!searchText) return true;
         const q = searchText.toLowerCase();
+        const pickup = typeof b.pickup === 'string' ? b.pickup : b.pickup?.location || '';
+        const dropoff = typeof b.dropoff === 'string' ? b.dropoff : b.dropoff?.location || '';
         return (
             b.bookingNumber?.toLowerCase().includes(q) ||
             b.partnerName?.toLowerCase().includes(q) ||
             b.passengerName?.toLowerCase().includes(q) ||
-            b.pickup?.location?.toLowerCase().includes(q) ||
-            b.dropoff?.location?.toLowerCase().includes(q)
+            b.driverName?.toLowerCase().includes(q) ||
+            b.vehiclePlate?.toLowerCase().includes(q) ||
+            b.contactPhone?.toLowerCase().includes(q) ||
+            pickup.toLowerCase().includes(q) ||
+            dropoff.toLowerCase().includes(q)
         );
     });
 
@@ -67,49 +72,61 @@ export default function PartnerTransfersPage() {
         return acc;
     }, {});
 
+    const STATUS_MAP: Record<string, { label: string; color: string; bg: string; border: string }> = {
+        PENDING: { label: 'Bekliyor', color: '#d97706', bg: '#fffbeb', border: '#fcd34d' },
+        CONFIRMED: { label: 'Onaylandı', color: '#7c3aed', bg: '#f3e8ff', border: '#ddd6fe' },
+        IN_PROGRESS: { label: 'Yolda', color: '#2563eb', bg: '#eff6ff', border: '#93c5fd' },
+        COMPLETED: { label: 'Tamamlandı', color: '#16a34a', bg: '#f0fdf4', border: '#86efac' },
+        CANCELLED: { label: 'İptal', color: '#dc2626', bg: '#fef2f2', border: '#fca5a5' },
+        NO_SHOW: { label: 'Gelmedi', color: '#64748b', bg: '#f8fafc', border: '#cbd5e1' },
+    };
+
     const columns: any[] = [
         {
             title: 'Transfer',
             key: 'transfer',
-            width: 340,
+            width: 300,
             render: (_: any, record: any) => {
                 const pickup = typeof record.pickup === 'string' ? record.pickup : record.pickup?.location;
                 const dropoff = typeof record.dropoff === 'string' ? record.dropoff : record.dropoff?.location;
                 return (
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
                         <div style={{
-                            width: 44, height: 44, borderRadius: 12, flexShrink: 0,
+                            width: 40, height: 40, borderRadius: 10, flexShrink: 0,
                             background: 'linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%)',
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            boxShadow: '0 4px 14px rgba(124,58,237,0.25)'
+                            boxShadow: '0 3px 10px rgba(124,58,237,0.2)'
                         }}>
-                            <TeamOutlined style={{ color: '#fff', fontSize: 20 }} />
+                            <SwapOutlined style={{ color: '#fff', fontSize: 16 }} />
                         </div>
                         <div style={{ minWidth: 0, flex: 1 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
                                 <span style={{
-                                    fontWeight: 800, fontSize: 14, color: '#1e293b', fontFamily: 'monospace',
-                                    background: '#f1f5f9', padding: '1px 8px', borderRadius: 6
+                                    fontWeight: 800, fontSize: 12, color: '#1e293b', fontFamily: 'monospace',
+                                    background: '#f1f5f9', padding: '1px 6px', borderRadius: 4
                                 }}>
                                     {record.bookingNumber}
                                 </span>
                                 <Tag color="purple" style={{
-                                    margin: 0, fontSize: 11, borderRadius: 6, fontWeight: 700, lineHeight: '18px',
+                                    margin: 0, fontSize: 10, borderRadius: 4, fontWeight: 700, lineHeight: '16px',
                                     background: '#f3e8ff', color: '#7c3aed', border: '1px solid #ddd6fe'
                                 }}>
                                     DIŞ OPERASYON
                                 </Tag>
                             </div>
-                            {/* Route */}
-                            <div style={{ fontSize: 13, lineHeight: 1.6 }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#334155' }}>
-                                    <EnvironmentOutlined style={{ color: '#10b981', fontSize: 12 }} />
-                                    <span style={{ fontWeight: 500 }}>{pickup || 'Belirtilmemiş'}</span>
+                            <div style={{ fontSize: 12, lineHeight: 1.5 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#334155' }}>
+                                    <EnvironmentOutlined style={{ color: '#10b981', fontSize: 10 }} />
+                                    <span style={{ fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                        {pickup || 'Belirtilmemiş'}
+                                    </span>
                                 </div>
-                                <div style={{ marginLeft: 6, borderLeft: '2px dashed #e2e8f0', height: 6 }} />
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#334155' }}>
-                                    <EnvironmentOutlined style={{ color: '#ef4444', fontSize: 12 }} />
-                                    <span style={{ fontWeight: 500 }}>{dropoff || 'Belirtilmemiş'}</span>
+                                <div style={{ marginLeft: 5, borderLeft: '2px dashed #e2e8f0', height: 4 }} />
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#334155' }}>
+                                    <EnvironmentOutlined style={{ color: '#ef4444', fontSize: 10 }} />
+                                    <span style={{ fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                        {dropoff || 'Belirtilmemiş'}
+                                    </span>
                                 </div>
                             </div>
                         </div>
@@ -120,22 +137,22 @@ export default function PartnerTransfersPage() {
         {
             title: 'Partner',
             key: 'partner',
-            width: 140,
+            width: 130,
             render: (_: any, record: any) => (
                 <div style={{
-                    display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 12px',
-                    borderRadius: 10, background: 'linear-gradient(135deg, #f3e8ff, #ede9fe)',
+                    display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 10px',
+                    borderRadius: 8, background: 'linear-gradient(135deg, #f3e8ff, #ede9fe)',
                     border: '1px solid #ddd6fe'
                 }}>
                     <div style={{
-                        width: 26, height: 26, borderRadius: 7, flexShrink: 0,
+                        width: 24, height: 24, borderRadius: 6, flexShrink: 0,
                         background: 'linear-gradient(135deg, #7c3aed, #a78bfa)',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontWeight: 800, fontSize: 11, color: '#fff'
+                        fontWeight: 800, fontSize: 10, color: '#fff'
                     }}>
                         {record.partnerName?.charAt(0)?.toUpperCase() || 'P'}
                     </div>
-                    <span style={{ fontWeight: 700, fontSize: 13, color: '#5b21b6' }}>
+                    <span style={{ fontWeight: 700, fontSize: 12, color: '#5b21b6' }}>
                         {record.partnerName || '-'}
                     </span>
                 </div>
@@ -144,25 +161,24 @@ export default function PartnerTransfersPage() {
         {
             title: 'Tarih / Saat',
             key: 'datetime',
-            width: 150,
+            width: 130,
+            sorter: (a: any, b: any) => new Date(a.pickupDateTime).getTime() - new Date(b.pickupDateTime).getTime(),
             render: (_: any, record: any) => {
                 const dt = record.pickupDateTime;
                 return (
                     <div>
                         <div style={{
-                            display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px',
-                            borderRadius: 8, background: '#eff6ff', color: '#1d4ed8',
-                            fontWeight: 700, fontSize: 13
+                            display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 8px',
+                            borderRadius: 6, background: '#eff6ff', color: '#1d4ed8',
+                            fontWeight: 700, fontSize: 12
                         }}>
-                            <CalendarOutlined style={{ fontSize: 12 }} />
+                            <CalendarOutlined style={{ fontSize: 11 }} />
                             {dt ? dayjs(dt).format('DD MMM HH:mm') : '-'}
                         </div>
                         {record.flightNumber && (
-                            <div style={{
-                                marginTop: 5, fontSize: 12, color: '#6366f1', fontWeight: 600,
-                                display: 'flex', alignItems: 'center', gap: 4
-                            }}>
+                            <div style={{ marginTop: 3, fontSize: 11, color: '#6366f1', fontWeight: 600 }}>
                                 ✈️ {record.flightNumber}
+                                {record.flightTime && <span style={{ color: '#94a3b8', marginLeft: 4 }}>({record.flightTime})</span>}
                             </div>
                         )}
                     </div>
@@ -172,26 +188,63 @@ export default function PartnerTransfersPage() {
         {
             title: 'Müşteri',
             key: 'customer',
-            width: 160,
+            width: 170,
             render: (_: any, record: any) => {
                 const name = record.passengerName || record.contactName || '-';
                 const initials = name.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase();
                 return (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <div style={{
-                            width: 32, height: 32, borderRadius: 8, flexShrink: 0,
+                            width: 30, height: 30, borderRadius: 8, flexShrink: 0,
                             background: 'linear-gradient(135deg, #e0e7ff, #c7d2fe)',
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            fontWeight: 800, fontSize: 12, color: '#4338ca'
+                            fontWeight: 800, fontSize: 11, color: '#4338ca'
                         }}>
                             {initials}
                         </div>
-                        <div>
-                            <div style={{ fontWeight: 600, fontSize: 13, color: '#1e293b' }}>{name}</div>
+                        <div style={{ minWidth: 0 }}>
+                            <div style={{ fontWeight: 600, fontSize: 13, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{name}</div>
                             {record.contactPhone && (
                                 <div style={{ fontSize: 11, color: '#94a3b8', display: 'flex', alignItems: 'center', gap: 3 }}>
-                                    <PhoneOutlined style={{ fontSize: 10 }} />
+                                    <PhoneOutlined style={{ fontSize: 9 }} />
                                     {record.contactPhone}
+                                </div>
+                            )}
+                            {record.contactEmail && (
+                                <div style={{ fontSize: 10, color: '#cbd5e1', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 140 }}>
+                                    {record.contactEmail}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                );
+            },
+        },
+        {
+            title: 'Şoför',
+            key: 'driver',
+            width: 150,
+            render: (_: any, record: any) => {
+                if (!record.driverName) {
+                    return <span style={{ color: '#cbd5e1', fontSize: 12 }}>Atanmadı</span>;
+                }
+                return (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                        <div style={{
+                            width: 28, height: 28, borderRadius: 7, flexShrink: 0,
+                            background: 'linear-gradient(135deg, #dcfce7, #bbf7d0)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}>
+                            <IdcardOutlined style={{ fontSize: 13, color: '#16a34a' }} />
+                        </div>
+                        <div style={{ minWidth: 0 }}>
+                            <div style={{ fontWeight: 600, fontSize: 12, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                {record.driverName}
+                            </div>
+                            {record.driverPhone && (
+                                <div style={{ fontSize: 10, color: '#94a3b8', display: 'flex', alignItems: 'center', gap: 3 }}>
+                                    <PhoneOutlined style={{ fontSize: 9 }} />
+                                    {record.driverPhone}
                                 </div>
                             )}
                         </div>
@@ -202,23 +255,34 @@ export default function PartnerTransfersPage() {
         {
             title: 'Araç',
             key: 'vehicle',
-            width: 100,
-            align: 'center' as const,
+            width: 140,
             render: (_: any, record: any) => (
-                <div style={{
-                    display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px',
-                    borderRadius: 8, background: '#f0f9ff', color: '#0369a1', border: '1px solid #bae6fd',
-                    fontWeight: 600, fontSize: 12
-                }}>
-                    <CarOutlined style={{ fontSize: 12 }} />
-                    {record.vehicleType || '-'}
+                <div>
+                    <div style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 8px',
+                        borderRadius: 6, background: '#f0f9ff', color: '#0369a1', border: '1px solid #bae6fd',
+                        fontWeight: 600, fontSize: 11, marginBottom: 3
+                    }}>
+                        <CarOutlined style={{ fontSize: 11 }} />
+                        {record.vehicleType || '-'}
+                    </div>
+                    {record.vehiclePlate && (
+                        <div style={{ fontSize: 12, fontWeight: 700, color: '#1e293b', fontFamily: 'monospace', marginTop: 2 }}>
+                            {record.vehiclePlate}
+                        </div>
+                    )}
+                    {record.vehicleBrand && (
+                        <div style={{ fontSize: 10, color: '#94a3b8' }}>
+                            {record.vehicleBrand}
+                        </div>
+                    )}
                 </div>
             ),
         },
         {
             title: 'Pax',
             key: 'pax',
-            width: 80,
+            width: 60,
             align: 'center' as const,
             render: (_: any, record: any) => {
                 const a = record.adults || 1;
@@ -231,12 +295,47 @@ export default function PartnerTransfersPage() {
                 if (inf > 0) parts.push(`${inf}B`);
                 return (
                     <div style={{
-                        display: 'inline-flex', flexDirection: 'column', alignItems: 'center', padding: '3px 10px',
-                        borderRadius: 8, background: '#f8fafc', border: '1px solid #e2e8f0',
+                        display: 'inline-flex', flexDirection: 'column', alignItems: 'center', padding: '2px 8px',
+                        borderRadius: 6, background: '#f8fafc', border: '1px solid #e2e8f0',
                     }}>
-                        <span style={{ fontWeight: 700, fontSize: 13, color: '#475569' }}>👤 {total}</span>
+                        <span style={{ fontWeight: 700, fontSize: 13, color: '#475569' }}>{total}</span>
                         <span style={{ fontSize: 9, color: '#94a3b8', fontWeight: 600 }}>{parts.join('+')}</span>
                     </div>
+                );
+            },
+        },
+        {
+            title: 'Fiyat',
+            key: 'price',
+            width: 90,
+            align: 'right' as const,
+            sorter: (a: any, b: any) => (a.total || 0) - (b.total || 0),
+            render: (_: any, record: any) => (
+                <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontWeight: 700, fontSize: 14, color: '#1e293b' }}>
+                        {record.total ? Number(record.total).toLocaleString('tr-TR', { minimumFractionDigits: 2 }) : '-'}
+                    </div>
+                    <div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600 }}>{record.currency || 'TRY'}</div>
+                </div>
+            ),
+        },
+        {
+            title: 'Durum',
+            key: 'status',
+            width: 110,
+            align: 'center' as const,
+            filters: Object.entries(STATUS_MAP).map(([key, val]) => ({ text: val.label, value: key })),
+            onFilter: (value: string, record: any) => record.status === value,
+            render: (_: any, record: any) => {
+                const st = STATUS_MAP[record.status] || STATUS_MAP.PENDING;
+                return (
+                    <Tag style={{
+                        margin: 0, fontSize: 11, borderRadius: 6, fontWeight: 700, lineHeight: '20px',
+                        background: st.bg, color: st.color, border: `1px solid ${st.border}`,
+                        padding: '2px 10px',
+                    }}>
+                        {st.label}
+                    </Tag>
                 );
             },
         },
