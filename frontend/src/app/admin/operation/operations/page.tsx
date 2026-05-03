@@ -1595,8 +1595,14 @@ export default function OperationsPage() {
         };
 
         // ── Greeting status update from airport staff ──
-        const handleGreetingUpdate = (data: { bookingId: string, greetingStatus: string, operationalStatus: string, driverId?: string, greeterName?: string }) => {
+        const handleGreetingUpdate = (data: { bookingId: string, greetingStatus: string, operationalStatus: string, driverId?: string, greeterName?: string, vehiclePlate?: string, vehicleBrand?: string }) => {
             if (!data?.bookingId) return;
+            // If driver was assigned via greeting handoff, do a full refetch to get complete data
+            if (data.driverId) {
+                fetchBookingsRef.current();
+                fetchShuttleRunsRef.current(true);
+                return;
+            }
             setBookings(prev => prev.map(b => {
                 if (b.id !== data.bookingId) return b;
                 const updated = { ...b };
@@ -1604,7 +1610,6 @@ export default function OperationsPage() {
                     updated.operationalStatus = data.operationalStatus;
                     updated.metadata = { ...(updated.metadata || {}), operationalStatus: data.operationalStatus, greetingStatus: data.greetingStatus };
                 }
-                if (data.driverId) updated.driverId = data.driverId;
                 if (data.operationalStatus === 'CANCELLED') updated.status = 'CANCELLED';
                 return updated;
             }));

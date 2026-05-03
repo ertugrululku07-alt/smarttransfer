@@ -4039,8 +4039,62 @@ router.patch('/greeting-status', authMiddleware, async (req, res) => {
                 operationalStatus: metadata.operationalStatus,
                 driverId: updateData.driverId || booking.driverId,
                 greeterName: metadata.greeterName,
+                vehiclePlate: metadata.vehiclePlate || null,
+                vehicleBrand: metadata.vehicleBrand || null,
                 timestamp: now,
             });
+        }
+
+        // ── Notify driver app via socket + push notification ──
+        if (status === 'HANDED_OFF' && updateData.driverId) {
+            const assignedDriverId = updateData.driverId;
+
+            // Socket: operation_assigned to driver
+            if (io) {
+                io.to(`user_${assignedDriverId}`).emit('operation_assigned', {
+                    bookingId,
+                    bookingNumber: updatedBooking.bookingNumber,
+                    pickup: updatedBooking.metadata?.pickup || 'Havalimanı',
+                    start: updatedBooking.startDate
+                });
+                console.log(`[Greeting] Socket operation_assigned → driver ${assignedDriverId}`);
+            }
+
+            // Push notification to driver
+            try {
+                let driver = await prisma.user.findUnique({ where: { id: assignedDriverId } });
+                if (!driver) {
+                    const pers = await prisma.personnel.findFirst({ where: { id: assignedDriverId }, include: { user: true } });
+                    driver = pers?.user || null;
+                }
+
+                let driverMeta = driver?.metadata || {};
+                if (typeof driverMeta === 'string') { try { driverMeta = JSON.parse(driverMeta); } catch (e) { driverMeta = {}; } }
+                const pushToken = driver?.pushToken || driverMeta?.expoPushToken;
+
+                if (pushToken && pushToken.startsWith('ExponentPushToken')) {
+                    const pickupStr = updatedBooking.metadata?.pickup || 'Havalimanı';
+                    const dateStr = updatedBooking.startDate
+                        ? new Date(updatedBooking.startDate).toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })
+                        : '';
+                    await fetch('https://exp.host/--/api/v2/push/send', {
+                        method: 'POST',
+                        headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            to: pushToken,
+                            sound: 'default',
+                            title: '🚗 Yeni İş Atandı!',
+                            body: `${pickupStr} • ${dateStr}`,
+                            data: { bookingId, bookingNumber: updatedBooking.bookingNumber, type: 'operationAssigned', pickup: pickupStr, start: updatedBooking.startDate },
+                            priority: 'high',
+                            channelId: 'operations'
+                        })
+                    });
+                    console.log(`[Greeting] Push notification sent to driver ${assignedDriverId}`);
+                }
+            } catch (pushErr) {
+                console.error('[Greeting] Push error (non-fatal):', pushErr.message);
+            }
         }
 
         res.json({ success: true, message: 'Durum güncellendi', status });
