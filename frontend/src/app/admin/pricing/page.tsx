@@ -4,12 +4,13 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   Typography, message, Row, Col,
   Button, Form, InputNumber, Select, Spin,
-  Badge, Switch, Tooltip
+  Badge, Switch, Tooltip, Modal
 } from 'antd';
 import {
   CarOutlined, PlusOutlined, CloseCircleOutlined, SaveOutlined,
   DollarOutlined, EnvironmentOutlined,
-  DashboardOutlined, SwapOutlined, DeleteOutlined
+  DashboardOutlined, SwapOutlined, DeleteOutlined,
+  CopyOutlined, FilterOutlined, ExclamationCircleOutlined
 } from '@ant-design/icons';
 import AdminLayout from '../AdminLayout';
 import AdminGuard from '../AdminGuard';
@@ -29,6 +30,9 @@ export default function PricingPage() {
   const [defaultCurrency, setDefaultCurrency] = useState<string>('EUR');
 
   const [form] = Form.useForm();
+  const [routeFilter, setRouteFilter] = useState<string>('');  // zone code filter for airports
+  const [copyModalVisible, setCopyModalVisible] = useState(false);
+  const [copySourceId, setCopySourceId] = useState<string>('');
 
   // Helper: build zone lookup
   const zoneByCode = useCallback((code: string) => zones.find(z => z.code === code), [zones]);
@@ -158,6 +162,24 @@ export default function PricingPage() {
         }
       });
 
+      // ── Duplicate route detection ──
+      const seen = new Set<string>();
+      const duplicates: string[] = [];
+      for (const zp of expandedPrices) {
+        const routeKey = `${zp.baseLocation}→${zp.zoneId}`;
+        if (seen.has(routeKey)) {
+          const fromZone = zones.find(z => z.code === zp.baseLocation);
+          const toZone = zoneById(zp.zoneId);
+          duplicates.push(`${fromZone?.name || zp.baseLocation} → ${toZone?.name || zp.zoneId}`);
+        }
+        seen.add(routeKey);
+      }
+      if (duplicates.length > 0) {
+        message.error(`Aynı güzergah birden fazla tanımlanmış: ${duplicates.join(', ')}`);
+        setSaving(false);
+        return;
+      }
+
       const payload = {
         name: selectedType.name, category: selectedType.category,
         capacity: selectedType.capacity, luggage: selectedType.luggage,
@@ -176,6 +198,70 @@ export default function PricingPage() {
       message.error(err.response?.data?.error || 'Kaydedilemedi');
     } finally { setSaving(false); }
   };
+
+  // ── Copy routes from another vehicle type ──
+  const handleCopyRoutes = () => {
+    if (!copySourceId || !selectedType) return;
+    const source = vehicleTypes.find(vt => vt.id === copySourceId);
+    if (!source || !source.zonePrices?.length) {
+      message.warning('Kaynak araç tipinde güzergah bulunamadı');
+      return;
+    }
+    const currentPrices = form.getFieldValue('zonePrices') || [];
+    const existingKeys = new Set(currentPrices.map((zp: any) => `${zp.baseLocation}→${zp.zoneId}`));
+
+    // Detect bidirectional pairs in source
+    const rawPrices = source.zonePrices;
+    const merged: any[] = [];
+    const used = new Set<number>();
+    rawPrices.forEach((zp: any, i: number) => {
+      if (used.has(i)) return;
+      const reverseIdx = rawPrices.findIndex((r: any, j: number) =>
+        j > i && !used.has(j) &&
+        zones.find((z: any) => z.id === zp.zoneId)?.code === r.baseLocation &&
+        zones.find((z: any) => z.code === zp.baseLocation)?.id === r.zoneId
+      );
+      if (reverseIdx !== -1) {
+        used.add(reverseIdx);
+        merged.push({ ...zp, bidirectional: true });
+      } else {
+        merged.push({ ...zp, bidirectional: false });
+      }
+    });
+
+    let addedCount = 0;
+    const newPrices = [...currentPrices];
+    for (const zp of merged) {
+      const routeKey = `${zp.baseLocation}→${zp.zoneId}`;
+      if (existingKeys.has(routeKey)) continue; // skip duplicates
+      newPrices.push({
+        baseLocation: zp.baseLocation,
+        zoneId: zp.zoneId,
+        bidirectional: zp.bidirectional || false,
+        price: undefined,
+        childPrice: undefined,
+        babyPrice: undefined,
+        fixedPrice: undefined,
+        cost: undefined,
+        extraKmPrice: undefined,
+        pickupLeadHours: undefined,
+      });
+      existingKeys.add(routeKey);
+      addedCount++;
+    }
+    form.setFieldsValue({ zonePrices: newPrices });
+    setCopyModalVisible(false);
+    setCopySourceId('');
+    message.success(`${addedCount} güzergah kopyalandı (fiyatsız). Zaten var olan güzergahlar atlandı.`);
+  };
+
+  // ── Detect airport zones for filtering ──
+  const airportZones = zones.filter(z => {
+    const name = (z.name || '').toLowerCase();
+    const code = (z.code || '').toLowerCase();
+    return name.includes('havaliman') || name.includes('airport') ||
+      ['ayt', 'gzp', 'dlm', 'bjv', 'adb', 'esb', 'ist', 'saw'].includes(code);
+  });
 
   const CAT_COLORS: Record<string, string> = {
     SEDAN: '#6366f1', VAN: '#0891b2', VIP_VAN: '#7c3aed',
@@ -374,18 +460,44 @@ export default function PricingPage() {
                         </div>
 
                         {/* ── ZONE PRICING — COMPACT TABLE ── */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
                           <div style={{
                             width: 32, height: 32, borderRadius: 8,
                             background: '#f0fdf4', display: 'flex', alignItems: 'center', justifyContent: 'center',
                           }}>
                             <EnvironmentOutlined style={{ fontSize: 15, color: '#16a34a' }} />
                           </div>
-                          <div style={{ flex: 1 }}>
+                          <div style={{ flex: 1, minWidth: 200 }}>
                             <div style={{ fontWeight: 700, fontSize: 14, color: '#1e293b' }}>Bölge Fiyatları</div>
                             <div style={{ fontSize: 11, color: '#94a3b8' }}>
                               Bölgeler arası transfer fiyat tarifeleri · <SwapOutlined /> Çift yön işaretlenen rotalar ters yönde de aynı fiyatla kaydedilir
                             </div>
+                          </div>
+                          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                            {/* Airport filter */}
+                            <Select
+                              placeholder={<><FilterOutlined /> Havalimanı Filtrele</>}
+                              allowClear
+                              size="small"
+                              value={routeFilter || undefined}
+                              onChange={(val) => setRouteFilter(val || '')}
+                              style={{ minWidth: 180 }}
+                            >
+                              {airportZones.map(z => (
+                                <Option key={z.code || z.id} value={z.code || z.name}>
+                                  {z.name} {z.code ? `(${z.code})` : ''}
+                                </Option>
+                              ))}
+                            </Select>
+                            {/* Copy routes button */}
+                            <Button
+                              size="small"
+                              icon={<CopyOutlined />}
+                              onClick={() => setCopyModalVisible(true)}
+                              style={{ borderRadius: 8, fontWeight: 600, fontSize: 12 }}
+                            >
+                              Kopyala
+                            </Button>
                           </div>
                         </div>
 
@@ -426,7 +538,15 @@ export default function PricingPage() {
                                 </div>
                               )}
 
-                              {fields.map(({ key, name, ...restField }) => (
+                              {fields.map(({ key, name, ...restField }) => {
+                                // Filter logic: if routeFilter is set, only show rows matching that zone
+                                const rowValues = form.getFieldValue(['zonePrices', name]);
+                                if (routeFilter && rowValues) {
+                                  const baseMatch = rowValues.baseLocation === routeFilter;
+                                  const zoneMatch = zones.find(z => z.id === rowValues.zoneId)?.code === routeFilter;
+                                  if (!baseMatch && !zoneMatch) return null;
+                                }
+                                return (
                                 <div key={key} style={{
                                   display: 'grid',
                                   gridTemplateColumns: '2fr 24px 2fr 42px 1fr 1fr 1fr 1fr 1fr 1fr 1fr 32px',
@@ -539,7 +659,8 @@ export default function PricingPage() {
                                       style={{ width: 28, height: 28, padding: 0, borderRadius: 6 }} />
                                   </div>
                                 </div>
-                              ))}
+                              );
+                              })}
 
                               {/* Add button */}
                               <div style={{ padding: '8px 12px', background: '#fafbfc' }}>
@@ -552,6 +673,42 @@ export default function PricingPage() {
                           )}
                         </Form.List>
                       </Form>
+
+                      {/* Copy routes modal */}
+                      <Modal
+                        title={<><CopyOutlined /> Güzergahları Başka Araçtan Kopyala</>}
+                        open={copyModalVisible}
+                        onCancel={() => { setCopyModalVisible(false); setCopySourceId(''); }}
+                        onOk={handleCopyRoutes}
+                        okText="Kopyala"
+                        cancelText="Vazgeç"
+                        okButtonProps={{ disabled: !copySourceId }}
+                      >
+                        <div style={{ marginBottom: 16 }}>
+                          <Text type="secondary" style={{ fontSize: 13 }}>
+                            Seçilen araç tipinin güzergahları (kalkış-varış noktaları) mevcut araca kopyalanır.
+                            Fiyatlar kopyalanmaz, sadece güzergah bilgileri aktarılır.
+                            Zaten var olan güzergahlar tekrar eklenmez.
+                          </Text>
+                        </div>
+                        <Select
+                          placeholder="Kaynak araç tipi seçin"
+                          value={copySourceId || undefined}
+                          onChange={setCopySourceId}
+                          style={{ width: '100%' }}
+                          showSearch
+                          optionFilterProp="children"
+                        >
+                          {vehicleTypes.filter(vt => vt.id !== selectedType?.id).map(vt => (
+                            <Option key={vt.id} value={vt.id}>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                <span>{vt.name}</span>
+                                <Badge count={vt.zonePrices?.length || 0} style={{ backgroundColor: '#6366f1', fontSize: 10 }} />
+                              </div>
+                            </Option>
+                          ))}
+                        </Select>
+                      </Modal>
                     </div>
                   </div>
                 ) : (
