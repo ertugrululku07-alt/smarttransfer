@@ -1047,9 +1047,79 @@ router.get('/shuttle-runs', authMiddleware, async (req, res, next) => {
             });
         });
 
+        // ── Zone coordinates for automatic geographic sorting ──
+        const GEO_ZONES = {
+            OLP: { lat: 36.3950, lng: 30.4000 }, CRL: { lat: 36.4280, lng: 30.4750 },
+            TKV: { lat: 36.5260, lng: 30.5180 }, CMY: { lat: 36.5350, lng: 30.5400 },
+            KRS: { lat: 36.5600, lng: 30.5500 }, KMR: { lat: 36.5981, lng: 30.5590 },
+            GYN: { lat: 36.6350, lng: 30.5270 }, BLD: { lat: 36.6700, lng: 30.5050 },
+            KNY: { lat: 36.8650, lng: 30.6430 }, ANT: { lat: 36.8841, lng: 30.7056 },
+            LRA: { lat: 36.8580, lng: 30.7639 }, KND: { lat: 36.8500, lng: 30.8200 },
+            AYT: { lat: 36.8987, lng: 30.8005 },
+            BLK: { lat: 36.8630, lng: 31.0550 }, KDR: { lat: 36.8700, lng: 31.0100 },
+            SDE: { lat: 36.7667, lng: 31.3894 }, SRGN: { lat: 36.7630, lng: 31.4300 },
+            MNV: { lat: 36.7860, lng: 31.4430 }, MNGVT: { lat: 36.7860, lng: 31.4430 },
+            TDR: { lat: 36.7530, lng: 31.4700 }, KZLGC: { lat: 36.7200, lng: 31.5500 },
+            OKR: { lat: 36.6800, lng: 31.6300 }, AVS: { lat: 36.6450, lng: 31.7600 },
+            INC: { lat: 36.6300, lng: 31.8000 }, TRKLR: { lat: 36.6100, lng: 31.8600 },
+            TRK: { lat: 36.6100, lng: 31.8600 }, PYNL: { lat: 36.5950, lng: 31.9200 },
+            KNKL: { lat: 36.5920, lng: 31.9500 }, KNK: { lat: 36.5920, lng: 31.9500 },
+            OBA: { lat: 36.5450, lng: 32.0100 }, ALY: { lat: 36.5437, lng: 32.0004 },
+            TSMR: { lat: 36.5400, lng: 32.0300 }, KST: { lat: 36.5300, lng: 32.0600 },
+            MHM: { lat: 36.5100, lng: 32.0900 }, KRG: { lat: 36.4780, lng: 32.1500 },
+            DMTS: { lat: 36.4580, lng: 32.2000 }, GZP: { lat: 36.2992, lng: 32.3006 },
+        };
+        const GEO_KW = [
+            { code: 'MHM', kw: ['mahmutlar'] }, { code: 'KRG', kw: ['kargıcak', 'kargicak'] },
+            { code: 'DMTS', kw: ['demirtaş', 'demirtas'] }, { code: 'KST', kw: ['kestel'] },
+            { code: 'TSMR', kw: ['tosmur'] }, { code: 'OBA', kw: ['oba,', 'oba/', 'oba '] },
+            { code: 'KNKL', kw: ['konaklı', 'konakli'] }, { code: 'PYNL', kw: ['payallar'] },
+            { code: 'TRKLR', kw: ['türkler', 'turkler'] }, { code: 'INC', kw: ['incekum'] },
+            { code: 'AVS', kw: ['avsallar'] }, { code: 'OKR', kw: ['okurcalar'] },
+            { code: 'KZLGC', kw: ['kızılağaç', 'kizilağaç'] },
+            { code: 'TDR', kw: ['titreyengöl', 'titreyengol'] },
+            { code: 'SRGN', kw: ['sorgun'] }, { code: 'SDE', kw: ['side,', 'side/', 'side '] },
+            { code: 'MNGVT', kw: ['manavgat'] }, { code: 'BLK', kw: ['belek'] },
+            { code: 'KDR', kw: ['kadriye'] }, { code: 'KND', kw: ['kundu'] },
+            { code: 'LRA', kw: ['lara,', 'lara/', 'lara '] },
+            { code: 'KNY', kw: ['konyaaltı', 'konyaalti'] }, { code: 'KMR', kw: ['kemer'] },
+            { code: 'GYN', kw: ['göynük', 'goynuk'] }, { code: 'BLD', kw: ['beldibi'] },
+            { code: 'TKV', kw: ['tekirova'] }, { code: 'CMY', kw: ['çamyuva', 'camyuva'] },
+            { code: 'KRS', kw: ['kiriş', 'kiris'] }, { code: 'CRL', kw: ['çıralı', 'cirali'] },
+            { code: 'OLP', kw: ['olympos', 'olimpos'] }, { code: 'ALY', kw: ['alanya'] },
+        ];
+        function detectGeoZone(addr) {
+            const t = trLower(addr);
+            for (const z of GEO_KW) { if (z.kw.some(k => t.includes(trLower(k)))) return z.code; }
+            return null;
+        }
+        const haversine = (lat1, lng1, lat2, lng2) => {
+            const R = 6371, dLat = (lat2 - lat1) * Math.PI / 180, dLng = (lng2 - lng1) * Math.PI / 180;
+            const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        };
+        function getBookingGeoDistance(booking, tripType) {
+            // For ARV: sort by DROPOFF location distance from airport
+            // For DEP: sort by PICKUP location distance from airport
+            const addr = tripType === 'ARV' ? (booking.dropoff || '') : (booking.pickup || '');
+            const regionCode = tripType === 'ARV' ? booking.dropoffRegionCode : booking.pickupRegionCode;
+            let zone = detectGeoZone(addr);
+            if (!zone && regionCode && GEO_ZONES[regionCode]) zone = regionCode;
+            if (!zone) return -1; // unknown
+            const coords = GEO_ZONES[zone];
+            if (!coords) return -1;
+            const airport = GEO_ZONES['AYT'];
+            return haversine(coords.lat, coords.lng, airport.lat, airport.lng);
+        }
+
         LOG_TAG = "POST_PROCESS_TIMES";
         Object.values(runsMap).forEach(run => {
+            // Check if any booking has manual sort order
+            const hasManualSort = run.bookings.some(b => b.shuttleSortOrder != null);
+            const tripType = run.tripType || '';
+
             run.bookings.sort((a, b) => {
+                // Priority 1: Manual shuttleSortOrder (from Güzergah Sırala button)
                 const orderA = a.shuttleSortOrder ?? Number.MAX_SAFE_INTEGER;
                 const orderB = b.shuttleSortOrder ?? Number.MAX_SAFE_INTEGER;
                 
@@ -1057,6 +1127,20 @@ router.get('/shuttle-runs', authMiddleware, async (req, res, next) => {
                     return orderA - orderB;
                 }
 
+                // Priority 2: Geographic sorting for ARV/DEP when no manual sort
+                if (!hasManualSort && (tripType === 'ARV' || tripType === 'DEP')) {
+                    const distA = getBookingGeoDistance(a, tripType);
+                    const distB = getBookingGeoDistance(b, tripType);
+                    if (distA >= 0 && distB >= 0 && Math.abs(distA - distB) > 0.5) {
+                        // ARV: nearest to airport first (drop off closest first)
+                        // DEP: farthest from airport first (pick up farthest first)
+                        return tripType === 'ARV'
+                            ? distA - distB
+                            : distB - distA;
+                    }
+                }
+
+                // Priority 3: Fallback to pickup time
                 const dA = a.pickupDateTime ? new Date(a.pickupDateTime).getTime() : 0;
                 const dB = b.pickupDateTime ? new Date(b.pickupDateTime).getTime() : 0;
                 return dA - dB;
