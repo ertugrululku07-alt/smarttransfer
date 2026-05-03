@@ -126,7 +126,7 @@ router.post('/', authMiddleware, async (req, res) => {
 
         // Determine Role
         let roleCode = 'TENANT_STAFF'; // Default
-        if (['DRIVER', 'ACCOUNTANT', 'OPERATION', 'RESERVATION'].includes(data.jobTitle)) {
+        if (['DRIVER', 'ACCOUNTANT', 'OPERATION', 'RESERVATION', 'AIRPORT_STAFF'].includes(data.jobTitle)) {
             roleCode = data.jobTitle;
         }
 
@@ -146,7 +146,8 @@ router.post('/', authMiddleware, async (req, res) => {
                     name: roleCode === 'DRIVER' ? 'Sürücü' :
                         roleCode === 'ACCOUNTANT' ? 'Muhasebe' :
                             roleCode === 'OPERATION' ? 'Operasyon' :
-                                roleCode === 'RESERVATION' ? 'Rezervasyon' : 'Personel',
+                                roleCode === 'RESERVATION' ? 'Rezervasyon' :
+                                    roleCode === 'AIRPORT_STAFF' ? 'Havalimanı Karşılama' : 'Personel',
                     type: 'TENANT_STAFF' // Using generic staff type
                 }
             });

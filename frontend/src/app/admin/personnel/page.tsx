@@ -69,6 +69,9 @@ const JOB_LABELS: Record<string, { label: string; color: string; icon: React.Rea
     OPERATION: { label: 'Operasyon', color: '#3b82f6', icon: <SettingOutlined /> },
     ACCOUNTANT: { label: 'Muhasebe', color: '#10b981', icon: <IdcardOutlined /> },
     RESERVATION: { label: 'Rezervasyon', color: '#f59e0b', icon: <CalendarOutlined /> },
+    MANAGER: { label: 'Yönetici', color: '#8b5cf6', icon: <SafetyCertificateOutlined /> },
+    GUIDE: { label: 'Rehber', color: '#ec4899', icon: <GlobalOutlined /> },
+    AIRPORT_STAFF: { label: 'Karşılama Personeli', color: '#0ea5e9', icon: <CarOutlined /> },
 };
 
 const leaveLabel = (type: string) => {

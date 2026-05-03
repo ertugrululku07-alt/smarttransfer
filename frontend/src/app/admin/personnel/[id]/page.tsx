@@ -363,6 +363,7 @@ const PersonnelEditPage = ({ params }: { params: Promise<{ id: string }> }) => {
                                                     <Option value="RESERVATION">Rezervasyon</Option>
                                                     <Option value="MANAGER">Yonetici</Option>
                                                     <Option value="GUIDE">Rehber</Option>
+                                                    <Option value="AIRPORT_STAFF">Karsilama Personeli</Option>
                                                 </Select>
                                             </Form.Item>
                                         </Col>
