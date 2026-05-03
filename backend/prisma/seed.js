@@ -118,6 +118,27 @@ async function main() {
         }
     });
 
+    // 3b. Create AIRPORT_STAFF role
+    await prisma.role.upsert({
+        where: {
+            tenantId_code: {
+                tenantId: defaultTenant.id,
+                code: 'AIRPORT_STAFF'
+            }
+        },
+        update: {},
+        create: {
+            tenantId: defaultTenant.id,
+            code: 'AIRPORT_STAFF',
+            name: 'Havalimanı Karşılama',
+            type: 'AIRPORT_STAFF',
+            isSystem: true,
+            description: 'Havalimanı karşılama personeli'
+        }
+    });
+
+    console.log('✅ AIRPORT_STAFF role created');
+
     // 4. Create users
     const hashedPassword = await bcrypt.hash('Admin123!', 10);
 

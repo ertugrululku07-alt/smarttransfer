@@ -18,7 +18,7 @@ import AdminLayout from '../AdminLayout';
 
 const { Title, Text } = Typography;
 
-type UserRole = 'SUPER_ADMIN' | 'TENANT_ADMIN' | 'TENANT_MANAGER' | 'TENANT_STAFF' | 'CUSTOMER' | 'PARTNER' | 'DRIVER' | 'AGENCY_ADMIN' | 'AGENCY_STAFF' | 'PLATFORM_OPS';
+type UserRole = 'SUPER_ADMIN' | 'TENANT_ADMIN' | 'TENANT_MANAGER' | 'TENANT_STAFF' | 'CUSTOMER' | 'PARTNER' | 'DRIVER' | 'AGENCY_ADMIN' | 'AGENCY_STAFF' | 'PLATFORM_OPS' | 'AIRPORT_STAFF';
 
 interface User {
   id: string;
@@ -40,6 +40,7 @@ const ROLE_CONFIG: Record<string, { label: string; color: string; bg: string; ic
   AGENCY_ADMIN:   { label: 'Acente Yönetici', color: '#ea580c', bg: '#fff7ed', icon: <ShopOutlined /> },
   AGENCY_STAFF:   { label: 'Acente Personel', color: '#f97316', bg: '#fff7ed', icon: <ShopOutlined /> },
   PLATFORM_OPS:   { label: 'Platform Ops',   color: '#64748b', bg: '#f8fafc', icon: <SafetyCertificateOutlined /> },
+  AIRPORT_STAFF:  { label: 'Havalimanı Karşılama', color: '#0ea5e9', bg: '#f0f9ff', icon: <IdcardOutlined /> },
 };
 
 const AdminUsersPage: React.FC = () => {
@@ -329,6 +330,7 @@ const AdminUsersPage: React.FC = () => {
                   { value: 'CUSTOMER', label: '👤 Müşteri' },
                   { value: 'AGENCY_ADMIN', label: '🏢 Acente Yönetici' },
                   { value: 'AGENCY_STAFF', label: '🏢 Acente Personel' },
+                  { value: 'AIRPORT_STAFF', label: '✈️ Havalimanı Karşılama' },
                 ]}
               />
               <Select

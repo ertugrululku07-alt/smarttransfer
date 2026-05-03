@@ -311,6 +311,11 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, selectedKey = 'dash
                   key: 'partner-transfers',
                   label: 'Partner Transfer Listesi',
                   onClick: () => router.push('/admin/operation/partner-transfers')
+                },
+                {
+                  key: 'airport-greeting',
+                  label: 'Havalimanı Karşılama',
+                  onClick: () => router.push('/admin/operation/airport-greeting')
                 }
               ]
             },

@@ -12,11 +12,13 @@
         },
         "apk": {
             "distribution": "internal",
+            "channel": "production",
             "android": {
                 "buildType": "apk"
             }
         },
         "production": {
+            "channel": "production",
             "android": {
                 "buildType": "app-bundle"
             }

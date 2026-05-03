@@ -3,6 +3,7 @@ import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
+import * as Updates from 'expo-updates';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
@@ -372,6 +373,21 @@ export default function RootLayout() {
   const colorScheme = useColorScheme();
 
   useEffect(() => {
+    // Check for OTA updates on app launch
+    const checkForUpdate = async () => {
+      try {
+        if (__DEV__) return; // Skip in development
+        const update = await Updates.checkForUpdateAsync();
+        if (update.isAvailable) {
+          await Updates.fetchUpdateAsync();
+          await Updates.reloadAsync();
+        }
+      } catch (e) {
+        console.warn('OTA update check failed:', e);
+      }
+    };
+    checkForUpdate();
+
     // Register background fetch task once globally
     const registerFetchTask = async () => {
       try {

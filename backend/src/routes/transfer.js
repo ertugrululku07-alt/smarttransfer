@@ -3726,4 +3726,273 @@ router.get('/track/:id/driver-location', async (req, res) => {
     }
 });
 
+// ═══════════════════════════════════════════════════════
+// AIRPORT GREETING ENDPOINTS
+// ═══════════════════════════════════════════════════════
+
+const AIRPORT_KEYWORDS = ['havalimanı', 'havaalani', 'havalimani', 'airport', 'ayt', 'gzp', 'dal', 'dalaman'];
+
+/**
+ * GET /api/transfer/airport-arrivals
+ * Returns today's ARV (arrival) bookings for airport greeting staff
+ * Includes: flight info, customer, driver, vehicle, greeting status
+ * Query params: ?airport=AYT&date=2026-05-03
+ */
+router.get('/airport-arrivals', authMiddleware, async (req, res) => {
+    try {
+        const { airport, date } = req.query;
+        const targetDate = date ? new Date(date) : new Date();
+        const dayStart = new Date(targetDate);
+        dayStart.setHours(0, 0, 0, 0);
+        const dayEnd = new Date(targetDate);
+        dayEnd.setHours(23, 59, 59, 999);
+
+        const bookings = await prisma.booking.findMany({
+            where: {
+                productType: 'TRANSFER',
+                startDate: { gte: dayStart, lte: dayEnd },
+                status: { in: ['CONFIRMED', 'PENDING', 'IN_PROGRESS'] },
+            },
+            include: {
+                customer: true,
+                agency: true,
+                driver: {
+                    select: {
+                        id: true, firstName: true, lastName: true, phone: true, avatar: true,
+                    }
+                }
+            },
+            orderBy: { startDate: 'asc' }
+        });
+
+        // Filter: only ARV transfers (pickup is airport)
+        const arrivals = bookings.filter(b => {
+            const pickup = (b.metadata?.pickup || '').toLowerCase();
+            const isArrival = AIRPORT_KEYWORDS.some(kw => pickup.includes(kw));
+            if (!isArrival) return false;
+            // Airport filter
+            if (airport) {
+                const ap = airport.toLowerCase();
+                return pickup.includes(ap);
+            }
+            return true;
+        });
+
+        // Fetch vehicle details
+        const vehicleIds = [...new Set(arrivals.map(b => b.metadata?.assignedVehicleId || b.metadata?.vehicleId).filter(Boolean))];
+        const vehicleMap = {};
+        if (vehicleIds.length > 0) {
+            const vehicles = await prisma.vehicle.findMany({
+                where: { id: { in: vehicleIds } },
+                select: { id: true, plateNumber: true, brand: true, model: true, color: true },
+            });
+            vehicles.forEach(v => { vehicleMap[v.id] = v; });
+        }
+
+        // Fetch greeter names
+        const greeterIds = [...new Set(arrivals.map(b => b.metadata?.greeterId).filter(Boolean))];
+        const greeterMap = {};
+        if (greeterIds.length > 0) {
+            const greeters = await prisma.user.findMany({
+                where: { id: { in: greeterIds } },
+                select: { id: true, firstName: true, lastName: true }
+            });
+            greeters.forEach(g => { greeterMap[g.id] = `${g.firstName} ${g.lastName}`; });
+        }
+
+        const mapped = arrivals.map(b => {
+            const vehId = b.metadata?.assignedVehicleId || b.metadata?.vehicleId || null;
+            const vehicle = vehId ? vehicleMap[vehId] : null;
+            return {
+                id: b.id,
+                bookingNumber: b.bookingNumber,
+                status: b.status,
+                // Flight
+                flightNumber: b.metadata?.flightNumber || null,
+                flightTime: b.metadata?.flightTime || null,
+                // Customer
+                passengerName: b.contactName,
+                passengerPhone: b.contactPhone,
+                contactEmail: b.contactEmail,
+                adults: b.adults,
+                children: b.children || 0,
+                infants: b.infants || 0,
+                specialRequests: b.specialRequests,
+                // Route
+                pickup: b.metadata?.pickup || '',
+                dropoff: b.metadata?.dropoff || '',
+                pickupDateTime: b.startDate,
+                // Vehicle & Driver
+                vehicleType: b.metadata?.vehicleType || null,
+                vehiclePlate: vehicle?.plateNumber || null,
+                vehicleBrand: vehicle ? `${vehicle.brand} ${vehicle.model}` : null,
+                vehicleColor: vehicle?.color || null,
+                driverName: b.driver ? `${b.driver.firstName} ${b.driver.lastName}` : null,
+                driverPhone: b.driver?.phone || null,
+                driverId: b.driverId || null,
+                // Greeting
+                greetingStatus: b.metadata?.greetingStatus || 'WAITING',
+                flightStatus: b.metadata?.flightStatus || 'ON_TIME',
+                estimatedLanding: b.metadata?.estimatedLanding || null,
+                actualLanding: b.metadata?.actualLanding || null,
+                greetedAt: b.metadata?.greetedAt || null,
+                handedOffAt: b.metadata?.handedOffAt || null,
+                greeterNotes: b.metadata?.greeterNotes || [],
+                greeterId: b.metadata?.greeterId || null,
+                greeterName: b.metadata?.greeterId ? (greeterMap[b.metadata.greeterId] || null) : null,
+                // Agency
+                agencyName: b.agency?.name || b.agency?.companyName || b.metadata?.agencyName || null,
+                // Timestamps
+                pickedUpAt: b.pickedUpAt,
+                droppedOffAt: b.droppedOffAt,
+                createdAt: b.createdAt,
+            };
+        });
+
+        res.json({ success: true, data: mapped });
+    } catch (error) {
+        console.error('[Airport] arrivals error:', error);
+        res.status(500).json({ success: false, error: 'Varış verileri alınamadı' });
+    }
+});
+
+/**
+ * PATCH /api/transfer/greeting-status
+ * Update the greeting status of a booking
+ * Body: { bookingId, status, flightStatus?, estimatedLanding?, notes? }
+ * 
+ * greetingStatus: WAITING | DELAYED | LANDED | CANCELLED | MET | HANDED_OFF | NO_SHOW
+ * flightStatus:   ON_TIME | DELAYED | LANDED | CANCELLED
+ */
+router.patch('/greeting-status', authMiddleware, async (req, res) => {
+    try {
+        const { bookingId, status, flightStatus, estimatedLanding, notes } = req.body;
+
+        if (!bookingId || !status) {
+            return res.status(400).json({ success: false, error: 'bookingId ve status gereklidir' });
+        }
+
+        const validStatuses = ['WAITING', 'DELAYED', 'LANDED', 'CANCELLED', 'MET', 'HANDED_OFF', 'NO_SHOW'];
+        if (!validStatuses.includes(status)) {
+            return res.status(400).json({ success: false, error: `Geçersiz durum: ${status}` });
+        }
+
+        const booking = await prisma.booking.findUnique({ where: { id: bookingId } });
+        if (!booking) {
+            return res.status(404).json({ success: false, error: 'Rezervasyon bulunamadı' });
+        }
+
+        const metadata = booking.metadata || {};
+        const now = new Date().toISOString();
+
+        // Update greeting status
+        metadata.greetingStatus = status;
+        metadata.greeterId = req.user.id;
+
+        // Status-specific timestamps
+        if (status === 'LANDED') {
+            metadata.actualLanding = now;
+            metadata.flightStatus = 'LANDED';
+        } else if (status === 'DELAYED') {
+            metadata.flightStatus = 'DELAYED';
+            if (estimatedLanding) metadata.estimatedLanding = estimatedLanding;
+        } else if (status === 'CANCELLED') {
+            metadata.flightStatus = 'CANCELLED';
+        } else if (status === 'MET') {
+            metadata.greetedAt = now;
+        } else if (status === 'HANDED_OFF') {
+            metadata.handedOffAt = now;
+        }
+
+        // Override flight status if explicitly provided
+        if (flightStatus) {
+            metadata.flightStatus = flightStatus;
+        }
+
+        // Add note to timeline
+        if (notes) {
+            if (!Array.isArray(metadata.greeterNotes)) metadata.greeterNotes = [];
+            metadata.greeterNotes.push({
+                text: notes,
+                by: `${req.user.firstName} ${req.user.lastName}`,
+                byId: req.user.id,
+                at: now,
+                status: status,
+            });
+        }
+
+        // Auto-add timeline entry for status change
+        if (!Array.isArray(metadata.greeterNotes)) metadata.greeterNotes = [];
+        metadata.greeterNotes.push({
+            text: `Durum güncellendi: ${status}`,
+            by: `${req.user.firstName} ${req.user.lastName}`,
+            byId: req.user.id,
+            at: now,
+            status: status,
+            isSystem: true,
+        });
+
+        const updateData = { metadata };
+
+        // Also update pickedUpAt/droppedOffAt if applicable
+        if (status === 'MET' && !booking.pickedUpAt) {
+            updateData.pickedUpAt = new Date();
+        }
+        if (status === 'HANDED_OFF' && !booking.droppedOffAt) {
+            updateData.droppedOffAt = new Date();
+        }
+
+        await prisma.booking.update({
+            where: { id: bookingId },
+            data: updateData,
+        });
+
+        res.json({ success: true, message: 'Durum güncellendi', status });
+    } catch (error) {
+        console.error('[Airport] greeting-status error:', error);
+        res.status(500).json({ success: false, error: 'Durum güncellenemedi' });
+    }
+});
+
+/**
+ * POST /api/transfer/greeting-note
+ * Add a note to booking's greeting timeline
+ * Body: { bookingId, text }
+ */
+router.post('/greeting-note', authMiddleware, async (req, res) => {
+    try {
+        const { bookingId, text } = req.body;
+
+        if (!bookingId || !text) {
+            return res.status(400).json({ success: false, error: 'bookingId ve text gereklidir' });
+        }
+
+        const booking = await prisma.booking.findUnique({ where: { id: bookingId } });
+        if (!booking) {
+            return res.status(404).json({ success: false, error: 'Rezervasyon bulunamadı' });
+        }
+
+        const metadata = booking.metadata || {};
+        if (!Array.isArray(metadata.greeterNotes)) metadata.greeterNotes = [];
+
+        metadata.greeterNotes.push({
+            text,
+            by: `${req.user.firstName} ${req.user.lastName}`,
+            byId: req.user.id,
+            at: new Date().toISOString(),
+            isNote: true,
+        });
+
+        await prisma.booking.update({
+            where: { id: bookingId },
+            data: { metadata },
+        });
+
+        res.json({ success: true, message: 'Not eklendi' });
+    } catch (error) {
+        console.error('[Airport] greeting-note error:', error);
+        res.status(500).json({ success: false, error: 'Not eklenemedi' });
+    }
+});
+
 module.exports = router;

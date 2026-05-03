@@ -264,6 +264,7 @@ enum RoleType {
   DRIVER // Driver App User
   AGENCY_ADMIN // Sub-agency owner/admin
   AGENCY_STAFF // Sub-agency staff
+  AIRPORT_STAFF // Airport meet & greet personnel
 }
 
 model Permission {
