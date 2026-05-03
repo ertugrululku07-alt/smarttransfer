@@ -23,7 +23,7 @@ const AdminGuard: React.FC<AdminGuardProps> = ({ children }) => {
       }
 
       // V2 API: user.role is an object with type property
-      const ALLOWED_ROLES = ['SUPER_ADMIN', 'TENANT_ADMIN', 'TENANT_MANAGER', 'TENANT_STAFF', 'PLATFORM_OPS', 'AIRPORT_STAFF'];
+      const ALLOWED_ROLES = ['SUPER_ADMIN', 'TENANT_ADMIN', 'TENANT_MANAGER', 'TENANT_STAFF', 'PLATFORM_OPS'];
       const isAdmin = ALLOWED_ROLES.includes(user.role.type) || ALLOWED_ROLES.includes(user.role.code);
 
       if (!isAdmin) {
@@ -54,8 +54,8 @@ const AdminGuard: React.FC<AdminGuardProps> = ({ children }) => {
   }
 
   // User yoksa veya admin değilse loading göster (redirect oluyor zaten)
-  const ALLOWED_ROLES = ['SUPER_ADMIN', 'TENANT_ADMIN', 'TENANT_MANAGER', 'TENANT_STAFF', 'PLATFORM_OPS', 'AIRPORT_STAFF'];
-  if (!user || (!ALLOWED_ROLES.includes(user.role.type) && !ALLOWED_ROLES.includes(user.role.code))) {
+  const ALLOWED_ROLES_CHECK = ['SUPER_ADMIN', 'TENANT_ADMIN', 'TENANT_MANAGER', 'TENANT_STAFF', 'PLATFORM_OPS'];
+  if (!user || (!ALLOWED_ROLES_CHECK.includes(user.role.type) && !ALLOWED_ROLES_CHECK.includes(user.role.code))) {
     return (
       <div
         style={{
