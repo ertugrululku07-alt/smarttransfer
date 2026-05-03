@@ -12,7 +12,7 @@ import {
     FileTextOutlined, ClockCircleOutlined, CheckCircleOutlined,
     ExclamationCircleOutlined, SettingOutlined, SearchOutlined,
     TeamOutlined, ReloadOutlined, CarOutlined, IdcardOutlined,
-    SafetyCertificateOutlined, WarningOutlined
+    SafetyCertificateOutlined, WarningOutlined, GlobalOutlined
 } from '@ant-design/icons';
 import { useRouter } from 'next/navigation';
 import AdminLayout from '../AdminLayout';
