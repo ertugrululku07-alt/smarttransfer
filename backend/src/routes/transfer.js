@@ -4018,6 +4018,64 @@ router.patch('/greeting-status', authMiddleware, async (req, res) => {
                 status: 'HANDED_OFF',
                 isSystem: true,
             });
+
+            // ── Shuttle: assign same driver/vehicle to ALL sibling bookings in the same run ──
+            const bm = booking.metadata || {};
+            const isShuttle = (bm.vehicleType || '').toLowerCase().includes('shuttle') ||
+                              (bm.vehicleType || '').toLowerCase().includes('paylaşımlı') ||
+                              (bm.transferType || '').toLowerCase() === 'shuttle' ||
+                              !!bm.shuttleRouteId;
+
+            if (isShuttle) {
+                const tenantIdForSiblings = req.user.tenantId || booking.tenantId;
+                // Determine sibling criteria
+                const siblingWhere = {
+                    tenantId: tenantIdForSiblings,
+                    productType: 'TRANSFER',
+                    id: { not: bookingId },
+                    status: { notIn: ['CANCELLED', 'NO_SHOW'] },
+                };
+
+                // Find siblings: same shuttle run
+                let siblings = [];
+                if (bm.manualRunId) {
+                    siblings = await prisma.booking.findMany({
+                        where: { ...siblingWhere, metadata: { path: ['manualRunId'], equals: bm.manualRunId } }
+                    });
+                } else if (bm.shuttleRouteId) {
+                    const allCandidates = await prisma.booking.findMany({ where: siblingWhere });
+                    siblings = allCandidates.filter(s => {
+                        const sm = s.metadata || {};
+                        return sm.shuttleRouteId === bm.shuttleRouteId &&
+                               (sm.shuttleMasterTime || '') === (bm.shuttleMasterTime || '');
+                    });
+                }
+
+                // Also filter by same day
+                const bookingDay = booking.startDate ? new Date(booking.startDate).toISOString().slice(0, 10) : null;
+                if (bookingDay) {
+                    siblings = siblings.filter(s => s.startDate && new Date(s.startDate).toISOString().slice(0, 10) === bookingDay);
+                }
+
+                console.log(`[Greeting] Shuttle handoff: ${siblings.length} sibling(s) found for run`);
+
+                for (const sib of siblings) {
+                    const sibMeta = sib.metadata || {};
+                    sibMeta.driverId = resolvedUserId;
+                    sibMeta.operationalStatus = 'DRIVER_ASSIGNED';
+                    sibMeta.handoffDriverName = metadata.handoffDriverName;
+                    sibMeta.handoffDriverPhone = metadata.handoffDriverPhone;
+                    if (vehicle) {
+                        sibMeta.assignedVehicleId = vehicle.id;
+                        sibMeta.vehiclePlate = vehicle.plateNumber;
+                        sibMeta.vehicleBrand = `${vehicle.brand || ''} ${vehicle.model || ''}`.trim();
+                    }
+                    await prisma.booking.update({
+                        where: { id: sib.id },
+                        data: { driverId: resolvedUserId, metadata: sibMeta }
+                    });
+                }
+            }
         }
 
         // ── CANCELLED → update booking status ──
@@ -4043,6 +4101,10 @@ router.patch('/greeting-status', authMiddleware, async (req, res) => {
                 vehicleBrand: metadata.vehicleBrand || null,
                 timestamp: now,
             });
+            // Also notify shuttle runs tab to refresh
+            if (status === 'HANDED_OFF' && updateData.driverId) {
+                io.to('admin_monitoring').emit('shuttle_runs_updated', { action: 'greeting_handoff', bookingId });
+            }
         }
 
         // ── Notify driver app via socket + push notification ──

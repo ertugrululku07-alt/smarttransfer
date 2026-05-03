@@ -826,38 +826,38 @@ router.get('/shuttle-runs', authMiddleware, async (req, res, next) => {
         const trLower = (s) => (s||'').toLocaleLowerCase('tr');
         
         function getAbbreviationAndType(fromStr, toStr) {
-             let fromCode = null;
-             let toCode = null;
-             let fromIsAirport = false;
-             let toIsAirport = false;
-             
-             for (const hub of hubs) {
-                 const keys = hub.keywords ? hub.keywords.split(',').map(k => trLower(k).trim()) : [];
-                 if (hub.code) keys.push(trLower(hub.code));
-                 if (hub.name) keys.push(trLower(hub.name));
-                 
-                 const isAirportHub = hub.name && (trLower(hub.name).includes('havaliman') || trLower(hub.name).includes('airport') || ['ayt', 'gzp'].includes(trLower(hub.code)));
-
-                 if (!fromCode && keys.some(k => k && trLower(fromStr).includes(k))) {
-                     fromCode = hub.code || '???';
-                     if(isAirportHub) fromIsAirport = true;
+             // Match hubs by longest keyword match (most specific wins)
+             function bestHubMatch(addr) {
+                 let bestCode = null, bestLen = 0, bestIsAirport = false;
+                 const addrLow = trLower(addr);
+                 for (const hub of hubs) {
+                     const keys = hub.keywords ? hub.keywords.split(',').map(k => trLower(k).trim()) : [];
+                     if (hub.code) keys.push(trLower(hub.code));
+                     if (hub.name) keys.push(trLower(hub.name));
+                     const isAirportHub = hub.name && (trLower(hub.name).includes('havaliman') || trLower(hub.name).includes('airport') || ['ayt', 'gzp'].includes(trLower(hub.code)));
+                     for (const k of keys) {
+                         if (k && addrLow.includes(k) && k.length > bestLen) {
+                             bestLen = k.length;
+                             bestCode = hub.code || '???';
+                             bestIsAirport = isAirportHub;
+                         }
+                     }
                  }
-                 if (!toCode && keys.some(k => k && trLower(toStr).includes(k))) {
-                     toCode = hub.code || '???';
-                     if(isAirportHub) toIsAirport = true;
-                 }
+                 return { code: bestCode, isAirport: bestIsAirport };
              }
+             const fromMatch = bestHubMatch(fromStr);
+             const toMatch = bestHubMatch(toStr);
              
              const safeUpper = s => (s||'').substring(0,3).toUpperCase();
-             if (!fromCode) fromCode = safeUpper(fromStr) || '???';
-             if (!toCode) toCode = safeUpper(toStr) || '???';
+             const fromCode = fromMatch.code || safeUpper(fromStr) || '???';
+             const toCode = toMatch.code || safeUpper(toStr) || '???';
              
              let type = '';
              let fLower = trLower(fromStr);
              let tLower = trLower(toStr);
              
-             if (toIsAirport && !fromIsAirport) type = 'DEP';
-             else if (fromIsAirport && !toIsAirport) type = 'ARV';
+             if (toMatch.isAirport && !fromMatch.isAirport) type = 'DEP';
+             else if (fromMatch.isAirport && !toMatch.isAirport) type = 'ARV';
              else if (tLower.includes('havaliman') || tLower.includes('airport')) type = 'DEP';
              else if (fLower.includes('havaliman') || fLower.includes('airport')) type = 'ARV';
              else type = 'TRF';

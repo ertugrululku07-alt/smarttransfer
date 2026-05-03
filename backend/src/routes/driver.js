@@ -141,28 +141,34 @@ router.get('/bookings', authMiddleware, ensureDriver, async (req, res) => {
         const hubs = tenantInfo?.settings?.hubs || [];
         const trLower = (s) => (s || '').toLocaleLowerCase('tr');
         function getAbbrAndType(fromStr, toStr) {
-            let fromCode = null, toCode = null, fromIsAirport = false, toIsAirport = false;
-            for (const hub of hubs) {
-                const keys = hub.keywords ? hub.keywords.split(',').map(k => trLower(k).trim()) : [];
-                if (hub.code) keys.push(trLower(hub.code));
-                if (hub.name) keys.push(trLower(hub.name));
-                const isAirportHub = hub.name && (trLower(hub.name).includes('havaliman') || trLower(hub.name).includes('airport') || ['ayt', 'gzp'].includes(trLower(hub.code)));
-                if (!fromCode && keys.some(k => k && trLower(fromStr).includes(k))) {
-                    fromCode = hub.code || '???';
-                    if (isAirportHub) fromIsAirport = true;
+            // Match hubs by longest keyword match (most specific wins)
+            function bestHubMatch(addr) {
+                let bestCode = null, bestLen = 0, bestIsAirport = false;
+                const addrLow = trLower(addr);
+                for (const hub of hubs) {
+                    const keys = hub.keywords ? hub.keywords.split(',').map(k => trLower(k).trim()) : [];
+                    if (hub.code) keys.push(trLower(hub.code));
+                    if (hub.name) keys.push(trLower(hub.name));
+                    const isAirportHub = hub.name && (trLower(hub.name).includes('havaliman') || trLower(hub.name).includes('airport') || ['ayt', 'gzp'].includes(trLower(hub.code)));
+                    for (const k of keys) {
+                        if (k && addrLow.includes(k) && k.length > bestLen) {
+                            bestLen = k.length;
+                            bestCode = hub.code || '???';
+                            bestIsAirport = isAirportHub;
+                        }
+                    }
                 }
-                if (!toCode && keys.some(k => k && trLower(toStr).includes(k))) {
-                    toCode = hub.code || '???';
-                    if (isAirportHub) toIsAirport = true;
-                }
+                return { code: bestCode, isAirport: bestIsAirport };
             }
+            const fromMatch = bestHubMatch(fromStr);
+            const toMatch = bestHubMatch(toStr);
             const safeUpper = s => (s || '').substring(0, 3).toUpperCase();
-            if (!fromCode) fromCode = safeUpper(fromStr) || '???';
-            if (!toCode) toCode = safeUpper(toStr) || '???';
+            const fromCode = fromMatch.code || safeUpper(fromStr) || '???';
+            const toCode = toMatch.code || safeUpper(toStr) || '???';
             const fLower = trLower(fromStr), tLower = trLower(toStr);
             let type = 'TRF';
-            if (toIsAirport && !fromIsAirport) type = 'DEP';
-            else if (fromIsAirport && !toIsAirport) type = 'ARV';
+            if (toMatch.isAirport && !fromMatch.isAirport) type = 'DEP';
+            else if (fromMatch.isAirport && !toMatch.isAirport) type = 'ARV';
             else if (tLower.includes('havaliman') || tLower.includes('airport')) type = 'DEP';
             else if (fLower.includes('havaliman') || fLower.includes('airport')) type = 'ARV';
             return { fromCode, toCode, type };
@@ -183,15 +189,20 @@ router.get('/bookings', authMiddleware, ensureDriver, async (req, res) => {
                 // Group key — include date so different days/runs never merge
                 const dateStr = b.startDate ? new Date(b.startDate).toISOString().slice(0, 10) : 'nodate';
                 let key;
-                if (routeId) {
+                let routeName;
+                if (m.manualRunId) {
+                    // Manual run — group by manualRunId + direction
+                    const bookingTripType = dirType;
+                    key = `MANUAL::${m.manualRunId}::${bookingTripType}::${dateStr}`;
+                    routeName = m.manualRunName || `${fromCode} – ${toCode} ${dirType}`;
+                } else if (routeId) {
                     key = `ROUTE::${routeId}::${dateStr}${masterTime ? '::' + masterTime : ''}`;
+                    routeName = `${fromCode} – ${toCode} ${dirType}`;
                 } else {
                     const regionCode = dirType === 'ARV' ? toCode : fromCode;
                     key = `ADHOC::${dirType}::${regionCode}::${dateStr}${masterTime ? '::' + masterTime : ''}`;
+                    routeName = `${fromCode} – ${toCode} ${dirType}`;
                 }
-
-                // Build proper run name using hub codes: e.g. "ALY - AYT DEP" or "AYT - ALY ARV"
-                const routeName = `${fromCode} – ${toCode} ${dirType}`;
 
                 if (!shuttleGroups[key]) {
                     shuttleGroups[key] = {
