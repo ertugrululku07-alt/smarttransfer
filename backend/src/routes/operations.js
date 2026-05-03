@@ -1076,7 +1076,7 @@ router.get('/shuttle-runs', authMiddleware, async (req, res, next) => {
             { code: 'KNKL', kw: ['konaklı', 'konakli'] }, { code: 'PYNL', kw: ['payallar'] },
             { code: 'TRKLR', kw: ['türkler', 'turkler'] }, { code: 'INC', kw: ['incekum'] },
             { code: 'AVS', kw: ['avsallar'] }, { code: 'OKR', kw: ['okurcalar'] },
-            { code: 'KZLGC', kw: ['kızılağaç', 'kizilağaç'] },
+            { code: 'KZLGC', kw: ['kızılağaç', 'kizilağaç', 'kızılot', 'kizilot'] },
             { code: 'TDR', kw: ['titreyengöl', 'titreyengol'] },
             { code: 'SRGN', kw: ['sorgun'] }, { code: 'SDE', kw: ['side,', 'side/', 'side '] },
             { code: 'MNGVT', kw: ['manavgat'] }, { code: 'BLK', kw: ['belek'] },
@@ -1114,21 +1114,11 @@ router.get('/shuttle-runs', authMiddleware, async (req, res, next) => {
 
         LOG_TAG = "POST_PROCESS_TIMES";
         Object.values(runsMap).forEach(run => {
-            // Check if any booking has manual sort order
-            const hasManualSort = run.bookings.some(b => b.shuttleSortOrder != null);
             const tripType = run.tripType || '';
 
             run.bookings.sort((a, b) => {
-                // Priority 1: Manual shuttleSortOrder (from Güzergah Sırala button)
-                const orderA = a.shuttleSortOrder ?? Number.MAX_SAFE_INTEGER;
-                const orderB = b.shuttleSortOrder ?? Number.MAX_SAFE_INTEGER;
-                
-                if (orderA !== orderB) {
-                    return orderA - orderB;
-                }
-
-                // Priority 2: Geographic sorting for ARV/DEP when no manual sort
-                if (!hasManualSort && (tripType === 'ARV' || tripType === 'DEP')) {
+                // Priority 1: Geographic sorting for ARV/DEP (ALWAYS applied)
+                if (tripType === 'ARV' || tripType === 'DEP') {
                     const distA = getBookingGeoDistance(a, tripType);
                     const distB = getBookingGeoDistance(b, tripType);
                     if (distA >= 0 && distB >= 0 && Math.abs(distA - distB) > 0.5) {
@@ -1140,7 +1130,7 @@ router.get('/shuttle-runs', authMiddleware, async (req, res, next) => {
                     }
                 }
 
-                // Priority 3: Fallback to pickup time
+                // Priority 2: Fallback to pickup time
                 const dA = a.pickupDateTime ? new Date(a.pickupDateTime).getTime() : 0;
                 const dB = b.pickupDateTime ? new Date(b.pickupDateTime).getTime() : 0;
                 return dA - dB;
@@ -1606,7 +1596,7 @@ router.post('/shuttle-runs/optimize-route', authMiddleware, async (req, res) => 
             { code: 'INC',   kw: ['incekum', 'i\u0307ncekum'] },
             { code: 'AVS',   kw: ['avsallar'] },
             { code: 'OKR',   kw: ['okurcalar'] },
-            { code: 'KZLGC', kw: ['kızılağaç', 'kizilağaç', 'kizilağac', 'kızılağac'] },
+            { code: 'KZLGC', kw: ['kızılağaç', 'kizilağaç', 'kizilağac', 'kızılağac', 'kızılot', 'kizilot'] },
             { code: 'TDR',   kw: ['titreyengöl', 'titreyengol'] },
             { code: 'SRGN',  kw: ['sorgun'] },
             { code: 'SDE',   kw: ['side,', 'side/', 'side '] },  // word-boundary safe

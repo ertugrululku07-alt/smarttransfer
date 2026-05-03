@@ -285,7 +285,7 @@ router.get('/bookings', authMiddleware, ensureDriver, async (req, res) => {
             { code: 'KNKL', kw: ['konaklı', 'konakli'] }, { code: 'PYNL', kw: ['payallar'] },
             { code: 'TRKLR', kw: ['türkler', 'turkler'] }, { code: 'INC', kw: ['incekum'] },
             { code: 'AVS', kw: ['avsallar'] }, { code: 'OKR', kw: ['okurcalar'] },
-            { code: 'KZLGC', kw: ['kızılağaç', 'kizilağaç'] },
+            { code: 'KZLGC', kw: ['kızılağaç', 'kizilağaç', 'kızılot', 'kizilot'] },
             { code: 'TDR', kw: ['titreyengöl', 'titreyengol'] },
             { code: 'SRGN', kw: ['sorgun'] }, { code: 'SDE', kw: ['side,', 'side/', 'side '] },
             { code: 'MNGVT', kw: ['manavgat'] }, { code: 'BLK', kw: ['belek'] },
