@@ -3,7 +3,7 @@ import {
   StyleSheet, View, Text, TouchableOpacity, Alert, Linking,
   Platform, Dimensions, ActivityIndicator, ScrollView
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import * as Location from 'expo-location';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -44,6 +44,7 @@ export default function ShuttleMapScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const webRef = useRef<WebView>(null);
+  const insets = useSafeAreaInsets();
 
   const [bookings, setBookings] = useState<any[]>([]);
   const [routeName, setRouteName] = useState('');
@@ -412,7 +413,7 @@ send({type:'ready'});
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={st.headerTitle} numberOfLines={1}>{routeName}</Text>
-          <Text style={st.headerSub}>{pickedCount}/{bookings.length} müşteri alındı</Text>
+          <Text style={st.headerSub}>{params.startDate ? `${new Date(params.startDate as string).toLocaleDateString('tr-TR', { day: '2-digit', month: 'long', year: 'numeric' })} · ` : ''}{pickedCount}/{bookings.length} müşteri alındı</Text>
         </View>
       </View>
 
@@ -461,7 +462,7 @@ send({type:'ready'});
       )}
 
       {/* Bottom customer list */}
-      <View style={st.bottomSheet}>
+      <View style={[st.bottomSheet, { paddingBottom: Math.max(insets.bottom, 16) }]}>
         <View style={st.sheetHandle} />
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.chipRow}>
           {bookings.map((b, i) => {
@@ -528,7 +529,7 @@ const st = StyleSheet.create({
   bottomSheet: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
     backgroundColor: '#fff', borderTopLeftRadius: 16, borderTopRightRadius: 16,
-    paddingBottom: Platform.OS === 'ios' ? 34 : 16,
+    paddingBottom: 16,
     shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 10, elevation: 10,
     maxHeight: 160,
   },

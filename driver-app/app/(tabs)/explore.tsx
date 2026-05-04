@@ -698,6 +698,7 @@ export default function JobListScreen() {
       const totalPax = item.bookings.reduce((s: number, b: any) => s + (b.adults || 0) + (b.children || 0) + (b.infants || 0), 0);
       const date = new Date(item.startDate);
       const time = item.masterTime || date.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+      const dateLabel = date.toLocaleDateString('tr-TR', { day: '2-digit', month: 'short' });
       const dirCode = item.airportCode ? `${item.direction}-${item.airportCode}` : (item.direction || 'TRF');
       const dirColor = item.direction === 'ARV' ? '#3b82f6' : item.direction === 'DEP' ? '#f59e0b' : '#7c3aed';
       const meetingPlace = shortAddr(item.bookings[0]?.pickup || item.pickup || 'Çeşitli');
@@ -718,6 +719,7 @@ export default function JobListScreen() {
             </View>
             <View style={st.timeCol}>
               <Text style={st.timeBig}>{time}</Text>
+              <Text style={{ fontSize: 10, color: '#64748b', fontWeight: '600', marginTop: 1 }}>{dateLabel}</Text>
               <View style={st.typeChipShuttle}><Ionicons name="bus" size={9} color="#7c3aed" /><Text style={st.typeChipShuttleText}>SHUTTLE</Text></View>
             </View>
             <View style={st.placeCol}>
@@ -749,6 +751,7 @@ export default function JobListScreen() {
                         bookings: JSON.stringify(item.bookings),
                         routeName: item.routeName || 'Shuttle',
                         direction: item.direction || 'DEP',
+                        startDate: item.startDate || '',
                       }
                     });
                   }}
