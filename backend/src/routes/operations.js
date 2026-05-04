@@ -925,11 +925,17 @@ router.get('/shuttle-runs', authMiddleware, async (req, res, next) => {
                 fromNameForGrouping = 'Manuel';
                 toNameForGrouping = routeNameForGrouping;
             } else if (routeId && routeMap[routeId]) {
-                key = `ROUTE::${routeId}${masterTime ? '::' + masterTime : ''}`;
                 const route = routeMap[routeId];
+                // Use ACTUAL booking pickup/dropoff to detect the real airport code (not just route definition)
+                // This prevents GZP and AYT bookings from merging into the same run
+                const actualPickup = String(m.pickup || route.fromName || '').trim();
+                const actualDropoff = String(m.dropoff || route.toName || '').trim();
+                const { fromCode: actualFromCode, toCode: actualToCode, type: actualType } = getAbbreviationAndType(actualPickup, actualDropoff);
+                // Key includes actual airport code so GZP ≠ AYT even on the same route
+                const airportDiscriminator = actualType === 'DEP' ? actualToCode : actualFromCode;
+                key = `ROUTE::${routeId}::${airportDiscriminator}${masterTime ? '::' + masterTime : ''}`;
                 
-                const { fromCode, toCode, type } = getAbbreviationAndType(route.fromName, route.toName);
-                routeNameForGrouping = `${fromCode} - ${toCode} ${type}`;
+                routeNameForGrouping = `${actualFromCode} - ${actualToCode} ${actualType}`;
                 
                 if (masterTime) {
                     routeNameForGrouping += ` (${masterTime})`;
@@ -2107,6 +2113,33 @@ router.post('/shuttle-runs/auto-group', authMiddleware, async (req, res) => {
             return vt.includes('shuttle') || vt.includes('paylaşımlı') || m.shuttleRouteId;
         });
 
+        // Resolve hubs for IATA code detection in auto-group
+        const tenantForAutoGroup = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { settings: true } });
+        const hubsForAutoGroup = tenantForAutoGroup?.settings?.hubs || [];
+        const trLowerAG = s => (s || '').toLocaleLowerCase('tr');
+        function bestHubMatchAG(addr) {
+            let bestCode = null, bestLen = 0;
+            const addrLow = trLowerAG(addr);
+            for (const hub of hubsForAutoGroup) {
+                const keys = hub.keywords ? hub.keywords.split(',').map(k => trLowerAG(k).trim()) : [];
+                if (hub.code) keys.push(trLowerAG(hub.code));
+                if (hub.name) keys.push(trLowerAG(hub.name));
+                for (const k of keys) {
+                    if (k && addrLow.includes(k) && k.length > bestLen) {
+                        bestLen = k.length;
+                        bestCode = hub.code;
+                    }
+                }
+            }
+            return bestCode;
+        }
+        function getAirportCodeAG(pickup, dropoff, tripType) {
+            // For DEP → the destination (dropoff) is the airport
+            // For ARV → the source (pickup) is the airport
+            const addr = tripType === 'ARV' ? pickup : dropoff;
+            return bestHubMatchAG(addr) || (addr || '').substring(0, 3).toUpperCase();
+        }
+
         // Extract flight times and determine tripType for each booking
         const withFlightTime = shuttleBookings
             .map(b => {
@@ -2118,7 +2151,9 @@ router.post('/shuttle-runs/auto-group', authMiddleware, async (req, res) => {
                 const flightMin = parseInt(parts[0]) * 60 + parseInt(parts[1]);
                 // Determine trip type: use metadata or compute from pickup/dropoff
                 const bt = m.tripType || getTripType(m.pickup, m.dropoff) || 'ARA';
-                return { booking: b, flightMin, flightTime: ft, tripType: bt };
+                // Determine destination airport code (GZP vs AYT must not mix)
+                const airportCode = getAirportCodeAG(String(m.pickup || ''), String(m.dropoff || ''), bt);
+                return { booking: b, flightMin, flightTime: ft, tripType: bt, airportCode };
             })
             .filter(Boolean);
 
@@ -2126,16 +2161,18 @@ router.post('/shuttle-runs/auto-group', authMiddleware, async (req, res) => {
             return res.json({ success: true, message: 'Uçuş saati olan shuttle rezervasyonu bulunamadı', groups: [] });
         }
 
-        // Separate by tripType first (DEP, ARV, ARA), then group each by 1-hour windows
+        // Separate by tripType + airport code first, then group each by 1-hour windows
+        // CRITICAL: GZP and AYT must never share the same run
         const byTripType = {};
         for (const item of withFlightTime) {
-            const tt = item.tripType;
-            if (!byTripType[tt]) byTripType[tt] = [];
-            byTripType[tt].push(item);
+            const segKey = `${item.tripType}::${item.airportCode}`;
+            if (!byTripType[segKey]) byTripType[segKey] = [];
+            byTripType[segKey].push(item);
         }
 
         const groups = [];
-        for (const [tt, items] of Object.entries(byTripType)) {
+        for (const [segKey, items] of Object.entries(byTripType)) {
+            const [tt, airportCode] = segKey.split('::');
             items.sort((a, b) => a.flightMin - b.flightMin);
             let currentGroup = [items[0]];
             for (let i = 1; i < items.length; i++) {
@@ -2144,11 +2181,11 @@ router.post('/shuttle-runs/auto-group', authMiddleware, async (req, res) => {
                 if (curr.flightMin - prev.flightMin <= 60) {
                     currentGroup.push(curr);
                 } else {
-                    groups.push({ tripType: tt, items: currentGroup });
+                    groups.push({ tripType: tt, airportCode, items: currentGroup });
                     currentGroup = [curr];
                 }
             }
-            groups.push({ tripType: tt, items: currentGroup });
+            groups.push({ tripType: tt, airportCode, items: currentGroup });
         }
 
         // Assign manual run IDs to each group
@@ -2157,11 +2194,13 @@ router.post('/shuttle-runs/auto-group', authMiddleware, async (req, res) => {
 
         for (const group of groups) {
             const tt = group.tripType;
+            const airportCode = group.airportCode || '';
             const items = group.items;
             // Use the earliest flight time as the run departure
             const earliestFlight = items[0].flightTime;
             const latestFlight = items[items.length - 1].flightTime;
-            const runId = `AUTO_${date}_${tt}_${earliestFlight.replace(':', '')}`;
+            // Include airport code in runId to make GZP and AYT runs distinct
+            const runId = `AUTO_${date}_${tt}_${airportCode}_${earliestFlight.replace(':', '')}`;
 
             for (const item of items) {
                 const meta = item.booking.metadata || {};
@@ -2171,7 +2210,7 @@ router.post('/shuttle-runs/auto-group', authMiddleware, async (req, res) => {
                 const updatedMeta = {
                     ...meta,
                     manualRunId: runId,
-                    manualRunName: `${tt} Sefer ${earliestFlight}-${latestFlight}`
+                    manualRunName: `${tt} ${airportCode} Sefer ${earliestFlight}-${latestFlight}`
                 };
 
                 await prisma.booking.update({
