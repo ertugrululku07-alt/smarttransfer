@@ -50,9 +50,10 @@ export default function ShuttleMapScreen() {
     let result = await nominatimSearch(address);
     if (result) return result;
 
-    // Simplify: remove postal codes, trim parts
+    // Simplify: remove postal codes, replace / with comma, trim parts
     const simplified = address
       .replace(/\d{5}/g, '')  // remove 5-digit postal codes
+      .replace(/\//g, ', ')   // replace / with comma (e.g. "Alanya/Antalya" → "Alanya, Antalya")
       .replace(/\s+/g, ' ')
       .trim();
     if (simplified !== address) {
@@ -61,7 +62,7 @@ export default function ShuttleMapScreen() {
     }
 
     // Try just the last 2-3 meaningful parts (e.g. "Alanya, Antalya, Turkey")
-    const parts = address.split(',').map(p => p.trim()).filter(p => p && !/^\d{5}$/.test(p));
+    const parts = simplified.split(',').map(p => p.trim()).filter(p => p && !/^\d{5}$/.test(p));
     if (parts.length > 2) {
       const shortAddr = parts.slice(-3).join(', ');
       result = await nominatimSearch(shortAddr);
@@ -95,16 +96,18 @@ export default function ShuttleMapScreen() {
 
         for (let i = 0; i < data.length; i++) {
           const b = data[i];
-          // ARV: show dropoff coords, DEP: show pickup coords
+          // ARV: show dropoff coords (where customer is dropped off)
+          // DEP: show pickup coords (where customer is picked up)
+          // IMPORTANT: Do NOT fallback from dropoff→pickup coords, they are completely different locations
           const lat = useDropoff
-            ? (b.metadata?.dropoffLat || b.dropoffLat || b.metadata?.pickupLat || b.pickupLat || 0)
+            ? (b.metadata?.dropoffLat || b.dropoffLat || 0)
             : (b.metadata?.pickupLat || b.pickupLat || 0);
           const lng = useDropoff
-            ? (b.metadata?.dropoffLng || b.dropoffLng || b.metadata?.pickupLng || b.pickupLng || 0)
+            ? (b.metadata?.dropoffLng || b.dropoffLng || 0)
             : (b.metadata?.pickupLng || b.pickupLng || 0);
           // Display address: show dropoff for ARV, pickup for DEP
           const displayAddr = useDropoff
-            ? (b.dropoff || b.metadata?.dropoff || b.pickup || '').trim()
+            ? (b.dropoff || b.metadata?.dropoff || '').trim()
             : (b.pickup || b.metadata?.pickup || '').trim();
           if (lat && lng && lat !== 0 && lng !== 0) {
             enriched.push({ ...b, _lat: lat, _lng: lng, _displayAddr: displayAddr });
