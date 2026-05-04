@@ -14,6 +14,31 @@ import { Brand } from '../../constants/theme';
 const API_URL = 'https://backend-production-69e7.up.railway.app/api';
 const { width, height } = Dimensions.get('window');
 
+// Turkish location coordinates for fallback when geocoding fails
+const TURKISH_LOCATIONS: Record<string, { lat: number; lng: number }> = {
+  'mahmutlar': { lat: 36.5100, lng: 32.0900 }, 'kestel': { lat: 36.5300, lng: 32.0600 },
+  'tosmur': { lat: 36.5400, lng: 32.0300 }, 'oba': { lat: 36.5450, lng: 32.0100 },
+  'alanya': { lat: 36.5437, lng: 32.0004 }, 'konaklı': { lat: 36.5920, lng: 31.9500 },
+  'konakli': { lat: 36.5920, lng: 31.9500 }, 'payallar': { lat: 36.5950, lng: 31.9200 },
+  'türkler': { lat: 36.6100, lng: 31.8600 }, 'turkler': { lat: 36.6100, lng: 31.8600 },
+  'incekum': { lat: 36.6300, lng: 31.8000 }, 'avsallar': { lat: 36.6450, lng: 31.7600 },
+  'okurcalar': { lat: 36.6800, lng: 31.6300 }, 'kızılağaç': { lat: 36.7200, lng: 31.5500 },
+  'titreyengöl': { lat: 36.7530, lng: 31.4700 }, 'side': { lat: 36.7667, lng: 31.3894 },
+  'sorgun': { lat: 36.7630, lng: 31.4300 }, 'manavgat': { lat: 36.7860, lng: 31.4430 },
+  'belek': { lat: 36.8630, lng: 31.0550 }, 'kadriye': { lat: 36.8700, lng: 31.0100 },
+  'kundu': { lat: 36.8500, lng: 30.8200 }, 'lara': { lat: 36.8580, lng: 30.7639 },
+  'konyaaltı': { lat: 36.8650, lng: 30.6430 }, 'konyaalti': { lat: 36.8650, lng: 30.6430 },
+  'antalya': { lat: 36.8841, lng: 30.7056 }, 'kemer': { lat: 36.5981, lng: 30.5590 },
+  'göynük': { lat: 36.6350, lng: 30.5270 }, 'beldibi': { lat: 36.6700, lng: 30.5050 },
+  'tekirova': { lat: 36.5260, lng: 30.5180 }, 'çamyuva': { lat: 36.5350, lng: 30.5400 },
+  'kiriş': { lat: 36.5600, lng: 30.5500 }, 'çıralı': { lat: 36.4280, lng: 30.4750 },
+  'olympos': { lat: 36.3950, lng: 30.4000 }, 'kaş': { lat: 36.2006, lng: 29.6383 },
+  'kas': { lat: 36.2006, lng: 29.6383 }, 'fethiye': { lat: 36.6514, lng: 29.1233 },
+  'gazipaşa': { lat: 36.2992, lng: 32.3006 }, 'gazipasa': { lat: 36.2992, lng: 32.3006 },
+  'saray': { lat: 36.5437, lng: 31.9994 }, 'obagöl': { lat: 36.5530, lng: 31.9600 },
+  'kargıcak': { lat: 36.4780, lng: 32.1500 }, 'demirtaş': { lat: 36.4580, lng: 32.2000 },
+};
+
 export default function ShuttleMapScreen() {
   const { token } = useAuth();
   const router = useRouter();
@@ -47,26 +72,39 @@ export default function ShuttleMapScreen() {
   };
 
   const geocodeAddress = async (address: string): Promise<{ lat: number; lng: number } | null> => {
-    let result = await nominatimSearch(address);
-    if (result) return result;
-    const simplified = address
-      .replace(/\d{5}/g, '')
+    // ALWAYS clean address first — '/' confuses Nominatim (e.g. "Alanya/Antalya" returns Antalya center)
+    const cleaned = address
       .replace(/\//g, ', ')
+      .replace(/\d{5}/g, '')
       .replace(/\s+/g, ' ')
       .trim();
-    if (simplified !== address) {
-      result = await nominatimSearch(simplified);
-      if (result) return result;
-    }
-    const parts = simplified.split(',').map(p => p.trim()).filter(p => p && !/^\d{5}$/.test(p));
+
+    // Try cleaned full address
+    let result = await nominatimSearch(cleaned);
+    if (result) return result;
+
+    // Try shorter: last 2-3 meaningful parts
+    const parts = cleaned.split(',').map(p => p.trim()).filter(p => p.length > 1);
     if (parts.length > 2) {
+      await new Promise(r => setTimeout(r, 300));
       result = await nominatimSearch(parts.slice(-3).join(', '));
       if (result) return result;
     }
+
+    // Try first meaningful part + Turkey
     if (parts.length > 0) {
+      await new Promise(r => setTimeout(r, 300));
       result = await nominatimSearch(`${parts[0]}, Turkey`);
+      if (result) return result;
     }
-    return result;
+
+    // Fallback: Turkish location keyword lookup (instant, no API call)
+    const lower = address.toLowerCase().replace(/ı/g, 'i').replace(/ö/g, 'o').replace(/ü/g, 'u').replace(/ş/g, 's').replace(/ç/g, 'c').replace(/ğ/g, 'g');
+    for (const [key, coords] of Object.entries(TURKISH_LOCATIONS)) {
+      const normKey = key.toLowerCase().replace(/ı/g, 'i').replace(/ö/g, 'o').replace(/ü/g, 'u').replace(/ş/g, 's').replace(/ç/g, 'c').replace(/ğ/g, 'g');
+      if (lower.includes(normKey)) return { ...coords };
+    }
+    return null;
   };
 
   // Get driver location
@@ -165,6 +203,13 @@ export default function ShuttleMapScreen() {
     webRef.current?.injectJavaScript(`window.setMarkers(${JSON.stringify(markers)}); true;`);
   }, [bookings, mapReady]);
 
+  // Send driver location to WebView for in-map routing
+  useEffect(() => {
+    if (driverLocation && mapReady) {
+      webRef.current?.injectJavaScript(`window.setDriverLocation(${driverLocation.lat}, ${driverLocation.lng}); true;`);
+    }
+  }, [driverLocation, mapReady]);
+
   const getCoords = (b: any) => ({ lat: b._lat || 0, lng: b._lng || 0 });
   const getCustomerName = (b: any) => b.contactName || ((b.customerFirstName || '') + ' ' + (b.customerLastName || '')).trim() || 'Misafir';
   const isPickedUp = (b: any) => b.status === 'IN_PROGRESS' || b.status === 'PICKUP' || b.status === 'STARTED' || b.status === 'COMPLETED';
@@ -200,15 +245,18 @@ export default function ShuttleMapScreen() {
       } else if (msg.type === 'pickup') {
         handlePickup(msg.id);
       } else if (msg.type === 'navigate') {
-        if (!driverLocation) {
-          Alert.alert('Uyarı', 'Şoför konumu alınamadı');
-          return;
-        }
+        // External navigation (Google Maps)
+        const dest = `${msg.lat},${msg.lng}`;
+        const origin = driverLocation ? `${driverLocation.lat},${driverLocation.lng}` : '';
         const url = Platform.select({
-          ios: `maps://app?saddr=${driverLocation.lat},${driverLocation.lng}&daddr=${msg.lat},${msg.lng}`,
-          default: `https://www.google.com/maps/dir/?api=1&origin=${driverLocation.lat},${driverLocation.lng}&destination=${msg.lat},${msg.lng}&travelmode=driving`,
+          ios: origin ? `maps://app?saddr=${origin}&daddr=${dest}` : `maps://app?daddr=${dest}`,
+          default: origin
+            ? `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${dest}&travelmode=driving`
+            : `https://www.google.com/maps/dir/?api=1&destination=${dest}&travelmode=driving`,
         });
         Linking.openURL(url!);
+      } else if (msg.type === 'noLocation') {
+        Alert.alert('Uyarı', 'Şoför konumu alınamadı. Konum izni açık mı?');
       } else if (msg.type === 'select') {
         setSelectedMarker(msg.id);
       } else if (msg.type === 'routeInfo') {
@@ -226,9 +274,13 @@ export default function ShuttleMapScreen() {
     webRef.current?.injectJavaScript(`window.focusMarker('${bookingId}', ${lat}, ${lng}); true;`);
   };
 
+  const showRouteOnMap = (bookingId: string) => {
+    webRef.current?.injectJavaScript(`window.showRoute('${bookingId}'); true;`);
+  };
+
   const pickedCount = bookings.filter(b => isPickedUp(b)).length;
 
-  // Leaflet HTML map
+  // Leaflet HTML map with OSRM routing
   const mapHtml = `<!DOCTYPE html>
 <html><head>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
@@ -244,68 +296,107 @@ export default function ShuttleMapScreen() {
   .popup-btns{display:flex;gap:6px}
   .popup-btn{display:flex;align-items:center;justify-content:center;gap:4px;padding:8px 12px;border-radius:8px;border:none;color:#fff;font-weight:700;font-size:13px;cursor:pointer;flex:1}
   .btn-pickup{background:#4361ee}
-  .btn-nav{background:#3b82f6;flex:none;padding:8px 10px}
+  .btn-route{background:#4f46e5;flex:none;padding:8px 10px}
+  .btn-extNav{background:#059669;flex:none;padding:8px 10px}
   .btn-done{background:#22c55e;pointer-events:none}
   .order-icon{background:#ef4444;color:#fff;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3)}
   .order-icon.picked{background:#22c55e}
   .order-icon.selected{background:#f59e0b}
+  .route-bar{position:fixed;top:8px;left:8px;right:8px;background:#fff;border-radius:12px;padding:10px 14px;box-shadow:0 4px 12px rgba(0,0,0,0.15);z-index:1000;display:none;flex-direction:row;align-items:center;gap:10px}
+  .route-bar .ri-info{flex:1}
+  .route-bar .ri-name{font-weight:700;font-size:14px;color:#1e293b}
+  .route-bar .ri-details{font-size:13px;color:#4f46e5;font-weight:600;margin-top:2px}
+  .route-bar .ri-close{background:#ef4444;color:#fff;border:none;border-radius:50%;width:28px;height:28px;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center}
 </style>
 </head><body>
 <div id="map"></div>
+<div class="route-bar" id="routeBar">
+  <div class="ri-info"><div class="ri-name" id="riName"></div><div class="ri-details" id="riDetails"></div></div>
+  <button class="ri-close" onclick="clearRoute()">&#x2715;</button>
+</div>
 <script>
-var map = L.map('map',{zoomControl:false}).setView([36.8969,30.7133],9);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
-  attribution:'© OSM',maxZoom:19
-}).addTo(map);
+var map=L.map('map',{zoomControl:false}).setView([36.8969,30.7133],9);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'OSM',maxZoom:19}).addTo(map);
 L.control.zoom({position:'topright'}).addTo(map);
 
-var markers={}, routeLine=null;
+var markers={},markerData={},routeLine=null,driverLat=null,driverLng=null,driverMarker=null;
 
 function makeIcon(order,picked,selected){
   var cls='order-icon';
-  if(picked) cls+=' picked';
-  else if(selected) cls+=' selected';
-  return L.divIcon({
-    html:'<div class="'+cls+'">'+order+'</div>',
-    className:'',iconSize:[28,28],iconAnchor:[14,14],popupAnchor:[0,-16]
-  });
+  if(picked) cls+=' picked'; else if(selected) cls+=' selected';
+  return L.divIcon({html:'<div class="'+cls+'">'+order+'</div>',className:'',iconSize:[28,28],iconAnchor:[14,14],popupAnchor:[0,-16]});
 }
-
 function send(obj){window.ReactNativeWebView.postMessage(JSON.stringify(obj))}
+
+window.setDriverLocation=function(lat,lng){
+  driverLat=lat;driverLng=lng;
+  if(driverMarker)map.removeLayer(driverMarker);
+  driverMarker=L.circleMarker([lat,lng],{radius:8,color:'#4f46e5',fillColor:'#818cf8',fillOpacity:1,weight:3}).addTo(map);
+};
+
+function fetchRoute(destLat,destLng,name){
+  if(!driverLat){send({type:'noLocation'});return;}
+  if(routeLine){map.removeLayer(routeLine);routeLine=null;}
+  fetch('https://router.project-osrm.org/route/v1/driving/'+driverLng+','+driverLat+';'+destLng+','+destLat+'?overview=full&geometries=geojson')
+  .then(function(r){return r.json()})
+  .then(function(json){
+    if(json.code==='Ok'&&json.routes[0]){
+      var route=json.routes[0];
+      var coords=route.geometry.coordinates.map(function(c){return[c[1],c[0]]});
+      routeLine=L.polyline(coords,{color:'#4f46e5',weight:5,opacity:0.8}).addTo(map);
+      map.fitBounds([[driverLat,driverLng],[destLat,destLng]],{padding:[60,60]});
+      var distKm=(route.distance/1000).toFixed(1);
+      var durMin=Math.round(route.duration/60);
+      document.getElementById('riName').textContent=name;
+      document.getElementById('riDetails').textContent=distKm+' km / '+durMin+' dk';
+      document.getElementById('routeBar').style.display='flex';
+      send({type:'routeInfo',distance:distKm+' km',duration:durMin+' dk',name:name});
+    }
+  }).catch(function(){});
+}
+function clearRoute(){
+  if(routeLine){map.removeLayer(routeLine);routeLine=null;}
+  document.getElementById('routeBar').style.display='none';
+  send({type:'clearRoute'});
+}
 
 window.setMarkers=function(list){
   Object.values(markers).forEach(function(m){map.removeLayer(m)});
-  markers={};
-  if(!list.length) return;
+  markers={};markerData={};
+  if(!list.length)return;
   var bounds=[];
   list.forEach(function(b){
+    markerData[b.id]=b;
     var icon=makeIcon(b.order,b.picked,false);
     var m=L.marker([b.lat,b.lng],{icon:icon}).addTo(map);
     var popupHtml='<div class="popup-name">'+b.name+'</div>';
     if(b.time) popupHtml+='<div class="popup-time">'+b.time+'</div>';
     popupHtml+='<div class="popup-addr">'+b.addr+'</div>';
-    popupHtml+='<div class="popup-pax">'+b.pax+' Pax'+(b.flight?' · '+b.flight:'')+'</div>';
+    popupHtml+='<div class="popup-pax">'+b.pax+' Pax'+(b.flight?' - '+b.flight:'')+'</div>';
     if(b.picked){
-      popupHtml+='<div class="popup-btns"><button class="popup-btn btn-done">Alındı ✓</button></div>';
-    } else {
+      popupHtml+='<div class="popup-btns"><button class="popup-btn btn-done">Alindi</button></div>';
+    }else{
       popupHtml+='<div class="popup-btns">';
-      popupHtml+='<button class="popup-btn btn-pickup" onclick="send({type:\\'pickup\\',id:\\''+b.id+'\\'})">Alındı</button>';
-      popupHtml+='<button class="popup-btn btn-nav" onclick="send({type:\\'navigate\\',id:\\''+b.id+'\\',lat:'+b.lat+',lng:'+b.lng+'})">🧭</button>';
+      popupHtml+='<button class="popup-btn btn-pickup" onclick="send({type:\\'pickup\\',id:\\''+b.id+'\\'})">Alindi</button>';
+      popupHtml+='<button class="popup-btn btn-route" onclick="window.showRoute(\\''+b.id+'\\')" title="Rota">Rota</button>';
+      popupHtml+='<button class="popup-btn btn-extNav" onclick="send({type:\\'navigate\\',id:\\''+b.id+'\\',lat:'+b.lat+',lng:'+b.lng+'})" title="Google Maps">Git</button>';
       popupHtml+='</div>';
     }
-    m.bindPopup(popupHtml,{maxWidth:220,minWidth:180});
+    m.bindPopup(popupHtml,{maxWidth:240,minWidth:200});
     m.on('click',function(){send({type:'select',id:b.id})});
     markers[b.id]=m;
     bounds.push([b.lat,b.lng]);
   });
-  if(bounds.length>0){
-    map.fitBounds(bounds,{padding:[40,40],maxZoom:14});
-  }
+  if(bounds.length>0) map.fitBounds(bounds,{padding:[40,40],maxZoom:14});
 };
 
 window.focusMarker=function(id,lat,lng){
   map.setView([lat,lng],15,{animate:true});
   if(markers[id]) markers[id].openPopup();
+};
+window.showRoute=function(id){
+  var b=markerData[id];
+  if(b) fetchRoute(b.lat,b.lng,b.name);
 };
 
 send({type:'ready'});
@@ -360,7 +451,10 @@ send({type:'ready'});
             <Text style={st.routeTarget} numberOfLines={1}>{routeInfo.targetName}</Text>
             <Text style={st.routeDetails}>{routeInfo.distance} · {routeInfo.duration}</Text>
           </View>
-          <TouchableOpacity style={st.routeClearBtn} onPress={() => setRouteInfo(null)}>
+          <TouchableOpacity style={st.routeClearBtn} onPress={() => {
+            setRouteInfo(null);
+            webRef.current?.injectJavaScript('clearRoute(); true;');
+          }}>
             <Ionicons name="close-circle" size={24} color="#ef4444" />
           </TouchableOpacity>
         </View>
@@ -393,19 +487,8 @@ send({type:'ready'});
                   <View style={{ flexDirection: 'row', gap: 4 }}>
                     {hasCoords && (
                       <TouchableOpacity
-                        style={[st.chipPickupBtn, { backgroundColor: '#3b82f6' }]}
-                        onPress={() => {
-                          const c = getCoords(b);
-                          if (driverLocation) {
-                            const url = Platform.select({
-                              ios: `maps://app?saddr=${driverLocation.lat},${driverLocation.lng}&daddr=${c.lat},${c.lng}`,
-                              default: `https://www.google.com/maps/dir/?api=1&origin=${driverLocation.lat},${driverLocation.lng}&destination=${c.lat},${c.lng}&travelmode=driving`,
-                            });
-                            Linking.openURL(url!);
-                          } else {
-                            Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${c.lat},${c.lng}&travelmode=driving`);
-                          }
-                        }}
+                        style={[st.chipPickupBtn, { backgroundColor: '#4f46e5' }]}
+                        onPress={() => showRouteOnMap(b.id)}
                       >
                         <Ionicons name="navigate" size={14} color="#fff" />
                       </TouchableOpacity>

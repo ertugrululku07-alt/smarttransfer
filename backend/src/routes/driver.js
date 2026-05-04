@@ -348,6 +348,25 @@ router.get('/bookings', authMiddleware, ensureDriver, async (req, res) => {
             return haversineKm(coords.lat, coords.lng, airport.lat, airport.lng);
         };
 
+        // ── Resolve missing coordinates using GEO lookup ──
+        Object.values(shuttleGroups).forEach(group => {
+            group.bookings.forEach(bk => {
+                const m = bk.metadata || {};
+                // Extract from metadata if not already top-level
+                if (!bk.pickupLat)  { bk.pickupLat  = Number(m.pickupLat)  || null; bk.pickupLng  = Number(m.pickupLng)  || null; }
+                if (!bk.dropoffLat) { bk.dropoffLat = Number(m.dropoffLat) || null; bk.dropoffLng = Number(m.dropoffLng) || null; }
+                // If still missing, resolve from address text using GEO keyword lookup
+                if (!bk.pickupLat && bk.pickup) {
+                    const z = detectGeoZone(bk.pickup);
+                    if (z && GEO_ZONES[z]) { bk.pickupLat = GEO_ZONES[z].lat; bk.pickupLng = GEO_ZONES[z].lng; }
+                }
+                if (!bk.dropoffLat && bk.dropoff) {
+                    const z = detectGeoZone(bk.dropoff);
+                    if (z && GEO_ZONES[z]) { bk.dropoffLat = GEO_ZONES[z].lat; bk.dropoffLng = GEO_ZONES[z].lng; }
+                }
+            });
+        });
+
         // Sort shuttle bookings within each group: geographic for ARV/DEP, time for others
         Object.values(shuttleGroups).forEach(group => {
             const dir = group.direction; // 'ARV', 'DEP', 'TRF'
