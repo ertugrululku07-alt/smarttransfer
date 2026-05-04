@@ -472,14 +472,20 @@ router.get('/history', authMiddleware, ensureDriver, async (req, res) => {
 router.put('/bookings/:id/status', authMiddleware, ensureDriver, async (req, res) => {
     try {
         const { id } = req.params;
-        const { status } = req.body; // 'ON_WAY', 'ARRIVED', 'PICKUP', 'STARTED', 'COMPLETED'
+        const { status } = req.body; // 'IN_PROGRESS', 'COMPLETED', 'NO_SHOW'
+
+        // Validate status against BookingStatus enum
+        const validStatuses = ['PENDING', 'CONFIRMED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED', 'NO_SHOW'];
+        if (!validStatuses.includes(status)) {
+            return res.status(400).json({ success: false, error: `Geçersiz durum: ${status}` });
+        }
 
         // Build update data with timestamp tracking
         const updateData = { status: status };
         const now = new Date();
 
         // Record pickup time when driver marks customer as picked up
-        if (status === 'PICKUP' || status === 'STARTED') {
+        if (status === 'IN_PROGRESS' || status === 'PICKUP' || status === 'STARTED') {
             updateData.pickedUpAt = now;
         }
 
@@ -488,8 +494,23 @@ router.put('/bookings/:id/status', authMiddleware, ensureDriver, async (req, res
             updateData.droppedOffAt = now;
         }
 
+        // First verify the booking exists and belongs to this driver
+        // For shuttle bookings, driverId may be set via operations assign
+        const existing = await prisma.booking.findFirst({
+            where: {
+                id: id,
+                OR: [
+                    { driverId: req.user.id },
+                    { metadata: { path: ['driverId'], equals: req.user.id } }
+                ]
+            }
+        });
+        if (!existing) {
+            return res.status(404).json({ success: false, error: 'Rezervasyon bulunamadı veya bu şoföre atanmamış' });
+        }
+
         const booking = await prisma.booking.update({
-            where: { id: id, driverId: req.user.id },
+            where: { id: id },
             data: updateData,
             include: { driver: { select: { fullName: true } } }
         });

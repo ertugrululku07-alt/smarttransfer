@@ -4,14 +4,14 @@ import {
   Platform, Dimensions, ActivityIndicator, ScrollView
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import MapView, { Marker, Callout, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
+import MapView, { Marker, Callout, Polyline } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
 import { Brand } from '../../constants/theme';
 
-const API_URL = 'http://187.127.76.249/api';
+const API_URL = 'https://backend-production-69e7.up.railway.app/api';
 const { width, height } = Dimensions.get('window');
 
 export default function ShuttleMapScreen() {
@@ -163,7 +163,7 @@ export default function ShuttleMapScreen() {
     return b.contactName || ((b.customerFirstName || '') + ' ' + (b.customerLastName || '')).trim() || 'Misafir';
   };
 
-  const isPickedUp = (b: any) => b.status === 'IN_PROGRESS' || b.status === 'COMPLETED';
+  const isPickedUp = (b: any) => b.status === 'IN_PROGRESS' || b.status === 'PICKUP' || b.status === 'STARTED' || b.status === 'COMPLETED';
 
   const handlePickup = async (bookingId: string) => {
     setUpdating(bookingId);
@@ -297,7 +297,6 @@ export default function ShuttleMapScreen() {
       <MapView
         ref={mapRef}
         style={st.map}
-        provider={PROVIDER_GOOGLE}
         initialRegion={defaultRegion}
         showsUserLocation
         showsMyLocationButton
