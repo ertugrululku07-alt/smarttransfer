@@ -10,6 +10,7 @@ const flexpolyline = require('@here/flexpolyline');
 const bcrypt = require('bcryptjs');
 const router = express.Router();
 const prisma = require('../lib/prisma');
+const { detectRegionCodeByPolygon: detectRegionCodeByPolygonShared } = require('../utils/zoneDetection');
 
 /**
  * Detect region code from a location text using tenant hubs
@@ -50,6 +51,49 @@ function detectRegionCode(locationText, hubs) {
         }
     }
     return bestCode;
+}
+
+/**
+ * Detect zone code by checking if coordinates fall inside zone polygons.
+ * Returns the most specific (smallest area) zone. Falls back to keyword detection.
+ * @param {number|null} lat - Latitude
+ * @param {number|null} lng - Longitude
+ * @param {string} locationText - Address text (fallback for keyword detection)
+ * @param {Array} zones - Zone records with polygon, code, name, keywords fields
+ * @param {Array} hubs - Hub list for keyword fallback
+ * @returns {string|null} - Zone code
+ */
+function detectRegionCodeByPolygon(lat, lng, locationText, zones, hubs) {
+    // Try polygon-based detection first
+    if (lat && lng && zones && zones.length > 0) {
+        let bestCode = null;
+        let smallestArea = Infinity;
+        const point = turf.point([Number(lng), Number(lat)]);
+        for (const zone of zones) {
+            if (!zone.polygon || !Array.isArray(zone.polygon) || zone.polygon.length < 3) continue;
+            if (!zone.code) continue;
+            try {
+                let polyCoords = zone.polygon.map(p => [p.lng, p.lat]);
+                // Close polygon if not closed
+                if (polyCoords[0][0] !== polyCoords[polyCoords.length - 1][0] ||
+                    polyCoords[0][1] !== polyCoords[polyCoords.length - 1][1]) {
+                    polyCoords.push(polyCoords[0]);
+                }
+                const poly = turf.polygon([polyCoords]);
+                if (turf.booleanPointInPolygon(point, poly)) {
+                    const area = turf.area(poly);
+                    // Pick the smallest polygon (most specific zone)
+                    if (area < smallestArea) {
+                        smallestArea = area;
+                        bestCode = zone.code;
+                    }
+                }
+            } catch (e) { /* skip invalid polygon */ }
+        }
+        if (bestCode) return bestCode;
+    }
+    // Fallback: keyword-based detection
+    return detectRegionCode(locationText, hubs);
 }
 
 /**
@@ -1316,6 +1360,11 @@ router.post('/book', optionalAuthMiddleware, async (req, res) => {
         
         // Load hubs for region detection
         const hubs = await loadTenantHubs(tenantId);
+        // Load zones with polygons for coordinate-based region detection
+        const zonesForRegion = await prisma.zone.findMany({
+            where: { tenantId, code: { not: null } },
+            select: { id: true, code: true, name: true, keywords: true, polygon: true }
+        });
         
         // Helper function to create a booking
         const createBooking = async (data, linkedBookingNumber = null) => {
@@ -1345,8 +1394,13 @@ router.post('/book', optionalAuthMiddleware, async (req, res) => {
             
             const bn = linkedBookingNumber ? `${linkedBookingNumber}-D` : `TR-${dateStr}-${Math.floor(1000 + Math.random() * 9000)}`;
             
-            const pickupRegionCode = detectRegionCode(pickup, hubs);
-            const dropoffRegionCode = detectRegionCode(dropoff, hubs);
+            // Use polygon-based detection (coordinates from data or req.body)
+            const pLat = data.pickupLat || req.body.pickupLat || req.body.outbound?.pickupLat;
+            const pLng = data.pickupLng || req.body.pickupLng || req.body.outbound?.pickupLng;
+            const dLat = data.dropoffLat || req.body.dropoffLat || req.body.outbound?.dropoffLat;
+            const dLng = data.dropoffLng || req.body.dropoffLng || req.body.outbound?.dropoffLng;
+            const pickupRegionCode = detectRegionCodeByPolygon(pLat, pLng, pickup, zonesForRegion, hubs);
+            const dropoffRegionCode = detectRegionCodeByPolygon(dLat, dLng, dropoff, zonesForRegion, hubs);
             const tripType = getTripType(pickup, dropoff); // Determine trip type
 
             return await prisma.booking.create({
@@ -1398,6 +1452,10 @@ router.post('/book', optionalAuthMiddleware, async (req, res) => {
                         shuttleMasterTime: shuttleMasterTime || null,
                         pickupRegionCode: pickupRegionCode || null,
                         dropoffRegionCode: dropoffRegionCode || null,
+                        pickupLat: pLat ? Number(pLat) : null,
+                        pickupLng: pLng ? Number(pLng) : null,
+                        dropoffLat: dLat ? Number(dLat) : null,
+                        dropoffLng: dLng ? Number(dLng) : null,
                         tripLeg: tripLeg || 'OUTBOUND',
                         linkedBookingNumber: linkedBookingNumber,
                         tripType: tripType // Store trip type for shuttle grouping
@@ -1786,10 +1844,34 @@ router.get('/bookings', authMiddleware, async (req, res) => {
             vehicles.forEach(v => { vehicleMap[v.id] = v; });
         }
 
+        // 5. Load zones for polygon-based region code recalculation
+        const tenantIdForZones = req.user?.tenantId || bookings[0]?.tenantId;
+        let zonesForListing = [];
+        let hubsForListing = [];
+        if (tenantIdForZones) {
+            zonesForListing = await prisma.zone.findMany({
+                where: { tenantId: tenantIdForZones, code: { not: null } },
+                select: { id: true, code: true, name: true, keywords: true, polygon: true }
+            });
+            hubsForListing = await loadTenantHubs(tenantIdForZones);
+        }
+
         // Map DB format to Frontend format
         const mappedBookings = bookings.map(b => {
             const vehId = b.metadata?.assignedVehicleId || b.metadata?.vehicleId || null;
             const vehicle = vehId ? vehicleMap[vehId] : null;
+            // Recalculate region codes using polygon if coordinates available
+            const m = b.metadata || {};
+            const pLat = m.pickupLat || m.pickupCoordinates?.lat;
+            const pLng = m.pickupLng || m.pickupCoordinates?.lng;
+            const dLat = m.dropoffLat || m.dropoffCoordinates?.lat;
+            const dLng = m.dropoffLng || m.dropoffCoordinates?.lng;
+            const pickupRegionCode = (pLat && pLng)
+                ? detectRegionCodeByPolygon(pLat, pLng, m.pickup || '', zonesForListing, hubsForListing)
+                : (m.pickupRegionCode || null);
+            const dropoffRegionCode = (dLat && dLng)
+                ? detectRegionCodeByPolygon(dLat, dLng, m.dropoff || '', zonesForListing, hubsForListing)
+                : (m.dropoffRegionCode || null);
             return {
             id: b.id,
             bookingNumber: b.bookingNumber,
@@ -1816,8 +1898,8 @@ router.get('/bookings', authMiddleware, async (req, res) => {
             infants: b.infants || 0,
             flightNumber: b.metadata?.flightNumber,
             flightTime: b.metadata?.flightTime,
-            pickupRegionCode: b.metadata?.pickupRegionCode || null,
-            dropoffRegionCode: b.metadata?.dropoffRegionCode || null,
+            pickupRegionCode,
+            dropoffRegionCode,
             operationalStatus: b.metadata?.operationalStatus, // Added for Op/Pool tracking
             returnReason: b.metadata?.returnReason || null, // Return to reservation reason
             returnedAt: b.metadata?.returnedAt || null,
@@ -1989,6 +2071,24 @@ router.get('/bookings/:id', authMiddleware, async (req, res) => {
             return res.status(404).json({ success: false, error: 'Rezervasyon bulunamadı' });
         }
 
+        // Recalculate region codes by polygon
+        const bTenantId = booking.tenantId || req.user?.tenantId;
+        let detailPickupRegion = booking.metadata?.pickupRegionCode || null;
+        let detailDropoffRegion = booking.metadata?.dropoffRegionCode || null;
+        if (bTenantId) {
+            const bm = booking.metadata || {};
+            const bpLat = bm.pickupLat || bm.pickupCoordinates?.lat;
+            const bpLng = bm.pickupLng || bm.pickupCoordinates?.lng;
+            const bdLat = bm.dropoffLat || bm.dropoffCoordinates?.lat;
+            const bdLng = bm.dropoffLng || bm.dropoffCoordinates?.lng;
+            if (bpLat || bdLat) {
+                const zDetail = await prisma.zone.findMany({ where: { tenantId: bTenantId, code: { not: null } }, select: { id: true, code: true, name: true, keywords: true, polygon: true } });
+                const hDetail = await loadTenantHubs(bTenantId);
+                if (bpLat && bpLng) detailPickupRegion = detectRegionCodeByPolygon(bpLat, bpLng, bm.pickup || '', zDetail, hDetail);
+                if (bdLat && bdLng) detailDropoffRegion = detectRegionCodeByPolygon(bdLat, bdLng, bm.dropoff || '', zDetail, hDetail);
+            }
+        }
+
         // Map to frontend format
         const mapped = {
             id: booking.id,
@@ -2028,8 +2128,8 @@ router.get('/bookings/:id', authMiddleware, async (req, res) => {
             operationalStatus: booking.metadata?.operationalStatus || 'POOL',
             flightNumber: booking.metadata?.flightNumber,
             flightTime: booking.metadata?.flightTime,
-            pickupRegionCode: booking.metadata?.pickupRegionCode || null,
-            dropoffRegionCode: booking.metadata?.dropoffRegionCode || null,
+            pickupRegionCode: detailPickupRegion,
+            dropoffRegionCode: detailDropoffRegion,
             createdAt: booking.createdAt
         };
 
@@ -2686,10 +2786,14 @@ router.post('/bookings/admin', authMiddleware, async (req, res) => {
         const randomSuffix = Math.floor(1000 + Math.random() * 9000);
         const bookingNumber = `TR-${dateStr}-${randomSuffix}`;
 
-        // Detect region codes from hub keywords
+        // Detect region codes using polygon-based zone detection (with keyword fallback)
         const hubs = await loadTenantHubs(tenantId);
-        const pickupRegionCode = detectRegionCode(pickup, hubs);
-        const dropoffRegionCode = detectRegionCode(dropoff, hubs);
+        const zonesForRegionAdmin = await prisma.zone.findMany({
+            where: { tenantId, code: { not: null } },
+            select: { id: true, code: true, name: true, keywords: true, polygon: true }
+        });
+        const pickupRegionCode = detectRegionCodeByPolygon(pickupLat, pickupLng, pickup, zonesForRegionAdmin, hubs);
+        const dropoffRegionCode = detectRegionCodeByPolygon(dropoffLat, dropoffLng, dropoff, zonesForRegionAdmin, hubs);
 
         const metadata = {
             pickup,

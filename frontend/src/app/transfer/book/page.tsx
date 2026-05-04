@@ -504,11 +504,15 @@ const TransferBookingContent: React.FC = () => {
             };
             const resolvedPaymentMethod = paymentMethodMap[values.paymentMethod] || 'PAY_IN_VEHICLE';
 
-            // Build outbound payload
+            // Build outbound payload (include coordinates for polygon-based zone detection)
             const outboundPayload = {
                 vehicleType: vehicleDetails.vehicleType,
                 pickup,
                 dropoff,
+                pickupLat: searchParams.get('pickupLat') || undefined,
+                pickupLng: searchParams.get('pickupLng') || undefined,
+                dropoffLat: searchParams.get('dropoffLat') || undefined,
+                dropoffLng: searchParams.get('dropoffLng') || undefined,
                 pickupDateTime: finalPickupDateTime,
                 passengers: Number(passengers),
                 adults: Number(adultsParam) || Number(passengers) || 1,

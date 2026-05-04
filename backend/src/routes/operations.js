@@ -4,6 +4,7 @@
 const express = require('express');
 const prisma = require('../lib/prisma');
 const { authMiddleware } = require('../middleware/auth');
+const { detectRegionCodeByPolygon } = require('../utils/zoneDetection');
 
 const router = express.Router();
 
@@ -367,12 +368,21 @@ router.get('/vehicle-availability', authMiddleware, async (req, res) => {
             }
         });
 
+        // Load zones for polygon-based region recalc
+        const vehZones = await prisma.zone.findMany({
+            where: { tenantId, code: { not: null } },
+            select: { id: true, code: true, name: true, keywords: true, polygon: true }
+        });
+        const tenantInfoVeh = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { settings: true } });
+        const vehHubs = tenantInfoVeh?.settings?.hubs || [];
+
         // Group bookings by vehicle
         const bookingsByVehicle = {};
         bookings.forEach(b => {
             const vId = b.metadata?.assignedVehicleId || b.metadata?.vehicleId;
             if (vId) {
                 if (!bookingsByVehicle[vId]) bookingsByVehicle[vId] = [];
+                const bm = b.metadata || {};
                 bookingsByVehicle[vId].push({
                     id: b.id,
                     bookingNumber: b.bookingNumber,
@@ -381,11 +391,15 @@ router.get('/vehicle-availability', authMiddleware, async (req, res) => {
                     pax: (b.adults || 0) + (b.children || 0) + (b.infants || 0),
                     pickupTime: b.startDate,
                     endTime: b.endDate,
-                    pickupRegionCode: b.metadata?.pickupRegionCode || null,
-                    dropoffRegionCode: b.metadata?.dropoffRegionCode || null,
-                    pickupLocation: b.metadata?.pickup || null,
-                    dropoffLocation: b.metadata?.dropoff || null,
-                    flightNumber: b.metadata?.flightNumber || null,
+                    pickupRegionCode: (bm.pickupLat && bm.pickupLng)
+                        ? detectRegionCodeByPolygon(bm.pickupLat, bm.pickupLng, bm.pickup || '', vehZones, vehHubs)
+                        : (bm.pickupRegionCode || null),
+                    dropoffRegionCode: (bm.dropoffLat && bm.dropoffLng)
+                        ? detectRegionCodeByPolygon(bm.dropoffLat, bm.dropoffLng, bm.dropoff || '', vehZones, vehHubs)
+                        : (bm.dropoffRegionCode || null),
+                    pickupLocation: bm.pickup || null,
+                    dropoffLocation: bm.dropoff || null,
+                    flightNumber: bm.flightNumber || null,
                     status: b.status
                 });
             }
@@ -889,6 +903,12 @@ router.get('/shuttle-runs', authMiddleware, async (req, res, next) => {
         console.log('[DEBUG shuttle-runs] All booking IDs:', bookings.map(b => ({ id: b.id, name: b.contactName, status: b.status, driverId: b.driverId, routeId: b.metadata?.shuttleRouteId })));
         console.log('[DEBUG shuttle-runs] Shuttle booking IDs:', shuttleBookings.map(b => ({ id: b.id, name: b.contactName, driverId: b.driverId, routeId: b.metadata?.shuttleRouteId })));
 
+        // Load zones with polygons for region code recalculation
+        const zonesWithPolygon = await prisma.zone.findMany({
+            where: { tenantId, code: { not: null } },
+            select: { id: true, code: true, name: true, keywords: true, polygon: true }
+        });
+
         LOG_TAG = "QUERY_ROUTES";
         const shuttleRoutes = await prisma.shuttleRoute.findMany({
             where: { tenantId: tenantId },
@@ -1042,8 +1062,12 @@ router.get('/shuttle-runs', authMiddleware, async (req, res, next) => {
                 agencyName: b.agency?.name || null,
                 flightNumber: m.flightNumber || null,
                 flightTime: m.flightTime || null,
-                pickupRegionCode: m.pickupRegionCode || null,
-                dropoffRegionCode: m.dropoffRegionCode || null,
+                pickupRegionCode: (m.pickupLat && m.pickupLng)
+                    ? detectRegionCodeByPolygon(m.pickupLat, m.pickupLng, m.pickup || '', zonesWithPolygon, hubs)
+                    : (m.pickupRegionCode || null),
+                dropoffRegionCode: (m.dropoffLat && m.dropoffLng)
+                    ? detectRegionCodeByPolygon(m.dropoffLat, m.dropoffLng, m.dropoff || '', zonesWithPolygon, hubs)
+                    : (m.dropoffRegionCode || null),
                 shuttleSortOrder: m.shuttleSortOrder || null,
                 extraServices: m.extraServices || null,
                 acknowledgedAt: m.acknowledgedAt || null,
