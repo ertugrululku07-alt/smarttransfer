@@ -413,8 +413,17 @@ export default function JobListScreen() {
   };
 
   // Handle "Alındı" press — check if payment is PAY_IN_VEHICLE
-  const handlePickup = (bookingId: string, paymentMethod?: string, total?: number, currency?: string) => {
+  const handlePickup = async (bookingId: string, paymentMethod?: string, total?: number, currency?: string) => {
     if (paymentMethod === 'PAY_IN_VEHICLE') {
+      // Immediately mark IN_PROGRESS so driver cannot revert (security: prevents cancel-after-seeing-price fraud)
+      setJobs(prev => prev.map(j => j.id === bookingId ? { ...j, status: 'IN_PROGRESS' } : j));
+      try {
+        await fetch(`${API_URL}/driver/bookings/${bookingId}/status`, {
+          method: 'PUT',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'IN_PROGRESS' })
+        });
+      } catch { /* status will sync on next fetch */ }
       const useCurrency = currency || defaultCurrency || 'TRY';
       setPaymentModal({
         visible: true,
@@ -450,11 +459,9 @@ export default function JobListScreen() {
         setPaymentSaving(false);
         return;
       }
-      // 2. Update status to IN_PROGRESS
-      setJobs(prev => prev.map(j => j.id === paymentModal.bookingId ? { ...j, status: 'IN_PROGRESS' } : j)); // Optimistic UI
-      await updateStatus(paymentModal.bookingId, 'IN_PROGRESS');
-      // Ödeme alındı bilgi ekranı kaldırıldı (kullanıcı isteği)
+      // Status already set to IN_PROGRESS in handlePickup — just close modal
       setPaymentModal({ visible: false, bookingId: null, expectedAmount: 0, expectedCurrency: 'TRY' });
+      setTimeout(() => fetchJobs(), 1000);
     } catch {
       Alert.alert('Hata', 'Bağlantı hatası');
     } finally {
@@ -929,15 +936,12 @@ export default function JobListScreen() {
         </View>
       </Modal>
 
-      {/* Payment Collection Modal */}
-      <Modal visible={paymentModal.visible} animationType="slide" transparent>
+      {/* Payment Collection Modal — NO escape: driver MUST record payment */}
+      <Modal visible={paymentModal.visible} animationType="slide" transparent onRequestClose={() => { /* blocked — driver must confirm payment */ }}>
         <View style={st.modalOverlay}>
           <View style={st.modalCard}>
             <View style={st.modalHeader}>
               <Text style={st.modalTitle}>Ödeme Tahsilatı</Text>
-              <TouchableOpacity onPress={() => setPaymentModal({ visible: false, bookingId: null, expectedAmount: 0, expectedCurrency: 'TRY' })}>
-                <Ionicons name="close" size={24} color="#64748b" />
-              </TouchableOpacity>
             </View>
 
             <View style={st.payExpectedRow}>
@@ -972,9 +976,6 @@ export default function JobListScreen() {
             </View>
 
             <View style={st.modalBtnRow}>
-              <TouchableOpacity style={st.modalCancel} onPress={() => setPaymentModal({ visible: false, bookingId: null, expectedAmount: 0, expectedCurrency: 'TRY' })}>
-                <Text style={st.modalCancelText}>İptal</Text>
-              </TouchableOpacity>
               <TouchableOpacity
                 style={[st.modalSubmit, { backgroundColor: '#059669' }, paymentSaving && { opacity: 0.6 }]}
                 onPress={submitPaymentAndPickup}
