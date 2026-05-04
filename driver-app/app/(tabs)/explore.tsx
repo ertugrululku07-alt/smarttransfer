@@ -698,7 +698,7 @@ export default function JobListScreen() {
       const totalPax = item.bookings.reduce((s: number, b: any) => s + (b.adults || 0) + (b.children || 0) + (b.infants || 0), 0);
       const date = new Date(item.startDate);
       const time = item.masterTime || date.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
-      const dirCode = item.pickupCode && item.dropoffCode ? `${item.pickupCode}-${item.dropoffCode}` : (item.direction || 'TRF');
+      const dirCode = item.airportCode ? `${item.direction}-${item.airportCode}` : (item.direction || 'TRF');
       const dirColor = item.direction === 'ARV' ? '#3b82f6' : item.direction === 'DEP' ? '#f59e0b' : '#7c3aed';
       const meetingPlace = shortAddr(item.bookings[0]?.pickup || item.pickup || 'Çeşitli');
       const statusCfg = StatusColors[item.status] || { bg: '#f3f4f6', text: '#6b7280', label: '' };
@@ -748,6 +748,7 @@ export default function JobListScreen() {
                       params: {
                         bookings: JSON.stringify(item.bookings),
                         routeName: item.routeName || 'Shuttle',
+                        direction: item.direction || 'DEP',
                       }
                     });
                   }}

@@ -133,23 +133,37 @@ router.get('/bookings', authMiddleware, ensureDriver, async (req, res) => {
             return vt.includes('shuttle') || vt.includes('paylaşımlı') || tt === 'shuttle' || b.metadata?.shuttleRouteId;
         };
 
-        // ── Resolve hubs for proper ARV/DEP/TRF naming (same logic as operations.js shuttle-runs) ──
-        const tenantInfo = await prisma.tenant.findUnique({
-            where: { id: req.user.tenantId },
-            select: { settings: true }
+        // ── Resolve hubs for proper ARV/DEP/TRF naming ──
+        // Use Zone table as primary source (consistent with agency.js and operations.js)
+        const zonesForHubs = await prisma.zone.findMany({
+            where: { tenantId: req.user.tenantId, code: { not: null } },
+            select: { code: true, keywords: true, name: true }
         });
-        const hubs = tenantInfo?.settings?.hubs || [];
+        let hubs = zonesForHubs.map(z => ({ code: z.code, keywords: z.keywords || '', name: z.name }));
+        if (hubs.length === 0) {
+            const tenantInfo = await prisma.tenant.findUnique({
+                where: { id: req.user.tenantId },
+                select: { settings: true }
+            });
+            hubs = tenantInfo?.settings?.hubs || [];
+        }
         const trLower = (s) => (s || '').toLocaleLowerCase('tr');
+        const AIRPORT_CODES = ['ayt', 'gzp', 'ist', 'saw', 'esb', 'adb', 'dly', 'bjv'];
         function getAbbrAndType(fromStr, toStr) {
             // Match hubs by longest keyword match (most specific wins)
             function bestHubMatch(addr) {
                 let bestCode = null, bestLen = 0, bestIsAirport = false;
                 const addrLow = trLower(addr);
                 for (const hub of hubs) {
-                    const keys = hub.keywords ? hub.keywords.split(',').map(k => trLower(k).trim()) : [];
+                    const keys = hub.keywords ? hub.keywords.split(',').map(k => trLower(k).trim()).filter(k => k) : [];
                     if (hub.code) keys.push(trLower(hub.code));
-                    if (hub.name) keys.push(trLower(hub.name));
-                    const isAirportHub = hub.name && (trLower(hub.name).includes('havaliman') || trLower(hub.name).includes('airport') || ['ayt', 'gzp'].includes(trLower(hub.code)));
+                    // Add name parts as keywords (skip common words)
+                    if (hub.name) {
+                        const skipWords = new Set(['havalimanı', 'havalimani', 'airport', 'havaalanı', 'merkez']);
+                        const parts = trLower(hub.name).split(/[\s\/,]+/).filter(p => p.length >= 3 && !skipWords.has(p));
+                        keys.push(...parts);
+                    }
+                    const isAirportHub = hub.name && (trLower(hub.name).includes('havaliman') || trLower(hub.name).includes('airport') || AIRPORT_CODES.includes(trLower(hub.code)));
                     for (const k of keys) {
                         if (k && addrLow.includes(k) && k.length > bestLen) {
                             bestLen = k.length;
@@ -162,16 +176,20 @@ router.get('/bookings', authMiddleware, ensureDriver, async (req, res) => {
             }
             const fromMatch = bestHubMatch(fromStr);
             const toMatch = bestHubMatch(toStr);
-            const safeUpper = s => (s || '').substring(0, 3).toUpperCase();
-            const fromCode = fromMatch.code || safeUpper(fromStr) || '???';
-            const toCode = toMatch.code || safeUpper(toStr) || '???';
             const fLower = trLower(fromStr), tLower = trLower(toStr);
             let type = 'TRF';
             if (toMatch.isAirport && !fromMatch.isAirport) type = 'DEP';
             else if (fromMatch.isAirport && !toMatch.isAirport) type = 'ARV';
             else if (tLower.includes('havaliman') || tLower.includes('airport')) type = 'DEP';
             else if (fLower.includes('havaliman') || fLower.includes('airport')) type = 'ARV';
-            return { fromCode, toCode, type };
+            // For badge display: show airport IATA code only (not city names)
+            // ARV: airport → region → show airport code
+            // DEP: region → airport → show airport code
+            const airportCode = type === 'ARV' ? (fromMatch.code || '???') : type === 'DEP' ? (toMatch.code || '???') : null;
+            const regionCode = type === 'ARV' ? (toMatch.code || '???') : type === 'DEP' ? (fromMatch.code || '???') : null;
+            const fromCode = fromMatch.code || '???';
+            const toCode = toMatch.code || '???';
+            return { fromCode, toCode, type, airportCode, regionCode };
         }
 
         const privateBookings = [];
@@ -184,7 +202,7 @@ router.get('/bookings', authMiddleware, ensureDriver, async (req, res) => {
                 const masterTime = m.shuttleMasterTime || '';
                 const pickup = String(m.pickup || '').trim();
                 const dropoff = String(m.dropoff || '').trim();
-                const { fromCode, toCode, type: dirType } = getAbbrAndType(pickup, dropoff);
+                const { fromCode, toCode, type: dirType, airportCode: apCode } = getAbbrAndType(pickup, dropoff);
 
                 // Group key — include date so different days/runs never merge
                 const dateStr = b.startDate ? new Date(b.startDate).toISOString().slice(0, 10) : 'nodate';
@@ -194,14 +212,14 @@ router.get('/bookings', authMiddleware, ensureDriver, async (req, res) => {
                     // Manual run — group by manualRunId + direction
                     const bookingTripType = dirType;
                     key = `MANUAL::${m.manualRunId}::${bookingTripType}::${dateStr}`;
-                    routeName = m.manualRunName || `${fromCode} – ${toCode} ${dirType}`;
+                    routeName = m.manualRunName || `${dirType} Sefer ${apCode || fromCode}`;
                 } else if (routeId) {
                     key = `ROUTE::${routeId}::${dateStr}${masterTime ? '::' + masterTime : ''}`;
-                    routeName = `${fromCode} – ${toCode} ${dirType}`;
+                    routeName = `${dirType} Sefer ${apCode || fromCode}`;
                 } else {
                     const regionCode = dirType === 'ARV' ? toCode : fromCode;
                     key = `ADHOC::${dirType}::${regionCode}::${dateStr}${masterTime ? '::' + masterTime : ''}`;
-                    routeName = `${fromCode} – ${toCode} ${dirType}`;
+                    routeName = `${dirType} Sefer ${apCode || fromCode}`;
                 }
 
                 if (!shuttleGroups[key]) {
@@ -210,8 +228,9 @@ router.get('/bookings', authMiddleware, ensureDriver, async (req, res) => {
                         groupKey: key,
                         routeName,
                         direction: dirType,        // 'ARV' | 'DEP' | 'TRF'
-                        pickupCode: fromCode,      // e.g. 'AYT'
-                        dropoffCode: toCode,       // e.g. 'ALY'
+                        airportCode: apCode || null, // e.g. 'AYT'
+                        pickupCode: apCode || fromCode, // For badge: just airport code
+                        dropoffCode: apCode || toCode,  // For badge: just airport code
                         masterTime: masterTime || null,
                         pickup: pickup || 'Çeşitli Noktalar',
                         dropoff: dropoff || 'Bilinmeyen',

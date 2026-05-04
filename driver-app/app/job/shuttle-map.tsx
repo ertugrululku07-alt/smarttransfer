@@ -80,6 +80,11 @@ export default function ShuttleMapScreen() {
       try {
         const data = JSON.parse(params.bookings as string);
         setRouteName(params.routeName as string || 'Shuttle');
+        // Direction determines which coordinates to show on map
+        // ARV (Arrival): customers are picked up from airport → show DROPOFF (bırakılış) locations
+        // DEP (Departure): customers are picked up from hotels → show PICKUP (alınış) locations
+        const dir = (params.direction as string || 'DEP').toUpperCase();
+        const useDropoff = dir === 'ARV';
 
         // Geocode bookings that don't have coordinates
         setGeocoding(true);
@@ -90,20 +95,29 @@ export default function ShuttleMapScreen() {
 
         for (let i = 0; i < data.length; i++) {
           const b = data[i];
-          const lat = b.metadata?.pickupLat || b.pickupLat || 0;
-          const lng = b.metadata?.pickupLng || b.pickupLng || 0;
+          // ARV: show dropoff coords, DEP: show pickup coords
+          const lat = useDropoff
+            ? (b.metadata?.dropoffLat || b.dropoffLat || b.metadata?.pickupLat || b.pickupLat || 0)
+            : (b.metadata?.pickupLat || b.pickupLat || 0);
+          const lng = useDropoff
+            ? (b.metadata?.dropoffLng || b.dropoffLng || b.metadata?.pickupLng || b.pickupLng || 0)
+            : (b.metadata?.pickupLng || b.pickupLng || 0);
+          // Display address: show dropoff for ARV, pickup for DEP
+          const displayAddr = useDropoff
+            ? (b.dropoff || b.metadata?.dropoff || b.pickup || '').trim()
+            : (b.pickup || b.metadata?.pickup || '').trim();
           if (lat && lng && lat !== 0 && lng !== 0) {
-            enriched.push({ ...b, _lat: lat, _lng: lng });
+            enriched.push({ ...b, _lat: lat, _lng: lng, _displayAddr: displayAddr });
             continue;
           }
-          // Fallback: geocode the pickup address
-          const addr = (b.pickup || b.metadata?.pickup || '').trim();
+          // Fallback: geocode the relevant address
+          const addr = displayAddr;
           if (addr) {
             // Check cache first
             if (geoCache[addr]) {
               // Add small offset to prevent markers stacking
               const offset = enriched.filter(e => e._fromGeocode).length * 0.002;
-              enriched.push({ ...b, _lat: geoCache[addr].lat + offset, _lng: geoCache[addr].lng + offset, _fromGeocode: true });
+              enriched.push({ ...b, _lat: geoCache[addr].lat + offset, _lng: geoCache[addr].lng + offset, _fromGeocode: true, _displayAddr: displayAddr });
               geocodedCount++;
               continue;
             }
@@ -111,14 +125,14 @@ export default function ShuttleMapScreen() {
             const geo = await geocodeAddress(addr);
             if (geo) {
               geoCache[addr] = geo;
-              enriched.push({ ...b, _lat: geo.lat, _lng: geo.lng, _fromGeocode: true });
+              enriched.push({ ...b, _lat: geo.lat, _lng: geo.lng, _fromGeocode: true, _displayAddr: displayAddr });
               geocodedCount++;
               continue;
             } else {
               failedAddrs.push(addr);
             }
           }
-          enriched.push({ ...b, _lat: 0, _lng: 0 });
+          enriched.push({ ...b, _lat: 0, _lng: 0, _displayAddr: displayAddr });
         }
         setBookings(enriched);
         setGeocoding(false);
@@ -315,7 +329,7 @@ export default function ShuttleMapScreen() {
                 <View style={st.callout}>
                   <Text style={st.calloutName}>{getCustomerName(b)}</Text>
                   {b.pickupTime && <Text style={st.calloutTime}>{b.pickupTime}</Text>}
-                  <Text style={st.calloutAddr} numberOfLines={2}>{b.pickup || 'Adres yok'}</Text>
+                  <Text style={st.calloutAddr} numberOfLines={2}>{b._displayAddr || b.pickup || 'Adres yok'}</Text>
                   <Text style={st.calloutPax}>
                     {(b.adults || 0) + (b.children || 0) + (b.infants || 0)} Pax
                     {b.flightNumber ? ` · ${b.flightNumber}` : ''}
