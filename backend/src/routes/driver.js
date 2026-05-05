@@ -208,18 +208,23 @@ router.get('/bookings', authMiddleware, ensureDriver, async (req, res) => {
                 const dateStr = b.startDate ? new Date(b.startDate).toISOString().slice(0, 10) : 'nodate';
                 let key;
                 let routeName;
+                // Build concise route name from region codes
+                const pickupRC = m.pickupRegionCode || fromCode || '???';
+                const dropoffRC = m.dropoffRegionCode || toCode || '???';
+                const regionRouteName = `${pickupRC} - ${dropoffRC}`;
+
                 if (m.manualRunId) {
                     // Manual run — group by manualRunId + direction
                     const bookingTripType = dirType;
                     key = `MANUAL::${m.manualRunId}::${bookingTripType}::${dateStr}`;
-                    routeName = m.manualRunName || `${dirType} Sefer ${apCode || fromCode}`;
+                    routeName = m.manualRunName || regionRouteName;
                 } else if (routeId) {
                     key = `ROUTE::${routeId}::${dateStr}${masterTime ? '::' + masterTime : ''}`;
-                    routeName = `${dirType} Sefer ${apCode || fromCode}`;
+                    routeName = regionRouteName;
                 } else {
                     const regionCode = dirType === 'ARV' ? toCode : fromCode;
                     key = `ADHOC::${dirType}::${regionCode}::${dateStr}${masterTime ? '::' + masterTime : ''}`;
-                    routeName = `${dirType} Sefer ${apCode || fromCode}`;
+                    routeName = regionRouteName;
                 }
 
                 if (!shuttleGroups[key]) {

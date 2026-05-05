@@ -703,12 +703,16 @@ export default function JobListScreen() {
     if (item._isShuttleGroup) {
       const expanded = expandedGroups[item.groupKey];
       const totalPax = item.bookings.reduce((s: number, b: any) => s + (b.adults || 0) + (b.children || 0) + (b.infants || 0), 0);
-      const date = new Date(item.startDate);
-      const time = item.masterTime || date.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
-      const dateLabel = date.toLocaleDateString('tr-TR', { day: '2-digit', month: 'short' });
-      const dirCode = item.airportCode ? `${item.direction}-${item.airportCode}` : (item.direction || 'TRF');
-      const dirColor = item.direction === 'ARV' ? '#3b82f6' : item.direction === 'DEP' ? '#f59e0b' : '#7c3aed';
-      const meetingPlace = shortAddr(item.bookings[0]?.pickup || item.pickup || 'Çeşitli');
+      const firstBooking = item.bookings[0];
+      // B. Saati: first customer's pickup time
+      const firstTime = firstBooking?.pickupTime || (firstBooking?.startDate ? new Date(firstBooking.startDate).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }) : '--:--');
+      // Buluşma yeri: first customer's pickup address (short)
+      const meetingPlace = shortAddr(firstBooking?.pickup || item.pickup || 'Çeşitli');
+      // Yön Kodu: route name (e.g. "ALY TSMR - GZP")
+      const dirRoute = item.routeName || `${firstBooking?.pickupRegionCode || '???'} - ${firstBooking?.dropoffRegionCode || '???'}`;
+      // Tip: DEP / ARV
+      const tipLabel = item.direction || 'TRF';
+      const tipColor = tipLabel === 'ARV' ? '#3b82f6' : tipLabel === 'DEP' ? '#f59e0b' : '#7c3aed';
       const statusCfg = StatusColors[item.status] || { bg: '#f3f4f6', text: '#6b7280', label: '' };
       const lateW = lateWarnings[item.groupKey];
 
@@ -725,16 +729,15 @@ export default function JobListScreen() {
               <Text style={[st.orderText, { color: '#7c3aed' }]}>{orderLabel}</Text>
             </View>
             <View style={st.timeCol}>
-              <Text style={st.timeBig}>{time}</Text>
-              <Text style={{ fontSize: 10, color: '#64748b', fontWeight: '600', marginTop: 1 }}>{dateLabel}</Text>
+              <Text style={st.timeBig}>{firstTime}</Text>
               <View style={st.typeChipShuttle}><Ionicons name="bus" size={9} color="#7c3aed" /><Text style={st.typeChipShuttleText}>SHUTTLE</Text></View>
             </View>
             <View style={st.placeCol}>
-              <Text style={st.placeText} numberOfLines={1}>{item.routeName}</Text>
-              <Text style={st.placeSub} numberOfLines={1}>{item.bookings.length} müşteri · {totalPax} Pax · {meetingPlace}</Text>
+              <Text style={st.placeText} numberOfLines={1}>{meetingPlace}</Text>
+              <Text style={st.placeSub} numberOfLines={1}>{dirRoute}</Text>
             </View>
-            <View style={[st.dirBadge, { backgroundColor: `${dirColor}18`, borderColor: `${dirColor}55` }]}>
-              <Text style={[st.dirText, { color: dirColor }]}>{dirCode}</Text>
+            <View style={[st.dirBadge, { backgroundColor: `${tipColor}18`, borderColor: `${tipColor}55` }]}>
+              <Text style={[st.dirText, { color: tipColor }]}>{tipLabel}</Text>
             </View>
             <View style={st.detayBtn}>
               <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={16} color="#fff" />
@@ -786,19 +789,20 @@ export default function JobListScreen() {
     const from = item.metadata?.pickup || item.product?.transferData?.pickupZones?.[0]?.name || 'Belirtilmemiş';
     const to = item.metadata?.dropoff || item.product?.transferData?.dropoffZones?.[0]?.name || 'Belirtilmemiş';
     const customerName = item.contactName || (item.customer?.firstName ? `${item.customer.firstName} ${item.customer.lastName || ''}`.trim() : 'Misafir');
-    const iAdults = item.adults || 0, iChildren = item.children || 0, iInfants = item.infants || 0;
-    const pax = iAdults + iChildren + iInfants;
     // Direction code: try to detect airport in either side
     const fromU = String(from).toLowerCase();
     const toU = String(to).toLowerCase();
     const isFromAirport = fromU.includes('havaliman') || fromU.includes('airport') || /\bayt\b|\bgzp\b/.test(fromU);
     const isToAirport = toU.includes('havaliman') || toU.includes('airport') || /\bayt\b|\bgzp\b/.test(toU);
     const dirType = isFromAirport && !isToAirport ? 'ARV' : isToAirport && !isFromAirport ? 'DEP' : 'TRF';
-    const dirCode = dirType;
     const dirColor = dirType === 'ARV' ? '#3b82f6' : dirType === 'DEP' ? '#f59e0b' : '#64748b';
-    const statusCfg = StatusColors[item.status] || { bg: '#f3f4f6', text: '#6b7280', label: '' };
-    const ack = item.metadata?.acknowledgedAt;
     const lateW = lateWarnings[item.id];
+    // Yön kodu from region codes
+    const pRC = item.pickupRegionCode || item.metadata?.pickupRegionCode || '';
+    const dRC = item.dropoffRegionCode || item.metadata?.dropoffRegionCode || '';
+    const dirRoute = (pRC && dRC) ? `${pRC} - ${dRC}` : `${shortAddr(from)} → ${shortAddr(to)}`;
+    // Buluşma yeri: pickup for DEP, airport for ARV
+    const meetingPlace = shortAddr(from);
 
     return (
       <View style={st.compactWrap}>
@@ -808,31 +812,29 @@ export default function JobListScreen() {
             <Text style={st.lateBadgeText}>~{lateW.lateBy} dk geç kalabilirsin</Text>
           </View>
         )}
-      <TouchableOpacity
-        style={[st.compactRow, lateW && st.compactRowLate]}
-        activeOpacity={0.7}
-        onPress={() => router.push({ pathname: '/job/[id]', params: { id: item.id } })}
-      >
-        <View style={[st.orderBadge, { backgroundColor: '#eef2ff' }]}>
-          <Text style={[st.orderText, { color: Brand.primary }]}>{orderLabel}</Text>
-        </View>
-        <View style={st.timeCol}>
-          <Text style={st.timeBig}>{time}</Text>
-          <View style={st.typeChipPrivate}><Ionicons name="car-sport" size={9} color={Brand.primary} /><Text style={st.typeChipPrivateText}>ÖZEL</Text></View>
-        </View>
-        <View style={st.placeCol}>
-          <Text style={st.placeText} numberOfLines={1}>{customerName}</Text>
-          <Text style={st.placeSub} numberOfLines={1}>
-            {item.pickupRegionCode ? `[${item.pickupRegionCode}] ` : ''}{shortAddr(from)} \u2192 {shortAddr(to)} \u00b7 {pax} Pax{ack ? ' \u00b7 \u2713' : ''}
-          </Text>
-        </View>
-        <View style={[st.dirBadge, { backgroundColor: `${dirColor}18`, borderColor: `${dirColor}55` }]}>
-          <Text style={[st.dirText, { color: dirColor }]}>{dirCode}</Text>
-        </View>
-        <View style={st.detayBtn}>
-          <Ionicons name="chevron-forward" size={16} color="#fff" />
-        </View>
-      </TouchableOpacity>
+        <TouchableOpacity
+          style={[st.compactRow, lateW && st.compactRowLate]}
+          activeOpacity={0.7}
+          onPress={() => router.push({ pathname: '/job/[id]', params: { id: item.id } })}
+        >
+          <View style={[st.orderBadge, { backgroundColor: '#eef2ff' }]}>
+            <Text style={[st.orderText, { color: Brand.primary }]}>{orderLabel}</Text>
+          </View>
+          <View style={st.timeCol}>
+            <Text style={st.timeBig}>{time}</Text>
+            <View style={st.typeChipPrivate}><Ionicons name="car-sport" size={9} color={Brand.primary} /><Text style={st.typeChipPrivateText}>ÖZEL</Text></View>
+          </View>
+          <View style={st.placeCol}>
+            <Text style={st.placeText} numberOfLines={1}>{customerName} · {meetingPlace}</Text>
+            <Text style={st.placeSub} numberOfLines={1}>{dirRoute}</Text>
+          </View>
+          <View style={[st.dirBadge, { backgroundColor: `${dirColor}18`, borderColor: `${dirColor}55` }]}>
+            <Text style={[st.dirText, { color: dirColor }]}>{dirType}</Text>
+          </View>
+          <View style={st.detayBtn}>
+            <Ionicons name="chevron-forward" size={16} color="#fff" />
+          </View>
+        </TouchableOpacity>
       </View>
     );
   };
