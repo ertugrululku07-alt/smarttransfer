@@ -1146,11 +1146,24 @@ router.get('/shuttle-runs', authMiddleware, async (req, res, next) => {
             const addr = tripType === 'ARV' ? (booking.dropoff || '') : (booking.pickup || '');
             const regionCode = tripType === 'ARV' ? booking.dropoffRegionCode : booking.pickupRegionCode;
             let zone = detectGeoZone(addr);
-            if (!zone && regionCode && GEO_ZONES[regionCode]) zone = regionCode;
-            if (!zone) return -1; // unknown
+            // Handle composite region codes like "ALY TSMR" — try sub-zone first
+            if (!zone && regionCode) {
+                if (GEO_ZONES[regionCode]) { zone = regionCode; }
+                else {
+                    const parts = regionCode.split(/\s+/).reverse(); // sub-zone first
+                    for (const p of parts) { if (GEO_ZONES[p]) { zone = p; break; } }
+                }
+            }
+            if (!zone) return -1;
             const coords = GEO_ZONES[zone];
             if (!coords) return -1;
-            const airport = GEO_ZONES['AYT'];
+            // Detect actual airport from the other end (DEP→dropoff is airport, ARV→pickup is airport)
+            const airportRC = tripType === 'ARV' ? booking.pickupRegionCode : booking.dropoffRegionCode;
+            let airportCode = 'AYT';
+            if (airportRC) {
+                for (const p of airportRC.split(/\s+/)) { if (p === 'AYT' || p === 'GZP') { airportCode = p; break; } }
+            }
+            const airport = GEO_ZONES[airportCode] || GEO_ZONES['AYT'];
             return haversine(coords.lat, coords.lng, airport.lat, airport.lng);
         }
 
@@ -1722,35 +1735,41 @@ router.post('/shuttle-runs/optimize-route', authMiddleware, async (req, res) => 
         console.log(`[optimize-route] Airport: ${airportCode} (${destCoords.lat},${destCoords.lng}), TripType: ${tripType || 'DEP'}, Bookings: ${bookings.length}`);
 
         // 3. For each booking, determine coordinates from zone
+        //    DEP: use PICKUP (hotel) location — sort by distance to airport
+        //    ARV: use DROPOFF (hotel) location — sort by distance from airport
+        const isARV = (tripType || '').toUpperCase() === 'ARV';
         const results = [];
         for (const booking of bookings) {
             const m = booking.metadata || {};
-            const pickupAddr = m.pickup || m.pickupLocation || m.pickupAddress || '';
-            const regionCode = m.pickupRegionCode;
+            const addr = isARV
+                ? (m.dropoff || m.dropoffLocation || m.dropoffAddress || '')
+                : (m.pickup || m.pickupLocation || m.pickupAddress || '');
+            const regionCode = isARV ? m.dropoffRegionCode : m.pickupRegionCode;
 
             let coords = null;
             let resolvedZone = null;
 
-            // Priority 1: detect specific sub-zone from pickup address text
-            const addrZone = detectZoneFromAddress(pickupAddr);
+            // Priority 1: detect specific sub-zone from address text
+            const addrZone = detectZoneFromAddress(addr);
             if (addrZone && ZONE_COORDS[addrZone]) {
                 coords = ZONE_COORDS[addrZone];
                 resolvedZone = addrZone;
             }
 
-            // Priority 2: use pickupRegionCode from metadata
-            if (!coords && regionCode && ZONE_COORDS[regionCode]) {
-                coords = ZONE_COORDS[regionCode];
-                resolvedZone = regionCode;
-            }
-
-            // Priority 3: try to detect from dropoff address for ARV
-            if (!coords) {
-                const dropoffAddr = m.dropoff || '';
-                const dropZone = detectZoneFromAddress(dropoffAddr);
-                if (dropZone && ZONE_COORDS[dropZone] && dropZone !== airportCode) {
-                    coords = ZONE_COORDS[dropZone];
-                    resolvedZone = dropZone;
+            // Priority 2: use regionCode from metadata (handle composite codes like "ALY TSMR")
+            if (!coords && regionCode) {
+                if (ZONE_COORDS[regionCode]) {
+                    coords = ZONE_COORDS[regionCode];
+                    resolvedZone = regionCode;
+                } else {
+                    const parts = regionCode.split(/\s+/).reverse(); // sub-zone first
+                    for (const part of parts) {
+                        if (ZONE_COORDS[part]) {
+                            coords = ZONE_COORDS[part];
+                            resolvedZone = part;
+                            break;
+                        }
+                    }
                 }
             }
 
@@ -1760,7 +1779,7 @@ router.post('/shuttle-runs/optimize-route', authMiddleware, async (req, res) => 
 
             results.push({
                 bookingId: booking.id,
-                pickup: pickupAddr,
+                pickup: addr,
                 zone: resolvedZone,
                 distanceKm: Math.round(distanceKm * 10) / 10,
                 pickupDateTime: booking.startDate,
@@ -1769,7 +1788,6 @@ router.post('/shuttle-runs/optimize-route', authMiddleware, async (req, res) => 
 
         // 4. Sort: DEP = farthest first (picked up first on the way to airport)
         //          ARV = nearest first (dropped off first after leaving airport)
-        const isARV = (tripType || '').toUpperCase() === 'ARV';
         results.sort((a, b) => {
             // Unknown zones go to end
             if (a.distanceKm < 0 && b.distanceKm < 0) return 0;
