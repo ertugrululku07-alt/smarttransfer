@@ -1778,13 +1778,6 @@ export default function OperationsPage() {
         fetchSettings();
     }, []);
 
-    // Auto-fetch vehicle availability when in private mode or date changes (for deadhead alerts)
-    useEffect(() => {
-        if (operationsMode === 'private' && filters.dateRange?.[0]) {
-            fetchVehicleAvailability(filters.dateRange[0]);
-        }
-    }, [operationsMode, filters.dateRange]);
-
     const doAssign = async (bookingId: string, payload: any) => {
         return apiClient.patch(`/api/transfer/bookings/${bookingId}`, payload);
     };
@@ -2085,6 +2078,13 @@ export default function OperationsPage() {
             fetchVehicleAvailability();
         }
     };
+
+    // Auto-fetch vehicle availability when in private mode or date changes (for deadhead alerts)
+    useEffect(() => {
+        if (operationsMode === 'private' && filters.dateRange?.[0]) {
+            fetchVehicleAvailability(filters.dateRange[0]);
+        }
+    }, [operationsMode, filters.dateRange]);
 
     // ---- SHUTTLE-SPECIFIC COLUMN CONFIG (completely separate from private) ----
     type ShuttleColCfg = { key: string; width: number; label: string; hidden: boolean };
