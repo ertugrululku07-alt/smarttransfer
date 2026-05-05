@@ -2331,7 +2331,7 @@ router.post('/sos', authMiddleware, ensureDriver, async (req, res) => {
         // Real-time broadcast to admin room
         const io = req.app.get('io');
         if (io) {
-            io.to(`tenant_${req.user.tenantId}`).emit('sos:new', newAlert);
+            io.to('admin_monitoring').emit('sos:new', newAlert);
         }
 
         res.json({ success: true, data: newAlert });
@@ -2395,7 +2395,7 @@ router.put('/admin-sos/:id/resolve', authMiddleware, async (req, res) => {
 
         const io = req.app.get('io');
         if (io) {
-            io.to(`tenant_${req.user.tenantId}`).emit('sos:resolved', alerts[idx]);
+            io.to('admin_monitoring').emit('sos:resolved', alerts[idx]);
         }
 
         res.json({ success: true, data: alerts[idx] });

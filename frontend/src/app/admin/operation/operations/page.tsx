@@ -4120,6 +4120,55 @@ export default function OperationsPage() {
                             </div>
                         </div>
 
+                        {/* ── DEADHEAD ALERT BANNER ── */}
+                        {(() => {
+                            const mainRgn = (rc: string) => (rc || '').split(/[\s\-\/]+/)[0].toUpperCase();
+                            const alerts: { plate: string; from: string; to: string; prevTime: string; nextTime: string }[] = [];
+                            vehicleAvailability.forEach((v: any) => {
+                                if (!v.assignedBookings || v.assignedBookings.length < 2) return;
+                                for (let i = 1; i < v.assignedBookings.length; i++) {
+                                    const prev = v.assignedBookings[i - 1];
+                                    const curr = v.assignedBookings[i];
+                                    const pDrop = prev.dropoffRegionCode;
+                                    const cPick = curr.pickupRegionCode;
+                                    if (pDrop && cPick && mainRgn(pDrop) !== mainRgn(cPick)) {
+                                        alerts.push({
+                                            plate: v.plateNumber,
+                                            from: pDrop,
+                                            to: cPick,
+                                            prevTime: dayjs(prev.pickupTime).format('HH:mm'),
+                                            nextTime: dayjs(curr.pickupTime).format('HH:mm'),
+                                        });
+                                    }
+                                }
+                            });
+                            if (!alerts.length) return null;
+                            return (
+                                <div style={{
+                                    margin: '8px 20px 0', padding: '10px 16px',
+                                    background: 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)',
+                                    border: '2px solid #fca5a5', borderRadius: 10,
+                                    animation: 'sosPulse 2s infinite',
+                                }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                                        <span style={{ fontSize: 18 }}>🚨</span>
+                                        <span style={{ fontWeight: 800, color: '#991b1b', fontSize: 13, letterSpacing: 0.5 }}>
+                                            BOŞ KİLOMETRE UYARISI — {alerts.length} araçta boş gidiş tespit edildi!
+                                        </span>
+                                    </div>
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                                        {alerts.map((a, i) => (
+                                            <Tooltip key={i} title={`${a.plate}: Saat ${a.prevTime} bırakış ${a.from} → Saat ${a.nextTime} alış ${a.to} — arada araç boş gidecek!`}>
+                                                <Tag color="error" style={{ fontWeight: 700, fontSize: 11, cursor: 'help', margin: 0 }}>
+                                                    🚛 {a.plate}: {a.from} → {a.to} ({a.prevTime}-{a.nextTime})
+                                                </Tag>
+                                            </Tooltip>
+                                        ))}
+                                    </div>
+                                </div>
+                            );
+                        })()}
+
                         {/* Vehicle Table */}
                         <div style={{ flex: 1, overflow: 'auto', padding: '12px 20px' }}>
                             <Table
@@ -4189,6 +4238,8 @@ export default function OperationsPage() {
                                             // Bookings already sorted chronologically by backend
                                             const bookings = r.assignedBookings;
 
+                                            // Normalize region code → extract main region (ALY from "ALY AVSLLR" or "ALY-AVSLLR")
+                                            const mainRegion = (rc: string) => (rc || '').split(/[\s\-\/]+/)[0].toUpperCase();
                                             // Compute deadhead/consecutive analysis
                                             let deadheadCount = 0;
                                             let consecutiveCount = 0;
@@ -4197,15 +4248,14 @@ export default function OperationsPage() {
                                                 const prev = bookings[i - 1];
                                                 const prevDrop = prev.dropoffRegionCode;
                                                 const currPick = b.pickupRegionCode;
-                                                if (prevDrop && currPick && prevDrop === currPick) {
+                                                if (!prevDrop || !currPick) return { type: 'unknown' };
+                                                // Same area if main region matches (ALY == ALY even if sub-zone differs)
+                                                if (mainRegion(prevDrop) === mainRegion(currPick)) {
                                                     consecutiveCount++;
                                                     return { type: 'consecutive' };
                                                 }
-                                                if (prevDrop && currPick && prevDrop !== currPick) {
-                                                    deadheadCount++;
-                                                    return { type: 'deadhead', from: prevDrop, to: currPick };
-                                                }
-                                                return { type: 'unknown' };
+                                                deadheadCount++;
+                                                return { type: 'deadhead', from: prevDrop, to: currPick };
                                             });
 
                                             const fmtTime = (d: any) => dayjs(d).format('HH:mm');
@@ -4279,8 +4329,9 @@ export default function OperationsPage() {
                                                                             letterSpacing: 0.3, whiteSpace: 'nowrap'
                                                                         }}>
                                                                             <span style={{ fontSize: 9 }}>{sc.icon}</span>
-                                                                            {pickup}<span style={{ opacity: 0.55, margin: '0 1px' }}>→</span>{dropoff}
-                                                                            <span style={{ marginLeft: 3, opacity: 0.85, fontWeight: 800 }}>{time}</span>
+                                                                            {pickup}<span style={{ opacity: 0.55, margin: '0 1px' }}>→</span>
+                                                                            <span style={{ opacity: 0.85, fontWeight: 800 }}>{time}</span>
+                                                                            <span style={{ marginLeft: 2 }}>{dropoff}</span>
                                                                         </span>
                                                                     </Tooltip>
                                                                 </React.Fragment>
