@@ -2424,12 +2424,12 @@ export default function OperationsPage() {
             // --- DEP vs ARV Validation ---
             // Compute trip type from a booking's actual pickup/dropoff (most reliable)
             const computeBookingType = (b: any): 'DEP' | 'ARV' | 'ARA' => {
-                const airportKeywords = ['havaliman', 'airport', 'hava alan', 'havaalan'];
-                const iata = /\b[A-Z]{3}\b/;
+                const airportKeywords = ['havalimanı', 'havalimani', 'havaalanı', 'havaalani', 'airport', 'esenboğa', 'esenboga'];
+                const iata = /\b(AYT|GZP|IST|SAW|ESB|ADB|BJV|DLM)\b/;
                 const pickup = String(b?.pickupLocation || b?.pickup || b?.metadata?.pickup || '').toLocaleLowerCase('tr');
                 const dropoff = String(b?.dropoffLocation || b?.dropoff || b?.metadata?.dropoff || '').toLocaleLowerCase('tr');
-                const pIsAir = airportKeywords.some(k => pickup.includes(k)) || iata.test(pickup.toUpperCase());
-                const dIsAir = airportKeywords.some(k => dropoff.includes(k)) || iata.test(dropoff.toUpperCase());
+                const pIsAir = airportKeywords.some(k => pickup.includes(k)) || iata.test(String(b?.pickupLocation || b?.pickup || b?.metadata?.pickup || ''));
+                const dIsAir = airportKeywords.some(k => dropoff.includes(k)) || iata.test(String(b?.dropoffLocation || b?.dropoff || b?.metadata?.dropoff || ''));
                 if (pIsAir && !dIsAir) return 'ARV';
                 if (!pIsAir && dIsAir) return 'DEP';
                 return 'ARA';
@@ -2450,8 +2450,8 @@ export default function OperationsPage() {
             const sType = movingBooking ? computeBookingType(movingBooking) : runType(sourceRun);
             const tType = runType(targetRun);
 
-            // Block only on true opposite directions. ARA (intra) may coexist but not cross with DEP/ARV.
-            if (sType && tType && sType !== tType) {
+            // Block only on true opposite directions (DEP↔ARV). ARA is compatible with both.
+            if (sType && tType && sType !== 'ARA' && tType !== 'ARA' && sType !== tType) {
                 const label = (t: string) => t === 'DEP' ? 'Gidiş (DEP)' : t === 'ARV' ? 'Geliş (ARV)' : 'Ara (ARA)';
                 message.error(`Hata: ${label(sType)} müşterisini ${label(tType)} seferine taşıyamazsınız!`);
                 return;

@@ -1077,6 +1077,17 @@ router.get('/shuttle-runs', authMiddleware, async (req, res, next) => {
             });
         });
 
+        // ── Compute clean route names from actual booking region codes ──
+        for (const key of Object.keys(runsMap)) {
+            const run = runsMap[key];
+            if (run.bookings.length === 0) continue;
+            const pickupCodes = [...new Set(run.bookings.map(b => b.pickupRegionCode).filter(Boolean))];
+            const dropoffCodes = [...new Set(run.bookings.map(b => b.dropoffRegionCode).filter(Boolean))];
+            if (pickupCodes.length > 0 && dropoffCodes.length > 0) {
+                run.routeName = `${pickupCodes.join(' ')} - ${dropoffCodes.join(' ')}`;
+            }
+        }
+
         // ── Zone coordinates for automatic geographic sorting ──
         const GEO_ZONES = {
             OLP: { lat: 36.3950, lng: 30.4000 }, CRL: { lat: 36.4280, lng: 30.4750 },
@@ -2173,8 +2184,8 @@ router.post('/shuttle-runs/auto-group', authMiddleware, async (req, res) => {
                 const parts = ft.split(':');
                 if (parts.length < 2) return null;
                 const flightMin = parseInt(parts[0]) * 60 + parseInt(parts[1]);
-                // Determine trip type: use metadata or compute from pickup/dropoff
-                const bt = m.tripType || getTripType(m.pickup, m.dropoff) || 'ARA';
+                // Always compute trip type from actual addresses (stored metadata.tripType may be stale/wrong)
+                const bt = getTripType(m.pickup, m.dropoff) || 'ARA';
                 // Determine destination airport code (GZP vs AYT must not mix)
                 const airportCode = getAirportCodeAG(String(m.pickup || ''), String(m.dropoff || ''), bt);
                 return { booking: b, flightMin, flightTime: ft, tripType: bt, airportCode };
@@ -2226,6 +2237,13 @@ router.post('/shuttle-runs/auto-group', authMiddleware, async (req, res) => {
             // Include airport code in runId to make GZP and AYT runs distinct
             const runId = `AUTO_${date}_${tt}_${airportCode}_${earliestFlight.replace(':', '')}`;
 
+            // Compute region-based run name from all bookings' region codes
+            const pickupRCs = [...new Set(items.map(i => i.booking.metadata?.pickupRegionCode).filter(Boolean))];
+            const dropoffRCs = [...new Set(items.map(i => i.booking.metadata?.dropoffRegionCode).filter(Boolean))];
+            const regionName = (tt === 'ARV')
+                ? `${airportCode || pickupRCs[0] || '???'} - ${dropoffRCs.join(' ') || '???'}`
+                : `${pickupRCs.join(' ') || '???'} - ${airportCode || dropoffRCs[0] || '???'}`;
+
             for (const item of items) {
                 const meta = item.booking.metadata || {};
                 // Skip if already assigned to a non-auto manual run
@@ -2234,7 +2252,7 @@ router.post('/shuttle-runs/auto-group', authMiddleware, async (req, res) => {
                 const updatedMeta = {
                     ...meta,
                     manualRunId: runId,
-                    manualRunName: `${tt} ${airportCode} Sefer ${earliestFlight}-${latestFlight}`
+                    manualRunName: regionName
                 };
 
                 await prisma.booking.update({

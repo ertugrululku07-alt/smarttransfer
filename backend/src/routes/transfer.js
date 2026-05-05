@@ -103,13 +103,17 @@ function detectRegionCodeByPolygon(lat, lng, locationText, zones, hubs) {
  * @returns {string} - 'DEP' | 'ARV' | 'ARA'
  */
 function getTripType(pickup, dropoff) {
-    const pickupStr = String(pickup || '').toLowerCase();
-    const dropoffStr = String(dropoff || '').toLowerCase();
+    const pickupStr = String(pickup || '').toLocaleLowerCase('tr');
+    const dropoffStr = String(dropoff || '').toLocaleLowerCase('tr');
     
-    const airportKeywords = ['havalimanı', 'havalimani', 'airport', 'havaalanı', 'havaalani', 'ayt', 'ist', 'sa', 'esenboğa'];
+    const airportKeywords = [
+        'havalimanı', 'havalimani', 'havaalanı', 'havaalani',
+        'airport', 'esenboğa', 'esenboga',
+    ];
+    const iataPattern = /\b(ayt|gzp|ist|saw|esb|adb|bjv|dlm)\b/i;
     
-    const isPickupAirport = airportKeywords.some(kw => pickupStr.includes(kw));
-    const isDropoffAirport = airportKeywords.some(kw => dropoffStr.includes(kw));
+    const isPickupAirport = airportKeywords.some(kw => pickupStr.includes(kw)) || iataPattern.test(pickupStr);
+    const isDropoffAirport = airportKeywords.some(kw => dropoffStr.includes(kw)) || iataPattern.test(dropoffStr);
     
     if (isPickupAirport && !isDropoffAirport) {
         return 'ARV'; // Arrival: Airport to Hotel
