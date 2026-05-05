@@ -1077,14 +1077,15 @@ router.get('/shuttle-runs', authMiddleware, async (req, res, next) => {
             });
         });
 
-        // ── Compute clean route names from actual booking region codes ──
+        // ── Compute clean route names from first booking's region codes ──
         for (const key of Object.keys(runsMap)) {
             const run = runsMap[key];
             if (run.bookings.length === 0) continue;
-            const pickupCodes = [...new Set(run.bookings.map(b => b.pickupRegionCode).filter(Boolean))];
-            const dropoffCodes = [...new Set(run.bookings.map(b => b.dropoffRegionCode).filter(Boolean))];
-            if (pickupCodes.length > 0 && dropoffCodes.length > 0) {
-                run.routeName = `${pickupCodes.join(' ')} - ${dropoffCodes.join(' ')}`;
+            const first = run.bookings[0];
+            const pRC = first.pickupRegionCode;
+            const dRC = first.dropoffRegionCode;
+            if (pRC && dRC) {
+                run.routeName = `${pRC} - ${dRC}`;
             }
         }
 
@@ -2237,12 +2238,11 @@ router.post('/shuttle-runs/auto-group', authMiddleware, async (req, res) => {
             // Include airport code in runId to make GZP and AYT runs distinct
             const runId = `AUTO_${date}_${tt}_${airportCode}_${earliestFlight.replace(':', '')}`;
 
-            // Compute region-based run name from all bookings' region codes
-            const pickupRCs = [...new Set(items.map(i => i.booking.metadata?.pickupRegionCode).filter(Boolean))];
-            const dropoffRCs = [...new Set(items.map(i => i.booking.metadata?.dropoffRegionCode).filter(Boolean))];
+            // Compute region-based run name from first booking's region codes
+            const firstMeta = items[0].booking.metadata || {};
             const regionName = (tt === 'ARV')
-                ? `${airportCode || pickupRCs[0] || '???'} - ${dropoffRCs.join(' ') || '???'}`
-                : `${pickupRCs.join(' ') || '???'} - ${airportCode || dropoffRCs[0] || '???'}`;
+                ? `${airportCode || firstMeta.pickupRegionCode || '???'} - ${firstMeta.dropoffRegionCode || '???'}`
+                : `${firstMeta.pickupRegionCode || '???'} - ${airportCode || firstMeta.dropoffRegionCode || '???'}`;
 
             for (const item of items) {
                 const meta = item.booking.metadata || {};
