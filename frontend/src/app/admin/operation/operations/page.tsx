@@ -2421,6 +2421,16 @@ export default function OperationsPage() {
             const targetRun = shuttleRuns.find(r => r.runKey === overId || r.bookings.some((b: any) => b.id === overId));
             if (!targetRun) return;
 
+            // --- Lock Validation ---
+            if (sourceRun.locked) {
+                message.error('Bu sefer kilitli (Hazır). Kilidi açmadan müşteri taşıyamazsınız.');
+                return;
+            }
+            if (targetRun.locked) {
+                message.error('Hedef sefer kilitli (Hazır). Kilidi açmadan müşteri ekleyemezsiniz.');
+                return;
+            }
+
             // --- DEP vs ARV Validation ---
             // Compute trip type from a booking's actual pickup/dropoff (most reliable)
             const computeBookingType = (b: any): 'DEP' | 'ARV' | 'ARA' => {
@@ -3314,13 +3324,16 @@ export default function OperationsPage() {
                                             background: '#fff',
                                             borderRadius: 14,
                                             overflow: 'hidden',
-                                            boxShadow: isAssigned
+                                            boxShadow: run.locked
+                                                ? '0 2px 12px rgba(5,150,105,0.18), 0 0 0 2.5px #059669'
+                                                : isAssigned
                                                 ? '0 2px 12px rgba(22,163,74,0.12), 0 0 0 1.5px #bbf7d0'
                                                 : isPartial
                                                 ? '0 2px 12px rgba(217,119,6,0.10), 0 0 0 1.5px #fde68a'
                                                 : '0 2px 8px rgba(99,102,241,0.06), 0 0 0 1px #e0e7ff',
                                             marginBottom: 6,
-                                            transition: 'box-shadow 0.2s'
+                                            transition: 'box-shadow 0.2s',
+                                            opacity: run.locked ? 0.92 : 1,
                                         }}>
                                             {/* ── CARD HEADER ── */}
                                             <div style={{
@@ -3496,6 +3509,34 @@ export default function OperationsPage() {
                                                     >
                                                         📦 Havuza At
                                                     </Button>
+
+                                                    <div style={{ width: 1, height: 24, background: '#e2e8f0', margin: '0 2px' }} />
+
+                                                    <Tooltip title={run.locked ? 'Sefer kilitli — kilidi açmak için tıklayın' : 'Sefer hazır olarak kilitle'}>
+                                                        <Checkbox
+                                                            checked={!!run.locked}
+                                                            onChange={async (e) => {
+                                                                const locked = e.target.checked;
+                                                                const bookingIds = run.bookings.map((b: any) => b.id);
+                                                                // Optimistic UI
+                                                                setShuttleRuns(prev => prev.map(r => r.runKey === run.runKey ? { ...r, locked } : r));
+                                                                try {
+                                                                    await apiClient.post('/api/operations/shuttle-runs/lock', { bookingIds, locked });
+                                                                    message.success(locked ? 'Sefer kilitlendi ✓' : 'Sefer kilidi açıldı');
+                                                                } catch {
+                                                                    setShuttleRuns(prev => prev.map(r => r.runKey === run.runKey ? { ...r, locked: !locked } : r));
+                                                                    message.error('Kilit işlemi başarısız');
+                                                                }
+                                                            }}
+                                                            style={{ transform: 'scale(1.3)' }}
+                                                        />
+                                                        <span style={{
+                                                            fontSize: 10, fontWeight: 700, marginLeft: 4,
+                                                            color: run.locked ? '#059669' : '#94a3b8',
+                                                        }}>
+                                                            {run.locked ? '🔒 Hazır' : 'Hazır'}
+                                                        </span>
+                                                    </Tooltip>
 
                                                     <Button
                                                         type="text"

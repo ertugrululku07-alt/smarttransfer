@@ -1077,7 +1077,7 @@ router.get('/shuttle-runs', authMiddleware, async (req, res, next) => {
             });
         });
 
-        // ── Compute clean route names from first booking's region codes ──
+        // ── Compute clean route names + locked status from bookings ──
         for (const key of Object.keys(runsMap)) {
             const run = runsMap[key];
             if (run.bookings.length === 0) continue;
@@ -1087,6 +1087,8 @@ router.get('/shuttle-runs', authMiddleware, async (req, res, next) => {
             if (pRC && dRC) {
                 run.routeName = `${pRC} - ${dRC}`;
             }
+            // A run is locked if any booking has runLocked flag
+            run.locked = run.bookings.some(b => b.metadata?.runLocked === true);
         }
 
         // ── Zone coordinates for automatic geographic sorting ──
@@ -1520,6 +1522,45 @@ router.post('/shuttle-runs/sort', authMiddleware, async (req, res) => {
     } catch (error) {
         console.error('shuttle-runs/sort error:', error);
         res.status(500).json({ success: false, error: 'Sıralama işlemi başarısız: ' + error.message });
+    }
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/operations/shuttle-runs/lock
+// Body: { bookingIds: string[], locked: boolean }
+// Sets runLocked flag on all bookings in a run
+// ---------------------------------------------------------------------------
+router.post('/shuttle-runs/lock', authMiddleware, async (req, res) => {
+    try {
+        const { bookingIds, locked } = req.body;
+        if (!Array.isArray(bookingIds) || bookingIds.length === 0) {
+            return res.status(400).json({ success: false, error: 'bookingIds dizisi zorunlu' });
+        }
+
+        let updatedCount = 0;
+        for (const bookingId of bookingIds) {
+            const booking = await prisma.booking.findUnique({ where: { id: bookingId } });
+            if (booking) {
+                await prisma.booking.update({
+                    where: { id: bookingId },
+                    data: {
+                        metadata: {
+                            ...(booking.metadata || {}),
+                            runLocked: !!locked
+                        }
+                    }
+                });
+                updatedCount++;
+            }
+        }
+
+        const io = req.app.get('io');
+        if (io) io.to('admin_monitoring').emit('shuttle_runs_updated', { locked: !!locked, updatedCount });
+
+        res.json({ success: true, updatedCount, locked: !!locked });
+    } catch (error) {
+        console.error('shuttle-runs/lock error:', error);
+        res.status(500).json({ success: false, error: 'Kilit işlemi başarısız: ' + error.message });
     }
 });
 
@@ -2198,6 +2239,8 @@ router.post('/shuttle-runs/auto-group', authMiddleware, async (req, res) => {
         const withFlightTime = shuttleBookings
             .map(b => {
                 const m = b.metadata || {};
+                // Skip locked bookings — they are in finalized runs
+                if (m.runLocked === true) return null;
                 const ft = m.flightTime || '';
                 if (!ft) return null;
                 const parts = ft.split(':');
