@@ -1776,8 +1776,14 @@ export default function OperationsPage() {
         fetchVehicles();
         fetchDrivers();
         fetchSettings();
-        fetchVehicleAvailability();
     }, []);
+
+    // Auto-fetch vehicle availability when in private mode or date changes (for deadhead alerts)
+    useEffect(() => {
+        if (operationsMode === 'private' && filters.dateRange?.[0]) {
+            fetchVehicleAvailability(filters.dateRange[0]);
+        }
+    }, [operationsMode, filters.dateRange]);
 
     const doAssign = async (bookingId: string, payload: any) => {
         return apiClient.patch(`/api/transfer/bookings/${bookingId}`, payload);
@@ -6009,8 +6015,9 @@ export default function OperationsPage() {
                             <div style={{ fontSize: 20 }}>›</div>
                         </div>
                     )}
-                    {/* ══════ FLOATING DEADHEAD ALERT (all modes) ══════ */}
+                    {/* ══════ FLOATING DEADHEAD ALERT (private mode only) ══════ */}
                     {(() => {
+                        if (operationsMode !== 'private') return null;
                         if (!vehicleAvailability.length) return null;
                         const mainRgn = (rc: string) => (rc || '').split(/[\s\-\/]+/)[0].toUpperCase();
                         const dAlerts: { plate: string; from: string; to: string }[] = [];
