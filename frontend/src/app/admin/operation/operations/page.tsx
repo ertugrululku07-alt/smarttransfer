@@ -1776,6 +1776,7 @@ export default function OperationsPage() {
         fetchVehicles();
         fetchDrivers();
         fetchSettings();
+        fetchVehicleAvailability();
     }, []);
 
     const doAssign = async (bookingId: string, payload: any) => {
@@ -4329,9 +4330,10 @@ export default function OperationsPage() {
                                                                             letterSpacing: 0.3, whiteSpace: 'nowrap'
                                                                         }}>
                                                                             <span style={{ fontSize: 9 }}>{sc.icon}</span>
-                                                                            {pickup}<span style={{ opacity: 0.55, margin: '0 1px' }}>→</span>
-                                                                            <span style={{ opacity: 0.85, fontWeight: 800 }}>{time}</span>
-                                                                            <span style={{ marginLeft: 2 }}>{dropoff}</span>
+                                                                            <span style={{ fontWeight: 800 }}>{time}</span>
+                                                                            <span style={{ marginLeft: 2 }}>{pickup}</span>
+                                                                            <span style={{ opacity: 0.55, margin: '0 1px' }}>→</span>
+                                                                            {dropoff}
                                                                         </span>
                                                                     </Tooltip>
                                                                 </React.Fragment>
@@ -6007,10 +6009,57 @@ export default function OperationsPage() {
                             <div style={{ fontSize: 20 }}>›</div>
                         </div>
                     )}
+                    {/* ══════ FLOATING DEADHEAD ALERT (all modes) ══════ */}
+                    {(() => {
+                        if (!vehicleAvailability.length) return null;
+                        const mainRgn = (rc: string) => (rc || '').split(/[\s\-\/]+/)[0].toUpperCase();
+                        const dAlerts: { plate: string; from: string; to: string }[] = [];
+                        vehicleAvailability.forEach((v: any) => {
+                            if (!v.assignedBookings || v.assignedBookings.length < 2) return;
+                            for (let i = 1; i < v.assignedBookings.length; i++) {
+                                const prev = v.assignedBookings[i - 1];
+                                const curr = v.assignedBookings[i];
+                                const pDrop = prev.dropoffRegionCode;
+                                const cPick = curr.pickupRegionCode;
+                                if (pDrop && cPick && mainRgn(pDrop) !== mainRgn(cPick)) {
+                                    dAlerts.push({ plate: v.plateNumber, from: pDrop, to: cPick });
+                                }
+                            }
+                        });
+                        if (!dAlerts.length) return null;
+                        const hasSos = sosAlerts.filter(a => a.status === 'ACTIVE').length > 0;
+                        return (
+                            <div style={{
+                                position: 'fixed', top: hasSos ? 150 : 70, right: 24, zIndex: 9998,
+                                background: 'linear-gradient(135deg, #f97316, #ea580c)',
+                                color: '#fff', borderRadius: 12, padding: '10px 14px',
+                                boxShadow: '0 6px 20px rgba(249, 115, 22, 0.4)',
+                                display: 'flex', alignItems: 'center', gap: 10,
+                                maxWidth: 360, cursor: 'pointer',
+                                animation: 'deadheadPulse 3s infinite',
+                            }} onClick={() => { setOperationsMode('vehicles' as any); fetchVehicleAvailability(); }}>
+                                <div style={{ fontSize: 22 }}>🚛</div>
+                                <div style={{ flex: 1 }}>
+                                    <div style={{ fontSize: 10, opacity: 0.85, fontWeight: 600, letterSpacing: 1 }}>BOŞ KİLOMETRE</div>
+                                    <div style={{ fontSize: 13, fontWeight: 800 }}>
+                                        {dAlerts.length} araçta boş gidiş var
+                                    </div>
+                                    <div style={{ fontSize: 11, opacity: 0.9, marginTop: 1 }}>
+                                        {dAlerts.slice(0, 2).map(a => `${a.plate}: ${a.from}→${a.to}`).join(' · ')}
+                                    </div>
+                                </div>
+                                <div style={{ fontSize: 18 }}>›</div>
+                            </div>
+                        );
+                    })()}
                     <style>{`
                         @keyframes sosPulse {
                             0%, 100% { box-shadow: 0 8px 24px rgba(220, 38, 38, 0.5); transform: scale(1); }
                             50% { box-shadow: 0 12px 32px rgba(220, 38, 38, 0.8); transform: scale(1.02); }
+                        }
+                        @keyframes deadheadPulse {
+                            0%, 100% { box-shadow: 0 6px 20px rgba(249, 115, 22, 0.4); }
+                            50% { box-shadow: 0 8px 28px rgba(249, 115, 22, 0.7); }
                         }
                     `}</style>
 
