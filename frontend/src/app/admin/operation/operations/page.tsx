@@ -2450,8 +2450,8 @@ export default function OperationsPage() {
             const sType = movingBooking ? computeBookingType(movingBooking) : runType(sourceRun);
             const tType = runType(targetRun);
 
-            // Block only on true opposite directions (DEP↔ARV). ARA is compatible with both.
-            if (sType && tType && sType !== 'ARA' && tType !== 'ARA' && sType !== tType) {
+            // Block mismatched directions (DEP↔ARV etc). Only same-type runs can exchange bookings.
+            if (sType && tType && sType !== tType) {
                 const label = (t: string) => t === 'DEP' ? 'Gidiş (DEP)' : t === 'ARV' ? 'Geliş (ARV)' : 'Ara (ARA)';
                 message.error(`Hata: ${label(sType)} müşterisini ${label(tType)} seferine taşıyamazsınız!`);
                 return;
