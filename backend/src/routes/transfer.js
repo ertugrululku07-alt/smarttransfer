@@ -481,6 +481,74 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                 console.error("Turf zone calculation error:", err);
             }
         }
+
+        // ── INDEPENDENT POINT-IN-POLYGON (no polyline required) ──
+        // Ensures zone detection works even without encoded polyline or when 
+        // route polyline doesn't physically cross zone polygons
+        if (activeTenantId && zones.length > 0 && (pickupLat || dropoffLat)) {
+            if (!req.zoneOverages) req.zoneOverages = {};
+            if (!req.pickupZoneIds) req.pickupZoneIds = new Set();
+
+            // Pickup point in polygon
+            if (pickupLat && pickupLng) {
+                try {
+                    const pickupPoint = turf.point([Number(pickupLng), Number(pickupLat)]);
+                    for (const zone of zones) {
+                        if (!zone.polygon || zone.polygon.length < 3) continue;
+                        if (req.pickupZoneIds.has(zone.id)) continue;
+                        let polyCoords = zone.polygon.map(p => [p.lng, p.lat]);
+                        if (polyCoords[0][0] !== polyCoords[polyCoords.length - 1][0] ||
+                            polyCoords[0][1] !== polyCoords[polyCoords.length - 1][1]) {
+                            polyCoords.push(polyCoords[0]);
+                        }
+                        try {
+                            const zonePolygon = turf.polygon([polyCoords]);
+                            if (turf.booleanPointInPolygon(pickupPoint, zonePolygon)) {
+                                const area = turf.area(zonePolygon);
+                                if (!req.zoneOverages[zone.id]) {
+                                    req.zoneOverages[zone.id] = { overage: 0, area, zoneName: zone.name || '', zoneCode: zone.code || '' };
+                                }
+                                req.pickupZoneIds.add(zone.id);
+                                console.log(`[IndependentPIP] Pickup inside zone "${zone.name}" (${zone.code})`);
+                            }
+                        } catch (e) { /* skip invalid polygon */ }
+                    }
+                } catch (e) {
+                    console.error("Independent pickup point-in-polygon error:", e);
+                }
+            }
+
+            // Dropoff point in polygon
+            if (dropoffLat && dropoffLng) {
+                try {
+                    const dropoffPoint = turf.point([Number(dropoffLng), Number(dropoffLat)]);
+                    for (const zone of zones) {
+                        if (!zone.polygon || zone.polygon.length < 3) continue;
+                        if (req.zoneOverages[zone.id] && req.zoneOverages[zone.id].overage === 0) continue;
+                        let polyCoords = zone.polygon.map(p => [p.lng, p.lat]);
+                        if (polyCoords[0][0] !== polyCoords[polyCoords.length - 1][0] ||
+                            polyCoords[0][1] !== polyCoords[polyCoords.length - 1][1]) {
+                            polyCoords.push(polyCoords[0]);
+                        }
+                        try {
+                            const zonePolygon = turf.polygon([polyCoords]);
+                            if (turf.booleanPointInPolygon(dropoffPoint, zonePolygon)) {
+                                const area = turf.area(zonePolygon);
+                                if (!req.zoneOverages[zone.id]) {
+                                    req.zoneOverages[zone.id] = {
+                                        overage: 0, area, zoneName: zone.name || '', zoneCode: zone.code || '',
+                                        distFromStart: null, distFromEnd: 0, hitStart: false, hitEnd: true
+                                    };
+                                }
+                                console.log(`[IndependentPIP] Dropoff inside zone "${zone.name}" (${zone.code})`);
+                            }
+                        } catch (e) { /* skip invalid polygon */ }
+                    }
+                } catch (e) {
+                    console.error("Independent dropoff point-in-polygon error:", e);
+                }
+            }
+        }
         // ==========================================
 
         // 2. Search for Shuttle Routes (Improved Matching)
@@ -536,87 +604,125 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
         let originalPickupHubCode = null;
         const pickupPrimaryToken = pickup.toLowerCase().split(/[\/,]/)[0].trim();
         const pickupTextRaw = pickup.toLowerCase();
-        let bestPickupScore = 0;
-        let bestPickupLength = 0;
 
-        for (const hub of hubs) {
-            const keys = hub.keywords ? hub.keywords.split(',').map(k => k.trim().toLowerCase()).filter(k => k) : [];
-            keys.push(hub.code.toLowerCase());
-            for (const k of keys) {
-                const isAirportHub = hub.isAirport === true;
-                // Always search full address text for all hubs — scoring handles disambiguation
-                const matchInPrimary = pickupPrimaryToken.includes(k);
-                const matchInFull = pickupTextRaw.includes(k);
-                if (matchInPrimary || matchInFull) {
-                    // Airport hub keywords (longer than IATA code) require airport context in text
-                    // e.g., 'gazipaşa' is also a district name, 'konya' is also a city name
-                    if (isAirportHub && k.length > 4 && k !== hub.code.toLowerCase()) {
-                        const genericAirportWords = ['havalimanı', 'havalimani', 'havaalanı', 'havaalani', 'airport'];
-                        if (!genericAirportWords.some(aw => pickupTextRaw.includes(aw))) {
-                            continue;
+        // ── PRIMARY: Polygon-based hub detection (most accurate, no ambiguity) ──
+        // If pickup point is inside a zone polygon, that zone IS the base — period.
+        if (req.pickupZoneIds && req.pickupZoneIds.size > 0 && req.zoneOverages) {
+            let smallestPickupArea = Infinity;
+            for (const zoneId of req.pickupZoneIds) {
+                const zd = req.zoneOverages[zoneId];
+                if (zd && zd.zoneCode && zd.area < smallestPickupArea) {
+                    smallestPickupArea = zd.area;
+                    detectedBaseLocation = zd.zoneCode;
+                    originalPickupHubCode = zd.zoneCode;
+                }
+            }
+            if (detectedBaseLocation) {
+                console.log(`[HubDetect] Pickup hub from POLYGON: ${detectedBaseLocation} (area=${smallestPickupArea.toFixed(0)})`);
+            }
+        }
+
+        // ── FALLBACK: Keyword-based hub detection (only when polygon didn't match) ──
+        if (!detectedBaseLocation) {
+            let bestPickupScore = 0;
+            let bestPickupLength = 0;
+            for (const hub of hubs) {
+                const keys = hub.keywords ? hub.keywords.split(',').map(k => k.trim().toLowerCase()).filter(k => k) : [];
+                keys.push(hub.code.toLowerCase());
+                for (const k of keys) {
+                    const isAirportHub = hub.isAirport === true;
+                    const matchInPrimary = pickupPrimaryToken.includes(k);
+                    const matchInFull = pickupTextRaw.includes(k);
+                    if (matchInPrimary || matchInFull) {
+                        if (isAirportHub && k.length > 4 && k !== hub.code.toLowerCase()) {
+                            const genericAirportWords = ['havalimanı', 'havalimani', 'havaalanı', 'havaalani', 'airport'];
+                            if (!genericAirportWords.some(aw => pickupTextRaw.includes(aw))) {
+                                continue;
+                            }
                         }
-                    }
-                    let score = 1;
-                    if (isAirportHub) score = 4;
-                    // Bonus: keyword found in primary token (first address segment) = stronger match
-                    if (matchInPrimary) score += 2;
-                    if (k === pickupPrimaryToken) score += 1;
-                    // Bonus: hub's OWN NAME matches pickup text → prefer over zones that only share a keyword
-                    // e.g., zone "Manavgat" should beat zone "Gündoğdu" (keyword: manavgat) for "Manavgat/Antalya"
-                    const hubNameLower = hub.name ? hub.name.toLowerCase() : '';
-                    if (hubNameLower && (pickupPrimaryToken.includes(hubNameLower) || hubNameLower.includes(pickupPrimaryToken))) {
-                        score += 3;
-                    }
-                    if (score > bestPickupScore || (score === bestPickupScore && k.length > bestPickupLength)) {
-                        detectedBaseLocation = hub.code;
-                        originalPickupHubCode = hub.code;
-                        bestPickupScore = score;
-                        bestPickupLength = k.length;
+                        let score = 1;
+                        if (isAirportHub) score = 4;
+                        if (matchInPrimary) score += 2;
+                        if (k === pickupPrimaryToken) score += 1;
+                        const hubNameLower = hub.name ? hub.name.toLowerCase() : '';
+                        if (hubNameLower && (pickupPrimaryToken.includes(hubNameLower) || hubNameLower.includes(pickupPrimaryToken))) {
+                            score += 3;
+                        }
+                        if (score > bestPickupScore || (score === bestPickupScore && k.length > bestPickupLength)) {
+                            detectedBaseLocation = hub.code;
+                            originalPickupHubCode = hub.code;
+                            bestPickupScore = score;
+                            bestPickupLength = k.length;
+                        }
                     }
                 }
             }
+            if (detectedBaseLocation) {
+                console.log(`[HubDetect] Pickup hub from KEYWORD fallback: ${detectedBaseLocation} (score=${bestPickupScore})`);
+            }
         }
-        
+
         let detectedDropoffBase = null;
         let originalDropoffHubCode = null;
         const dropoffPrimaryToken = dropoff.toLowerCase().split(/[\/,]/)[0].trim();
         const dropoffTextRaw = dropoff.toLowerCase();
-        let bestDropoffScore = 0;
-        let bestDropoffMatchLength = 0;
 
-        for (const hub of hubs) {
-            const keys = hub.keywords ? hub.keywords.split(',').map(k => k.trim().toLowerCase()).filter(k => k) : [];
-            keys.push(hub.code.toLowerCase());
-            for (const k of keys) {
-                const isAirportHub = hub.isAirport === true;
-                // Always search full address text for all hubs — scoring handles disambiguation
-                const matchInPrimary = dropoffPrimaryToken.includes(k);
-                const matchInFull = dropoffTextRaw.includes(k);
-                if (matchInPrimary || matchInFull) {
-                    // Airport hub keywords (longer than IATA code) require airport context in text
-                    if (isAirportHub && k.length > 4 && k !== hub.code.toLowerCase()) {
-                        const genericAirportWords = ['havalimanı', 'havalimani', 'havaalanı', 'havaalani', 'airport'];
-                        if (!genericAirportWords.some(aw => dropoffTextRaw.includes(aw))) {
-                            continue;
+        // ── PRIMARY: Polygon-based dropoff detection ──
+        if (req.zoneOverages) {
+            let smallestDropoffArea = Infinity;
+            // Find the zone the dropoff is inside (overage=0 and distFromEnd=0)
+            for (const [zoneId, zd] of Object.entries(req.zoneOverages)) {
+                if (!zd.zoneCode) continue;
+                // Dropoff is inside this zone if it was added with overage=0 via dropoff point check
+                const isDropoffInside = (zd.distFromEnd === 0 || zd.hitEnd) && !req.pickupZoneIds?.has(zoneId);
+                if (isDropoffInside && zd.area < smallestDropoffArea) {
+                    smallestDropoffArea = zd.area;
+                    detectedDropoffBase = zd.zoneCode;
+                    originalDropoffHubCode = zd.zoneCode;
+                }
+            }
+            if (detectedDropoffBase) {
+                console.log(`[HubDetect] Dropoff hub from POLYGON: ${detectedDropoffBase} (area=${smallestDropoffArea.toFixed(0)})`);
+            }
+        }
+
+        // ── FALLBACK: Keyword-based dropoff detection ──
+        if (!detectedDropoffBase) {
+            let bestDropoffScore = 0;
+            let bestDropoffMatchLength = 0;
+            for (const hub of hubs) {
+                const keys = hub.keywords ? hub.keywords.split(',').map(k => k.trim().toLowerCase()).filter(k => k) : [];
+                keys.push(hub.code.toLowerCase());
+                for (const k of keys) {
+                    const isAirportHub = hub.isAirport === true;
+                    const matchInPrimary = dropoffPrimaryToken.includes(k);
+                    const matchInFull = dropoffTextRaw.includes(k);
+                    if (matchInPrimary || matchInFull) {
+                        if (isAirportHub && k.length > 4 && k !== hub.code.toLowerCase()) {
+                            const genericAirportWords = ['havalimanı', 'havalimani', 'havaalanı', 'havaalani', 'airport'];
+                            if (!genericAirportWords.some(aw => dropoffTextRaw.includes(aw))) {
+                                continue;
+                            }
+                        }
+                        let score = 1;
+                        if (isAirportHub) score = 4;
+                        if (matchInPrimary) score += 2;
+                        if (k === dropoffPrimaryToken) score += 1;
+                        const hubNameLower = hub.name ? hub.name.toLowerCase() : '';
+                        if (hubNameLower && (dropoffPrimaryToken.includes(hubNameLower) || hubNameLower.includes(dropoffPrimaryToken))) {
+                            score += 3;
+                        }
+                        if (score > bestDropoffScore || (score === bestDropoffScore && k.length > bestDropoffMatchLength)) {
+                            detectedDropoffBase = hub.code;
+                            originalDropoffHubCode = hub.code;
+                            bestDropoffScore = score;
+                            bestDropoffMatchLength = k.length;
                         }
                     }
-                    let score = 1;
-                    if (isAirportHub) score = 4;
-                    // Bonus: keyword found in primary token (first address segment) = stronger match
-                    if (matchInPrimary) score += 2;
-                    if (k === dropoffPrimaryToken) score += 1;
-                    // Bonus: hub's OWN NAME matches dropoff text
-                    const hubNameLower = hub.name ? hub.name.toLowerCase() : '';
-                    if (hubNameLower && (dropoffPrimaryToken.includes(hubNameLower) || hubNameLower.includes(dropoffPrimaryToken))) {
-                        score += 3;
-                    }
-                    if (score > bestDropoffScore || (score === bestDropoffScore && k.length > bestDropoffMatchLength)) {
-                        detectedDropoffBase = hub.code;
-                        originalDropoffHubCode = hub.code;
-                        bestDropoffScore = score;
-                        bestDropoffMatchLength = k.length;
-                    }
                 }
+            }
+            if (detectedDropoffBase) {
+                console.log(`[HubDetect] Dropoff hub from KEYWORD fallback: ${detectedDropoffBase} (score=${bestDropoffScore})`);
             }
         }
 
