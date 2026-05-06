@@ -146,8 +146,8 @@ export default function PricingPage() {
 
       // Expand bidirectional rows into two entries
       const expandedPrices: any[] = [];
-      (values.zonePrices || []).forEach((zp: any) => {
-        const { bidirectional, ...priceData } = zp;
+      (values.zonePrices || []).filter(Boolean).forEach((zp: any) => {
+        const { bidirectional = false, ...priceData } = zp;
         expandedPrices.push(priceData);
         if (bidirectional) {
           const fromZone = zones.find(z => z.code === zp.baseLocation);
@@ -539,16 +539,19 @@ export default function PricingPage() {
                               )}
 
                               {fields.map(({ key, name, ...restField }) => {
-                                // Filter logic: if routeFilter is set, only show rows matching that zone
-                                const rowValues = form.getFieldValue(['zonePrices', name]);
-                                if (routeFilter && rowValues) {
-                                  const baseMatch = rowValues.baseLocation === routeFilter;
-                                  const zoneMatch = zones.find(z => z.id === rowValues.zoneId)?.code === routeFilter;
-                                  if (!baseMatch && !zoneMatch) return null;
+                                // Filter logic: if routeFilter is set, hide (not unmount) rows that don't match
+                                let isHidden = false;
+                                if (routeFilter) {
+                                  const rowValues = form.getFieldValue(['zonePrices', name]);
+                                  if (rowValues) {
+                                    const baseMatch = rowValues.baseLocation === routeFilter;
+                                    const zoneMatch = zones.find(z => z.id === rowValues.zoneId)?.code === routeFilter;
+                                    if (!baseMatch && !zoneMatch) isHidden = true;
+                                  }
                                 }
                                 return (
                                 <div key={key} style={{
-                                  display: 'grid',
+                                  display: isHidden ? 'none' : 'grid',
                                   gridTemplateColumns: '2fr 24px 2fr 42px 1fr 1fr 1fr 1fr 1fr 1fr 1fr 32px',
                                   alignItems: 'center',
                                   borderBottom: '1px solid #f1f5f9',
