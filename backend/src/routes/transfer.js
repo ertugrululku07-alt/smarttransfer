@@ -980,10 +980,11 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
 
                         // CRITICAL FIX: To prevent an airport's own small polygon from overriding 
                         // the regional zone's pricing when traveling to/from the airport.
-                        // We ONLY skip the zone if it is an actual Airport Hub (AYT, GZP).
+                        // We ONLY skip the zone if it is an actual Airport Hub (isAirport=true).
                         // If it's a regional hub (like ALY - Alanya), we MUST NOT skip it!
-                        if (zoneData.zoneCode && (zoneData.zoneCode === 'AYT' || zoneData.zoneCode === 'GZP')) {
-                            if (zoneData.zoneCode === originalPickupHubCode || zoneData.zoneCode === originalDropoffHubCode) {
+                        if (zoneData.zoneCode) {
+                            const isAirportZone = hubs.some(h => h.code === zoneData.zoneCode && h.isAirport === true);
+                            if (isAirportZone && (zoneData.zoneCode === originalPickupHubCode || zoneData.zoneCode === originalDropoffHubCode)) {
                                 console.log(`[ZoneMatch] Skipping airport hub zone: ${zoneData.zoneName} to allow regional zone matching.`);
                                 continue;
                             }
@@ -1052,6 +1053,63 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                     }
                 }
 
+                // ── KEYWORD FALLBACK: When polygon matching fails, try text-based zone matching ──
+                // This handles zones without polygons or when pickup is outside all zone polygons
+                if (!zonePriceConfig && (detectedBaseLocation || detectedDropoffBase)) {
+                    const basesToCheck = [detectedDropoffBase, detectedBaseLocation].filter(Boolean);
+                    const relevantPrices = (vt.zonePrices || []).filter(zp => basesToCheck.includes(zp.baseLocation));
+                    
+                    let bestKwScore = 0;
+                    let bestKwPos = Infinity; // Earlier position = more specific
+                    let bestKwConfig = null;
+                    let bestKwZoneId = null;
+                    
+                    for (const zp of relevantPrices) {
+                        const cfgFix = Number(zp.fixedPrice) || 0;
+                        const cfgPrice = Number(zp.price) || 0;
+                        if (cfgFix <= 0 && cfgPrice <= 0) continue;
+                        
+                        const zone = zones.find(z => z.id === zp.zoneId);
+                        if (!zone) continue;
+                        
+                        const zName = (zone.name || '').toLowerCase().trim();
+                        const zKeywords = (zone.keywords || '').split(',').map(k => k.trim().toLowerCase()).filter(k => k);
+                        const allKeys = [...zKeywords, zName].filter(k => k && k.length >= 3);
+                        
+                        // Check if pickup or dropoff text contains zone keywords
+                        let matchScore = 0;
+                        let matchPos = Infinity;
+                        for (const kw of allKeys) {
+                            const posInPickup = pickupTextRaw.indexOf(kw);
+                            const posInDropoff = dropoffTextRaw.indexOf(kw);
+                            if (posInPickup >= 0 || posInDropoff >= 0) {
+                                if (kw.length > matchScore) {
+                                    matchScore = kw.length;
+                                    matchPos = posInPickup >= 0 ? posInPickup : posInDropoff;
+                                } else if (kw.length === matchScore) {
+                                    const pos = posInPickup >= 0 ? posInPickup : posInDropoff;
+                                    if (pos < matchPos) matchPos = pos;
+                                }
+                            }
+                        }
+                        
+                        // Prefer: 1) highest score (longest keyword), 2) earliest position (more specific)
+                        if (matchScore > bestKwScore || (matchScore === bestKwScore && matchPos < bestKwPos)) {
+                            bestKwScore = matchScore;
+                            bestKwPos = matchPos;
+                            bestKwConfig = zp;
+                            bestKwZoneId = zp.zoneId;
+                        }
+                    }
+                    
+                    if (bestKwConfig) {
+                        zonePriceConfig = bestKwConfig;
+                        finalMatchedZoneId = bestKwZoneId;
+                        usedOverageDistanceKm = 0;
+                        console.log(`[ZoneKeywordFallback] vt=${vt.name}: Matched zone "${zones.find(z=>z.id===bestKwZoneId)?.name}" via keyword (score=${bestKwScore}, pos=${bestKwPos}, base=${bestKwConfig.baseLocation})`);
+                    }
+                }
+
                 console.log(`[ZoneSelect] vt=${vt.name}, finalMatchedZoneId=${finalMatchedZoneId}, usedOverageDistanceKm=${usedOverageDistanceKm}, extraKmPrice=${zonePriceConfig?.extraKmPrice}`);
 
                 if (zonePriceConfig && finalMatchedZoneId) {
@@ -1109,14 +1167,14 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                             );
                         }
 
-                        // EXCEPTION: GZP airport destination should not use a broad "Alanya" zone
-                        // UNLESS the zone has an explicit GZP price configured (e.g. Cikcilli Alanya → GZP = 2500 TL)
-                        if (isRelevant && originalDropoffHubCode === 'GZP' && zoneName.includes('alanya')) {
-                            const hasExplicitGzpPrice = zonePriceConfig && zonePriceConfig.baseLocation === 'GZP' &&
-                                (Number(zonePriceConfig.fixedPrice) > 0 || Number(zonePriceConfig.price) > 0);
-                            if (!hasExplicitGzpPrice) {
+                        // EXCEPTION: If dropoff is an airport hub and the matched zone is a broad
+                        // parent region (e.g., "Alanya" for GZP destination), reject UNLESS
+                        // there is an explicit price for that airport base configured.
+                        if (isRelevant && originalDropoffHubCode) {
+                            const dropoffIsAirport = hubs.some(h => h.code === originalDropoffHubCode && h.isAirport === true);
+                            if (dropoffIsAirport && zonePriceConfig && zonePriceConfig.baseLocation !== originalDropoffHubCode) {
                                 isRelevant = false;
-                                console.log(`[ZoneRelevance] vt=${vt.name}: Zone "${zoneName}" rejected — no explicit GZP price`);
+                                console.log(`[ZoneRelevance] vt=${vt.name}: Zone "${zoneName}" rejected — price base (${zonePriceConfig.baseLocation}) != airport dropoff (${originalDropoffHubCode})`);
                             }
                         }
                         if (!isRelevant) {
