@@ -49,20 +49,25 @@ const windowsOverlap = (a, b) => {
 // Helper: determine trip type based on pickup/dropoff
 // Returns 'DEP' | 'ARV' | 'ARA'
 // ---------------------------------------------------------------------------
-const getTripType = (pickup, dropoff) => {
+const getTripType = (pickup, dropoff, airportZones = null) => {
     const pickupStr = String(pickup || '').toLocaleLowerCase('tr');
     const dropoffStr = String(dropoff || '').toLocaleLowerCase('tr');
     
-    const airportKeywords = [
-        'havalimanı', 'havalimani', 'havaalanı', 'havaalani',
-        'airport', 'esenboğa', 'esenboga',
-    ];
+    // Generic airport words (works for any language/country)
+    const genericAirportWords = ['havalimanı', 'havalimani', 'havaalanı', 'havaalani', 'airport'];
     
-    // Also check for standalone IATA codes (must be word-boundary to avoid false positives like "ayt" in "aytar")
-    const iataPattern = /\b(ayt|gzp|ist|saw|esb|adb|bjv|dlm)\b/i;
+    let isPickupAirport = genericAirportWords.some(kw => pickupStr.includes(kw));
+    let isDropoffAirport = genericAirportWords.some(kw => dropoffStr.includes(kw));
     
-    const isPickupAirport = airportKeywords.some(kw => pickupStr.includes(kw)) || iataPattern.test(pickupStr);
-    const isDropoffAirport = airportKeywords.some(kw => dropoffStr.includes(kw)) || iataPattern.test(dropoffStr);
+    // Check airport zone IATA codes from DB (word-boundary match)
+    if (airportZones && airportZones.length > 0) {
+        const codes = airportZones.map(az => (az.code || '').toLowerCase()).filter(c => c);
+        if (codes.length > 0) {
+            const iataPattern = new RegExp(`\\b(${codes.join('|')})\\b`, 'i');
+            if (!isPickupAirport) isPickupAirport = iataPattern.test(pickupStr);
+            if (!isDropoffAirport) isDropoffAirport = iataPattern.test(dropoffStr);
+        }
+    }
     
     if (isPickupAirport && !isDropoffAirport) {
         return 'ARV'; // Arrival: Airport to Hotel
@@ -905,8 +910,9 @@ router.get('/shuttle-runs', authMiddleware, async (req, res, next) => {
         // Load zones with polygons for region code recalculation
         const zonesWithPolygon = await prisma.zone.findMany({
             where: { tenantId, code: { not: null } },
-            select: { id: true, code: true, name: true, keywords: true, polygon: true }
+            select: { id: true, code: true, name: true, keywords: true, polygon: true, isAirport: true }
         });
+        const airportZones = zonesWithPolygon.filter(z => z.isAirport);
 
         LOG_TAG = "QUERY_ROUTES";
         const shuttleRoutes = await prisma.shuttleRoute.findMany({
@@ -936,7 +942,7 @@ router.get('/shuttle-runs', authMiddleware, async (req, res, next) => {
             if (m.manualRunId) {
                 // Compute booking direction to prevent opposite-direction bookings
                 // from being grouped together under the same manual run
-                const bookingTripType = getTripType(m.pickup, m.dropoff);
+                const bookingTripType = getTripType(m.pickup, m.dropoff, airportZones);
                 const baseId = m.manualRunId.startsWith('MANUAL::') ? m.manualRunId : `MANUAL::${m.manualRunId}`;
                 key = `${baseId}::${bookingTripType}`;
                 const baseName = m.manualRunName || 'Manuel Sefer';
@@ -1017,7 +1023,7 @@ router.get('/shuttle-runs', authMiddleware, async (req, res, next) => {
 
             if (!runsMap[key]) {
                 // Always compute trip type from actual pickup/dropoff locations (don't trust stale metadata)
-                const tripType = getTripType(m.pickup, m.dropoff);
+                const tripType = getTripType(m.pickup, m.dropoff, airportZones);
                 
                 runsMap[key] = {
                     runKey: key,
@@ -1355,6 +1361,13 @@ router.post('/shuttle-runs/move', authMiddleware, async (req, res) => {
             return res.status(400).json({ success: false, error: 'bookingIds array zorunlu' });
         }
 
+        // Load airport zones for trip type detection
+        const tenantId = req.user?.tenantId;
+        const moveAirportZones = tenantId ? await prisma.zone.findMany({
+            where: { tenantId, isAirport: true, code: { not: null } },
+            select: { code: true }
+        }) : [];
+
         // ── Trip Type Compatibility Check (STRICT) ──
         // Determine target trip type from (in priority order):
         //   1. Explicit targetRun.tripType sent by the client
@@ -1368,7 +1381,7 @@ router.post('/shuttle-runs/move', authMiddleware, async (req, res) => {
             const sample = await prisma.booking.findUnique({ where: { id: sampleBookingId } });
             if (sample) {
                 targetTripType = sample.metadata?.tripType
-                    || getTripType(sample.metadata?.pickup, sample.metadata?.dropoff);
+                    || getTripType(sample.metadata?.pickup, sample.metadata?.dropoff, moveAirportZones);
             }
         }
 
@@ -1378,7 +1391,7 @@ router.post('/shuttle-runs/move', authMiddleware, async (req, res) => {
                 if (!booking) continue;
 
                 // Always compute from pickup/dropoff (don't trust stale metadata.tripType)
-                const computed = getTripType(booking.metadata?.pickup, booking.metadata?.dropoff);
+                const computed = getTripType(booking.metadata?.pickup, booking.metadata?.dropoff, moveAirportZones);
                 if (computed !== 'ARA' && computed !== targetTripType) {
                     return res.status(400).json({
                         success: false,
@@ -1727,13 +1740,29 @@ router.post('/shuttle-runs/optimize-route', authMiddleware, async (req, res) => 
             return null;
         }
 
-        // Detect airport IATA code from text
+        // Detect airport IATA code from text (DB-driven)
+        const tenantIdOpt = req.tenant?.id || req.user?.tenantId;
+        const optAirportZones = tenantIdOpt ? await prisma.zone.findMany({
+            where: { tenantId: tenantIdOpt, isAirport: true, code: { not: null } },
+            select: { code: true, keywords: true, name: true }
+        }) : [];
         function detectAirport(text) {
             const t = trLower(text);
-            if (t.includes('antalya') && (t.includes('havaliman') || t.includes('airport'))) return 'AYT';
-            if ((t.includes('gazipaşa') || t.includes('gazipasa')) && (t.includes('havaliman') || t.includes('airport'))) return 'GZP';
-            if (/\bayt\b/i.test(text)) return 'AYT';
-            if (/\bgzp\b/i.test(text)) return 'GZP';
+            // Check airport zone codes (word-boundary IATA match)
+            for (const az of optAirportZones) {
+                const code = (az.code || '').toLowerCase();
+                if (code && new RegExp(`\\b${code}\\b`, 'i').test(text)) return az.code;
+                // Check keywords only when text also has airport context
+                const airportContext = t.includes('havalimanı') || t.includes('havalimani') || t.includes('airport') || t.includes('havaalanı');
+                if (airportContext) {
+                    const keys = (az.keywords || '').split(',').map(k => k.trim().toLowerCase()).filter(k => k);
+                    if (keys.some(k => t.includes(k))) return az.code;
+                    if (az.name && t.includes(az.name.toLowerCase())) return az.code;
+                }
+            }
+            // Generic fallback: text has airport word but no specific zone matched
+            const genericAirport = t.includes('havalimanı') || t.includes('havalimani') || t.includes('airport');
+            if (genericAirport && optAirportZones.length > 0) return optAirportZones[0].code;
             return null;
         }
 
@@ -2210,6 +2239,10 @@ router.post('/shuttle-runs/auto-group', authMiddleware, async (req, res) => {
         // Resolve hubs for IATA code detection in auto-group
         const tenantForAutoGroup = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { settings: true } });
         const hubsForAutoGroup = tenantForAutoGroup?.settings?.hubs || [];
+        const autoGroupAirportZones = await prisma.zone.findMany({
+            where: { tenantId, isAirport: true, code: { not: null } },
+            select: { code: true, name: true }
+        });
         const trLowerAG = s => (s || '').toLocaleLowerCase('tr');
         function bestHubMatchAG(addr) {
             let bestCode = null, bestLen = 0;
@@ -2246,7 +2279,7 @@ router.post('/shuttle-runs/auto-group', authMiddleware, async (req, res) => {
                 if (parts.length < 2) return null;
                 const flightMin = parseInt(parts[0]) * 60 + parseInt(parts[1]);
                 // Always compute trip type from actual addresses (stored metadata.tripType may be stale/wrong)
-                const bt = getTripType(m.pickup, m.dropoff) || 'ARA';
+                const bt = getTripType(m.pickup, m.dropoff, autoGroupAirportZones) || 'ARA';
                 // Determine destination airport code (GZP vs AYT must not mix)
                 const airportCode = getAirportCodeAG(String(m.pickup || ''), String(m.dropoff || ''), bt);
                 return { booking: b, flightMin, flightTime: ft, tripType: bt, airportCode };

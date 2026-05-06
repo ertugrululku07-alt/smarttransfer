@@ -10,18 +10,18 @@ const { detectRegionCodeByPolygon } = require('../utils/zoneDetection');
 // Helper: Load tenant hubs for region code detection
 async function loadTenantHubs(tenantId) {
     const defaultHubs = [
-        { code: 'AYT', keywords: 'ayt, antalya havalimanı, antalya airport', name: 'Antalya Havalimanı' },
-        { code: 'GZP', keywords: 'gzp, gazipasa, gazipaşa', name: 'Gazipaşa Havalimanı' },
+        { code: 'AYT', keywords: 'ayt, antalya havalimanı, antalya airport', name: 'Antalya Havalimanı', isAirport: true },
+        { code: 'GZP', keywords: 'gzp, gazipasa, gazipaşa', name: 'Gazipaşa Havalimanı', isAirport: true },
     ];
     if (!tenantId) return defaultHubs;
     try {
         // Primary: load from Zone table (unified zone model)
         const zonesWithCode = await prisma.zone.findMany({
             where: { tenantId, code: { not: null } },
-            select: { code: true, keywords: true, name: true }
+            select: { code: true, keywords: true, name: true, isAirport: true }
         });
         if (zonesWithCode.length > 0) {
-            return zonesWithCode.map(z => ({ code: z.code, keywords: z.keywords || '', name: z.name }));
+            return zonesWithCode.map(z => ({ code: z.code, keywords: z.keywords || '', name: z.name, isAirport: z.isAirport || false }));
         }
         // Fallback: legacy settings.hubs
         const tenantInfo = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { settings: true } });

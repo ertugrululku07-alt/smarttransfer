@@ -1603,11 +1603,12 @@ model Zone {
   tenantId String
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  name     String
-  code     String?  // Short code (e.g. AYT, ALY, GZP) — used as baseLocation in pricing
-  keywords String?  // Comma-separated search keywords for origin detection
-  color    String?  @default("#3388ff") // For map drawing
-  polygon  Json?    // Array of LatLng [{lat, lng}, ...] — optional (some zones may only be origin hubs)
+  name      String
+  code      String?  // Short code (e.g. AYT, ALY, GZP) — used as baseLocation in pricing
+  keywords  String?  // Comma-separated search keywords for origin detection
+  isAirport Boolean  @default(false) // True = this zone is an airport/hub (used for trip type detection)
+  color     String?  @default("#3388ff") // For map drawing
+  polygon   Json?    // Array of LatLng [{lat, lng}, ...] — optional (some zones may only be origin hubs)
 
   vehicleTypePrices VehicleTypeZonePrice[]
   contractPrices    AgencyContractPrice[]

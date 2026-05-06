@@ -102,18 +102,25 @@ function detectRegionCodeByPolygon(lat, lng, locationText, zones, hubs) {
  * @param {string} dropoff - Dropoff location
  * @returns {string} - 'DEP' | 'ARV' | 'ARA'
  */
-function getTripType(pickup, dropoff) {
+function getTripType(pickup, dropoff, airportZones = null) {
     const pickupStr = String(pickup || '').toLocaleLowerCase('tr');
     const dropoffStr = String(dropoff || '').toLocaleLowerCase('tr');
     
-    const airportKeywords = [
-        'havalimanı', 'havalimani', 'havaalanı', 'havaalani',
-        'airport', 'esenboğa', 'esenboga',
-    ];
-    const iataPattern = /\b(ayt|gzp|ist|saw|esb|adb|bjv|dlm)\b/i;
+    // Generic airport words (works for any language/country)
+    const genericAirportWords = ['havalimanı', 'havalimani', 'havaalanı', 'havaalani', 'airport'];
     
-    const isPickupAirport = airportKeywords.some(kw => pickupStr.includes(kw)) || iataPattern.test(pickupStr);
-    const isDropoffAirport = airportKeywords.some(kw => dropoffStr.includes(kw)) || iataPattern.test(dropoffStr);
+    let isPickupAirport = genericAirportWords.some(kw => pickupStr.includes(kw));
+    let isDropoffAirport = genericAirportWords.some(kw => dropoffStr.includes(kw));
+    
+    // Check airport zone IATA codes from DB (word-boundary match)
+    if (airportZones && airportZones.length > 0) {
+        const codes = airportZones.map(az => (az.code || '').toLowerCase()).filter(c => c);
+        if (codes.length > 0) {
+            const iataPattern = new RegExp(`\\b(${codes.join('|')})\\b`, 'i');
+            if (!isPickupAirport) isPickupAirport = iataPattern.test(pickupStr);
+            if (!isDropoffAirport) isDropoffAirport = iataPattern.test(dropoffStr);
+        }
+    }
     
     if (isPickupAirport && !isDropoffAirport) {
         return 'ARV'; // Arrival: Airport to Hotel
@@ -131,24 +138,25 @@ function getTripType(pickup, dropoff) {
  */
 async function loadTenantHubs(tenantId) {
     const defaultHubs = [
-        { code: 'AYT', keywords: 'ayt, antalya havalimanı, antalya airport', name: 'Antalya Havalimanı' },
-        { code: 'GZP', keywords: 'gzp, gazipasa, gazipaşa', name: 'Gazipaşa Havalimanı' },
+        { code: 'AYT', keywords: 'ayt, antalya havalimanı, antalya airport', name: 'Antalya Havalimanı', isAirport: true },
+        { code: 'GZP', keywords: 'gzp, gazipasa, gazipaşa', name: 'Gazipaşa Havalimanı', isAirport: true },
     ];
-    let finalHubs = [...defaultHubs];
 
-    if (!tenantId) return finalHubs;
+    if (!tenantId) return [...defaultHubs];
     try {
         const zonesWithCode = await prisma.zone.findMany({
             where: { tenantId, code: { not: null } },
-            select: { code: true, keywords: true, name: true }
+            select: { code: true, keywords: true, name: true, isAirport: true }
         });
         
+        // If DB has zones, use them as primary source (no hardcoded defaults)
+        let finalHubs = [];
         if (zonesWithCode.length > 0) {
-            zonesWithCode.forEach(z => {
-                const idx = finalHubs.findIndex(h => h.code === z.code);
-                if (idx === -1) finalHubs.push({ code: z.code, keywords: z.keywords || '', name: z.name });
-                else finalHubs[idx].keywords += `, ${z.keywords || ''}`;
-            });
+            finalHubs = zonesWithCode.map(z => ({
+                code: z.code, keywords: z.keywords || '', name: z.name, isAirport: z.isAirport || false
+            }));
+        } else {
+            finalHubs = [...defaultHubs]; // Fallback only when DB is empty
         }
         
         const tenantInfo = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { settings: true } });
@@ -157,10 +165,11 @@ async function loadTenantHubs(tenantId) {
                 if (!finalHubs.some(fh => fh.code === h.code)) finalHubs.push(h);
             });
         }
+        return finalHubs;
     } catch (e) {
         console.error("Failed to fetch tenant hubs", e);
+        return [...defaultHubs];
     }
-    return finalHubs;
 }
 
 /**
@@ -508,30 +517,9 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
         let tenantDefaultCurrency = 'EUR'; // Fallback
         if (req.tenant?.id) {
             try {
-                const defaultHubs = [
-                    { code: 'AYT', keywords: 'ayt, antalya havalimanı, antalya airport', name: 'Antalya Havalimanı' },
-                    { code: 'GZP', keywords: 'gzp, gazipasa, gazipaşa', name: 'Gazipaşa Havalimanı' },
-                ];
-                hubs = [...defaultHubs];
-
-                const zonesWithCode = await prisma.zone.findMany({
-                    where: { tenantId: req.tenant.id, code: { not: null } },
-                    select: { code: true, keywords: true, name: true }
-                });
-                if (zonesWithCode.length > 0) {
-                    zonesWithCode.forEach(z => {
-                        const idx = hubs.findIndex(h => h.code === z.code);
-                        if (idx === -1) hubs.push({ code: z.code, keywords: z.keywords || '', name: z.name });
-                        else hubs[idx].keywords += `, ${z.keywords || ''}`;
-                    });
-                }
-
+                hubs = await loadTenantHubs(req.tenant.id);
+                
                 const tenantInfo = await prisma.tenant.findUnique({ where: { id: req.tenant.id }, select: { settings: true } });
-                if (hubs.length <= 2 && tenantInfo?.settings?.hubs && Array.isArray(tenantInfo.settings.hubs)) { 
-                    tenantInfo.settings.hubs.forEach(h => {
-                        if (!hubs.some(fh => fh.code === h.code)) hubs.push(h);
-                    });
-                }
                 if (tenantInfo?.settings?.timeDefinitions) {
                     timeDefinitions = tenantInfo.settings.timeDefinitions;
                 }
@@ -555,21 +543,21 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
             const keys = hub.keywords ? hub.keywords.split(',').map(k => k.trim().toLowerCase()).filter(k => k) : [];
             keys.push(hub.code.toLowerCase());
             for (const k of keys) {
-                const isGZP = k.includes('gazipaşa') || k.includes('gazipasa') || k.includes('gzp');
-                const isAYT = k.includes('antalya havalimanı') || k.includes('antalya airport') || k.includes('havalimanı') || k.includes('havalimani') || k.includes('airport') || k === 'ayt';
+                const isAirportHub = hub.isAirport === true;
                 // Always search full address text for all hubs — scoring handles disambiguation
                 const matchInPrimary = pickupPrimaryToken.includes(k);
                 const matchInFull = pickupTextRaw.includes(k);
                 if (matchInPrimary || matchInFull) {
-                    // 'gazipaşa/gazipasa' alone is also a district/street name — require airport context
-                    if ((k === 'gazipaşa' || k === 'gazipasa') &&
-                        !pickupTextRaw.includes('havalimanı') && !pickupTextRaw.includes('havalimani') &&
-                        !pickupTextRaw.includes('airport') && !pickupTextRaw.includes('havaalanı')) {
-                        continue;
+                    // Airport hub keywords (longer than IATA code) require airport context in text
+                    // e.g., 'gazipaşa' is also a district name, 'konya' is also a city name
+                    if (isAirportHub && k.length > 4 && k !== hub.code.toLowerCase()) {
+                        const genericAirportWords = ['havalimanı', 'havalimani', 'havaalanı', 'havaalani', 'airport'];
+                        if (!genericAirportWords.some(aw => pickupTextRaw.includes(aw))) {
+                            continue;
+                        }
                     }
                     let score = 1;
-                    if (isGZP) score = 4;
-                    else if (isAYT) score = 3;
+                    if (isAirportHub) score = 4;
                     // Bonus: keyword found in primary token (first address segment) = stronger match
                     if (matchInPrimary) score += 2;
                     if (k === pickupPrimaryToken) score += 1;
@@ -600,21 +588,20 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
             const keys = hub.keywords ? hub.keywords.split(',').map(k => k.trim().toLowerCase()).filter(k => k) : [];
             keys.push(hub.code.toLowerCase());
             for (const k of keys) {
-                const isGZP = k.includes('gazipaşa') || k.includes('gazipasa') || k.includes('gzp');
-                const isAYT = k.includes('antalya havalimanı') || k.includes('antalya airport') || k.includes('havalimanı') || k.includes('havalimani') || k.includes('airport') || k === 'ayt';
+                const isAirportHub = hub.isAirport === true;
                 // Always search full address text for all hubs — scoring handles disambiguation
                 const matchInPrimary = dropoffPrimaryToken.includes(k);
                 const matchInFull = dropoffTextRaw.includes(k);
                 if (matchInPrimary || matchInFull) {
-                    // 'gazipaşa/gazipasa' alone is also a district/street name — require airport context
-                    if ((k === 'gazipaşa' || k === 'gazipasa') &&
-                        !dropoffTextRaw.includes('havalimanı') && !dropoffTextRaw.includes('havalimani') &&
-                        !dropoffTextRaw.includes('airport') && !dropoffTextRaw.includes('havaalanı')) {
-                        continue;
+                    // Airport hub keywords (longer than IATA code) require airport context in text
+                    if (isAirportHub && k.length > 4 && k !== hub.code.toLowerCase()) {
+                        const genericAirportWords = ['havalimanı', 'havalimani', 'havaalanı', 'havaalani', 'airport'];
+                        if (!genericAirportWords.some(aw => dropoffTextRaw.includes(aw))) {
+                            continue;
+                        }
                     }
                     let score = 1;
-                    if (isGZP) score = 4;
-                    else if (isAYT) score = 3;
+                    if (isAirportHub) score = 4;
                     // Bonus: keyword found in primary token (first address segment) = stronger match
                     if (matchInPrimary) score += 2;
                     if (k === dropoffPrimaryToken) score += 1;
@@ -1437,7 +1424,8 @@ router.post('/book', optionalAuthMiddleware, async (req, res) => {
             const dLng = data.dropoffLng || req.body.dropoffLng || req.body.outbound?.dropoffLng;
             const pickupRegionCode = detectRegionCodeByPolygon(pLat, pLng, pickup, zonesForRegion, hubs);
             const dropoffRegionCode = detectRegionCodeByPolygon(dLat, dLng, dropoff, zonesForRegion, hubs);
-            const tripType = getTripType(pickup, dropoff); // Determine trip type
+            const airportZones = hubs.filter(h => h.isAirport);
+            const tripType = getTripType(pickup, dropoff, airportZones);
 
             return await prisma.booking.create({
                 data: {
@@ -2853,7 +2841,8 @@ router.post('/bookings/admin', authMiddleware, async (req, res) => {
             passengerDetails: Array.isArray(passengerDetails) ? passengerDetails : [],
             extraServices: Array.isArray(extraServices) ? extraServices : [],
             extrasTotal: Number(extrasTotal || 0),
-            vehiclePrice: vehiclePrice != null ? Number(vehiclePrice) : null
+            vehiclePrice: vehiclePrice != null ? Number(vehiclePrice) : null,
+            tripType: getTripType(pickup, dropoff, hubs.filter(h => h.isAirport))
         };
 
         const booking = await prisma.booking.create({

@@ -34,6 +34,7 @@ interface Zone {
   name: string;
   code: string | null;
   keywords: string | null;
+  isAirport: boolean;
   color: string | null;
   polygon: { lat: number; lng: number }[] | null;
   createdAt: string;
@@ -82,6 +83,7 @@ const ZonesPage: React.FC = () => {
       name: zone.name,
       code: zone.code || '',
       keywords: zone.keywords || '',
+      isAirport: zone.isAirport || false,
       color: zone.color || '#3388ff',
     });
     setModalVisible(true);
@@ -122,6 +124,7 @@ const ZonesPage: React.FC = () => {
         name: values.name,
         code: values.code?.trim().toUpperCase() || null,
         keywords: values.keywords?.trim() || null,
+        isAirport: values.isAirport === true,
         color: typeof values.color === 'string' ? values.color : values.color?.toHexString?.() || '#3388ff',
         polygon: currentPolygon.length >= 3 ? currentPolygon : null,
       };
@@ -240,6 +243,20 @@ const ZonesPage: React.FC = () => {
           {code}
         </Tag>
       ) : <span style={{ color: '#cbd5e1', fontSize: 12 }}>—</span>,
+    },
+    {
+      title: 'TİP',
+      dataIndex: 'isAirport',
+      key: 'isAirport',
+      width: 100,
+      render: (isAirport: boolean) => isAirport ? (
+        <Tag style={{
+          borderRadius: 6, fontWeight: 700, fontSize: 11, margin: 0,
+          background: '#dcfce7', color: '#16a34a', border: 'none', padding: '2px 10px',
+        }}>
+          ✈ Havalimanı
+        </Tag>
+      ) : <span style={{ color: '#cbd5e1', fontSize: 12 }}>Bölge</span>,
     },
     {
       title: 'ANAHTAR KELİMELER',
@@ -658,6 +675,12 @@ const ZonesPage: React.FC = () => {
               <Form.Item name="keywords" label={<span style={{ fontWeight: 600, color: '#334155' }}>Arama Anahtar Kelimeleri</span>}
                 tooltip="Müşteri arama çubuğuna bu kelimelerden birini yazarsa bu bölge kalkış noktası olarak algılanır">
                 <Input.TextArea placeholder="Örn: ayt, antalya havalimanı, airport (virgülle ayırın)" rows={2} style={{ borderRadius: 10 }} />
+              </Form.Item>
+
+              <Form.Item name="isAirport" label={<span style={{ fontWeight: 600, color: '#334155' }}>Havalimanı / Hub</span>}
+                tooltip="Bu bölge bir havalimanı veya merkez transfer hub'ı ise işaretleyin. Sistem bu bilgiyi otomatik olarak transfer yönü (DEP/ARV/ARA) tespitinde kullanır."
+                valuePropName="checked">
+                <Switch checkedChildren="Havalimanı" unCheckedChildren="Değil" />
               </Form.Item>
 
               <div style={{

@@ -26,7 +26,7 @@ router.get('/', auth, async (req, res) => {
 router.post('/', auth, async (req, res) => {
     try {
         const tenantId = req.user.tenantId;
-        const { name, code, keywords, color, polygon } = req.body;
+        const { name, code, keywords, color, polygon, isAirport } = req.body;
 
         if (!name) {
             return res.status(400).json({ success: false, error: 'Bölge adı zorunludur' });
@@ -38,6 +38,7 @@ router.post('/', auth, async (req, res) => {
                 name,
                 code: code || null,
                 keywords: keywords || null,
+                isAirport: isAirport === true,
                 color: color || '#3388ff',
                 polygon: polygon || null,
             },
@@ -55,7 +56,7 @@ router.put('/:id', auth, async (req, res) => {
     try {
         const tenantId = req.user.tenantId;
         const { id } = req.params;
-        const { name, code, keywords, color, polygon } = req.body;
+        const { name, code, keywords, color, polygon, isAirport } = req.body;
 
         const existing = await prisma.zone.findFirst({
             where: { id, tenantId }
@@ -71,6 +72,7 @@ router.put('/:id', auth, async (req, res) => {
                 name: name !== undefined ? name : existing.name,
                 code: code !== undefined ? code : existing.code,
                 keywords: keywords !== undefined ? keywords : existing.keywords,
+                isAirport: isAirport !== undefined ? isAirport : existing.isAirport,
                 color: color !== undefined ? color : existing.color,
                 polygon: polygon !== undefined ? polygon : existing.polygon,
             },
