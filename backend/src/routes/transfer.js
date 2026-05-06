@@ -1102,9 +1102,15 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                             );
                         }
 
-                        // EXCEPTION: GZP airport destination should never use Alanya zone pricing
+                        // EXCEPTION: GZP airport destination should not use a broad "Alanya" zone
+                        // UNLESS the zone has an explicit GZP price configured (e.g. Cikcilli Alanya → GZP = 2500 TL)
                         if (isRelevant && originalDropoffHubCode === 'GZP' && zoneName.includes('alanya')) {
-                            isRelevant = false;
+                            const hasExplicitGzpPrice = zonePriceConfig && zonePriceConfig.baseLocation === 'GZP' &&
+                                (Number(zonePriceConfig.fixedPrice) > 0 || Number(zonePriceConfig.price) > 0);
+                            if (!hasExplicitGzpPrice) {
+                                isRelevant = false;
+                                console.log(`[ZoneRelevance] vt=${vt.name}: Zone "${zoneName}" rejected — no explicit GZP price`);
+                            }
                         }
                         if (!isRelevant) {
                             console.log(`[ZoneRelevance] vt=${vt.name}: Zone "${zoneName}" rejected as irrelevant for pickup="${pickupPrimaryToken}" dropoff="${dropoffPrimaryToken}"`);
