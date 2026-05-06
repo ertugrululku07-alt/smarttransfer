@@ -1327,11 +1327,33 @@ const TransfersPage: React.FC = () => {
                   </Space>
               );
           }},
-        ...Array.from({length: 10}, (_, i) => i + 1).map(i => ({
-            ...makeHeader(`customCode${i}`), key:`customCode${i}`, width:colWidths[`customCode${i}` as keyof typeof colWidths] || 100,
-            sorter:(a:Booking,b:Booking)=>(a.customCodes?.[`code${i}`]||'').localeCompare(b.customCodes?.[`code${i}`]||''),
-            render:(_:any,r:Booking)=>renderEditableCell(r, `customCode${i}`, <Text style={{fontSize:11}}>{r.customCodes?.[`code${i}`]||'-'}</Text>, <Input size="small" autoFocus defaultValue={r.customCodes?.[`code${i}`]||''} onBlur={(e) => saveCellEdit(r.id, `customCode${i}`, e.target.value)} onPressEnter={(e) => saveCellEdit(r.id, `customCode${i}`, (e.target as HTMLInputElement).value)} style={{width: 100}} />)
-        })),
+        ...Array.from({length: 10}, (_, i) => i + 1).map(i => {
+            const colKey = `customCode${i}`;
+            return {
+                ...makeHeader(colKey),
+                key: colKey,
+                dataIndex: colKey,
+                width: colWidths[colKey as keyof typeof colWidths] || 100,
+                sorter: (a:Booking, b:Booking) => {
+                    const valA = a.customCodes?.[`code${i}`] || '';
+                    const valB = b.customCodes?.[`code${i}`] || '';
+                    return valA.localeCompare(valB);
+                },
+                render: (_:any, r:Booking) => renderEditableCell(
+                    r,
+                    colKey,
+                    <Text style={{fontSize:11}}>{r.customCodes?.[`code${i}`] || '-'}</Text>,
+                    <Input
+                        size="small"
+                        autoFocus
+                        defaultValue={r.customCodes?.[`code${i}`] || ''}
+                        onBlur={(e) => saveCellEdit(r.id, colKey, e.target.value)}
+                        onPressEnter={(e) => saveCellEdit(r.id, colKey, (e.target as HTMLInputElement).value)}
+                        style={{width: 100}}
+                    />
+                )
+            };
+        }),
         { ...makeHeader('action'), key:'action', width:colWidths.action, fixed: 'left',
           render:(_:any,record:Booking)=>{
               const items: MenuProps['items'] = [
