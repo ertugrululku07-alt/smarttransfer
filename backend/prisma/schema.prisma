@@ -886,6 +886,14 @@ model Booking {
   pickedUpAt   DateTime? // When driver picked up the customer
   droppedOffAt DateTime? // When driver dropped off the customer
 
+  // Booking Type & Creator
+  bookingType    String?  @default("DIRECT") // B2B, DIRECT, SYSTEM
+  bookedByUserId String?  // User ID of whoever created this booking
+  bookedByName   String?  // Display name snapshot of the creator
+
+  // Custom Codes (10 slots)
+  customCodes    Json?    // { code1: '', code2: '', ..., code10: '' }
+
   // Metadata
   metadata  Json?
   createdAt DateTime @default(now())
@@ -896,6 +904,7 @@ model Booking {
   @@index([customerId])
   @@index([pickedUpAt])
   @@index([droppedOffAt])
+  @@index([bookingType])
 }
 
 enum BookingStatus {

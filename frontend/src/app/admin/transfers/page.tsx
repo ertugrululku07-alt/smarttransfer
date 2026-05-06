@@ -111,10 +111,14 @@ const DraggableResizableTitle = (props: any) => {
 
 const DEFAULT_COL_WIDTHS: Record<string, number> = {
     bookingNumber: 110, pickupDateTime: 110, createdAt: 110,
+    bookingType: 80, bookedBy: 120,
     agency: 100, passengerName: 130, pickupLoc: 200, dropoffLoc: 200,
     airportCode: 100, pickupRegionCode: 80, dropoffRegionCode: 80,
     vehicleType: 130, price: 90, status: 120,
-    paymentType: 110, paymentStatus: 100, flightNumber: 90, adults: 90, extraServices: 150, action: 50,
+    paymentType: 110, paymentStatus: 100, flightNumber: 90, adults: 90, extraServices: 150,
+    customCode1: 100, customCode2: 100, customCode3: 100, customCode4: 100, customCode5: 100,
+    customCode6: 100, customCode7: 100, customCode8: 100, customCode9: 100, customCode10: 100,
+    customerNote: 120, internalNotes: 150, action: 50,
 };
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -146,6 +150,10 @@ interface Booking {
     internalNotes?: string;
     pickupRegionCode?: string;
     dropoffRegionCode?: string;
+    bookingType?: string;
+    bookedByName?: string;
+    bookedByUserId?: string;
+    customCodes?: Record<string, string>;
 }
 
 interface ColFilter {
@@ -228,14 +236,19 @@ function getAirportCode(location: string): string | null {
 
 // ─── Column Definitions ──────────────────────────────────────────────────────
 const ALL_COL_KEYS = [
-    'action', 'bookingNumber', 'pickupDateTime', 'createdAt', 'agency',
+    'action', 'bookingNumber', 'pickupDateTime', 'createdAt',
+    'bookingType', 'bookedBy', 'agency',
     'passengerName', 'pickupLoc', 'dropoffLoc', 'airportCode',
     'pickupRegionCode', 'dropoffRegionCode',
     'vehicleType', 'price', 'status', 'paymentType', 'paymentStatus',
-    'flightNumber', 'adults', 'extraServices', 'customerNote', 'internalNotes'
+    'flightNumber', 'adults', 'extraServices',
+    'customCode1', 'customCode2', 'customCode3', 'customCode4', 'customCode5',
+    'customCode6', 'customCode7', 'customCode8', 'customCode9', 'customCode10',
+    'customerNote', 'internalNotes'
 ];
 const DEFAULT_VISIBLE_COLS = [
-    'action', 'bookingNumber', 'pickupDateTime', 'createdAt', 'agency',
+    'action', 'bookingNumber', 'pickupDateTime', 'createdAt',
+    'bookingType', 'bookedBy', 'agency',
     'passengerName', 'pickupLoc', 'dropoffLoc', 'airportCode',
     'pickupRegionCode', 'dropoffRegionCode',
     'vehicleType', 'price', 'status', 'customerNote', 'internalNotes', 'extraServices'
@@ -244,6 +257,8 @@ const DEFAULT_COL_TITLES: Record<string, string> = {
     bookingNumber:  'No',
     pickupDateTime: 'Transfer Zamanı',
     createdAt:      'Kayıt Tarihi',
+    bookingType:    'Tip',
+    bookedBy:       'Rez. Yapan',
     agency:         'Acente',
     passengerName:  'Yolcu',
     pickupLoc:      'Alış Yeri',
@@ -259,6 +274,16 @@ const DEFAULT_COL_TITLES: Record<string, string> = {
     flightNumber:   'Uçuş No',
     adults:         'Yolcu Sayısı',
     extraServices:  'Ekstra Hizmet',
+    customCode1:    'Özel Kod 1',
+    customCode2:    'Özel Kod 2',
+    customCode3:    'Özel Kod 3',
+    customCode4:    'Özel Kod 4',
+    customCode5:    'Özel Kod 5',
+    customCode6:    'Özel Kod 6',
+    customCode7:    'Özel Kod 7',
+    customCode8:    'Özel Kod 8',
+    customCode9:    'Özel Kod 9',
+    customCode10:   'Özel Kod 10',
     customerNote:   'Müşteri Notu',
     internalNotes:  'Op. Notu',
     action:         'İşlem',
@@ -534,8 +559,12 @@ const TransfersPage: React.FC = () => {
             else if (field === 'price') payload.price = value;
             else if (field === 'internalNotes') payload.internalNotes = value;
             else if (field === 'status') payload.status = value;
+            else if (field.startsWith('customCode')) {
+                const codeKey = field.replace('customCode', 'code');
+                payload.customCodes = { [codeKey]: value };
+            }
             await apiClient.patch(`/api/transfer/bookings/${bookingId}`, payload);
-            
+
             setBookings(prev => prev.map((b: any) => {
                 if (b.id !== bookingId) return b;
                 const updated: any = { ...b };
@@ -550,6 +579,11 @@ const TransfersPage: React.FC = () => {
                 else if (field === 'price') { updated.price = Number(value); updated.total = Number(value); }
                 else if (field === 'internalNotes') updated.internalNotes = value;
                 else if (field === 'status') updated.status = value;
+                else if (field.startsWith('customCode')) {
+                    const codeKey = field.replace('customCode', 'code');
+                    if (!updated.customCodes) updated.customCodes = {};
+                    updated.customCodes[codeKey] = value;
+                }
                 return updated;
             }));
             message.success('Güncellendi');
@@ -1166,9 +1200,15 @@ const TransfersPage: React.FC = () => {
         { ...makeHeader('createdAt'), dataIndex:'createdAt', key:'createdAt', width:colWidths.createdAt,
           sorter:(a:Booking,b:Booking)=>dayjs(a.createdAt).unix()-dayjs(b.createdAt).unix(),
           render:(d:string)=><Space orientation="vertical" size={0}><Text style={{fontSize:12}}>{dayjs(d).format('DD.MM.YYYY')}</Text><Text type="secondary" style={{fontSize:11}}>{dayjs(d).format('HH:mm')}</Text></Space>},
+        { ...makeHeader('bookingType'), key:'bookingType', width:colWidths.bookingType,
+          sorter:(a:Booking,b:Booking)=>(a.bookingType||'').localeCompare(b.bookingType||''),
+          render:(type:string)=>{const labels:Record<string,string>={B2B:'B2B',DIRECT:'Direk',SYSTEM:'Sistem'};return type ? <Tag color={type==='B2B'?'blue':type==='SYSTEM'?'purple':'green'} style={{fontSize:11,fontWeight:600}}>{labels[type]||type}</Tag> : <Text type="secondary" style={{fontSize:11}}>-</Text>;}},
+        { ...makeHeader('bookedBy'), key:'bookedBy', width:colWidths.bookedBy,
+          sorter:(a:Booking,b:Booking)=>(a.bookedByName||'').localeCompare(b.bookedByName||''),
+          render:(_:any,r:Booking)=><Text style={{fontSize:12}}>{r.bookedByName||'-'}</Text>},
         { ...makeHeader('agency'), key:'agency', width:colWidths.agency,
-          sorter:(a:Booking,b:Booking)=>{const na=a.agencyName||a.agency?.name||((a as any).customerId?'Müşteri':'Direkt');const nb=b.agencyName||b.agency?.name||((b as any).customerId?'Müşteri':'Direkt');return na.localeCompare(nb);},
-          render:(_:any,r:any)=>{const n=r.agencyName||r.agency?.name||r.metadata?.agencyName||(r.customerId?'Müşteri':'Direkt');return <Text strong style={{fontSize:12}}>{n}</Text>;}},
+          sorter:(a:Booking,b:Booking)=>(a.agencyName||a.agency?.name||'').localeCompare(b.agencyName||b.agency?.name||''),
+          render:(_:any,r:any)=>{const n=r.agencyName||r.agency?.name||r.metadata?.agencyName;return n ? <Text strong style={{fontSize:12}}>{n}</Text> : <Text type="secondary" style={{fontSize:11}}>-</Text>;}},
         { ...makeHeader('passengerName'), dataIndex:'passengerName', key:'passengerName', width:colWidths.passengerName,
           sorter:(a:Booking,b:Booking)=>a.passengerName.localeCompare(b.passengerName),
           render:(text:string,r:Booking)=><Space orientation="vertical" size={0}>{renderEditableCell(r, 'contactName', <Text strong style={{fontSize:12}}>{text}</Text>)}{renderEditableCell(r, 'contactPhone', <Text type="secondary" style={{fontSize:11}}>{r.passengerPhone}</Text>)}</Space>},
@@ -1285,6 +1325,11 @@ const TransfersPage: React.FC = () => {
                   </Space>
               );
           }},
+        ...Array.from({length: 10}, (_, i) => i + 1).map(i => ({
+            ...makeHeader(`customCode${i}`), key:`customCode${i}`, width:colWidths[`customCode${i}` as keyof typeof colWidths] || 100,
+            sorter:(a:Booking,b:Booking)=>(a.customCodes?.[`code${i}`]||'').localeCompare(b.customCodes?.[`code${i}`]||''),
+            render:(_:any,r:Booking)=>renderEditableCell(r, `customCode${i}`, <Text style={{fontSize:11}}>{r.customCodes?.[`code${i}`]||'-'}</Text>, <Input size="small" autoFocus defaultValue={r.customCodes?.[`code${i}`]||''} onBlur={(e) => saveCellEdit(r.id, `customCode${i}`, e.target.value)} onPressEnter={(e) => saveCellEdit(r.id, `customCode${i}`, (e.target as HTMLInputElement).value)} style={{width: 100}} />)
+        })),
         { ...makeHeader('action'), key:'action', width:colWidths.action, fixed: 'left',
           render:(_:any,record:Booking)=>{
               const items: MenuProps['items'] = [

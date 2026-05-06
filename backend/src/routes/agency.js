@@ -380,6 +380,12 @@ router.post('/bookings', authMiddleware, agencyMiddleware, async (req, res) => {
                     paymentStatus: paymentMethod === 'BALANCE' ? 'PAID' : 'PENDING',
                     confirmationType: 'INSTANT',
                     specialRequests: customerNote || undefined,
+
+                    // Booking Type & Creator
+                    bookingType: 'B2B',
+                    bookedByUserId: req.user.id,
+                    bookedByName: req.user.name || req.user.email || 'Acenta',
+
                     metadata
                 }
             });

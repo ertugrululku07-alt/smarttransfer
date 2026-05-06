@@ -1621,6 +1621,11 @@ router.post('/book', optionalAuthMiddleware, async (req, res) => {
 
                     specialRequests: notes,
 
+                    // Booking Type & Creator
+                    bookingType: 'DIRECT',
+                    bookedByUserId: userId || null,
+                    bookedByName: customerInfo.fullName || null,
+
                     // Store Transfer Specifics in Metadata
                     metadata: {
                         vehicleType,
@@ -2108,6 +2113,12 @@ router.get('/bookings', authMiddleware, async (req, res) => {
             customerId: b.customerId || null,
             agencyName: b.agency?.name || b.agency?.companyName || b.customer?.agency?.name || b.customer?.agency?.companyName || b.metadata?.agencyName || null,
             agencyId: b.agencyId || b.customer?.agency?.id || null,
+            // Booking Type & Creator
+            bookingType: b.bookingType || (b.agencyId ? 'B2B' : (b.metadata?.creationSource === 'ADMIN_MANUAL' ? 'SYSTEM' : 'DIRECT')),
+            bookedByUserId: b.bookedByUserId || null,
+            bookedByName: b.bookedByName || null,
+            // Custom Codes
+            customCodes: b.customCodes || {},
             // Fatura alanları
             wantsInvoice: b.metadata?.wantsInvoice || false,
             billingDetails: b.metadata?.billingDetails || null,
@@ -2630,7 +2641,9 @@ router.patch('/bookings/:id', authMiddleware, async (req, res) => {
                 // Passenger details:
                 passengerDetails,
                 // Pool run fields:
-                poolRunKey, poolRunName, poolDepartureTime } = req.body;
+                poolRunKey, poolRunName, poolDepartureTime,
+                // Custom codes:
+                customCodes } = req.body;
         console.log(`[PATCH booking] id=${id} driverId=${driverId} assignedVehicleId=${assignedVehicleId}`);
 
         // Auto-find vehicle assigned to this driver if not explicitly provided
@@ -2831,6 +2844,7 @@ router.patch('/bookings/:id', authMiddleware, async (req, res) => {
         if (infants !== undefined) updateData.infants = Number(infants);
         if (price !== undefined) { updateData.total = Number(price); updateData.subtotal = Number(price); }
         if (newStatus !== undefined) updateData.status = newStatus;
+        if (customCodes !== undefined) updateData.customCodes = customCodes;
         if (returnToReservation) {
             updateData.status = 'PENDING';
             updateData.driverId = null;
@@ -3028,6 +3042,12 @@ router.post('/bookings/admin', authMiddleware, async (req, res) => {
                 children: Number(children || 0),
                 infants: Number(infants || 0),
                 specialRequests: notes || '',
+
+                // Booking Type & Creator
+                bookingType: 'SYSTEM',
+                bookedByUserId: req.user?.id || null,
+                bookedByName: req.user?.name || req.user?.email || 'Sistem',
+
                 metadata: metadata,
             }
         });
