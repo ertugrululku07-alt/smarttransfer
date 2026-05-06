@@ -55,12 +55,11 @@ const getTripType = (pickup, dropoff) => {
     
     const airportKeywords = [
         'havalimanı', 'havalimani', 'havaalanı', 'havaalani',
-        'airport', 'havalimanı', 'esenboğa', 'esenboga',
-        'antalya havalimanı', 'gazipaşa', 'gazipasa',
+        'airport', 'esenboğa', 'esenboga',
     ];
     
     // Also check for standalone IATA codes (must be word-boundary to avoid false positives like "ayt" in "aytar")
-    const iataPattern = /\b(ayt|gzp|ist|saw|esb|adl|bjv|dlm)\b/i;
+    const iataPattern = /\b(ayt|gzp|ist|saw|esb|adb|bjv|dlm)\b/i;
     
     const isPickupAirport = airportKeywords.some(kw => pickupStr.includes(kw)) || iataPattern.test(pickupStr);
     const isDropoffAirport = airportKeywords.some(kw => dropoffStr.includes(kw)) || iataPattern.test(dropoffStr);
@@ -1732,7 +1731,7 @@ router.post('/shuttle-runs/optimize-route', authMiddleware, async (req, res) => 
         function detectAirport(text) {
             const t = trLower(text);
             if (t.includes('antalya') && (t.includes('havaliman') || t.includes('airport'))) return 'AYT';
-            if (t.includes('gazipaşa') || t.includes('gazipasa')) return 'GZP';
+            if ((t.includes('gazipaşa') || t.includes('gazipasa')) && (t.includes('havaliman') || t.includes('airport'))) return 'GZP';
             if (/\bayt\b/i.test(text)) return 'AYT';
             if (/\bgzp\b/i.test(text)) return 'GZP';
             return null;

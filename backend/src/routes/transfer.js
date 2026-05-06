@@ -561,6 +561,12 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                 const matchInPrimary = pickupPrimaryToken.includes(k);
                 const matchInFull = pickupTextRaw.includes(k);
                 if (matchInPrimary || matchInFull) {
+                    // 'gazipaşa/gazipasa' alone is also a district/street name — require airport context
+                    if ((k === 'gazipaşa' || k === 'gazipasa') &&
+                        !pickupTextRaw.includes('havalimanı') && !pickupTextRaw.includes('havalimani') &&
+                        !pickupTextRaw.includes('airport') && !pickupTextRaw.includes('havaalanı')) {
+                        continue;
+                    }
                     let score = 1;
                     if (isGZP) score = 4;
                     else if (isAYT) score = 3;
@@ -600,6 +606,12 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                 const matchInPrimary = dropoffPrimaryToken.includes(k);
                 const matchInFull = dropoffTextRaw.includes(k);
                 if (matchInPrimary || matchInFull) {
+                    // 'gazipaşa/gazipasa' alone is also a district/street name — require airport context
+                    if ((k === 'gazipaşa' || k === 'gazipasa') &&
+                        !dropoffTextRaw.includes('havalimanı') && !dropoffTextRaw.includes('havalimani') &&
+                        !dropoffTextRaw.includes('airport') && !dropoffTextRaw.includes('havaalanı')) {
+                        continue;
+                    }
                     let score = 1;
                     if (isGZP) score = 4;
                     else if (isAYT) score = 3;

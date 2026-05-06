@@ -56,6 +56,12 @@ function detectRegionCode(locationText, hubs) {
         for (const k of keys) {
             const pos = text.indexOf(k);
             if (pos !== -1) {
+                // 'gazipaşa/gazipasa' alone is also a district/street name — require airport context
+                if ((k === 'gazipaşa' || k === 'gazipasa') &&
+                    !text.includes('havalimanı') && !text.includes('havalimani') &&
+                    !text.includes('airport') && !text.includes('havaalanı')) {
+                    continue;
+                }
                 if (pos < bestPosition || (pos === bestPosition && k.length > bestLength)) {
                     bestCode = hub.code;
                     bestPosition = pos;
