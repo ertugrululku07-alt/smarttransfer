@@ -5,6 +5,7 @@ const bcrypt = require('bcryptjs');
 
 const router = express.Router();
 const prisma = require('../lib/prisma');
+const { detectRegionCodeByPolygon } = require('../utils/zoneDetection');
 
 // Helper: Load tenant hubs for region code detection
 async function loadTenantHubs(tenantId) {
@@ -332,10 +333,22 @@ router.post('/bookings', authMiddleware, agencyMiddleware, async (req, res) => {
         if (req.body.vehicleId) metadata.vehicleId = req.body.vehicleId;
         if (req.body.vehicleType) metadata.vehicleType = req.body.vehicleType;
 
-        // Detect region codes from hub keywords
+        // Detect region codes using polygon-based detection (with keyword fallback)
         const hubs = await loadTenantHubs(req.tenant.id);
-        metadata.pickupRegionCode = detectRegionCode(pickupText, hubs);
-        metadata.dropoffRegionCode = detectRegionCode(dropoffText, hubs);
+        const zonesForRegion = await prisma.zone.findMany({
+            where: { tenantId: req.tenant.id, code: { not: null } },
+            select: { id: true, code: true, name: true, keywords: true, polygon: true }
+        });
+        const pLat = extraMetadata?.pickupLat || req.body.pickupLat;
+        const pLng = extraMetadata?.pickupLng || req.body.pickupLng;
+        const dLat = extraMetadata?.dropoffLat || req.body.dropoffLat;
+        const dLng = extraMetadata?.dropoffLng || req.body.dropoffLng;
+        metadata.pickupRegionCode = detectRegionCodeByPolygon(pLat, pLng, pickupText, zonesForRegion, hubs);
+        metadata.dropoffRegionCode = detectRegionCodeByPolygon(dLat, dLng, dropoffText, zonesForRegion, hubs);
+        if (pLat) metadata.pickupLat = Number(pLat);
+        if (pLng) metadata.pickupLng = Number(pLng);
+        if (dLat) metadata.dropoffLat = Number(dLat);
+        if (dLng) metadata.dropoffLng = Number(dLng);
 
         // Use transaction to create booking and deduct balance safely
         const booking = await prisma.$transaction(async (tx) => {
@@ -598,10 +611,22 @@ router.post('/bookings/bulk', authMiddleware, agencyMiddleware, async (req, res)
             if (t.vehicleId) metadata.vehicleId = t.vehicleId;
             if (t.vehicleType) metadata.vehicleType = t.vehicleType;
 
-            // Detect region codes (best-effort) so operations table can show pickup/dropoff region
+            // Detect region codes using polygon-based detection (with keyword fallback)
             const hubs = await loadTenantHubs(req.tenant.id);
-            metadata.pickupRegionCode = detectRegionCode(metadata.pickup || '', hubs);
-            metadata.dropoffRegionCode = detectRegionCode(metadata.dropoff || '', hubs);
+            const zonesForRegionBulk = await prisma.zone.findMany({
+                where: { tenantId: req.tenant.id, code: { not: null } },
+                select: { id: true, code: true, name: true, keywords: true, polygon: true }
+            });
+            const bpLat = t.pickupLat || null;
+            const bpLng = t.pickupLng || null;
+            const bdLat = t.dropoffLat || null;
+            const bdLng = t.dropoffLng || null;
+            metadata.pickupRegionCode = detectRegionCodeByPolygon(bpLat, bpLng, metadata.pickup || '', zonesForRegionBulk, hubs);
+            metadata.dropoffRegionCode = detectRegionCodeByPolygon(bdLat, bdLng, metadata.dropoff || '', zonesForRegionBulk, hubs);
+            if (bpLat) metadata.pickupLat = Number(bpLat);
+            if (bpLng) metadata.pickupLng = Number(bpLng);
+            if (bdLat) metadata.dropoffLat = Number(bdLat);
+            if (bdLng) metadata.dropoffLng = Number(bdLng);
 
             await prisma.booking.create({
                 data: {

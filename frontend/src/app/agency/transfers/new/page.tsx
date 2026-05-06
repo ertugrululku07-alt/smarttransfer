@@ -253,7 +253,9 @@ const AgencyNewTransferPage = () => {
                 distance,
                 encodedPolyline,
                 pickupLat: pickupLocation?.lat,
-                pickupLng: pickupLocation?.lng
+                pickupLng: pickupLocation?.lng,
+                dropoffLat: dropoffLocation?.lat,
+                dropoffLng: dropoffLocation?.lng
             };
 
             const res = await apiClient.post('/api/transfer/search', payload);
@@ -366,6 +368,10 @@ const AgencyNewTransferPage = () => {
                 type: 'TRANSFER',
                 pickup,
                 dropoff,
+                pickupLat: pickupLocation?.lat,
+                pickupLng: pickupLocation?.lng,
+                dropoffLat: dropoffLocation?.lat,
+                dropoffLng: dropoffLocation?.lng,
                 startDate: startDateWithTime ? startDateWithTime.toISOString() : undefined,
                 vehicleId: selectedVehicle.id,
                 vehicleType: selectedVehicle.vehicleType,
@@ -377,6 +383,10 @@ const AgencyNewTransferPage = () => {
                 metadata: {
                     pickup,
                     dropoff,
+                    pickupLat: pickupLocation?.lat,
+                    pickupLng: pickupLocation?.lng,
+                    dropoffLat: dropoffLocation?.lat,
+                    dropoffLng: dropoffLocation?.lng,
                     vehicleType: selectedVehicle.vehicleType,
                     contactNationality: values.contactNationality,
                     flightNumber: values.flightNumber,
