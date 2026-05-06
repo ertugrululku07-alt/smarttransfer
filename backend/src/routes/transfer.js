@@ -1009,6 +1009,12 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                         }
 
                         if (candidateConfig) {
+                            // Skip empty zone price records (fixedPrice=0 AND price=0 means not configured)
+                            const cfgFixP = Number(candidateConfig.fixedPrice) || 0;
+                            const cfgPriceP = Number(candidateConfig.price) || 0;
+                            if (cfgFixP <= 0 && cfgPriceP <= 0) {
+                                continue; // Not a real price — skip to next zone
+                            }
                             // Correct overage calculation based on which end is the HUB for THIS specific pricing configuration
                             let zoneOverage = zoneData.overage; 
                             
@@ -1063,7 +1069,9 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                         let isRelevant = false;
 
                         // RULE 1: If the zone code matches a detected hub, always relevant
-                        if (zoneCode && (zoneCode === originalPickupHubCode || zoneCode === originalDropoffHubCode)) {
+                        const pickupHubLower = (originalPickupHubCode || '').toLowerCase();
+                        const dropoffHubLower = (originalDropoffHubCode || '').toLowerCase();
+                        if (zoneCode && (zoneCode === pickupHubLower || zoneCode === dropoffHubLower)) {
                             isRelevant = true;
                         }
 
@@ -1127,31 +1135,37 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                 if (zonePriceConfig) {
                     const extraKmRate = Number(zonePriceConfig.extraKmPrice) || 0;
                     
-                    // CRITICAL: If destination is outside polygon (overage > 0) but no extraKmPrice is set,
-                    // check for distance-based fallback. If none, use base zone price without overage fee.
+                    // If destination is outside polygon (overage > 0) but no extraKmPrice is set,
+                    // use the zone's fixedPrice/price directly (without overage fee).
+                    // Only fall to km-based if zone has no valid price.
                     if (usedOverageDistanceKm > 0.5 && extraKmRate === 0) {
-                        console.log(`[PriceDecision] vt=${vt.name}: OUTSIDE polygon (${usedOverageDistanceKm.toFixed(1)}km overage) but no extraKmPrice set → checking distance-based fallback`);
-                        // Check if this vehicle type has distance-based pricing as fallback
-                        const meta = agencyContractMeta[vt.id];
-                        const openingFee = meta?.openingFee ?? vt.metadata?.openingFee;
-                        const pricePerKmField = meta?.basePricePerKm ?? vt.metadata?.basePricePerKm;
-                        const hasDistanceFallback = (openingFee != null && Number(openingFee) > 0) ||
-                                                     (pricePerKmField != null && Number(pricePerKmField) > 0);
-                        if (hasDistanceFallback) {
-                            // Use distance-based pricing instead of zone pricing
-                            const basePrice = openingFee ? Number(openingFee) : 0;
-                            const pricePerKm = pricePerKmField ? Number(pricePerKmField) : 0;
-                            const dist = distance ? Number(distance) : 50;
-                            calculatedPrice = Math.round((basePrice + (dist * pricePerKm)) * typeMult);
-                            calculationMethod = 'DISTANCE_BASE';
-                            console.log(`[PriceDecision] vt=${vt.name}: Distance fallback: ${calculatedPrice} (${basePrice} + ${dist}km × ${pricePerKm})`);
-                        } else {
-                            // Revert to using the zone price but with 0 extra fee
+                        const fixP = Number(zonePriceConfig.fixedPrice) || 0;
+                        const adultP = Number(zonePriceConfig.price) || 0;
+                        if (fixP > 0 || adultP > 0) {
+                            // Zone has a defined price → use it without overage fee
                             calculationMethod = 'ZONE_POLYGON';
-                            const fixP = Number(zonePriceConfig.fixedPrice) || 0;
-                            let baseRouteCost = fixP > 0 ? fixP : (Number(zonePriceConfig.price) || 0) * (Number(passengers) || 1);
+                            let baseRouteCost = fixP > 0 ? fixP : adultP * (Number(passengers) || 1);
                             calculatedPrice = Math.round(baseRouteCost * typeMult);
-                            console.log(`[PriceDecision] vt=${vt.name}: No fallback, just using base zone price (no overage fee)`);
+                            console.log(`[PriceDecision] vt=${vt.name}: Zone price used (no extraKm, overage=${usedOverageDistanceKm.toFixed(1)}km ignored): ${calculatedPrice}`);
+                        } else {
+                            // Zone price is 0 — fall to distance-based
+                            const meta = agencyContractMeta[vt.id];
+                            const openingFee = meta?.openingFee ?? vt.metadata?.openingFee;
+                            const pricePerKmField = meta?.basePricePerKm ?? vt.metadata?.basePricePerKm;
+                            const hasDistanceFallback = (openingFee != null && Number(openingFee) > 0) ||
+                                                         (pricePerKmField != null && Number(pricePerKmField) > 0);
+                            if (hasDistanceFallback) {
+                                const basePrice = openingFee ? Number(openingFee) : 0;
+                                const pricePerKm = pricePerKmField ? Number(pricePerKmField) : 0;
+                                const dist = distance ? Number(distance) : 50;
+                                calculatedPrice = Math.round((basePrice + (dist * pricePerKm)) * typeMult);
+                                calculationMethod = 'DISTANCE_BASE';
+                                console.log(`[PriceDecision] vt=${vt.name}: Distance fallback: ${calculatedPrice} (${basePrice} + ${dist}km × ${pricePerKm})`);
+                            } else {
+                                calculationMethod = 'ZONE_POLYGON';
+                                calculatedPrice = 0;
+                                console.log(`[PriceDecision] vt=${vt.name}: No valid price and no fallback`);
+                            }
                         }
                     } else {
                         calculationMethod = 'ZONE_POLYGON';
