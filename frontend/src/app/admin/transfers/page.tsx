@@ -251,7 +251,9 @@ const DEFAULT_VISIBLE_COLS = [
     'bookingType', 'bookedBy', 'agency',
     'passengerName', 'pickupLoc', 'dropoffLoc', 'airportCode',
     'pickupRegionCode', 'dropoffRegionCode',
-    'vehicleType', 'price', 'status', 'customerNote', 'internalNotes', 'extraServices'
+    'vehicleType', 'price', 'status', 'customerNote', 'internalNotes', 'extraServices',
+    'customCode1', 'customCode2', 'customCode3', 'customCode4', 'customCode5',
+    'customCode6', 'customCode7', 'customCode8', 'customCode9', 'customCode10'
 ];
 const DEFAULT_COL_TITLES: Record<string, string> = {
     bookingNumber:  'No',
