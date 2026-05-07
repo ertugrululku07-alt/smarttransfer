@@ -1622,9 +1622,11 @@ router.post('/book', optionalAuthMiddleware, async (req, res) => {
                     specialRequests: notes,
 
                     // Booking Type & Creator
-                    bookingType: 'DIRECT',
+                    bookingType: (req.user?.role === 'ADMIN' || req.user?.role === 'SUPER_ADMIN' || req.user?.role === 'STAFF') ? 'SYSTEM' : 'DIRECT',
                     bookedByUserId: userId || null,
-                    bookedByName: customerInfo.fullName || null,
+                    bookedByName: (req.user?.role === 'ADMIN' || req.user?.role === 'SUPER_ADMIN' || req.user?.role === 'STAFF')
+                        ? ([req.user?.firstName, req.user?.lastName].filter(Boolean).join(' ') || req.user?.email || null)
+                        : null,
 
                     // Store Transfer Specifics in Metadata
                     metadata: {
