@@ -92,6 +92,23 @@ async function sendViaGreenApi(settings, phone, message) {
         throw new Error('Green API ayarları eksik (Instance ID / Token)');
     }
 
+    // 1) Check instance state first
+    try {
+        const stateRes = await axios.get(
+            `https://api.green-api.com/waInstance${greenApiInstance}/getStateInstance/${greenApiToken}`,
+            { timeout: 10000 }
+        );
+        const state = stateRes.data?.stateInstance;
+        if (state && state !== 'authorized') {
+            throw new Error(`Green API instance yetkili değil (durum: ${state}). Lütfen Green API panelinden QR kod ile WhatsApp bağlantısını kurun.`);
+        }
+    } catch (stateErr) {
+        // If state check itself fails with a real error (not just network), rethrow
+        if (stateErr.message.includes('yetkili değil')) throw stateErr;
+        // Network issues - proceed and let send attempt reveal the problem
+    }
+
+    // 2) Send message
     const chatId = `${phone}@c.us`;
     const res = await axios.post(
         `https://api.green-api.com/waInstance${greenApiInstance}/sendMessage/${greenApiToken}`,
@@ -99,7 +116,13 @@ async function sendViaGreenApi(settings, phone, message) {
         { timeout: 15000 }
     );
 
-    return { success: true, messageId: res.data?.idMessage };
+    const idMessage = res.data?.idMessage;
+    // Green API returns error codes as idMessage on some failures
+    if (!idMessage || idMessage === 'BAD_REQUEST' || idMessage === 'ERROR') {
+        throw new Error(`Green API mesaj gönderilemedi: ${JSON.stringify(res.data)}`);
+    }
+
+    return { success: true, messageId: idMessage };
 }
 
 /**
