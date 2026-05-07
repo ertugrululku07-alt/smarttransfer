@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
     Table, Tag, Button, Typography, message, Input, Card, Select, Modal,
-    Badge, Tooltip, Timeline, Space, DatePicker
+    Badge, Tooltip, Timeline, Space, DatePicker, Collapse
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import {
@@ -123,6 +123,30 @@ export default function AirportGreetingStandalonePage() {
             b.vehiclePlate?.toLowerCase().includes(q)
         );
     }, [arrivals, searchText]);
+
+    /* ── Separate private vs shuttle ── */
+    const isShuttle = (b: any) => {
+        const vt = (b.vehicleType || '').toLowerCase();
+        return vt.includes('shuttle') || vt.includes('paylaşımlı') || vt.includes('paylasimli') || !!b.shuttleRouteId;
+    };
+
+    const privateArrivals = useMemo(() => filtered.filter(b => !isShuttle(b)), [filtered]);
+
+    const shuttleRunGroups = useMemo(() => {
+        const shuttles = filtered.filter(b => isShuttle(b));
+        const groups: Record<string, { key: string; time: string; flight: string; pax: number; bookings: any[] }> = {};
+        shuttles.forEach(b => {
+            const runKey = b.manualRunId || b.shuttleRouteId || b.shuttleMasterTime || b.flightNumber || 'unknown';
+            const time = b.shuttleMasterTime || (b.pickupDateTime ? dayjs(b.pickupDateTime).format('HH:mm') : '--:--');
+            if (!groups[runKey]) {
+                groups[runKey] = { key: runKey, time, flight: b.flightNumber || '', pax: 0, bookings: [] };
+            }
+            groups[runKey].bookings.push(b);
+            groups[runKey].pax += (b.adults || 1) + (b.children || 0) + (b.infants || 0);
+            if (!groups[runKey].flight && b.flightNumber) groups[runKey].flight = b.flightNumber;
+        });
+        return Object.values(groups).sort((a, b) => a.time.localeCompare(b.time));
+    }, [filtered]);
 
     /* ── Stats ── */
     const stats = useMemo(() => {
@@ -629,7 +653,150 @@ export default function AirportGreetingStandalonePage() {
                     })}
                 </div>
 
-                {/* ═══ TABLE ═══ */}
+                {/* ═══ SHUTTLE RUNS (Compact Accordion) ═══ */}
+                {shuttleRunGroups.length > 0 && (
+                    <div style={{ marginBottom: 16 }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: '#0369a1', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <TeamOutlined /> Shuttle Seferleri
+                            <Tag color="blue" style={{ fontSize: 10, borderRadius: 10 }}>
+                                {shuttleRunGroups.reduce((s, g) => s + g.bookings.length, 0)} müşteri · {shuttleRunGroups.length} sefer
+                            </Tag>
+                        </div>
+                        <Collapse
+                            size="small"
+                            defaultActiveKey={shuttleRunGroups.map(g => g.key)}
+                            style={{ background: '#f0f9ff', borderRadius: 10, border: '1px solid #bae6fd' }}
+                            items={shuttleRunGroups.map(group => {
+                                const allFlights = [...new Set(group.bookings.map((b: any) => b.flightNumber).filter(Boolean))];
+                                const statuses = group.bookings.map((b: any) => b.greetingStatus);
+                                const allDone = statuses.every((s: string) => ['HANDED_OFF', 'NO_SHOW', 'CANCELLED'].includes(s));
+                                const someMet = statuses.some((s: string) => s === 'MET');
+
+                                return {
+                                    key: group.key,
+                                    style: { marginBottom: 4, borderRadius: 8, overflow: 'hidden' },
+                                    label: (
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                                            <div style={{
+                                                fontWeight: 800, fontSize: 16, color: '#0369a1', fontFamily: 'monospace',
+                                                background: '#e0f2fe', padding: '2px 10px', borderRadius: 6, minWidth: 56, textAlign: 'center',
+                                            }}>
+                                                {group.time}
+                                            </div>
+                                            {allFlights.map(f => (
+                                                <Tag key={f} color="cyan" style={{ fontWeight: 700, fontSize: 11, fontFamily: 'monospace', margin: 0 }}>
+                                                    ✈ {f}
+                                                </Tag>
+                                            ))}
+                                            <Badge
+                                                count={`${group.bookings.length} müşteri`}
+                                                style={{ backgroundColor: allDone ? '#86efac' : someMet ? '#c4b5fd' : '#fbbf24', color: allDone ? '#166534' : someMet ? '#5b21b6' : '#92400e', fontWeight: 700, fontSize: 10 }}
+                                            />
+                                            <Badge
+                                                count={`${group.pax} pax`}
+                                                style={{ backgroundColor: '#e0e7ff', color: '#4338ca', fontWeight: 700, fontSize: 10 }}
+                                            />
+                                        </div>
+                                    ),
+                                    children: (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '4px 0' }}>
+                                            {group.bookings.map((b: any, idx: number) => {
+                                                const gs = GREETING_STATUS[b.greetingStatus] || GREETING_STATUS.WAITING;
+                                                const nextStatus = NEXT_STATUS[b.greetingStatus];
+                                                const nextInfo = nextStatus ? GREETING_STATUS[nextStatus] : null;
+                                                const isFinished = ['HANDED_OFF', 'NO_SHOW', 'CANCELLED'].includes(b.greetingStatus);
+                                                const pax = (b.adults || 1) + (b.children || 0) + (b.infants || 0);
+
+                                                return (
+                                                    <div key={b.id} style={{
+                                                        display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
+                                                        padding: '8px 12px', borderRadius: 8, background: '#fff',
+                                                        border: `1px solid ${isFinished ? '#e2e8f0' : gs.border}`,
+                                                        opacity: isFinished ? 0.65 : 1,
+                                                    }}>
+                                                        {/* # */}
+                                                        <div style={{ fontWeight: 800, fontSize: 13, color: '#94a3b8', width: 20, textAlign: 'center' }}>{idx + 1}</div>
+
+                                                        {/* Customer */}
+                                                        <div style={{ minWidth: 140, flex: 1 }}>
+                                                            <div style={{ fontWeight: 700, fontSize: 12, color: '#1e293b' }}>{b.passengerName}</div>
+                                                            {b.passengerPhone && (
+                                                                <a href={`tel:${b.passengerPhone}`} style={{ fontSize: 10, color: '#3b82f6', textDecoration: 'none' }}>
+                                                                    <PhoneOutlined style={{ fontSize: 8, marginRight: 2 }} />{b.passengerPhone}
+                                                                </a>
+                                                            )}
+                                                            <div style={{ fontSize: 9, color: '#cbd5e1', fontFamily: 'monospace' }}>{b.bookingNumber}</div>
+                                                        </div>
+
+                                                        {/* Flight */}
+                                                        <div style={{ minWidth: 55, textAlign: 'center' }}>
+                                                            <div style={{ fontWeight: 700, fontSize: 11, fontFamily: 'monospace', color: '#0ea5e9' }}>{b.flightNumber || '-'}</div>
+                                                            <div style={{ fontSize: 9, color: '#94a3b8' }}>{b.flightTime || ''}</div>
+                                                        </div>
+
+                                                        {/* Dropoff */}
+                                                        <div style={{ minWidth: 130, flex: 1 }}>
+                                                            <div style={{ fontSize: 11, color: '#334155', display: 'flex', alignItems: 'center', gap: 3 }}>
+                                                                <EnvironmentOutlined style={{ color: '#ef4444', fontSize: 9 }} />
+                                                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 160 }}>
+                                                                    {b.dropoff || '-'}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Pax */}
+                                                        <Badge count={pax} style={{ backgroundColor: '#6366f1', fontSize: 9 }} />
+
+                                                        {/* Status */}
+                                                        <Tag style={{
+                                                            margin: 0, fontSize: 9, borderRadius: 6, fontWeight: 700,
+                                                            background: gs.bg, color: gs.color, border: `1px solid ${gs.border}`,
+                                                            padding: '1px 8px',
+                                                        }}>
+                                                            {gs.icon} {gs.label}
+                                                        </Tag>
+
+                                                        {/* Actions */}
+                                                        <div style={{ display: 'flex', gap: 3 }}>
+                                                            {!isFinished && nextInfo && (
+                                                                <Button size="small" type="primary"
+                                                                    onClick={() => updateStatus(b.id, nextStatus!)}
+                                                                    style={{ borderRadius: 5, fontSize: 9, height: 22, background: nextInfo.color, border: 'none', fontWeight: 700, padding: '0 8px' }}
+                                                                >
+                                                                    {nextInfo.label}
+                                                                </Button>
+                                                            )}
+                                                            {b.greetingStatus === 'WAITING' && (
+                                                                <Button size="small" danger onClick={() => handleDelay(b.id)}
+                                                                    style={{ borderRadius: 5, fontSize: 9, height: 22, padding: '0 6px' }}>Rötar</Button>
+                                                            )}
+                                                            {!isFinished && (
+                                                                <Button size="small"
+                                                                    onClick={() => setNoteModal({ visible: true, bookingId: b.id, bookingNumber: b.bookingNumber })}
+                                                                    style={{ borderRadius: 5, fontSize: 9, height: 22, padding: '0 6px' }}>Not</Button>
+                                                            )}
+                                                            {!isFinished && (
+                                                                <Button size="small"
+                                                                    icon={<SwapRightOutlined style={{ fontSize: 9 }} />}
+                                                                    onClick={() => handleMovePassenger(b)}
+                                                                    style={{ borderRadius: 5, fontSize: 9, height: 22, padding: '0 6px' }}>Sefer</Button>
+                                                            )}
+                                                            <Button size="small" type="link"
+                                                                onClick={() => setDetailModal({ visible: true, record: b })}
+                                                                style={{ fontSize: 9, height: 22, padding: '0 4px' }}>Detay</Button>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    ),
+                                };
+                            })}
+                        />
+                    </div>
+                )}
+
+                {/* ═══ PRIVATE TRANSFERS TABLE ═══ */}
                 <Card
                     styles={{ body: { padding: 0 } }}
                     style={{
@@ -638,9 +805,16 @@ export default function AirportGreetingStandalonePage() {
                         boxShadow: '0 1px 6px rgba(0,0,0,0.04)'
                     }}
                 >
+                    {privateArrivals.length > 0 && shuttleRunGroups.length > 0 && (
+                        <div style={{ padding: '8px 14px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <CarOutlined style={{ color: '#6366f1' }} />
+                            <span style={{ fontSize: 12, fontWeight: 700, color: '#334155' }}>Özel Transferler</span>
+                            <Tag color="purple" style={{ fontSize: 10, borderRadius: 10 }}>{privateArrivals.length}</Tag>
+                        </div>
+                    )}
                     <Table
                         columns={columns}
-                        dataSource={filtered}
+                        dataSource={privateArrivals}
                         rowKey="id"
                         loading={loading}
                         scroll={{ x: 1100 }}
@@ -663,10 +837,10 @@ export default function AirportGreetingStandalonePage() {
                                 <div style={{ padding: '40px 0', textAlign: 'center' }}>
                                     <div style={{ fontSize: 36, marginBottom: 8 }}>✈</div>
                                     <div style={{ fontSize: 13, fontWeight: 600, color: '#6b7280', marginBottom: 4 }}>
-                                        Bugün için varış bulunamadı
+                                        {shuttleRunGroups.length > 0 ? 'Özel transfer varışı yok' : 'Bugün için varış bulunamadı'}
                                     </div>
                                     <div style={{ fontSize: 11, color: '#9ca3af' }}>
-                                        Seçili tarihe ait havalimanı varışı yok
+                                        Seçili tarihe ait {shuttleRunGroups.length > 0 ? 'özel transfer' : 'havalimanı'} varışı yok
                                     </div>
                                 </div>
                             ),
