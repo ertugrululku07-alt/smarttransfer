@@ -738,84 +738,124 @@ export default function AirportGreetingStandalonePage() {
                                         </div>
                                     ),
                                     children: (
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 5, padding: '2px 0' }}>
+                                        <div style={{ overflowX: 'auto' }}>
+                                            {/* Column headers */}
+                                            <div style={{
+                                                display: 'grid',
+                                                gridTemplateColumns: '28px 180px 85px 1fr 36px 110px 1fr',
+                                                gap: '0 12px',
+                                                padding: '4px 10px 6px',
+                                                borderBottom: '1px solid #e8f4fd',
+                                                marginBottom: 4,
+                                            }}>
+                                                {['#', 'MÜŞTERİ', 'UÇUŞ', 'VARIŞ NOKTASI', 'PAX', 'DURUM', 'AKSİYON'].map((h, i) => (
+                                                    <div key={i} style={{ fontSize: 9, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{h}</div>
+                                                ))}
+                                            </div>
+                                            {/* Rows */}
                                             {group.bookings.map((b: any, idx: number) => {
                                                 const gs = GREETING_STATUS[b.greetingStatus] || GREETING_STATUS.WAITING;
                                                 const nextStatus = NEXT_STATUS[b.greetingStatus];
                                                 const nextInfo = nextStatus ? GREETING_STATUS[nextStatus] : null;
                                                 const isFinished = ['HANDED_OFF', 'NO_SHOW', 'CANCELLED'].includes(b.greetingStatus);
                                                 const pax = (b.adults || 1) + (b.children || 0) + (b.infants || 0);
+                                                const shortDropoff = (b.dropoff || '-').split(',')[0];
 
                                                 return (
                                                     <div key={b.id} style={{
-                                                        display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
-                                                        padding: '6px 10px', borderRadius: 8, background: '#fff',
-                                                        border: `1px solid ${isFinished ? '#e2e8f0' : gs.border}`,
-                                                        opacity: isFinished ? 0.6 : 1,
+                                                        display: 'grid',
+                                                        gridTemplateColumns: '28px 180px 85px 1fr 36px 110px 1fr',
+                                                        gap: '0 12px',
+                                                        alignItems: 'center',
+                                                        padding: '7px 10px',
+                                                        borderRadius: 8,
+                                                        background: '#fff',
+                                                        border: `1px solid ${isFinished ? '#f1f5f9' : gs.border}`,
+                                                        borderLeft: `3px solid ${isFinished ? '#e2e8f0' : gs.color}`,
+                                                        opacity: isFinished ? 0.55 : 1,
+                                                        marginBottom: 4,
+                                                        minWidth: 720,
                                                     }}>
-                                                        <div style={{ fontWeight: 800, fontSize: 12, color: '#94a3b8', width: 18, textAlign: 'center', flexShrink: 0 }}>{idx + 1}</div>
+                                                        {/* # */}
+                                                        <div style={{ fontWeight: 800, fontSize: 11, color: '#cbd5e1', textAlign: 'center' }}>{idx + 1}</div>
 
-                                                        <div style={{ minWidth: 0, flex: '1 1 120px' }}>
+                                                        {/* Customer */}
+                                                        <div style={{ overflow: 'hidden' }}>
                                                             <div style={{ fontWeight: 700, fontSize: 12, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.passengerName}</div>
-                                                            {b.passengerPhone && (
-                                                                <a href={`tel:${b.passengerPhone}`} style={{ fontSize: 10, color: '#3b82f6', textDecoration: 'none' }}>
-                                                                    <PhoneOutlined style={{ fontSize: 8, marginRight: 2 }} />{b.passengerPhone}
-                                                                </a>
-                                                            )}
-                                                            <div style={{ fontSize: 9, color: '#cbd5e1', fontFamily: 'monospace' }}>{b.bookingNumber}</div>
-                                                        </div>
-
-                                                        <div style={{ minWidth: 50, textAlign: 'center', flexShrink: 0 }}>
-                                                            <div style={{ fontWeight: 700, fontSize: 10, fontFamily: 'monospace', color: '#0ea5e9' }}>{b.flightNumber || '-'}</div>
-                                                            <div style={{ fontSize: 9, color: '#94a3b8' }}>{b.flightTime || ''}</div>
-                                                        </div>
-
-                                                        <div style={{ minWidth: 0, flex: '1 1 100px' }}>
-                                                            <div style={{ fontSize: 10, color: '#334155', display: 'flex', alignItems: 'center', gap: 3 }}>
-                                                                <EnvironmentOutlined style={{ color: '#ef4444', fontSize: 9, flexShrink: 0 }} />
-                                                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                                                    {b.dropoff || '-'}
-                                                                </span>
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                                {b.passengerPhone && (
+                                                                    <a href={`tel:${b.passengerPhone}`} style={{ fontSize: 10, color: '#3b82f6', textDecoration: 'none', whiteSpace: 'nowrap' }}>
+                                                                        <PhoneOutlined style={{ fontSize: 8, marginRight: 2 }} />{b.passengerPhone}
+                                                                    </a>
+                                                                )}
+                                                                <span style={{ fontSize: 9, color: '#cbd5e1', fontFamily: 'monospace' }}>{b.bookingNumber}</span>
                                                             </div>
                                                         </div>
 
-                                                        <Badge count={pax} style={{ backgroundColor: '#6366f1', fontSize: 9 }} />
+                                                        {/* Flight */}
+                                                        <div>
+                                                            <div style={{ fontWeight: 700, fontSize: 11, fontFamily: 'monospace', color: '#0ea5e9' }}>{b.flightNumber || '-'}</div>
+                                                            {b.flightTime && <div style={{ fontSize: 9, color: '#94a3b8' }}>{b.flightTime}</div>}
+                                                        </div>
 
-                                                        <Tag style={{
-                                                            margin: 0, fontSize: 9, borderRadius: 6, fontWeight: 700,
-                                                            background: gs.bg, color: gs.color, border: `1px solid ${gs.border}`,
-                                                            padding: '1px 6px', lineHeight: '16px',
-                                                        }}>
-                                                            {gs.icon} {gs.label}
-                                                        </Tag>
+                                                        {/* Dropoff */}
+                                                        <div style={{ overflow: 'hidden' }}>
+                                                            <Tooltip title={b.dropoff}>
+                                                                <div style={{ fontSize: 11, color: '#334155', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                                                    <EnvironmentOutlined style={{ color: '#ef4444', fontSize: 9, flexShrink: 0 }} />
+                                                                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{shortDropoff}</span>
+                                                                </div>
+                                                            </Tooltip>
+                                                        </div>
 
-                                                        <div style={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                                                        {/* Pax */}
+                                                        <div style={{ textAlign: 'center' }}>
+                                                            <span style={{
+                                                                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                                                width: 22, height: 22, borderRadius: '50%',
+                                                                background: '#6366f1', color: '#fff', fontWeight: 800, fontSize: 10,
+                                                            }}>{pax}</span>
+                                                        </div>
+
+                                                        {/* Status */}
+                                                        <div>
+                                                            <Tag style={{
+                                                                margin: 0, fontSize: 9, borderRadius: 6, fontWeight: 700,
+                                                                background: gs.bg, color: gs.color, border: `1px solid ${gs.border}`,
+                                                                padding: '2px 7px', lineHeight: '16px', whiteSpace: 'nowrap',
+                                                            }}>
+                                                                {gs.icon} {gs.label}
+                                                            </Tag>
+                                                        </div>
+
+                                                        {/* Actions */}
+                                                        <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'nowrap' }}>
                                                             {!isFinished && nextInfo && (
                                                                 <Button size="small" type="primary"
                                                                     onClick={() => updateStatus(b.id, nextStatus!)}
-                                                                    style={{ borderRadius: 5, fontSize: 9, height: 22, background: nextInfo.color, border: 'none', fontWeight: 700, padding: '0 7px' }}
+                                                                    style={{ borderRadius: 5, fontSize: 10, height: 24, background: nextInfo.color, border: 'none', fontWeight: 700, padding: '0 8px', whiteSpace: 'nowrap' }}
                                                                 >
                                                                     {nextInfo.label}
                                                                 </Button>
                                                             )}
                                                             {b.greetingStatus === 'WAITING' && (
                                                                 <Button size="small" danger onClick={() => handleDelay(b.id)}
-                                                                    style={{ borderRadius: 5, fontSize: 9, height: 22, padding: '0 5px' }}>Rötar</Button>
+                                                                    style={{ borderRadius: 5, fontSize: 10, height: 24, padding: '0 6px' }}>Rötar</Button>
                                                             )}
                                                             {!isFinished && (
                                                                 <Button size="small"
                                                                     onClick={() => setNoteModal({ visible: true, bookingId: b.id, bookingNumber: b.bookingNumber })}
-                                                                    style={{ borderRadius: 5, fontSize: 9, height: 22, padding: '0 5px' }}>Not</Button>
+                                                                    style={{ borderRadius: 5, fontSize: 10, height: 24, padding: '0 6px' }}>Not</Button>
                                                             )}
                                                             {!isFinished && (
                                                                 <Button size="small"
-                                                                    icon={<SwapRightOutlined style={{ fontSize: 9 }} />}
+                                                                    icon={<SwapRightOutlined style={{ fontSize: 10 }} />}
                                                                     onClick={() => handleMovePassenger(b)}
-                                                                    style={{ borderRadius: 5, fontSize: 9, height: 22, padding: '0 5px' }}>Sefer</Button>
+                                                                    style={{ borderRadius: 5, fontSize: 10, height: 24, padding: '0 6px' }}>Sefer</Button>
                                                             )}
                                                             <Button size="small" type="link"
                                                                 onClick={() => setDetailModal({ visible: true, record: b })}
-                                                                style={{ fontSize: 9, height: 22, padding: '0 3px' }}>Detay</Button>
+                                                                style={{ fontSize: 10, height: 24, padding: '0 4px' }}>Detay</Button>
                                                         </div>
                                                     </div>
                                                 );
