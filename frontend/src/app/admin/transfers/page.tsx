@@ -298,7 +298,7 @@ interface EditableHeaderProps {
     onFilter: (k: string, f: ColFilter) => void;
     onClearFilter: (k: string) => void;
 }
-const FILTERABLE = ['bookingNumber','passengerName','agency','status','pickupDateTime','createdAt','price','pickupLoc','dropoffLoc','pickupRegionCode','dropoffRegionCode','airportCode', 'vehicleType', 'paymentType', 'paymentStatus', 'flightNumber', 'adults'];
+const FILTERABLE = ['bookingNumber','passengerName','agency','bookingType','status','pickupDateTime','createdAt','price','pickupLoc','dropoffLoc','pickupRegionCode','dropoffRegionCode','airportCode', 'vehicleType', 'paymentType', 'paymentStatus', 'flightNumber', 'adults'];
 
 const FilterPopover: React.FC<{ colKey: string; filter: ColFilter; availableValues?: string[]; onFilter: (k:string,f:ColFilter)=>void; onClear:(k:string)=>void }> = ({ colKey, filter, availableValues = [], onFilter, onClear }) => {
     const [local, setLocal] = useState<ColFilter>({ ...filter });
@@ -306,7 +306,7 @@ const FilterPopover: React.FC<{ colKey: string; filter: ColFilter; availableValu
     const isActive = !!(filter.text || (filter.values?.length) || (filter.statuses?.length) || filter.dateRange || filter.minPrice != null || filter.maxPrice != null);
     const statusOptions = Object.entries(DEFAULT_STATUS_COLORS);
 
-    const checkboxCols = ['bookingNumber','passengerName','agency','pickupLoc','dropoffLoc','pickupRegionCode','dropoffRegionCode','airportCode','vehicleType','paymentStatus','flightNumber','adults'];
+    const checkboxCols = ['bookingNumber','passengerName','agency','bookingType','pickupLoc','dropoffLoc','pickupRegionCode','dropoffRegionCode','airportCode','vehicleType','paymentStatus','flightNumber','adults'];
     const filteredValues = availableValues.filter(v => v.toLowerCase().includes(search.toLowerCase()));
     const allChecked = filteredValues.length > 0 && filteredValues.every(v => (local.values || []).includes(v));
     const someChecked = filteredValues.some(v => (local.values || []).includes(v));
@@ -1059,7 +1059,8 @@ const TransfersPage: React.FC = () => {
         switch (key) {
             case 'bookingNumber': return b.bookingNumber || '';
             case 'passengerName': return b.passengerName || '';
-            case 'agency': return b.agencyName || b.agency?.name || b.metadata?.agencyName || ((b as any).customerId ? 'Müşteri' : 'Direkt');
+            case 'agency': return b.agencyName || b.agency?.name || b.metadata?.agencyName || '';
+            case 'bookingType': { const labels: Record<string,string> = {B2B:'B2B',DIRECT:'Direk',SYSTEM:'Sistem'}; return labels[b.bookingType||''] || b.bookingType || ''; }
             case 'pickupLoc': return getPickup(b);
             case 'dropoffLoc': return getDropoff(b);
             case 'airportCode': return getAirportForRow(b) || '';
@@ -1074,13 +1075,13 @@ const TransfersPage: React.FC = () => {
     };
 
     // Compute unique values per filterable column from all bookings (used for checkbox lists)
-    const checkboxFilterCols = ['bookingNumber','passengerName','agency','pickupLoc','dropoffLoc','pickupRegionCode','dropoffRegionCode','airportCode','vehicleType','paymentStatus','flightNumber','adults'];
+    const checkboxFilterCols = ['bookingNumber','passengerName','agency','bookingType','pickupLoc','dropoffLoc','pickupRegionCode','dropoffRegionCode','airportCode','vehicleType','paymentStatus','flightNumber','adults'];
     const uniqueColValues = useMemo(() => {
         const out: Record<string, string[]> = {};
         checkboxFilterCols.forEach(key => {
             const set = new Set<string>();
             bookings.forEach(b => set.add(extractColValue(key, b)));
-            out[key] = Array.from(set).sort((a, b) => a.localeCompare(b, 'tr'));
+            out[key] = Array.from(set).filter(v => v !== '').sort((a, b) => a.localeCompare(b, 'tr'));
         });
         return out;
         // eslint-disable-next-line react-hooks/exhaustive-deps
