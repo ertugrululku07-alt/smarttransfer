@@ -384,7 +384,7 @@ router.post('/bookings', authMiddleware, agencyMiddleware, async (req, res) => {
                     // Booking Type & Creator
                     bookingType: 'B2B',
                     bookedByUserId: req.user.id,
-                    bookedByName: req.user.name || req.user.email || 'Acenta',
+                    bookedByName: [req.user?.firstName, req.user?.lastName].filter(Boolean).join(' ') || req.user?.email || 'Acenta',
 
                     metadata
                 }

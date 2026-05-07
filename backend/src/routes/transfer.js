@@ -1622,9 +1622,9 @@ router.post('/book', optionalAuthMiddleware, async (req, res) => {
                     specialRequests: notes,
 
                     // Booking Type & Creator
-                    bookingType: (req.user?.role === 'ADMIN' || req.user?.role === 'SUPER_ADMIN' || req.user?.role === 'STAFF') ? 'SYSTEM' : 'DIRECT',
+                    bookingType: (req.user?.roleType === 'TENANT_ADMIN' || req.user?.roleType === 'SUPER_ADMIN' || req.user?.roleType === 'STAFF') ? 'SYSTEM' : 'DIRECT',
                     bookedByUserId: userId || null,
-                    bookedByName: (req.user?.role === 'ADMIN' || req.user?.role === 'SUPER_ADMIN' || req.user?.role === 'STAFF')
+                    bookedByName: (req.user?.roleType === 'TENANT_ADMIN' || req.user?.roleType === 'SUPER_ADMIN' || req.user?.roleType === 'STAFF')
                         ? ([req.user?.firstName, req.user?.lastName].filter(Boolean).join(' ') || req.user?.email || null)
                         : null,
 
@@ -3048,7 +3048,7 @@ router.post('/bookings/admin', authMiddleware, async (req, res) => {
                 // Booking Type & Creator
                 bookingType: 'SYSTEM',
                 bookedByUserId: req.user?.id || null,
-                bookedByName: req.user?.name || req.user?.email || 'Sistem',
+                bookedByName: [req.user?.firstName, req.user?.lastName].filter(Boolean).join(' ') || req.user?.email || 'Sistem',
 
                 metadata: metadata,
             }
