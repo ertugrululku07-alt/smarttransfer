@@ -1591,6 +1591,13 @@ router.post('/book', optionalAuthMiddleware, async (req, res) => {
             const airportZones = hubs.filter(h => h.isAirport);
             const tripType = getTripType(pickup, dropoff, airportZones);
 
+            const isHourly = data.productType === 'HOURLY' || req.body.productType === 'HOURLY';
+            const hourlyHours = isHourly ? (Number(data.hours || req.body.hours) || 1) : null;
+            const hourlyRate = isHourly ? (Number(data.hourlyRate || req.body.hourlyRate) || 0) : null;
+            const endDateCalc = isHourly
+                ? new Date(new Date(pickupDateTime).getTime() + (hourlyHours || 1) * 60 * 60 * 1000)
+                : new Date(new Date(pickupDateTime).getTime() + 60 * 60 * 1000);
+
             return await prisma.booking.create({
                 data: {
                     tenantId: tenantId,
@@ -1599,7 +1606,7 @@ router.post('/book', optionalAuthMiddleware, async (req, res) => {
                     productType: 'TRANSFER',
 
                     startDate: new Date(pickupDateTime),
-                    endDate: new Date(new Date(pickupDateTime).getTime() + 60 * 60 * 1000),
+                    endDate: endDateCalc,
 
                     adults: Number(adults) || Number(passengers) || 1,
                     children: Number(children) || 0,
@@ -1653,7 +1660,10 @@ router.post('/book', optionalAuthMiddleware, async (req, res) => {
                         dropoffLng: dLng ? Number(dLng) : null,
                         tripLeg: tripLeg || 'OUTBOUND',
                         linkedBookingNumber: linkedBookingNumber,
-                        tripType: tripType // Store trip type for shuttle grouping
+                        tripType: tripType, // Store trip type for shuttle grouping
+                        isHourly: isHourly || false,
+                        hourlyHours: hourlyHours,
+                        hourlyRate: hourlyRate
                     }
                 }
             });
@@ -4585,6 +4595,65 @@ router.get('/greeting-drivers', authMiddleware, async (req, res) => {
     } catch (error) {
         console.error('[Airport] greeting-drivers error:', error);
         res.status(500).json({ success: false, error: 'Şoför listesi alınamadı' });
+    }
+});
+
+/**
+ * GET /api/transfer/hourly-search
+ * Returns vehicle types that have a basePricePerHour set.
+ * Query params: ?pickup=...&date=...&time=...&hours=...&passengers=1
+ */
+router.get('/hourly-search', optionalAuthMiddleware, async (req, res) => {
+    try {
+        const tenantId = req.tenant?.id;
+        if (!tenantId) return res.status(400).json({ success: false, error: 'Tenant bulunamadı' });
+
+        const { passengers = 1, hours = 1 } = req.query;
+        const hoursNum = parseFloat(hours) || 1;
+
+        const vehicleTypes = await prisma.vehicleType.findMany({
+            where: {
+                tenantId,
+                capacity: { gte: Number(passengers) },
+            },
+            include: {
+                vehicles: {
+                    where: { tenantId, status: 'ACTIVE' },
+                    select: { id: true },
+                },
+            },
+            orderBy: { order: 'asc' },
+        });
+
+        const results = vehicleTypes
+            .filter(vt => {
+                const m = vt.metadata || {};
+                return vt.vehicles.length > 0 && m.basePricePerHour && Number(m.basePricePerHour) > 0;
+            })
+            .map(vt => {
+                const m = vt.metadata || {};
+                const hourlyRate = Number(m.basePricePerHour);
+                const totalPrice = Math.round(hourlyRate * hoursNum * 100) / 100;
+                return {
+                    vehicleTypeId: vt.id,
+                    vehicleType: vt.name,
+                    category: vt.category,
+                    capacity: vt.capacity,
+                    luggage: vt.luggage,
+                    image: vt.image,
+                    features: vt.features || [],
+                    description: vt.description,
+                    currency: m.currency || 'TRY',
+                    hourlyRate,
+                    totalPrice,
+                    hours: hoursNum,
+                };
+            });
+
+        res.json({ success: true, data: results });
+    } catch (error) {
+        console.error('[Hourly] search error:', error);
+        res.status(500).json({ success: false, error: 'Saatlik arama hatası' });
     }
 });
 

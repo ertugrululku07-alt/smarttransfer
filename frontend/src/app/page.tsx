@@ -22,7 +22,9 @@ import {
   Spin,
   Collapse,
   Rate,
-  Divider
+  Divider,
+  Select,
+  Segmented
 } from 'antd';
 import {
   CarOutlined,
@@ -115,6 +117,16 @@ const HomePage: React.FC = () => {
   const [routeItems, setRouteItems] = useState<{ from: string; to: string; img: string; price: string }[]>([]);
   const [socialMedia, setSocialMedia] = useState<Record<string, string>>({});
   const [featureItems, setFeatureItems] = useState<{ title: string; desc: string; color: string }[]>([]);
+
+  // Search mode: transfer or hourly
+  const [searchMode, setSearchMode] = useState<'transfer' | 'hourly'>('transfer');
+
+  // Hourly state
+  const [hourlyPickup, setHourlyPickup] = useState('');
+  const [hourlyPickupLocation, setHourlyPickupLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [hourlyDate, setHourlyDate] = useState<Dayjs | null>(null);
+  const [hourlyTime, setHourlyTime] = useState<Dayjs | null>(dayjs().hour(12).minute(0).second(0));
+  const [hourlyHours, setHourlyHours] = useState<number>(2);
 
   // Transfer state
   const [pickup, setPickup] = useState('');
@@ -251,6 +263,26 @@ const HomePage: React.FC = () => {
   const isReturnAirportTransfer = isAirportLocation(dropoff) || isAirportLocation(pickup);
   const returnTimeLabel = isReturnAirportTransfer ? t('search.returnFlightTime') : t('search.returnPickupTime');
 
+  const handleHourlySearch = () => {
+    if (!hourlyPickup || !hourlyDate) {
+      message.warning('Konum ve tarih seçmelisiniz');
+      return;
+    }
+    const timeHour = hourlyTime ? hourlyTime.hour().toString().padStart(2, '0') : '12';
+    const timeMin = hourlyTime ? hourlyTime.minute().toString().padStart(2, '0') : '00';
+    const params = new URLSearchParams();
+    params.set('pickup', hourlyPickup);
+    params.set('date', hourlyDate.format('YYYY-MM-DD'));
+    params.set('time', `${timeHour}:${timeMin}`);
+    params.set('hours', hourlyHours.toString());
+    params.set('passengers', passengers.toString());
+    if (hourlyPickupLocation) {
+      params.set('pickupLat', hourlyPickupLocation.lat.toString());
+      params.set('pickupLng', hourlyPickupLocation.lng.toString());
+    }
+    router.push(`/transfer/hourly-results?${params.toString()}`);
+  };
+
   const handleTransferSearch = () => {
     if (!pickup || !dropoff || !pickupDate) {
       message.warning(t('search.fillRequired'));
@@ -339,6 +371,74 @@ const HomePage: React.FC = () => {
       </div>
     );
   }
+
+  // ─── HOURLY SEARCH FORM ───
+  const hourlySearchForm = (
+    <div>
+      <Row gutter={[12, 16]}>
+        <Col xs={24} md={8}>
+          <Text strong style={{ display: 'block', marginBottom: 8, color: theme.labelColor, fontSize: 14 }}>
+            <EnvironmentOutlined style={{ color: theme.primaryColor }} /> Başlangıç Konumu
+          </Text>
+          <DynamicLocationSearchInput
+            size="large"
+            placeholder="Adres, havalimanı, otel, ..."
+            value={hourlyPickup}
+            onChange={setHourlyPickup}
+            onSelect={(val, lat, lng) => { setHourlyPickup(val); if (lat && lng) setHourlyPickupLocation({ lat, lng }); }}
+            onMapClick={() => { setMapModalType('pickup'); setMapModalVisible(true); }}
+            country={googleMapsSettings.country || 'TUR'}
+            style={{ borderRadius: 12 }}
+          />
+        </Col>
+        <Col xs={12} md={5}>
+          <Text strong style={{ display: 'block', marginBottom: 8, color: theme.labelColor, fontSize: 14 }}>
+            <CalendarOutlined style={{ color: theme.primaryColor }} /> Kalkış Tarihi
+          </Text>
+          <DatePicker
+            size="large" style={{ width: '100%', borderRadius: 12 }}
+            format="DD.MM.YYYY" placeholder="Tarih Seç"
+            value={hourlyDate} onChange={setHourlyDate}
+            disabledDate={(c) => c && c < dayjs().startOf('day')}
+          />
+        </Col>
+        <Col xs={12} md={4}>
+          <Text strong style={{ display: 'block', marginBottom: 8, color: theme.labelColor, fontSize: 14 }}>
+            <ClockCircleOutlined style={{ color: theme.primaryColor }} /> Saat
+          </Text>
+          <TimePicker
+            size="large" style={{ width: '100%', borderRadius: 12 }}
+            format="HH:mm" minuteStep={5}
+            value={hourlyTime} onChange={setHourlyTime}
+            needConfirm={false} showNow={false}
+          />
+        </Col>
+        <Col xs={12} md={4}>
+          <Text strong style={{ display: 'block', marginBottom: 8, color: theme.labelColor, fontSize: 14 }}>
+            <ClockCircleOutlined style={{ color: theme.primaryColor }} /> Kiralama Süresi
+          </Text>
+          <Select
+            size="large" style={{ width: '100%', borderRadius: 12 }}
+            value={hourlyHours} onChange={setHourlyHours}
+            options={[1,2,3,4,5,6,8,10,12].map(h => ({ value: h, label: `${h} Saat` }))}
+          />
+        </Col>
+        <Col xs={12} md={3} style={{ display: 'flex', alignItems: 'flex-end' }}>
+          <Button
+            type="primary" block size="large" icon={<SearchOutlined />}
+            onClick={handleHourlySearch}
+            style={{
+              height: 40, fontWeight: 700,
+              background: theme.buttonGradient, border: 'none',
+              boxShadow: theme.buttonShadow, borderRadius: 12, color: '#fff',
+            }}
+          >
+            Ara
+          </Button>
+        </Col>
+      </Row>
+    </div>
+  );
 
   // ─── TRANSFER SEARCH FORM ───
   const transferSearchForm = (
@@ -562,7 +662,35 @@ const HomePage: React.FC = () => {
         borderRadius: 20, border: theme.searchCardBorder,
         boxShadow: '0 20px 60px rgba(0,0,0,0.15)', padding: 'clamp(20px, 3vw, 32px)',
       }}>
-        {transferSearchForm}
+        {/* Mode Tabs */}
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 20 }}>
+          <Segmented
+            value={searchMode}
+            onChange={(v) => setSearchMode(v as any)}
+            options={[
+              {
+                value: 'transfer',
+                label: (
+                  <div style={{ padding: '2px 12px', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <SwapOutlined style={{ fontSize: 13 }} />
+                    <span style={{ fontWeight: 600, fontSize: 13 }}>Transfer</span>
+                  </div>
+                ),
+              },
+              {
+                value: 'hourly',
+                label: (
+                  <div style={{ padding: '2px 12px', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <ClockCircleOutlined style={{ fontSize: 13 }} />
+                    <span style={{ fontWeight: 600, fontSize: 13 }}>Saatlik Kiralama</span>
+                  </div>
+                ),
+              },
+            ]}
+            style={{ borderRadius: 12, background: 'rgba(255,255,255,0.15)' }}
+          />
+        </div>
+        {searchMode === 'transfer' ? transferSearchForm : hourlySearchForm}
       </div>
     </div>
   );
