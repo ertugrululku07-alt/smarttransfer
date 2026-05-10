@@ -4,19 +4,18 @@ import React, { Suspense, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import {
     Layout, Card, Typography, Form, Input, Button,
-    Row, Col, Divider, Select, message, Spin, Result, Tag, Alert
+    Row, Col, Divider, Select, message, Spin, Result, Tag, Alert, Space
 } from 'antd';
 import {
     ClockCircleOutlined, UserOutlined, EnvironmentOutlined,
     CalendarOutlined, CarOutlined, CheckCircleOutlined, ArrowLeftOutlined,
-    PhoneOutlined, MailOutlined
+    PhoneOutlined, MailOutlined, LockOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import apiClient from '@/lib/api-client';
 import TopBar from '@/app/components/TopBar';
 import { useCurrency } from '@/app/context/CurrencyContext';
 import { useTheme } from '@/app/context/ThemeContext';
-import { countryList } from '@/lib/countryData';
 
 const { Content, Footer } = Layout;
 const { Title, Text } = Typography;
@@ -61,7 +60,7 @@ function HourlyBookContent() {
                 vehicleType,
                 vehicleTypeId,
                 pickup,
-                dropoff: pickup, // For hourly, start=end point
+                dropoff: pickup,
                 pickupDateTime,
                 passengers: Number(passengers),
                 adults: Number(passengers),
@@ -96,7 +95,7 @@ function HourlyBookContent() {
 
     if (bookingSuccess) {
         return (
-            <Layout style={{ minHeight: '100vh', background: '#f8fafc' }}>
+            <Layout style={{ minHeight: '100vh', background: '#fff' }}>
                 <TopBar />
                 <Content style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: 32 }}>
                     <Result
@@ -127,118 +126,245 @@ function HourlyBookContent() {
         );
     }
 
+    const pickupDisplay = pickup.split(',')[0];
+    const dateDisplay = dayjs(date).format('DD MMMM YYYY');
+
     return (
-        <Layout style={{ minHeight: '100vh', background: '#f8fafc' }}>
+        <Layout style={{ minHeight: '100vh', background: '#fff' }}>
             <TopBar />
-            <Content style={{ maxWidth: 760, margin: '0 auto', padding: '32px 16px', width: '100%' }}>
-                {/* Back */}
-                <Button icon={<ArrowLeftOutlined />} onClick={() => router.back()} style={{ borderRadius: 8, marginBottom: 20 }}>
-                    Geri Dön
-                </Button>
+            
+            {/* Header with back button */}
+            <div style={{ background: '#fff', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', padding: '16px 0' }}>
+                <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 24px' }}>
+                    <Button
+                        type="text"
+                        icon={<ArrowLeftOutlined />}
+                        onClick={() => router.back()}
+                        style={{ fontSize: 14, fontWeight: 500, color: theme.primaryColor }}
+                    >
+                        Araçları Geri Göster
+                    </Button>
+                </div>
+            </div>
 
-                {/* Booking Summary Card */}
-                <Card style={{ borderRadius: 16, marginBottom: 20, border: '1px solid #e0f2fe', background: '#f0f9ff' }}
-                    styles={{ body: { padding: 20 } }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-                        <ClockCircleOutlined style={{ fontSize: 20, color: theme.primaryColor }} />
-                        <Title level={5} style={{ margin: 0, color: '#0369a1' }}>Saatlik Kiralama Özeti</Title>
-                    </div>
-                    <Row gutter={[16, 8]}>
-                        <Col xs={24} sm={12}>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                                <div style={{ fontSize: 12, color: '#64748b', display: 'flex', alignItems: 'center', gap: 6 }}>
-                                    <CarOutlined /> <strong>{vehicleType}</strong>
-                                </div>
-                                <div style={{ fontSize: 12, color: '#64748b', display: 'flex', alignItems: 'center', gap: 6 }}>
-                                    <EnvironmentOutlined /> {pickup.split(',')[0]}
-                                </div>
-                                <div style={{ fontSize: 12, color: '#64748b', display: 'flex', alignItems: 'center', gap: 6 }}>
-                                    <CalendarOutlined /> {dayjs(date).format('DD MMM YYYY')} {time}
-                                </div>
-                            </div>
-                        </Col>
-                        <Col xs={24} sm={12} style={{ textAlign: 'right' }}>
-                            <Tag icon={<ClockCircleOutlined />} color="blue" style={{ fontSize: 12, borderRadius: 8, padding: '4px 12px' }}>
-                                {hours} saat
-                            </Tag>
-                            <div style={{ marginTop: 8 }}>
-                                <div style={{ fontSize: 11, color: '#94a3b8' }}>{formatPrice(hourlyRate, currency)} / saat</div>
-                                <div style={{ fontSize: 22, fontWeight: 800, color: theme.primaryColor }}>
-                                    {formatPrice(price, currency)}
-                                </div>
-                            </div>
-                        </Col>
-                    </Row>
-                </Card>
-
-                {/* Booking Form */}
-                <Card style={{ borderRadius: 16, border: '1px solid #e2e8f0' }} styles={{ body: { padding: 24 } }}>
-                    <Title level={5} style={{ marginTop: 0, marginBottom: 20 }}>
-                        <UserOutlined style={{ marginRight: 8, color: theme.primaryColor }} />
-                        Müşteri Bilgileri
-                    </Title>
-                    <Form form={form} layout="vertical" onFinish={handleSubmit}>
-                        <Row gutter={16}>
-                            <Col xs={24} sm={12}>
-                                <Form.Item name="fullName" label="Ad Soyad"
-                                    rules={[{ required: true, message: 'Ad Soyad gerekli' }]}>
-                                    <Input size="large" placeholder="Ad Soyad" style={{ borderRadius: 10 }} />
-                                </Form.Item>
-                            </Col>
-                            <Col xs={24} sm={12}>
-                                <Form.Item name="email" label="E-posta"
-                                    rules={[{ required: true, type: 'email', message: 'Geçerli e-posta girin' }]}>
-                                    <Input size="large" placeholder="ornek@email.com" style={{ borderRadius: 10 }}
-                                        prefix={<MailOutlined style={{ color: '#94a3b8' }} />} />
-                                </Form.Item>
-                            </Col>
-                        </Row>
-                        <Row gutter={16}>
-                            <Col xs={8} sm={6}>
-                                <Form.Item name="prefix" label="Ülke" initialValue="+90">
-                                    <Select size="large" style={{ borderRadius: 10 }}>
-                                        {PHONE_PREFIXES.map(p => (
-                                            <Select.Option key={p.code} value={p.code}>{p.label}</Select.Option>
-                                        ))}
-                                    </Select>
-                                </Form.Item>
-                            </Col>
-                            <Col xs={16} sm={18}>
-                                <Form.Item name="phone" label="Telefon"
-                                    rules={[{ required: true, message: 'Telefon numarası gerekli' }]}>
-                                    <Input size="large" placeholder="5XX XXX XX XX" style={{ borderRadius: 10 }}
-                                        prefix={<PhoneOutlined style={{ color: '#94a3b8' }} />} />
-                                </Form.Item>
-                            </Col>
-                        </Row>
-                        <Form.Item name="notes" label="Notlar (opsiyonel)">
-                            <Input.TextArea rows={3} placeholder="Sürücüye iletmek istediğiniz bilgiler..."
-                                style={{ borderRadius: 10 }} />
-                        </Form.Item>
-
-                        <Divider />
-
-                        <Alert
-                            type="info" showIcon
-                            message="Ödeme araçta veya online yapılabilir."
-                            style={{ borderRadius: 10, marginBottom: 16 }}
-                        />
-
-                        <Button
-                            type="primary" htmlType="submit" block size="large"
-                            loading={loading}
+            <Content style={{ maxWidth: 1200, margin: '0 auto', padding: '32px 24px', width: '100%' }}>
+                <Row gutter={[32, 32]}>
+                    {/* Left: Summary */}
+                    <Col xs={24} lg={10}>
+                        <Card
                             style={{
-                                height: 50, borderRadius: 12, fontWeight: 700, fontSize: 16,
-                                background: theme.buttonGradient || 'linear-gradient(135deg, #f97316, #ea580c)',
-                                border: 'none',
+                                borderRadius: 16, border: '1px solid #e2e8f0',
+                                boxShadow: '0 2px 12px rgba(0,0,0,0.05)', position: 'sticky', top: 20
                             }}
+                            styles={{ body: { padding: 24 } }}
                         >
-                            <CheckCircleOutlined /> Rezervasyonu Tamamla — {formatPrice(price, currency)}
-                        </Button>
-                    </Form>
-                </Card>
+                            <Title level={5} style={{ marginTop: 0, marginBottom: 16, color: '#1e293b' }}>
+                                <ClockCircleOutlined style={{ marginRight: 8, color: theme.primaryColor }} />
+                                Kiralama Özeti
+                            </Title>
+
+                            <div style={{ marginBottom: 16 }}>
+                                <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>Araç Tipi</Text>
+                                <Title level={4} style={{ margin: 0, color: '#1e293b' }}>{vehicleType}</Title>
+                            </div>
+
+                            <Space direction="vertical" size="small" style={{ width: '100%', marginBottom: 16 }}>
+                                <div>
+                                    <Text type="secondary" style={{ fontSize: 11 }}>
+                                        <EnvironmentOutlined style={{ marginRight: 6 }} />
+                                        Konum
+                                    </Text>
+                                    <div style={{ fontSize: 13, fontWeight: 500, color: '#1e293b', marginTop: 2 }}>
+                                        {pickupDisplay}
+                                    </div>
+                                </div>
+                                <div>
+                                    <Text type="secondary" style={{ fontSize: 11 }}>
+                                        <CalendarOutlined style={{ marginRight: 6 }} />
+                                        Tarih & Saat
+                                    </Text>
+                                    <div style={{ fontSize: 13, fontWeight: 500, color: '#1e293b', marginTop: 2 }}>
+                                        {dateDisplay} {time}
+                                    </div>
+                                </div>
+                                <div>
+                                    <Text type="secondary" style={{ fontSize: 11 }}>
+                                        <ClockCircleOutlined style={{ marginRight: 6 }} />
+                                        Kiralama Süresi
+                                    </Text>
+                                    <div style={{ fontSize: 13, fontWeight: 500, color: '#1e293b', marginTop: 2 }}>
+                                        {hours} Saat
+                                    </div>
+                                </div>
+                                <div>
+                                    <Text type="secondary" style={{ fontSize: 11 }}>
+                                        <UserOutlined style={{ marginRight: 6 }} />
+                                        Yolcu Sayısı
+                                    </Text>
+                                    <div style={{ fontSize: 13, fontWeight: 500, color: '#1e293b', marginTop: 2 }}>
+                                        {passengers} Yolcu
+                                    </div>
+                                </div>
+                            </Space>
+
+                            <Divider style={{ margin: '16px 0' }} />
+
+                            <div style={{ marginBottom: 8 }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                                    <Text type="secondary">Saat Başı Ücret</Text>
+                                    <Text>{formatPrice(hourlyRate, currency)}</Text>
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                                    <Text type="secondary">Süre</Text>
+                                    <Text>{hours} saat</Text>
+                                </div>
+                            </div>
+
+                            <Divider style={{ margin: '12px 0' }} />
+
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <Title level={4} style={{ margin: 0, color: '#1e293b' }}>Toplam</Title>
+                                <div style={{ textAlign: 'right' }}>
+                                    <div style={{ fontSize: 28, fontWeight: 800, color: theme.primaryColor }}>
+                                        {formatPrice(price, currency)}
+                                    </div>
+                                    <Text type="secondary" style={{ fontSize: 11 }}>KDV dahil</Text>
+                                </div>
+                            </div>
+
+                            <Alert
+                                type="info"
+                                message="Ödeme araçta veya online yapılabilir"
+                                showIcon
+                                style={{ marginTop: 16, borderRadius: 10 }}
+                            />
+                        </Card>
+                    </Col>
+
+                    {/* Right: Form */}
+                    <Col xs={24} lg={14}>
+                        <Card
+                            style={{
+                                borderRadius: 16, border: '1px solid #e2e8f0',
+                                boxShadow: '0 2px 12px rgba(0,0,0,0.05)'
+                            }}
+                            styles={{ body: { padding: 24 } }}
+                        >
+                            <Title level={4} style={{ marginTop: 0, marginBottom: 24, color: '#1e293b' }}>
+                                <UserOutlined style={{ marginRight: 8, color: theme.primaryColor }} />
+                                Müşteri Bilgileri
+                            </Title>
+
+                            <Form form={form} layout="vertical" onFinish={handleSubmit}>
+                                <Row gutter={16}>
+                                    <Col xs={24}>
+                                        <Form.Item
+                                            name="fullName"
+                                            label={<Text strong>Ad Soyad</Text>}
+                                            rules={[{ required: true, message: 'Ad Soyad gerekli' }]}
+                                        >
+                                            <Input
+                                                size="large"
+                                                placeholder="Adınız Soyadınız"
+                                                style={{ borderRadius: 10 }}
+                                            />
+                                        </Form.Item>
+                                    </Col>
+                                </Row>
+
+                                <Row gutter={16}>
+                                    <Col xs={24} sm={12}>
+                                        <Form.Item
+                                            name="email"
+                                            label={<Text strong>E-posta</Text>}
+                                            rules={[{ required: true, type: 'email', message: 'Geçerli e-posta girin' }]}
+                                        >
+                                            <Input
+                                                size="large"
+                                                placeholder="ornek@email.com"
+                                                style={{ borderRadius: 10 }}
+                                                prefix={<MailOutlined style={{ color: '#94a3b8' }} />}
+                                            />
+                                        </Form.Item>
+                                    </Col>
+                                    <Col xs={24} sm={12}>
+                                        <Form.Item
+                                            name="prefix"
+                                            label={<Text strong>Ülke</Text>}
+                                            initialValue="+90"
+                                        >
+                                            <Select size="large" style={{ borderRadius: 10 }}>
+                                                {PHONE_PREFIXES.map(p => (
+                                                    <Select.Option key={p.code} value={p.code}>{p.label}</Select.Option>
+                                                ))}
+                                            </Select>
+                                        </Form.Item>
+                                    </Col>
+                                </Row>
+
+                                <Row gutter={16}>
+                                    <Col xs={24}>
+                                        <Form.Item
+                                            name="phone"
+                                            label={<Text strong>Telefon Numarası</Text>}
+                                            rules={[{ required: true, message: 'Telefon numarası gerekli' }]}
+                                        >
+                                            <Input
+                                                size="large"
+                                                placeholder="5XX XXX XX XX"
+                                                style={{ borderRadius: 10 }}
+                                                prefix={<PhoneOutlined style={{ color: '#94a3b8' }} />}
+                                            />
+                                        </Form.Item>
+                                    </Col>
+                                </Row>
+
+                                <Form.Item
+                                    name="notes"
+                                    label={<Text>Özel Notlar (opsiyonel)</Text>}
+                                >
+                                    <Input.TextArea
+                                        rows={3}
+                                        placeholder="Sürücüye iletmek istediğiniz bilgiler..."
+                                        style={{ borderRadius: 10 }}
+                                    />
+                                </Form.Item>
+
+                                <Divider style={{ margin: '24px 0' }} />
+
+                                <Alert
+                                    type="success"
+                                    message="Güvenli Rezervasyon"
+                                    description="Tüm ödeme işlemleri güvenli SSL şifrelemesi ile korunmaktadır."
+                                    icon={<LockOutlined />}
+                                    showIcon
+                                    style={{ marginBottom: 24, borderRadius: 10 }}
+                                />
+
+                                <Button
+                                    type="primary"
+                                    htmlType="submit"
+                                    block
+                                    size="large"
+                                    loading={loading}
+                                    style={{
+                                        height: 50, borderRadius: 12, fontWeight: 700, fontSize: 16,
+                                        background: theme.buttonGradient || 'linear-gradient(135deg, #667eea, #764ba2)',
+                                        border: 'none',
+                                    }}
+                                >
+                                    <CheckCircleOutlined /> Rezervasyonu Tamamla — {formatPrice(price, currency)}
+                                </Button>
+
+                                <Text type="secondary" style={{ fontSize: 11, display: 'block', textAlign: 'center', marginTop: 12 }}>
+                                    Rezervasyon onayı e-posta adresinize gönderilecektir
+                                </Text>
+                            </Form>
+                        </Card>
+                    </Col>
+                </Row>
             </Content>
-            <Footer style={{ textAlign: 'center', background: '#fff', fontSize: 12, color: '#94a3b8' }}>
+            <Footer style={{ textAlign: 'center', background: '#fff', fontSize: 12, color: '#94a3b8', borderTop: '1px solid #e2e8f0' }}>
                 SmartTransfer ©2026
             </Footer>
         </Layout>
