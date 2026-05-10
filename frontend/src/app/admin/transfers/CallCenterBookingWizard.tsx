@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Modal, Form, Input, InputNumber, DatePicker, Button, Tag, Radio, message, Spin, Row, Col, Alert } from 'antd';
+import { Modal, Form, Input, InputNumber, DatePicker, Button, Tag, Radio, message, Spin, Row, Col, Alert, Select } from 'antd';
 import {
     EnvironmentOutlined, CarOutlined, UserOutlined, PhoneOutlined, MailOutlined,
     CreditCardOutlined, DollarOutlined, ClockCircleOutlined, TeamOutlined,
@@ -11,6 +11,7 @@ import {
     SwapOutlined, ArrowRightOutlined, MinusOutlined, PlusOutlined,
     LockOutlined, NotificationOutlined, ThunderboltOutlined, CustomerServiceOutlined,
     SafetyOutlined, CloseOutlined, ShoppingOutlined, GiftOutlined,
+    BankOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import DynamicLocationSearchInput from '@/app/components/DynamicLocationSearchInput';
@@ -68,10 +69,35 @@ const CallCenterBookingWizard: React.FC<Props> = ({ open, onClose, onSuccess }) 
     const [customerForm] = Form.useForm();
     const [creating, setCreating] = useState(false);
 
+    // Agency selection
+    const [agencies, setAgencies] = useState<any[]>([]);
+    const [selectedAgencyId, setSelectedAgencyId] = useState<string | null>(null);
+    const [loadingAgencies, setLoadingAgencies] = useState(false);
+
     // Extra services
     const [extraServices, setExtraServices] = useState<any[]>([]);
     const [selectedServices, setSelectedServices] = useState<Map<string, number>>(new Map());
     const [loadingExtras, setLoadingExtras] = useState(false);
+
+    // Fetch agencies on mount
+    useEffect(() => {
+        if (!open) return;
+        let cancelled = false;
+        (async () => {
+            try {
+                setLoadingAgencies(true);
+                const res = await apiClient.get('/api/admin/agencies');
+                if (!cancelled && res.data?.success) {
+                    setAgencies((res.data.data || []).filter((a: any) => a.status !== 'INACTIVE'));
+                }
+            } catch (e) {
+                console.warn('agencies fetch failed', e);
+            } finally {
+                if (!cancelled) setLoadingAgencies(false);
+            }
+        })();
+        return () => { cancelled = true; };
+    }, [open]);
 
     // Fetch extra services when entering Step 2 with a selected vehicle
     useEffect(() => {
@@ -124,6 +150,7 @@ const CallCenterBookingWizard: React.FC<Props> = ({ open, onClose, onSuccess }) 
         setAdults(1); setChildren(0); setInfants(0);
         setResults([]); setSearchError(null); setRouteInfo(null);
         setSelected(null);
+        setSelectedAgencyId(null);
         setExtraServices([]); setSelectedServices(new Map());
         customerForm.resetFields();
     };
@@ -265,6 +292,8 @@ const CallCenterBookingWizard: React.FC<Props> = ({ open, onClose, onSuccess }) 
                 dropoffLat: dropoffCoords.lat, dropoffLng: dropoffCoords.lng,
                 distance: routeInfo?.distance,
                 duration: routeInfo?.duration,
+                agencyId: selectedAgencyId || undefined,
+                agencyName: selectedAgencyId ? agencies.find((a: any) => a.id === selectedAgencyId)?.name : undefined,
                 isShuttle: !!selected.isShuttle,
                 shuttleRouteId: selected.isShuttle ? selected.id.replace('shuttle_', '') : null,
                 shuttleMasterTime: shuttleMasterTime || selected.matchedMasterTime || null,
@@ -1079,6 +1108,39 @@ const CallCenterBookingWizard: React.FC<Props> = ({ open, onClose, onSuccess }) 
                                         </div>
                                         <span style={{ fontSize: 14, fontWeight: 700, color: '#1e293b' }}>Musteri Bilgileri</span>
                                     </div>
+
+                                    {/* Agency Selection */}
+                                    <div style={{
+                                        background: selectedAgencyId ? '#f0fdf4' : '#f9fafb',
+                                        borderRadius: 12, padding: '12px 14px',
+                                        border: `1.5px solid ${selectedAgencyId ? '#86efac' : '#e5e7eb'}`,
+                                        marginBottom: 14,
+                                        transition: 'all 0.2s',
+                                    }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                                            <BankOutlined style={{ fontSize: 14, color: selectedAgencyId ? '#16a34a' : '#6366f1' }} />
+                                            <span style={{ fontSize: 12, fontWeight: 700, color: '#374151' }}>Alt Acenta (Opsiyonel)</span>
+                                            {selectedAgencyId && (
+                                                <Tag color="success" style={{ fontSize: 10, borderRadius: 6, margin: 0 }}>Acenta Seçildi</Tag>
+                                            )}
+                                        </div>
+                                        <Select
+                                            allowClear
+                                            showSearch
+                                            placeholder="Acenta seçin (varsa)"
+                                            value={selectedAgencyId}
+                                            onChange={(val) => setSelectedAgencyId(val || null)}
+                                            loading={loadingAgencies}
+                                            style={{ width: '100%', borderRadius: 10 }}
+                                            size="large"
+                                            optionFilterProp="label"
+                                            options={agencies.map((a: any) => ({
+                                                value: a.id,
+                                                label: a.name,
+                                            }))}
+                                        />
+                                    </div>
+
                                     <Row gutter={14}>
                                         <Col xs={24} md={12}>
                                             <Form.Item name="passengerName" label={<span style={{ fontWeight: 600, color: '#475569', fontSize: 12 }}>Ad Soyad</span>} rules={[{ required: true, message: 'Zorunlu' }]}>

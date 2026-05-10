@@ -2990,7 +2990,8 @@ router.post('/bookings/admin', authMiddleware, async (req, res) => {
             isShuttle, shuttleRouteId, shuttleMasterTime,
             currency,
             passengerDetails,
-            extraServices, extrasTotal, vehiclePrice
+            extraServices, extrasTotal, vehiclePrice,
+            agencyId, agencyName
         } = req.body;
 
         const tenantId = req.tenant?.id;
@@ -3032,7 +3033,8 @@ router.post('/bookings/admin', authMiddleware, async (req, res) => {
             extraServices: Array.isArray(extraServices) ? extraServices : [],
             extrasTotal: Number(extrasTotal || 0),
             vehiclePrice: vehiclePrice != null ? Number(vehiclePrice) : null,
-            tripType: getTripType(pickup, dropoff, hubs.filter(h => h.isAirport))
+            tripType: getTripType(pickup, dropoff, hubs.filter(h => h.isAirport)),
+            agencyName: agencyName || null
         };
 
         const booking = await prisma.booking.create({
@@ -3056,9 +3058,12 @@ router.post('/bookings/admin', authMiddleware, async (req, res) => {
                 specialRequests: notes || '',
 
                 // Booking Type & Creator
-                bookingType: 'SYSTEM',
+                bookingType: agencyId ? 'B2B' : 'SYSTEM',
                 bookedByUserId: req.user?.id || null,
                 bookedByName: [req.user?.firstName, req.user?.lastName].filter(Boolean).join(' ') || req.user?.email || 'Sistem',
+
+                // Agency
+                agencyId: agencyId || null,
 
                 metadata: metadata,
             }
