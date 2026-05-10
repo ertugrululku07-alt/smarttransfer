@@ -23,7 +23,9 @@ import {
   WarningOutlined,
   CloseCircleOutlined,
   GiftOutlined,
-  TagOutlined
+  TagOutlined,
+  MailOutlined,
+  MessageOutlined
 } from '@ant-design/icons';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../context/AuthContext';
@@ -167,7 +169,8 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, selectedKey = 'dash
               case 'general-reports':
               case 'logs': return 'reports';
               case 'campaigns':
-              case 'loyalty': return 'campaigns-loyalty';
+              case 'loyalty':
+              case 'messaging': return 'campaigns-loyalty';
               case 'site-settings':
               case 'pages':
               case 'users':
@@ -500,6 +503,12 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, selectedKey = 'dash
                   key: 'loyalty',
                   label: 'Sadakat Programı',
                   onClick: () => router.push('/admin/loyalty')
+                },
+                {
+                  key: 'messaging',
+                  icon: <MessageOutlined />,
+                  label: 'Toplu Mesajlaşma',
+                  onClick: () => router.push('/admin/messaging')
                 }
               ]
             },

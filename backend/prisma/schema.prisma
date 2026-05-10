@@ -98,6 +98,8 @@ model Tenant {
   fuelRecords          FuelRecord[]
   campaigns            Campaign[]
   loyaltyTransactions  LoyaltyTransaction[]
+  messageTemplates     MessageTemplate[]
+  messageCampaigns     MessageCampaign[]
 
   @@index([status])
   @@index([slug])
@@ -203,6 +205,7 @@ model User {
   agentChats             ChatSession[]           @relation("AgentChats")
   campaignUsages         CampaignUsage[]
   loyaltyTransactions    LoyaltyTransaction[]
+  messageCampaigns       MessageCampaign[]
   // Financial Snapshot
   balance                Decimal                 @default(0) @db.Decimal(15, 2)
   debit                  Decimal                 @default(0) @db.Decimal(15, 2)
@@ -2026,4 +2029,119 @@ enum LoyaltyTxType {
   EXPIRE
   BONUS
   ADJUST
+}
+
+// ============================================================================
+// BULK MESSAGING (Email & WhatsApp)
+// ============================================================================
+
+model MessageTemplate {
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+
+  name      String // e.g. "Yılbaşı Tebrik"
+  category  String @default("custom") // holiday, seasonal, promotional, notification, custom
+  channel   MessageChannel // EMAIL, WHATSAPP, BOTH
+  subject   String? // Email subject (supports {{variables}})
+  body      String  @db.Text // HTML for email, plain for WhatsApp (supports {{variables}})
+  thumbnail String? // Preview image URL
+
+  isSystem  Boolean @default(false) // system-defined (read-only)
+  isActive  Boolean @default(true)
+
+  campaigns MessageCampaign[]
+
+  metadata  Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId, channel])
+  @@index([tenantId, category])
+}
+
+model MessageCampaign {
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+
+  name       String
+  channel    MessageChannel
+  templateId String?
+  template   MessageTemplate? @relation(fields: [templateId], references: [id])
+
+  subject    String? // Final subject (after variable replacement)
+  body       String  @db.Text // Final body
+
+  // Audience
+  recipientFilter Json? // e.g. { all: true } or { bookingAfter: "2025-01-01" }
+  recipientCount  Int   @default(0)
+
+  // Schedule
+  scheduledAt DateTime?
+  sentAt      DateTime?
+  status      MessageCampaignStatus @default(DRAFT)
+
+  // Stats
+  totalSent      Int @default(0)
+  totalDelivered Int @default(0)
+  totalFailed    Int @default(0)
+  totalOpened    Int @default(0)
+
+  logs MessageLog[]
+
+  createdById String?
+  createdBy   User?   @relation(fields: [createdById], references: [id])
+
+  metadata  Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId, status])
+  @@index([tenantId, channel])
+}
+
+model MessageLog {
+  id         String @id @default(uuid())
+  campaignId String
+  campaign   MessageCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  channel    MessageChannel
+  recipient  String // email address or phone number
+  recipientName String?
+  status     MessageLogStatus @default(PENDING)
+
+  errorMessage String?
+  sentAt       DateTime?
+  deliveredAt  DateTime?
+  openedAt     DateTime?
+
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([campaignId, status])
+  @@index([recipient])
+}
+
+enum MessageChannel {
+  EMAIL
+  WHATSAPP
+  BOTH
+}
+
+enum MessageCampaignStatus {
+  DRAFT
+  SCHEDULED
+  SENDING
+  SENT
+  FAILED
+  CANCELLED
+}
+
+enum MessageLogStatus {
+  PENDING
+  SENT
+  DELIVERED
+  FAILED
+  OPENED
 }

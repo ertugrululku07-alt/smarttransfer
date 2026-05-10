@@ -114,6 +114,10 @@ app.use('/api/transfer', tenantMiddleware, transferRoutes);
 const campaignRoutes = require('./src/routes/campaigns');
 app.use('/api/campaigns', tenantMiddleware, campaignRoutes);
 
+// Bulk Messaging routes
+const messagingRoutes = require('./src/routes/messaging');
+app.use('/api/messaging', tenantMiddleware, messagingRoutes);
+
 // Vehicle routes
 const vehicleRoutes = require('./src/routes/vehicles');
 app.use('/api/vehicles', tenantMiddleware, vehicleRoutes);
