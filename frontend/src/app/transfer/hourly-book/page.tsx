@@ -4,12 +4,12 @@ import React, { Suspense, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import {
     Layout, Card, Typography, Form, Input, Button,
-    Row, Col, Divider, Select, message, Spin, Result, Tag, Alert, Space
+    Row, Col, Divider, Select, message, Spin, Result, Tag, Alert, Space, Radio
 } from 'antd';
 import {
     ClockCircleOutlined, UserOutlined, EnvironmentOutlined,
     CalendarOutlined, CarOutlined, CheckCircleOutlined, ArrowLeftOutlined,
-    PhoneOutlined, MailOutlined, LockOutlined
+    PhoneOutlined, MailOutlined, LockOutlined, CreditCardOutlined, WalletOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import apiClient from '@/lib/api-client';
@@ -46,9 +46,13 @@ function HourlyBookContent() {
     const price = parseFloat(searchParams.get('price') || '0');
     const hourlyRate = parseFloat(searchParams.get('hourlyRate') || '0');
     const currency = searchParams.get('currency') || 'TRY';
+    const vehicleImage = searchParams.get('image') || '';
+    const capacity = searchParams.get('capacity') || '';
+    const luggage = searchParams.get('luggage') || '';
 
     const [loading, setLoading] = useState(false);
     const [bookingSuccess, setBookingSuccess] = useState<{ bookingNumber: string } | null>(null);
+    const [paymentMethod, setPaymentMethod] = useState<'PAY_IN_VEHICLE' | 'ONLINE'>('PAY_IN_VEHICLE');
 
     const pickupDateTime = time ? `${date}T${time}:00.000` : `${date}T12:00:00.000`;
 
@@ -68,7 +72,7 @@ function HourlyBookContent() {
                 infants: 0,
                 price,
                 currency,
-                paymentMethod: 'PAY_IN_VEHICLE',
+                paymentMethod,
                 productType: 'HOURLY',
                 hourlyRate,
                 hours,
@@ -154,90 +158,143 @@ function HourlyBookContent() {
                         <Card
                             style={{
                                 borderRadius: 16, border: '1px solid #e2e8f0',
-                                boxShadow: '0 2px 12px rgba(0,0,0,0.05)', position: 'sticky', top: 20
+                                boxShadow: '0 2px 12px rgba(0,0,0,0.05)', position: 'sticky', top: 20,
+                                overflow: 'hidden',
                             }}
-                            styles={{ body: { padding: 24 } }}
+                            styles={{ body: { padding: 0 } }}
                         >
-                            <Title level={5} style={{ marginTop: 0, marginBottom: 16, color: '#1e293b' }}>
-                                <ClockCircleOutlined style={{ marginRight: 8, color: theme.primaryColor }} />
-                                Kiralama Özeti
-                            </Title>
+                            {/* Vehicle image */}
+                            {vehicleImage && (
+                                <div style={{
+                                    background: '#f8fafc', display: 'flex', alignItems: 'center',
+                                    justifyContent: 'center', padding: '20px', borderBottom: '1px solid #e2e8f0',
+                                    minHeight: 160,
+                                }}>
+                                    <img
+                                        src={vehicleImage}
+                                        alt={vehicleType}
+                                        style={{ maxWidth: '100%', maxHeight: 140, objectFit: 'contain' }}
+                                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                                    />
+                                </div>
+                            )}
 
-                            <div style={{ marginBottom: 16 }}>
-                                <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>Araç Tipi</Text>
-                                <Title level={4} style={{ margin: 0, color: '#1e293b' }}>{vehicleType}</Title>
+                            <div style={{ padding: 24 }}>
+                                <Title level={5} style={{ marginTop: 0, marginBottom: 16, color: '#1e293b' }}>
+                                    <ClockCircleOutlined style={{ marginRight: 8, color: theme.primaryColor }} />
+                                    Kiralama Özeti
+                                </Title>
+
+                                <div style={{ marginBottom: 14 }}>
+                                    <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 2 }}>Araç Tipi</Text>
+                                    <Title level={4} style={{ margin: 0, color: '#1e293b' }}>{vehicleType}</Title>
+                                    {(capacity || luggage) && (
+                                        <Space size="small" style={{ marginTop: 6 }}>
+                                            {capacity && <Tag icon={<UserOutlined />} style={{ borderRadius: 6 }}>{capacity} Yolcu</Tag>}
+                                            {luggage && Number(luggage) > 0 && <Tag style={{ borderRadius: 6 }}>{luggage} Bagaj</Tag>}
+                                        </Space>
+                                    )}
+                                </div>
+
+                                <Space direction="vertical" size="small" style={{ width: '100%', marginBottom: 16 }}>
+                                    <div>
+                                        <Text type="secondary" style={{ fontSize: 11 }}>
+                                            <EnvironmentOutlined style={{ marginRight: 6 }} />Konum
+                                        </Text>
+                                        <div style={{ fontSize: 13, fontWeight: 500, color: '#1e293b', marginTop: 2 }}>{pickupDisplay}</div>
+                                    </div>
+                                    <div>
+                                        <Text type="secondary" style={{ fontSize: 11 }}>
+                                            <CalendarOutlined style={{ marginRight: 6 }} />Tarih & Saat
+                                        </Text>
+                                        <div style={{ fontSize: 13, fontWeight: 500, color: '#1e293b', marginTop: 2 }}>{dateDisplay} {time}</div>
+                                    </div>
+                                    <div>
+                                        <Text type="secondary" style={{ fontSize: 11 }}>
+                                            <ClockCircleOutlined style={{ marginRight: 6 }} />Kiralama Süresi
+                                        </Text>
+                                        <div style={{ fontSize: 13, fontWeight: 500, color: '#1e293b', marginTop: 2 }}>{hours} Saat</div>
+                                    </div>
+                                    <div>
+                                        <Text type="secondary" style={{ fontSize: 11 }}>
+                                            <UserOutlined style={{ marginRight: 6 }} />Yolcu Sayısı
+                                        </Text>
+                                        <div style={{ fontSize: 13, fontWeight: 500, color: '#1e293b', marginTop: 2 }}>{passengers} Yolcu</div>
+                                    </div>
+                                </Space>
+
+                                <Divider style={{ margin: '16px 0' }} />
+
+                                <div style={{ marginBottom: 8 }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                                        <Text type="secondary">Saat Başı Ücret</Text>
+                                        <Text>{formatPrice(hourlyRate, currency)}</Text>
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                                        <Text type="secondary">Süre</Text>
+                                        <Text>{hours} saat</Text>
+                                    </div>
+                                </div>
+
+                                <Divider style={{ margin: '12px 0' }} />
+
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                                    <Title level={4} style={{ margin: 0, color: '#1e293b' }}>Toplam</Title>
+                                    <div style={{ textAlign: 'right' }}>
+                                        <div style={{ fontSize: 28, fontWeight: 800, color: theme.primaryColor }}>
+                                            {formatPrice(price, currency)}
+                                        </div>
+                                        <Text type="secondary" style={{ fontSize: 11 }}>KDV dahil</Text>
+                                    </div>
+                                </div>
+
+                                {/* Payment Method Selection */}
+                                <div style={{
+                                    background: '#f8fafc', borderRadius: 12,
+                                    border: '1px solid #e2e8f0', padding: '14px 16px',
+                                }}>
+                                    <Text strong style={{ fontSize: 13, display: 'block', marginBottom: 12, color: '#374151' }}>
+                                        Ödeme Yöntemi
+                                    </Text>
+                                    <Radio.Group
+                                        value={paymentMethod}
+                                        onChange={(e) => setPaymentMethod(e.target.value)}
+                                        style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 8 }}
+                                    >
+                                        <Radio value="PAY_IN_VEHICLE">
+                                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                                                <WalletOutlined style={{ color: '#059669' }} />
+                                                <span style={{ fontSize: 13, fontWeight: 500 }}>Araçta Ödeme</span>
+                                                <Tag color="green" style={{ borderRadius: 6, fontSize: 10, margin: 0 }}>Nakit / Kart</Tag>
+                                            </div>
+                                        </Radio>
+                                        <Radio value="ONLINE">
+                                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                                                <CreditCardOutlined style={{ color: '#6366f1' }} />
+                                                <span style={{ fontSize: 13, fontWeight: 500 }}>Online Ödeme</span>
+                                                <Tag color="purple" style={{ borderRadius: 6, fontSize: 10, margin: 0 }}>Güvenli</Tag>
+                                            </div>
+                                        </Radio>
+                                    </Radio.Group>
+
+                                    {paymentMethod === 'ONLINE' && (
+                                        <Alert
+                                            type="info"
+                                            message="Online ödeme için rezervasyon onaylanınca size ödeme bağlantısı gönderilecektir."
+                                            showIcon
+                                            style={{ marginTop: 12, borderRadius: 8, fontSize: 12 }}
+                                        />
+                                    )}
+                                    {paymentMethod === 'PAY_IN_VEHICLE' && (
+                                        <Alert
+                                            type="success"
+                                            message="Ödemeyi araç içinde sürücüye nakit veya kart ile yapabilirsiniz."
+                                            showIcon
+                                            style={{ marginTop: 12, borderRadius: 8, fontSize: 12 }}
+                                        />
+                                    )}
+                                </div>
                             </div>
-
-                            <Space direction="vertical" size="small" style={{ width: '100%', marginBottom: 16 }}>
-                                <div>
-                                    <Text type="secondary" style={{ fontSize: 11 }}>
-                                        <EnvironmentOutlined style={{ marginRight: 6 }} />
-                                        Konum
-                                    </Text>
-                                    <div style={{ fontSize: 13, fontWeight: 500, color: '#1e293b', marginTop: 2 }}>
-                                        {pickupDisplay}
-                                    </div>
-                                </div>
-                                <div>
-                                    <Text type="secondary" style={{ fontSize: 11 }}>
-                                        <CalendarOutlined style={{ marginRight: 6 }} />
-                                        Tarih & Saat
-                                    </Text>
-                                    <div style={{ fontSize: 13, fontWeight: 500, color: '#1e293b', marginTop: 2 }}>
-                                        {dateDisplay} {time}
-                                    </div>
-                                </div>
-                                <div>
-                                    <Text type="secondary" style={{ fontSize: 11 }}>
-                                        <ClockCircleOutlined style={{ marginRight: 6 }} />
-                                        Kiralama Süresi
-                                    </Text>
-                                    <div style={{ fontSize: 13, fontWeight: 500, color: '#1e293b', marginTop: 2 }}>
-                                        {hours} Saat
-                                    </div>
-                                </div>
-                                <div>
-                                    <Text type="secondary" style={{ fontSize: 11 }}>
-                                        <UserOutlined style={{ marginRight: 6 }} />
-                                        Yolcu Sayısı
-                                    </Text>
-                                    <div style={{ fontSize: 13, fontWeight: 500, color: '#1e293b', marginTop: 2 }}>
-                                        {passengers} Yolcu
-                                    </div>
-                                </div>
-                            </Space>
-
-                            <Divider style={{ margin: '16px 0' }} />
-
-                            <div style={{ marginBottom: 8 }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                                    <Text type="secondary">Saat Başı Ücret</Text>
-                                    <Text>{formatPrice(hourlyRate, currency)}</Text>
-                                </div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                                    <Text type="secondary">Süre</Text>
-                                    <Text>{hours} saat</Text>
-                                </div>
-                            </div>
-
-                            <Divider style={{ margin: '12px 0' }} />
-
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <Title level={4} style={{ margin: 0, color: '#1e293b' }}>Toplam</Title>
-                                <div style={{ textAlign: 'right' }}>
-                                    <div style={{ fontSize: 28, fontWeight: 800, color: theme.primaryColor }}>
-                                        {formatPrice(price, currency)}
-                                    </div>
-                                    <Text type="secondary" style={{ fontSize: 11 }}>KDV dahil</Text>
-                                </div>
-                            </div>
-
-                            <Alert
-                                type="info"
-                                message="Ödeme araçta veya online yapılabilir"
-                                showIcon
-                                style={{ marginTop: 16, borderRadius: 10 }}
-                            />
                         </Card>
                     </Col>
 
