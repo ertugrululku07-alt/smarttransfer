@@ -10,7 +10,7 @@ const { getTransporter, renderTemplate } = require('../lib/emailService');
 const { sendWhatsAppMessage, normalizePhone } = require('../lib/whatsappService');
 
 // Auth middleware
-const authMiddleware = require('../middleware/auth');
+const { authMiddleware } = require('../middleware/auth');
 const adminMiddleware = (req, res, next) => {
     if (!req.user || !['SUPER_ADMIN', 'ADMIN', 'MANAGER'].includes(req.user.role?.name || req.user.roleName)) {
         return res.status(403).json({ success: false, error: 'Yetkisiz erişim' });
