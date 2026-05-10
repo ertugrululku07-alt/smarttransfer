@@ -29,6 +29,9 @@ export default function JobDetailScreen() {
     const [paymentSaving, setPaymentSaving] = useState(false);
     const [tenantCurrencies, setTenantCurrencies] = useState<string[]>(['TRY', 'EUR', 'USD']);
     const [defaultCurrency, setDefaultCurrency] = useState('TRY');
+    const [exchangeRates, setExchangeRates] = useState<Record<string, number>>({});
+    const [originalAmount, setOriginalAmount] = useState(0);
+    const [originalCurrency, setOriginalCurrency] = useState('TRY');
     // ── No-Show ──
     const [noShowModal, setNoShowModal] = useState(false);
     const [noShowReason, setNoShowReason] = useState('CUSTOMER_NOT_FOUND');
@@ -47,6 +50,7 @@ export default function JobDetailScreen() {
                 if (json.success && json.data) {
                     setTenantCurrencies(json.data.currencies || ['TRY', 'EUR', 'USD']);
                     setDefaultCurrency(json.data.defaultCurrency || 'TRY');
+                    if (json.data.rates) setExchangeRates(json.data.rates);
                 }
             } catch (e) { console.warn('Failed to fetch currencies', e); }
         })();
@@ -203,6 +207,8 @@ export default function JobDetailScreen() {
             setPaymentModal(true);
             setCollectedAmount(String(total));
             setCollectedCurrency(currency);
+            setOriginalAmount(total);
+            setOriginalCurrency(currency);
         } else {
             updateStatus('IN_PROGRESS');
         }
@@ -525,7 +531,16 @@ export default function JobDetailScreen() {
                                 <TouchableOpacity
                                     key={c}
                                     style={[styles.currencyChip, collectedCurrency === c && styles.currencyChipActive]}
-                                    onPress={() => setCollectedCurrency(c)}
+                                    onPress={() => {
+                                        setCollectedCurrency(c);
+                                        // Convert amount using exchange rates
+                                        const fromRate = exchangeRates[originalCurrency];
+                                        const toRate = exchangeRates[c];
+                                        if (fromRate && toRate && fromRate > 0 && toRate > 0) {
+                                            const converted = (originalAmount * fromRate) / toRate;
+                                            setCollectedAmount(String(Math.round(converted * 100) / 100));
+                                        }
+                                    }}
                                 >
                                     <Text style={[styles.currencyChipText, collectedCurrency === c && styles.currencyChipTextActive]}>{c}</Text>
                                 </TouchableOpacity>

@@ -67,6 +67,7 @@ export default function JobListScreen() {
   const [paymentSaving, setPaymentSaving] = useState(false);
   const [tenantCurrencies, setTenantCurrencies] = useState<string[]>(['TRY', 'EUR', 'USD']);
   const [defaultCurrency, setDefaultCurrency] = useState('TRY');
+  const [exchangeRates, setExchangeRates] = useState<Record<string, number>>({});
   const [extrasModal, setExtrasModal] = useState<{ visible: boolean; extras: any[] }>({ visible: false, extras: [] });
   const [expandedCustomer, setExpandedCustomer] = useState<Record<string, boolean>>({});
   // ── SOS / Emergency ──
@@ -96,6 +97,7 @@ export default function JobListScreen() {
         if (curJson.success && curJson.data) {
           setTenantCurrencies(curJson.data.currencies || ['TRY', 'EUR', 'USD']);
           setDefaultCurrency(curJson.data.defaultCurrency || 'TRY');
+          if (curJson.data.rates) setExchangeRates(curJson.data.rates);
         }
         const setJson = await setRes.json();
         if (setJson.success && setJson.data) {
@@ -825,7 +827,7 @@ export default function JobListScreen() {
             <View style={st.typeChipPrivate}><Ionicons name="car-sport" size={9} color={Brand.primary} /><Text style={st.typeChipPrivateText}>ÖZEL</Text></View>
           </View>
           <View style={st.placeCol}>
-            <Text style={st.placeText} numberOfLines={1}>{customerName} · {meetingPlace}</Text>
+            <Text style={st.placeText} numberOfLines={1}>{meetingPlace}</Text>
             <Text style={st.placeSub} numberOfLines={1}>{dirRoute}</Text>
           </View>
           <View style={[st.dirBadge, { backgroundColor: `${dirColor}18`, borderColor: `${dirColor}55` }]}>
@@ -970,7 +972,16 @@ export default function JobListScreen() {
                 <TouchableOpacity
                   key={c}
                   style={[st.currencyChip, collectedCurrency === c && st.currencyChipActive]}
-                  onPress={() => setCollectedCurrency(c)}
+                  onPress={() => {
+                    setCollectedCurrency(c);
+                    // Convert amount using exchange rates
+                    const fromRate = exchangeRates[paymentModal.expectedCurrency];
+                    const toRate = exchangeRates[c];
+                    if (fromRate && toRate && fromRate > 0 && toRate > 0) {
+                      const converted = (paymentModal.expectedAmount * fromRate) / toRate;
+                      setCollectedAmount(String(Math.round(converted * 100) / 100));
+                    }
+                  }}
                 >
                   <Text style={[st.currencyChipText, collectedCurrency === c && st.currencyChipTextActive]}>{c}</Text>
                 </TouchableOpacity>

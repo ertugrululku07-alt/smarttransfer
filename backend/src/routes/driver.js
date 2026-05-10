@@ -694,18 +694,27 @@ router.get('/settings', authMiddleware, ensureDriver, async (req, res) => {
 });
 
 // GET /api/driver/currencies
-// Returns tenant's supported currencies and default currency
+// Returns tenant's supported currencies, default currency, and exchange rates
 router.get('/currencies', authMiddleware, ensureDriver, async (req, res) => {
     try {
         const tenant = await prisma.tenant.findUnique({
             where: { id: req.user.tenantId },
-            select: { supportedCurrencies: true, defaultCurrency: true }
+            select: { supportedCurrencies: true, defaultCurrency: true, settings: true }
         });
+
+        // Build exchange rates from tenant settings definitions
+        const currencyDefs = tenant?.settings?.definitions?.currencies || [];
+        const rates = {};
+        currencyDefs.forEach(c => {
+            if (c.code && c.rate) rates[c.code] = Number(c.rate);
+        });
+
         res.json({
             success: true,
             data: {
                 currencies: tenant?.supportedCurrencies || ['TRY', 'EUR', 'USD'],
-                defaultCurrency: tenant?.defaultCurrency || 'TRY'
+                defaultCurrency: tenant?.defaultCurrency || 'TRY',
+                rates // e.g. { TRY: 1, EUR: 37.5, USD: 33 }
             }
         });
     } catch (error) {
