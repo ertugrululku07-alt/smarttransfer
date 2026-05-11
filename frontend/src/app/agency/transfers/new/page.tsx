@@ -275,6 +275,27 @@ const AgencyNewTransferPage = () => {
         }
     };
 
+    // Get agency markup rate (e.g. 20 means 20%)
+    const agencyMarkupRate = Number(agencyInfo?.markup || 0);
+
+    // Calculate the marked-up price for an extra service in the booking's currency
+    const getExtraServiceDisplayPrice = (service: any) => {
+        const rawPrice = Number(service.price || 0);
+        return Math.round(rawPrice * (1 + agencyMarkupRate / 100) * 100) / 100;
+    };
+
+    // Get the effective price addition for an extra service (same currency as booking)
+    const getExtraServiceEffectivePrice = (service: any) => {
+        const markedUpPrice = getExtraServiceDisplayPrice(service);
+        const serviceCurrency = service.currency || 'TRY';
+        const bookingCurrency = selectedVehicle?.currency || 'TRY';
+        // If currencies match, use directly; otherwise don't add (mixed currency warning)
+        if (serviceCurrency === bookingCurrency) return markedUpPrice;
+        // For now, skip adding different-currency services to the total
+        // The service is still recorded in metadata for invoicing
+        return 0;
+    };
+
     const fetchExtraServices = async () => {
         try {
             setLoadingExtraServices(true);
@@ -1108,14 +1129,16 @@ const AgencyNewTransferPage = () => {
                                             {service.image && <img src={service.image} alt={service.name} style={{ width: 38, height: 38, objectFit: 'cover', borderRadius: 8 }} />}
                                             <div>
                                                 <div style={{ fontWeight: 700, color: '#0f172a', fontSize: 13 }}>{service.name}</div>
-                                                <div style={{ fontSize: 11, color: '#64748b' }}>{service.price} {service.currency} {service.isPerPerson ? '/ kişi' : '/ adet'}</div>
+                                                <div style={{ fontSize: 11, color: '#64748b' }}>{getExtraServiceDisplayPrice(service)} {service.currency} {service.isPerPerson ? '/ kişi' : '/ adet'}{service.currency !== (selectedVehicle?.currency || 'TRY') ? <span style={{ color: '#f59e0b', marginLeft: 4 }}>(farklı döviz)</span> : ''}</div>
                                             </div>
                                         </div>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                             <button type="button" disabled={service.quantity <= 0}
                                                 onClick={() => {
                                                     const nl = [...extraServicesList]; nl[index].quantity -= 1; setExtraServicesList(nl);
-                                                    form.setFieldValue('amount', Math.max(selectedVehicle?.price || 0, (form.getFieldValue('amount') || selectedVehicle?.price || 0) - service.price));
+                                                    const effectivePrice = getExtraServiceEffectivePrice(service);
+                                                    const b2bMin = selectedVehicle?.basePrice || selectedVehicle?.price || 0;
+                                                    form.setFieldValue('amount', Math.max(b2bMin, (form.getFieldValue('amount') || selectedVehicle?.price || 0) - effectivePrice));
                                                 }}
                                                 style={{ width: 28, height: 28, borderRadius: 7, border: '1px solid #e2e8f0', background: service.quantity <= 0 ? '#f1f5f9' : '#fff', cursor: service.quantity <= 0 ? 'not-allowed' : 'pointer', fontSize: 16, fontWeight: 700, color: '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
                                             <span style={{ width: 24, textAlign: 'center', fontWeight: 700, fontSize: 14 }}>{service.quantity}</span>
@@ -1124,7 +1147,8 @@ const AgencyNewTransferPage = () => {
                                                     const maxQty = service.isPerPerson ? passengerCounts.adults + passengerCounts.children + passengerCounts.babies : 10;
                                                     if (service.quantity >= maxQty) return;
                                                     const nl = [...extraServicesList]; nl[index].quantity += 1; setExtraServicesList(nl);
-                                                    form.setFieldValue('amount', (form.getFieldValue('amount') || selectedVehicle?.price || 0) + service.price);
+                                                    const effectivePrice = getExtraServiceEffectivePrice(service);
+                                                    form.setFieldValue('amount', (form.getFieldValue('amount') || selectedVehicle?.price || 0) + effectivePrice);
                                                 }}
                                                 style={{ width: 28, height: 28, borderRadius: 7, border: 'none', background: 'linear-gradient(135deg,#10b981,#34d399)', cursor: 'pointer', fontSize: 16, fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
                                         </div>
@@ -1193,8 +1217,8 @@ const AgencyNewTransferPage = () => {
                         rules={[{ required: true, message: 'Satış tutarı zorunludur' }]}
                         extra={<span style={{ color: 'rgba(255,255,255,0.35)', fontSize: 12 }}>B2B maliyet: {getCurrencySymbol(selectedVehicle?.currency || 'TRY')}{(selectedVehicle?.basePrice || selectedVehicle?.price || 0).toLocaleString('tr-TR')}</span>}
                         style={{ marginBottom: 0 }}>
-                        <InputNumber min={selectedVehicle?.price || 0} style={{ width: '100%', borderRadius: 10 }} size="large"
-                            addonAfter={<span style={{ fontWeight: 700 }}>{selectedVehicle?.currency || 'TRY'}</span>} />
+                        <InputNumber min={selectedVehicle?.basePrice || selectedVehicle?.price || 0} style={{ width: '100%', borderRadius: 10 }} size="large"
+                            addonAfter={<span style={{ fontWeight: 700, color: '#fff' }}>{selectedVehicle?.currency || 'TRY'}</span>} />
                     </Form.Item>
                 </div>
 
