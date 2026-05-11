@@ -13,6 +13,16 @@ import { useCurrency } from '@/app/context/CurrencyContext';
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
 
+interface BookingDetails {
+    pickup: string;
+    dropoff: string;
+    b2bCost: number;
+    salePrice: number;
+    paymentMethod: string;
+    status: string;
+    transferDate?: string;
+}
+
 interface TransactionEntry {
     id: string;
     date: string;
@@ -23,6 +33,7 @@ interface TransactionEntry {
     description: string;
     personnelName: string;
     referenceData?: string;
+    bookingDetails?: BookingDetails;
     runningBalance: number;
 }
 
@@ -155,42 +166,62 @@ export default function AccountStatementPage() {
         return currencySummaries.find(s => s.currency === cur) || { currency: cur, totalCredit: 0, totalDebit: 0, balance: 0 };
     };
 
+    const PAY_METHOD_LABELS: Record<string, string> = {
+        BALANCE: 'Bakiyeden',
+        PAY_IN_VEHICLE: 'Araçta Tahsil',
+        CREDIT_CARD: 'Kredi Kartı',
+    };
+
     const columns = [
         {
             title: 'Tarih',
             dataIndex: 'date',
             key: 'date',
-            width: 140,
+            width: 120,
             render: (text: string) => (
-                <Text style={{ whiteSpace: 'nowrap', fontSize: 12 }}><CalendarOutlined style={{ marginRight: 4 }} />{dayjs(text).format('DD.MM.YYYY HH:mm')}</Text>
+                <Text style={{ whiteSpace: 'nowrap', fontSize: 11 }}><CalendarOutlined style={{ marginRight: 4 }} />{dayjs(text).format('DD.MM.YYYY HH:mm')}</Text>
             ),
         },
         {
-            title: 'İşlem',
+            title: 'İşlem / Detay',
             dataIndex: 'type',
             key: 'type',
-            width: 180,
+            width: 320,
             render: (type: string, record: TransactionEntry) => {
                 const meta = TX_TYPE_MAP[type] || { label: type, color: 'default' };
+                const bd = record.bookingDetails;
                 return (
                     <div>
-                        <Tag color={meta.color} style={{ marginBottom: 2 }}>{meta.label}</Tag>
-                        {record.referenceData && <div style={{ fontSize: 11, color: '#8c8c8c' }}>PNR: {record.referenceData}</div>}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                            <Tag color={meta.color} style={{ margin: 0 }}>{meta.label}</Tag>
+                            {record.referenceData && <Text style={{ fontSize: 11, color: '#6b7280' }}>PNR: {record.referenceData}</Text>}
+                            {bd?.status === 'CANCELLED' && <Tag color="red" style={{ margin: 0, fontSize: 10 }}>İPTAL</Tag>}
+                        </div>
+                        {bd && bd.pickup && (
+                            <div style={{ fontSize: 11, color: '#374151', marginTop: 2 }}>
+                                <span style={{ fontWeight: 600 }}>{bd.pickup}</span>
+                                <span style={{ margin: '0 4px', color: '#9ca3af' }}>→</span>
+                                <span style={{ fontWeight: 600 }}>{bd.dropoff}</span>
+                            </div>
+                        )}
+                        {bd && (
+                            <div style={{ fontSize: 10, color: '#6b7280', marginTop: 2 }}>
+                                Maliyet: {fmtMoney(bd.b2bCost, record.currency)} | Satış: {fmtMoney(bd.salePrice, record.currency)} | Kâr: {fmtMoney(bd.salePrice - bd.b2bCost, record.currency)}
+                                <span style={{ marginLeft: 8, padding: '1px 5px', background: '#f3f4f6', borderRadius: 4, fontSize: 9 }}>
+                                    {PAY_METHOD_LABELS[bd.paymentMethod] || bd.paymentMethod}
+                                </span>
+                            </div>
+                        )}
+                        {!bd && <div style={{ fontSize: 11, color: '#6b7280' }}>{record.description}</div>}
                     </div>
                 );
             }
         },
         {
-            title: 'Açıklama',
-            dataIndex: 'description',
-            key: 'description',
-            ellipsis: true,
-        },
-        {
             title: 'Döviz',
             dataIndex: 'currency',
             key: 'currency',
-            width: 70,
+            width: 60,
             render: (cur: string) => {
                 const colors = getCurrencyColor(cur);
                 return <Tag style={{ background: colors.bg, color: colors.text, border: `1px solid ${colors.border}`, fontWeight: 700, fontSize: 11 }}>{cur}</Tag>;
@@ -200,14 +231,14 @@ export default function AccountStatementPage() {
             title: 'İşlemi Yapan',
             dataIndex: 'personnelName',
             key: 'personnelName',
-            width: 150,
-            render: (text: string) => <Text style={{ fontSize: 12 }}><UserOutlined style={{ color: '#8c8c8c', marginRight: 4 }} />{text}</Text>
+            width: 140,
+            render: (text: string) => <Text style={{ fontSize: 11 }}><UserOutlined style={{ color: '#8c8c8c', marginRight: 4 }} />{text}</Text>
         },
         {
             title: 'Tutar',
             dataIndex: 'amount',
             key: 'amount',
-            width: 140,
+            width: 130,
             align: 'right' as const,
             render: (amount: number, record: TransactionEntry) => (
                 <Text strong style={{ color: record.isCredit ? '#16a34a' : '#dc2626', fontSize: 13 }}>
@@ -219,7 +250,7 @@ export default function AccountStatementPage() {
             title: 'Bakiye',
             dataIndex: 'runningBalance',
             key: 'runningBalance',
-            width: 140,
+            width: 130,
             align: 'right' as const,
             render: (bal: number, record: TransactionEntry) => (
                 <Text strong style={{ color: bal >= 0 ? '#2563eb' : '#dc2626', fontSize: 13 }}>{fmtMoney(bal, record.currency)}</Text>

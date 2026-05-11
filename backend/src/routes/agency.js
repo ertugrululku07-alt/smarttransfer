@@ -1027,16 +1027,36 @@ router.get('/statement', authMiddleware, agencyMiddleware, async (req, res) => {
         // ── Auto-backfill: create missing transactions for existing bookings ──
         const accountId = `agency-${req.agencyId}`;
 
-        // If rebuild=true, delete all existing auto-generated transactions and recreate
-        if (rebuild === 'true') {
-            await prisma.transaction.deleteMany({
-                where: { tenantId: req.tenant.id, accountId }
+        // Auto-detect incorrect transactions: PAY_IN_VEHICLE bookings should NOT have PURCHASE_INVOICE debits
+        let needsRebuild = rebuild === 'true';
+        if (!needsRebuild) {
+            const incorrectTxs = await prisma.transaction.findMany({
+                where: {
+                    tenantId: req.tenant.id,
+                    accountId,
+                    type: 'PURCHASE_INVOICE',
+                    description: { contains: 'Araçta Ödeme' }
+                },
+                select: { id: true },
+                take: 1
             });
-            console.log(`[Statement] Rebuilding transactions for agency ${req.agencyId}`);
+            if (incorrectTxs.length > 0) needsRebuild = true;
+        }
+
+        if (needsRebuild) {
+            // Only delete booking-related auto-generated transactions, keep manual ones (DEPOSIT, MANUAL_IN, MANUAL_OUT)
+            await prisma.transaction.deleteMany({
+                where: {
+                    tenantId: req.tenant.id,
+                    accountId,
+                    type: { in: ['PURCHASE_INVOICE', 'SALES_INVOICE', 'PAYMENT_RECEIVED', 'PAYMENT_SENT'] }
+                }
+            });
+            console.log(`[Statement] Auto-rebuilding transactions for agency ${req.agencyId} (detected incorrect entries)`);
         }
 
         const existingTxCount = await prisma.transaction.count({
-            where: { tenantId: req.tenant.id, accountId }
+            where: { tenantId: req.tenant.id, accountId, type: { in: ['PURCHASE_INVOICE', 'SALES_INVOICE', 'PAYMENT_RECEIVED', 'PAYMENT_SENT'] } }
         });
         if (existingTxCount === 0) {
             // Check if there are bookings that should have transactions
@@ -1097,11 +1117,15 @@ router.get('/statement', authMiddleware, agencyMiddleware, async (req, res) => {
         const [refBookings, refDeposits] = await Promise.all([
             prisma.booking.findMany({
                 where: { id: { in: refIds } },
-                select: { id: true, bookingNumber: true, agent: { select: { fullName: true } } }
+                select: {
+                    id: true, bookingNumber: true, subtotal: true, total: true,
+                    currency: true, status: true, metadata: true, startDate: true,
+                    agent: { select: { fullName: true } }
+                }
             }),
             prisma.agencyDeposit.findMany({
                 where: { id: { in: refIds } },
-                select: { id: true, transactionRef: true, approvedBy: { select: { fullName: true } } }
+                select: { id: true, transactionRef: true, amount: true, approvedBy: { select: { fullName: true } } }
             })
         ]);
         const bookingMap = Object.fromEntries(refBookings.map(b => [b.id, b]));
@@ -1111,6 +1135,7 @@ router.get('/statement', authMiddleware, agencyMiddleware, async (req, res) => {
         const statementEntries = allTransactions.map(t => {
             let personnelName = 'Sistem';
             let referenceData = null;
+            let bookingDetails = null;
             const cur = t.currency || 'TRY';
 
             if (t.referenceId) {
@@ -1119,6 +1144,15 @@ router.get('/statement', authMiddleware, agencyMiddleware, async (req, res) => {
                 if (booking) {
                     personnelName = booking.agent?.fullName || 'Bilinmeyen Personel';
                     referenceData = booking.bookingNumber;
+                    bookingDetails = {
+                        pickup: booking.metadata?.pickup || '',
+                        dropoff: booking.metadata?.dropoff || '',
+                        b2bCost: Number(booking.subtotal || 0),
+                        salePrice: Number(booking.total || 0),
+                        paymentMethod: booking.metadata?.paymentMethod || 'BALANCE',
+                        status: booking.status,
+                        transferDate: booking.startDate
+                    };
                 } else if (deposit) {
                     personnelName = deposit.approvedBy ? `Onaylayan: ${deposit.approvedBy.fullName}` : 'Sistem / Otomatik';
                     referenceData = deposit.transactionRef;
@@ -1135,6 +1169,7 @@ router.get('/statement', authMiddleware, agencyMiddleware, async (req, res) => {
                 description: t.description,
                 personnelName,
                 referenceData,
+                bookingDetails,
                 runningBalance: 0
             };
         });
