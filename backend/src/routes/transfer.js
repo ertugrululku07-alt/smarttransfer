@@ -1439,7 +1439,9 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                     luggage: vt.luggage,
                     price: finalPrice,
                     basePrice: contractPrice ? Math.round(baseContractValue) : calculatedPrice, 
-                    currency: vt.metadata?.currency || tenantDefaultCurrency, 
+                    currency: contractPrice
+                        ? (agencyContractMeta[vt.id]?.currency || vt.metadata?.currency || tenantDefaultCurrency)
+                        : (vt.metadata?.currency || tenantDefaultCurrency), 
                     features: ['Özel Transfer', 'Kapıdan Kapıya', ...(vt.features || [])],
                     cancellationPolicy: '24 saat öncesine kadar ücretsiz iptal',
                     estimatedDuration: distance ? `${Math.round((distance ? Number(distance) : 50) * 1.2)} dk` : '50 dk', 

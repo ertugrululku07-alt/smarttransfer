@@ -376,6 +376,7 @@ const AgencyNewTransferPage = () => {
                 vehicleId: selectedVehicle.id,
                 vehicleType: selectedVehicle.vehicleType,
                 providerPrice: selectedVehicle.basePrice || selectedVehicle.price,
+                currency: selectedVehicle.currency,
                 amount: values.amount,
                 passengers: values.passengers || (passengerCounts.adults + passengerCounts.children + passengerCounts.babies),
                 passengersList: values.passengersList,

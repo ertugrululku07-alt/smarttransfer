@@ -368,7 +368,7 @@ router.post('/bookings', authMiddleware, agencyMiddleware, async (req, res) => {
                     productType: type || 'TRANSFER',
                     startDate: new Date(startDate),
                     adults: passengers || 1,
-                    currency: 'TRY', // default
+                    currency: req.body.currency || 'TRY',
                     subtotal: netAmount, // B2B Cost
                     tax: 0,
                     serviceFee: 0,
