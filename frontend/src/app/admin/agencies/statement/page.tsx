@@ -14,6 +14,7 @@ import dayjs from 'dayjs';
 import apiClient from '@/lib/api-client';
 import AdminLayout from '../../AdminLayout';
 import AdminGuard from '../../AdminGuard';
+import { useDefinitions } from '@/app/hooks/useDefinitions';
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
@@ -45,13 +46,17 @@ interface CurrencySummary {
     balance: number;
 }
 
-const CURRENCY_SYMBOLS: Record<string, string> = { TRY: '₺', EUR: '€', USD: '$', GBP: '£' };
-const CURRENCY_COLORS: Record<string, { bg: string; border: string; text: string }> = {
-    TRY: { bg: '#f5f3ff', border: '#c4b5fd', text: '#7c3aed' },
-    EUR: { bg: '#eff6ff', border: '#93c5fd', text: '#2563eb' },
-    USD: { bg: '#f0fdf4', border: '#86efac', text: '#16a34a' },
-    GBP: { bg: '#fef3c7', border: '#fcd34d', text: '#d97706' }
-};
+// Dynamic color palette for currencies (auto-assigned based on index)
+const COLOR_PALETTE = [
+    { bg: '#eff6ff', border: '#93c5fd', text: '#2563eb' },
+    { bg: '#f5f3ff', border: '#c4b5fd', text: '#7c3aed' },
+    { bg: '#f0fdf4', border: '#86efac', text: '#16a34a' },
+    { bg: '#fef3c7', border: '#fcd34d', text: '#d97706' },
+    { bg: '#fdf2f8', border: '#f9a8d4', text: '#db2777' },
+    { bg: '#ecfeff', border: '#67e8f9', text: '#0891b2' },
+    { bg: '#fff7ed', border: '#fdba74', text: '#ea580c' },
+    { bg: '#f0f9ff', border: '#7dd3fc', text: '#0284c7' },
+];
 
 const TX_TYPE_MAP: Record<string, { label: string; color: string }> = {
     PURCHASE_INVOICE: { label: 'Transfer Satın Alma', color: 'red' },
@@ -73,21 +78,32 @@ const TX_TYPE_OPTIONS = [
     { value: 'SALARY', label: 'Hakediş / Maaş' },
 ];
 
-const fmtMoney = (amount: number, currency: string) => {
-    const sym = CURRENCY_SYMBOLS[currency] || currency + ' ';
-    return `${sym}${Math.abs(amount).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-};
 
 export default function AdminAgencyStatementPage() {
+    const { currencies: defCurrencies } = useDefinitions();
     const [agencies, setAgencies] = useState<Agency[]>([]);
     const [selectedAgencyId, setSelectedAgencyId] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
     const [transactions, setTransactions] = useState<TransactionEntry[]>([]);
     const [currencySummaries, setCurrencySummaries] = useState<CurrencySummary[]>([]);
-    const [supportedCurrencies, setSupportedCurrencies] = useState<string[]>(['TRY', 'EUR', 'USD']);
     const [dateRange, setDateRange] = useState<[dayjs.Dayjs | null, dayjs.Dayjs | null]>([null, null]);
     const [activeCurrency, setActiveCurrency] = useState<string>('ALL');
     const [error, setError] = useState<string | null>(null);
+
+    // Dynamic currency helpers from system definitions
+    const getCurrencySymbol = (code: string) => {
+        const c = defCurrencies.find(cur => cur.code === code);
+        return c?.symbol || code + ' ';
+    };
+    const getCurrencyColor = (code: string) => {
+        const idx = defCurrencies.findIndex(c => c.code === code);
+        return COLOR_PALETTE[idx >= 0 ? idx % COLOR_PALETTE.length : 0];
+    };
+    const fmtMoney = (amount: number, currency: string) => {
+        const sym = getCurrencySymbol(currency);
+        return `${sym}${Math.abs(amount).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    };
+    const supportedCurrencies = defCurrencies.map(c => c.code);
 
     // Manual transaction modal
     const [txModalVisible, setTxModalVisible] = useState(false);
@@ -118,7 +134,6 @@ export default function AdminAgencyStatementPage() {
             if (res.data.success) {
                 setTransactions(res.data.data.transactions || []);
                 setCurrencySummaries(res.data.data.currencySummaries || []);
-                if (res.data.data.supportedCurrencies) setSupportedCurrencies(res.data.data.supportedCurrencies);
             } else {
                 setError(res.data.error || 'Ekstre alınamadı');
             }
@@ -173,11 +188,11 @@ export default function AdminAgencyStatementPage() {
     }, [transactions, activeCurrency]);
 
     const currencies = useMemo(() => {
-        const set = new Set(transactions.map(t => t.currency));
+        const set = new Set(defCurrencies.map(c => c.code));
+        transactions.forEach(t => set.add(t.currency));
         currencySummaries.forEach(s => set.add(s.currency));
-        supportedCurrencies.forEach(c => set.add(c));
         return Array.from(set).sort();
-    }, [transactions, currencySummaries, supportedCurrencies]);
+    }, [transactions, currencySummaries, defCurrencies]);
 
     const getSummary = (cur: string): CurrencySummary => {
         return currencySummaries.find(s => s.currency === cur) || { currency: cur, totalCredit: 0, totalDebit: 0, balance: 0 };
@@ -206,7 +221,7 @@ export default function AdminAgencyStatementPage() {
         {
             title: 'Döviz', dataIndex: 'currency', key: 'currency', width: 70,
             render: (cur: string) => {
-                const colors = CURRENCY_COLORS[cur] || CURRENCY_COLORS.TRY;
+                const colors = getCurrencyColor(cur);
                 return <Tag style={{ background: colors.bg, color: colors.text, border: `1px solid ${colors.border}`, fontWeight: 700, fontSize: 11 }}>{cur}</Tag>;
             }
         },
@@ -281,7 +296,7 @@ export default function AdminAgencyStatementPage() {
                                 )}
                                 {currencies.map(cur => {
                                     const s = getSummary(cur);
-                                    const colors = CURRENCY_COLORS[cur] || CURRENCY_COLORS.TRY;
+                                    const colors = getCurrencyColor(cur);
                                     return (
                                         <Col xs={24} sm={12} md={8} lg={6} key={cur}>
                                             <Card
@@ -364,7 +379,7 @@ export default function AdminAgencyStatementPage() {
                                     <Form.Item name="currency" label="Döviz" rules={[{ required: true }]}>
                                         <Select>
                                             {supportedCurrencies.map(c => (
-                                                <Select.Option key={c} value={c}>{CURRENCY_SYMBOLS[c] || ''} {c}</Select.Option>
+                                                <Select.Option key={c} value={c}>{getCurrencySymbol(c)} {c}</Select.Option>
                                             ))}
                                         </Select>
                                     </Form.Item>
