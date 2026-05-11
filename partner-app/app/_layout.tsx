@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import * as SplashScreen from 'expo-splash-screen';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -10,6 +11,9 @@ import { router, useSegments } from 'expo-router';
 import Toast from 'react-native-toast-message';
 import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
+
+// Keep splash visible until we explicitly hide it
+SplashScreen.preventAutoHideAsync();
 
 export const unstable_settings = {
   initialRouteName: 'index',
@@ -43,6 +47,8 @@ function AuthGuard() {
 
   useEffect(() => {
     if (isLoading) return;
+    // Auth check done — hide splash screen
+    SplashScreen.hideAsync();
     const inProtectedRoute = segments[0] === '(tabs)' || segments[0] === 'transfer';
     if (!token && inProtectedRoute) {
       try { router.replace('/'); } catch {}
