@@ -585,4 +585,120 @@ router.get('/:id/balances', authMiddleware, async (req, res) => {
     }
 });
 
+// ==========================================
+// ADMIN: BACKFILL MISSING AGENCY TRANSACTIONS
+// ==========================================
+router.post('/backfill-transactions', authMiddleware, async (req, res) => {
+    try {
+        const tenantId = req.tenant?.id;
+        if (!tenantId) return res.status(400).json({ success: false, error: 'Tenant context missing' });
+
+        // Find all B2B bookings for this tenant
+        const bookings = await prisma.booking.findMany({
+            where: { tenantId, agencyId: { not: null } },
+            select: {
+                id: true, tenantId: true, agencyId: true, bookingNumber: true,
+                currency: true, subtotal: true, total: true, status: true,
+                paymentStatus: true, metadata: true, createdAt: true
+            },
+            orderBy: { createdAt: 'asc' }
+        });
+
+        // Get existing transaction referenceIds
+        const existingTxs = await prisma.transaction.findMany({
+            where: { tenantId, referenceId: { in: bookings.map(b => b.id) } },
+            select: { referenceId: true }
+        });
+        const existingRefIds = new Set(existingTxs.map(t => t.referenceId));
+
+        let created = 0;
+        let skipped = 0;
+        const details = [];
+
+        for (const booking of bookings) {
+            if (existingRefIds.has(booking.id)) { skipped++; continue; }
+
+            const b2bCost = Number(booking.subtotal || 0);
+            const customerPrice = Number(booking.total || 0);
+            const markup = customerPrice - b2bCost;
+            const cur = booking.currency || 'TRY';
+            const payMethod = booking.metadata?.paymentMethod || 'BALANCE';
+            const accountId = `agency-${booking.agencyId}`;
+
+            if (b2bCost <= 0) { skipped++; continue; }
+
+            const txsToCreate = [];
+
+            // PURCHASE_INVOICE (debit)
+            txsToCreate.push({
+                tenantId: booking.tenantId,
+                accountId,
+                type: 'PURCHASE_INVOICE',
+                amount: b2bCost,
+                currency: cur,
+                isCredit: false,
+                description: `B2B Transfer Satın Alma – ${payMethod === 'BALANCE' ? 'Bakiyeden' : payMethod === 'PAY_IN_VEHICLE' ? 'Araçta Ödeme' : 'Kredi Kartı'} (PNR: ${booking.bookingNumber})`,
+                date: booking.createdAt,
+                referenceId: booking.id
+            });
+
+            // SALES_INVOICE (credit) for markup
+            if (markup > 0) {
+                txsToCreate.push({
+                    tenantId: booking.tenantId,
+                    accountId,
+                    type: 'SALES_INVOICE',
+                    amount: markup,
+                    currency: cur,
+                    isCredit: true,
+                    description: `Acente Komisyon/Kâr (PNR: ${booking.bookingNumber})`,
+                    date: booking.createdAt,
+                    referenceId: booking.id
+                });
+            }
+
+            // Cancelled → reversal entries
+            if (booking.status === 'CANCELLED') {
+                txsToCreate.push({
+                    tenantId: booking.tenantId,
+                    accountId,
+                    type: 'PAYMENT_RECEIVED',
+                    amount: b2bCost,
+                    currency: cur,
+                    isCredit: true,
+                    description: `İptal İadesi – B2B Maliyet (PNR: ${booking.bookingNumber})`,
+                    date: booking.createdAt,
+                    referenceId: booking.id
+                });
+                if (markup > 0) {
+                    txsToCreate.push({
+                        tenantId: booking.tenantId,
+                        accountId,
+                        type: 'PAYMENT_SENT',
+                        amount: markup,
+                        currency: cur,
+                        isCredit: false,
+                        description: `İptal – Komisyon İptali (PNR: ${booking.bookingNumber})`,
+                        date: booking.createdAt,
+                        referenceId: booking.id
+                    });
+                }
+            }
+
+            await prisma.transaction.createMany({ data: txsToCreate });
+            created += txsToCreate.length;
+            details.push(`${booking.bookingNumber} (${cur}) → ${txsToCreate.length} tx`);
+        }
+
+        res.json({
+            success: true,
+            message: `Backfill complete: ${created} transactions created, ${skipped} skipped`,
+            data: { created, skipped, details }
+        });
+    } catch (error) {
+        console.error('Backfill agency transactions error:', error);
+        res.status(500).json({ success: false, error: 'Backfill failed: ' + error.message });
+    }
+});
+
 module.exports = router;
