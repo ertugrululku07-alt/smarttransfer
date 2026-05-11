@@ -284,16 +284,23 @@ const AgencyNewTransferPage = () => {
         return Math.round(rawPrice * (1 + agencyMarkupRate / 100) * 100) / 100;
     };
 
-    // Get the effective price addition for an extra service (same currency as booking)
+    // Convert amount from one currency to another using tenant exchange rates
+    // Rates are in TRY terms (e.g. EUR rate=50 means 1 EUR = 50 TRY)
+    const convertCurrency = (amount: number, fromCurrency: string, toCurrency: string) => {
+        if (fromCurrency === toCurrency) return amount;
+        const fromRate = defCurrencies.find(c => c.code === fromCurrency)?.rate || 1;
+        const toRate = defCurrencies.find(c => c.code === toCurrency)?.rate || 1;
+        // Convert: amount in fromCurrency → TRY → toCurrency
+        const inTRY = amount * fromRate;
+        return Math.round((inTRY / toRate) * 100) / 100;
+    };
+
+    // Get the effective price addition for an extra service converted to booking currency
     const getExtraServiceEffectivePrice = (service: any) => {
         const markedUpPrice = getExtraServiceDisplayPrice(service);
         const serviceCurrency = service.currency || 'TRY';
         const bookingCurrency = selectedVehicle?.currency || 'TRY';
-        // If currencies match, use directly; otherwise don't add (mixed currency warning)
-        if (serviceCurrency === bookingCurrency) return markedUpPrice;
-        // For now, skip adding different-currency services to the total
-        // The service is still recorded in metadata for invoicing
-        return 0;
+        return convertCurrency(markedUpPrice, serviceCurrency, bookingCurrency);
     };
 
     const fetchExtraServices = async () => {
@@ -1129,7 +1136,13 @@ const AgencyNewTransferPage = () => {
                                             {service.image && <img src={service.image} alt={service.name} style={{ width: 38, height: 38, objectFit: 'cover', borderRadius: 8 }} />}
                                             <div>
                                                 <div style={{ fontWeight: 700, color: '#0f172a', fontSize: 13 }}>{service.name}</div>
-                                                <div style={{ fontSize: 11, color: '#64748b' }}>{getExtraServiceDisplayPrice(service)} {service.currency} {service.isPerPerson ? '/ kişi' : '/ adet'}{service.currency !== (selectedVehicle?.currency || 'TRY') ? <span style={{ color: '#f59e0b', marginLeft: 4 }}>(farklı döviz)</span> : ''}</div>
+                                                <div style={{ fontSize: 11, color: '#64748b' }}>
+                                                    {getExtraServiceDisplayPrice(service)} {service.currency}
+                                                    {service.currency !== (selectedVehicle?.currency || 'TRY') && (
+                                                        <span style={{ color: '#6366f1', fontWeight: 600, marginLeft: 4 }}>≈ {getExtraServiceEffectivePrice(service)} {selectedVehicle?.currency}</span>
+                                                    )}
+                                                    {service.isPerPerson ? ' / kişi' : ' / adet'}
+                                                </div>
                                             </div>
                                         </div>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
