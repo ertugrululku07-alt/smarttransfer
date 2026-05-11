@@ -1468,6 +1468,10 @@ model Agency {
   contactPhone String?
   contactEmail String?
   website      String?
+  gsm          String?
+
+  // Bank Account Info (stored as JSON for flexibility)
+  bankInfo Json? // { bankName, accountName, iban, branchName, branchCode, swiftCode, currency }
 
   // Commission from Tenant to this Agency
   commissionRate Decimal @default(0) @db.Decimal(5, 2)

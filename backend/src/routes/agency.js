@@ -834,7 +834,8 @@ router.get('/settings', authMiddleware, agencyMiddleware, async (req, res) => {
                 logo: true, markup: true, balance: true,
                 companyName: true, address: true,
                 taxOffice: true, taxNumber: true,
-                contactPhone: true, contactEmail: true, website: true
+                contactPhone: true, contactEmail: true, website: true,
+                gsm: true, bankInfo: true
             }
         });
 
@@ -851,7 +852,7 @@ router.put('/settings', authMiddleware, agencyMiddleware, async (req, res) => {
             return res.status(403).json({ success: false, error: 'Only Agency Admin can update settings' });
         }
 
-        const { logo, markup, companyName, address, taxOffice, taxNumber, contactPhone, contactEmail, website } = req.body;
+        const { logo, markup, companyName, address, taxOffice, taxNumber, contactPhone, contactEmail, website, gsm, bankInfo } = req.body;
 
         const updated = await prisma.agency.update({
             where: { id: req.agencyId },
@@ -865,12 +866,15 @@ router.put('/settings', authMiddleware, agencyMiddleware, async (req, res) => {
                 contactPhone: contactPhone !== undefined ? contactPhone : undefined,
                 contactEmail: contactEmail !== undefined ? contactEmail : undefined,
                 website: website !== undefined ? website : undefined,
+                gsm: gsm !== undefined ? gsm : undefined,
+                bankInfo: bankInfo !== undefined ? bankInfo : undefined,
             },
             select: {
                 logo: true, markup: true,
                 companyName: true, address: true,
                 taxOffice: true, taxNumber: true,
-                contactPhone: true, contactEmail: true, website: true
+                contactPhone: true, contactEmail: true, website: true,
+                gsm: true, bankInfo: true
             }
         });
 
