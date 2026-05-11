@@ -98,15 +98,19 @@ export default function AccountStatementPage() {
         } catch (err) { console.error('Failed to fetch agency info', err); }
     };
 
-    const fetchStatement = async (dates?: [dayjs.Dayjs | null, dayjs.Dayjs | null]) => {
+    const fetchStatement = async (dates?: [dayjs.Dayjs | null, dayjs.Dayjs | null], rebuild?: boolean) => {
         setLoading(true);
         setError(null);
         try {
             let url = '/api/agency/statement';
+            const params: string[] = [];
             const rangeToUse = dates !== undefined ? dates : dateRange;
             if (rangeToUse[0] && rangeToUse[1]) {
-                url += `?startDate=${rangeToUse[0].format('YYYY-MM-DD')}&endDate=${rangeToUse[1].format('YYYY-MM-DD')}`;
+                params.push(`startDate=${rangeToUse[0].format('YYYY-MM-DD')}`);
+                params.push(`endDate=${rangeToUse[1].format('YYYY-MM-DD')}`);
             }
+            if (rebuild) params.push('rebuild=true');
+            if (params.length > 0) url += '?' + params.join('&');
             const res = await apiClient.get(url);
             if (res.data.success) {
                 setTransactions(res.data.data.transactions || []);
@@ -120,6 +124,10 @@ export default function AccountStatementPage() {
         } finally {
             setLoading(false);
         }
+    };
+
+    const handleRebuild = () => {
+        fetchStatement(undefined, true);
     };
 
     const handleDateChange = (dates: any) => {
@@ -234,6 +242,7 @@ export default function AccountStatementPage() {
                         </div>
                         <Space wrap>
                             <RangePicker value={dateRange} onChange={handleDateChange} format="DD.MM.YYYY" />
+                            <Button onClick={handleRebuild} loading={loading}>Yeniden Hesapla</Button>
                             <Button type="primary" icon={<PrinterOutlined />} onClick={() => window.print()}>Yazdır / PDF</Button>
                         </Space>
                     </div>

@@ -396,7 +396,8 @@ router.post('/bookings', authMiddleware, agencyMiddleware, async (req, res) => {
             const bookingCurrency = req.body.currency || 'TRY';
 
             if (paymentMethod === 'BALANCE') {
-                // Deduct B2B cost from agency balance
+                // BALANCE: Agency pays from their pre-loaded balance
+                // Debit the B2B cost from balance
                 await tx.agency.update({
                     where: { id: req.agencyId },
                     data: { balance: { decrement: netAmount }, debit: { increment: netAmount } }
@@ -415,47 +416,9 @@ router.post('/bookings', authMiddleware, agencyMiddleware, async (req, res) => {
                         referenceId: newBooking.id
                     }
                 });
-            } else if (paymentMethod === 'PAY_IN_VEHICLE') {
-                // Cash in vehicle – agency owes us the B2B cost (receivable)
-                await tx.agency.update({
-                    where: { id: req.agencyId },
-                    data: { debit: { increment: netAmount } }
-                });
-
-                await tx.transaction.create({
-                    data: {
-                        tenantId: req.tenant.id,
-                        accountId: `agency-${req.agencyId}`,
-                        type: 'PURCHASE_INVOICE',
-                        amount: netAmount,
-                        currency: bookingCurrency,
-                        isCredit: false,
-                        description: `B2B Transfer – Araçta Ödeme (PNR: ${bookingNumber})`,
-                        date: new Date(),
-                        referenceId: newBooking.id
-                    }
-                });
-            } else if (paymentMethod === 'CREDIT_CARD') {
-                // Credit card – customer pays online; track as debit pending payment
-                await tx.agency.update({
-                    where: { id: req.agencyId },
-                    data: { debit: { increment: netAmount } }
-                });
-
-                await tx.transaction.create({
-                    data: {
-                        tenantId: req.tenant.id,
-                        accountId: `agency-${req.agencyId}`,
-                        type: 'PURCHASE_INVOICE',
-                        amount: netAmount,
-                        currency: bookingCurrency,
-                        isCredit: false,
-                        description: `B2B Transfer – Kredi Kartı (PNR: ${bookingNumber})`,
-                        date: new Date(),
-                        referenceId: newBooking.id
-                    }
-                });
             }
+            // PAY_IN_VEHICLE & CREDIT_CARD: Customer pays company directly (via driver or online)
+            // Agency does NOT owe anything — only commission is credited below
 
             // If agency sells at a higher price, record the markup as agency commission (credit)
             const markup = totalAmount - netAmount;
@@ -637,22 +600,24 @@ router.put('/bookings/:id/cancel', authMiddleware, agencyMiddleware, async (req,
             });
 
             if (canRefund) {
-                // Reverse the B2B debit (credit back)
-                await tx.transaction.create({
-                    data: {
-                        tenantId: req.tenant.id,
-                        accountId: `agency-${req.agencyId}`,
-                        type: 'PAYMENT_RECEIVED',
-                        amount: b2bCost,
-                        currency: bookingCurrency,
-                        isCredit: true,
-                        description: `İptal İadesi – B2B Maliyet (PNR: ${booking.bookingNumber})`,
-                        date: new Date(),
-                        referenceId: booking.id
-                    }
-                });
+                // Only reverse B2B cost debit if agency was actually debited (BALANCE method)
+                if (payMethod === 'BALANCE') {
+                    await tx.transaction.create({
+                        data: {
+                            tenantId: req.tenant.id,
+                            accountId: `agency-${req.agencyId}`,
+                            type: 'PAYMENT_RECEIVED',
+                            amount: b2bCost,
+                            currency: bookingCurrency,
+                            isCredit: true,
+                            description: `İptal İadesi – B2B Maliyet (PNR: ${booking.bookingNumber})`,
+                            date: new Date(),
+                            referenceId: booking.id
+                        }
+                    });
+                }
 
-                // Reverse commission/markup if any
+                // Reverse commission/markup if any (applies to ALL payment methods)
                 if (markupAmount > 0) {
                     await tx.transaction.create({
                         data: {
@@ -776,19 +741,23 @@ router.post('/bookings/bulk', authMiddleware, agencyMiddleware, async (req, res)
             });
 
             // Create accounting entry for bulk booking
-            await prisma.transaction.create({
-                data: {
-                    tenantId: req.tenant.id,
-                    accountId: `agency-${req.agencyId}`,
-                    type: 'PURCHASE_INVOICE',
-                    amount: netAmount,
-                    currency: bulkCurrency,
-                    isCredit: false,
-                    description: `B2B Toplu Transfer (PNR: ${bookingNumber})`,
-                    date: new Date(),
-                    referenceId: newBulkBooking.id
-                }
-            });
+            const bulkPayMethod = t.paymentMethod || 'BALANCE';
+            if (bulkPayMethod === 'BALANCE') {
+                await prisma.transaction.create({
+                    data: {
+                        tenantId: req.tenant.id,
+                        accountId: `agency-${req.agencyId}`,
+                        type: 'PURCHASE_INVOICE',
+                        amount: netAmount,
+                        currency: bulkCurrency,
+                        isCredit: false,
+                        description: `B2B Toplu Transfer – Bakiyeden (PNR: ${bookingNumber})`,
+                        date: new Date(),
+                        referenceId: newBulkBooking.id
+                    }
+                });
+            }
+            // PAY_IN_VEHICLE & CREDIT_CARD: customer pays company directly, no agency debit
 
             // Markup/commission entry
             const bulkMarkup = bulkTotal - netAmount;
@@ -1053,10 +1022,19 @@ router.get('/dashboard', authMiddleware, agencyMiddleware, async (req, res) => {
 // ==========================================
 router.get('/statement', authMiddleware, agencyMiddleware, async (req, res) => {
     try {
-        const { startDate, endDate, currency: filterCurrency } = req.query;
+        const { startDate, endDate, currency: filterCurrency, rebuild } = req.query;
 
         // ── Auto-backfill: create missing transactions for existing bookings ──
         const accountId = `agency-${req.agencyId}`;
+
+        // If rebuild=true, delete all existing auto-generated transactions and recreate
+        if (rebuild === 'true') {
+            await prisma.transaction.deleteMany({
+                where: { tenantId: req.tenant.id, accountId }
+            });
+            console.log(`[Statement] Rebuilding transactions for agency ${req.agencyId}`);
+        }
+
         const existingTxCount = await prisma.transaction.count({
             where: { tenantId: req.tenant.id, accountId }
         });
@@ -1076,13 +1054,29 @@ router.get('/statement', authMiddleware, agencyMiddleware, async (req, res) => {
                     const payMethod = booking.metadata?.paymentMethod || 'BALANCE';
                     if (b2bCost <= 0) continue;
                     const txs = [];
-                    txs.push({ tenantId: booking.tenantId, accountId, type: 'PURCHASE_INVOICE', amount: b2bCost, currency: cur, isCredit: false, description: `B2B Transfer Satın Alma – ${payMethod === 'BALANCE' ? 'Bakiyeden' : payMethod === 'PAY_IN_VEHICLE' ? 'Araçta Ödeme' : 'Kredi Kartı'} (PNR: ${booking.bookingNumber})`, date: booking.createdAt, referenceId: booking.id });
-                    if (markup > 0) txs.push({ tenantId: booking.tenantId, accountId, type: 'SALES_INVOICE', amount: markup, currency: cur, isCredit: true, description: `Acente Komisyon/Kâr (PNR: ${booking.bookingNumber})`, date: booking.createdAt, referenceId: booking.id });
-                    if (booking.status === 'CANCELLED') {
-                        txs.push({ tenantId: booking.tenantId, accountId, type: 'PAYMENT_RECEIVED', amount: b2bCost, currency: cur, isCredit: true, description: `İptal İadesi – B2B Maliyet (PNR: ${booking.bookingNumber})`, date: booking.createdAt, referenceId: booking.id });
-                        if (markup > 0) txs.push({ tenantId: booking.tenantId, accountId, type: 'PAYMENT_SENT', amount: markup, currency: cur, isCredit: false, description: `İptal – Komisyon İptali (PNR: ${booking.bookingNumber})`, date: booking.createdAt, referenceId: booking.id });
+
+                    // Only BALANCE payments create a debit (agency paid from balance)
+                    // PAY_IN_VEHICLE & CREDIT_CARD: customer pays company directly, no agency debit
+                    if (payMethod === 'BALANCE') {
+                        txs.push({ tenantId: booking.tenantId, accountId, type: 'PURCHASE_INVOICE', amount: b2bCost, currency: cur, isCredit: false, description: `B2B Transfer Satın Alma – Bakiyeden (PNR: ${booking.bookingNumber})`, date: booking.createdAt, referenceId: booking.id });
                     }
-                    await prisma.transaction.createMany({ data: txs });
+
+                    // Commission/markup credit for ALL payment methods
+                    if (markup > 0) {
+                        txs.push({ tenantId: booking.tenantId, accountId, type: 'SALES_INVOICE', amount: markup, currency: cur, isCredit: true, description: `Acente Komisyon/Kâr (PNR: ${booking.bookingNumber})`, date: booking.createdAt, referenceId: booking.id });
+                    }
+
+                    // Cancellation reversals
+                    if (booking.status === 'CANCELLED') {
+                        if (payMethod === 'BALANCE') {
+                            txs.push({ tenantId: booking.tenantId, accountId, type: 'PAYMENT_RECEIVED', amount: b2bCost, currency: cur, isCredit: true, description: `İptal İadesi – B2B Maliyet (PNR: ${booking.bookingNumber})`, date: booking.createdAt, referenceId: booking.id });
+                        }
+                        if (markup > 0) {
+                            txs.push({ tenantId: booking.tenantId, accountId, type: 'PAYMENT_SENT', amount: markup, currency: cur, isCredit: false, description: `İptal – Komisyon İptali (PNR: ${booking.bookingNumber})`, date: booking.createdAt, referenceId: booking.id });
+                        }
+                    }
+
+                    if (txs.length > 0) await prisma.transaction.createMany({ data: txs });
                 }
                 console.log(`[Statement] Auto-backfilled transactions for agency ${req.agencyId}`);
             }

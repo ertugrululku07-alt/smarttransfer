@@ -631,20 +631,23 @@ router.post('/backfill-transactions', authMiddleware, async (req, res) => {
 
             const txsToCreate = [];
 
-            // PURCHASE_INVOICE (debit)
-            txsToCreate.push({
-                tenantId: booking.tenantId,
-                accountId,
-                type: 'PURCHASE_INVOICE',
-                amount: b2bCost,
-                currency: cur,
-                isCredit: false,
-                description: `B2B Transfer Satın Alma – ${payMethod === 'BALANCE' ? 'Bakiyeden' : payMethod === 'PAY_IN_VEHICLE' ? 'Araçta Ödeme' : 'Kredi Kartı'} (PNR: ${booking.bookingNumber})`,
-                date: booking.createdAt,
-                referenceId: booking.id
-            });
+            // Only BALANCE payments create a debit (agency paid from balance)
+            // PAY_IN_VEHICLE & CREDIT_CARD: customer pays company directly, no agency debit
+            if (payMethod === 'BALANCE') {
+                txsToCreate.push({
+                    tenantId: booking.tenantId,
+                    accountId,
+                    type: 'PURCHASE_INVOICE',
+                    amount: b2bCost,
+                    currency: cur,
+                    isCredit: false,
+                    description: `B2B Transfer Satın Alma – Bakiyeden (PNR: ${booking.bookingNumber})`,
+                    date: booking.createdAt,
+                    referenceId: booking.id
+                });
+            }
 
-            // SALES_INVOICE (credit) for markup
+            // SALES_INVOICE (credit) for markup — applies to ALL payment methods
             if (markup > 0) {
                 txsToCreate.push({
                     tenantId: booking.tenantId,
@@ -661,17 +664,19 @@ router.post('/backfill-transactions', authMiddleware, async (req, res) => {
 
             // Cancelled → reversal entries
             if (booking.status === 'CANCELLED') {
-                txsToCreate.push({
-                    tenantId: booking.tenantId,
-                    accountId,
-                    type: 'PAYMENT_RECEIVED',
-                    amount: b2bCost,
-                    currency: cur,
-                    isCredit: true,
-                    description: `İptal İadesi – B2B Maliyet (PNR: ${booking.bookingNumber})`,
-                    date: booking.createdAt,
-                    referenceId: booking.id
-                });
+                if (payMethod === 'BALANCE') {
+                    txsToCreate.push({
+                        tenantId: booking.tenantId,
+                        accountId,
+                        type: 'PAYMENT_RECEIVED',
+                        amount: b2bCost,
+                        currency: cur,
+                        isCredit: true,
+                        description: `İptal İadesi – B2B Maliyet (PNR: ${booking.bookingNumber})`,
+                        date: booking.createdAt,
+                        referenceId: booking.id
+                    });
+                }
                 if (markup > 0) {
                     txsToCreate.push({
                         tenantId: booking.tenantId,
