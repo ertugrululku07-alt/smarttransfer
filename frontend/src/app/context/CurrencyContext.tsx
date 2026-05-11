@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import apiClient from '@/lib/api-client';
+import { populateDefinitionsCache } from '@/app/hooks/useDefinitions';
 
 interface Currency {
   code: string;
@@ -63,8 +64,11 @@ export const CurrencyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       try {
         const res = await apiClient.get('/api/tenant/info');
         if (res.data.success && res.data.data.tenant?.settings?.definitions?.currencies) {
-          const fetchedCurrencies = res.data.data.tenant.settings.definitions.currencies;
+          const defs = res.data.data.tenant.settings.definitions;
+          const fetchedCurrencies = defs.currencies;
           setCurrencies(fetchedCurrencies);
+          // Share with useDefinitions hook so it doesn't need a separate fetch
+          populateDefinitionsCache({ currencies: defs.currencies, vatRates: defs.vatRates });
           
           const autoDetected = detectCurrency();
           
