@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useDefinitions } from '@/app/hooks/useDefinitions';
+import { useCurrency } from '@/app/context/CurrencyContext';
 import { Card, Button, Form, Input, Typography, message, DatePicker, InputNumber, Row, Col, Spin, Alert, Tag, Space, Divider, Radio, Select, TimePicker, Checkbox, Collapse, Modal, Tooltip } from 'antd';
 import { SearchOutlined, ArrowRightOutlined, ArrowLeftOutlined, CarOutlined, UserOutlined, SafetyCertificateOutlined, WifiOutlined, CheckCircleOutlined, ClockCircleOutlined, SendOutlined } from '@ant-design/icons';
 import dayjs, { Dayjs } from 'dayjs';
@@ -36,8 +37,11 @@ interface TransferResult {
 
 const AgencyNewTransferPage = () => {
     const { currencies: defCurrencies } = useDefinitions();
+    const { currencies: ctxCurrencies } = useCurrency();
+    // Use defCurrencies primarily, fall back to CurrencyContext rates
+    const activeCurrencies = defCurrencies.length > 0 ? defCurrencies : ctxCurrencies.map(c => ({ ...c, id: c.code }));
     const getCurrencySymbol = (code: string) => {
-        const c = defCurrencies.find(cur => cur.code === code);
+        const c = activeCurrencies.find(cur => cur.code === code);
         return c?.symbol || code + ' ';
     };
 
@@ -288,8 +292,8 @@ const AgencyNewTransferPage = () => {
     // Rates are in TRY terms (e.g. EUR rate=50 means 1 EUR = 50 TRY)
     const convertCurrency = (amount: number, fromCurrency: string, toCurrency: string) => {
         if (fromCurrency === toCurrency) return amount;
-        const fromRate = defCurrencies.find(c => c.code === fromCurrency)?.rate || 1;
-        const toRate = defCurrencies.find(c => c.code === toCurrency)?.rate || 1;
+        const fromRate = activeCurrencies.find(c => c.code === fromCurrency)?.rate || 1;
+        const toRate = activeCurrencies.find(c => c.code === toCurrency)?.rate || 1;
         // Convert: amount in fromCurrency → TRY → toCurrency
         const inTRY = amount * fromRate;
         return Math.round((inTRY / toRate) * 100) / 100;
