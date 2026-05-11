@@ -61,6 +61,7 @@ export default function AccountStatementPage() {
     const [loading, setLoading] = useState(true);
     const [transactions, setTransactions] = useState<TransactionEntry[]>([]);
     const [currencySummaries, setCurrencySummaries] = useState<CurrencySummary[]>([]);
+    const [apiCurrencies, setApiCurrencies] = useState<string[]>([]);
     const [dateRange, setDateRange] = useState<[dayjs.Dayjs | null, dayjs.Dayjs | null]>([null, null]);
     const [error, setError] = useState<string | null>(null);
     const [agencyInfo, setAgencyInfo] = useState<any>(null);
@@ -106,6 +107,7 @@ export default function AccountStatementPage() {
             if (res.data.success) {
                 setTransactions(res.data.data.transactions || []);
                 setCurrencySummaries(res.data.data.currencySummaries || []);
+                if (res.data.data.supportedCurrencies) setApiCurrencies(res.data.data.supportedCurrencies);
             } else {
                 setError(res.data.error || 'Ekstre alınamadı');
             }
@@ -127,13 +129,15 @@ export default function AccountStatementPage() {
     }, [transactions, activeCurrency]);
 
     const currencies = useMemo(() => {
-        // Use system definitions as the source of truth for which currencies exist
+        // Use system definitions as primary source
         const set = new Set(defCurrencies.map(c => c.code));
-        // Also include any currencies found in transactions/summaries (edge case)
+        // Fallback: API-returned supportedCurrencies
+        apiCurrencies.forEach(c => set.add(c));
+        // Also include any currencies found in transactions/summaries
         transactions.forEach(t => set.add(t.currency));
         currencySummaries.forEach(s => set.add(s.currency));
         return Array.from(set).sort();
-    }, [transactions, currencySummaries, defCurrencies]);
+    }, [transactions, currencySummaries, defCurrencies, apiCurrencies]);
 
     const getSummary = (cur: string): CurrencySummary => {
         return currencySummaries.find(s => s.currency === cur) || { currency: cur, totalCredit: 0, totalDebit: 0, balance: 0 };

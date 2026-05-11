@@ -1055,11 +1055,45 @@ router.get('/statement', authMiddleware, agencyMiddleware, async (req, res) => {
     try {
         const { startDate, endDate, currency: filterCurrency } = req.query;
 
+        // ── Auto-backfill: create missing transactions for existing bookings ──
+        const accountId = `agency-${req.agencyId}`;
+        const existingTxCount = await prisma.transaction.count({
+            where: { tenantId: req.tenant.id, accountId }
+        });
+        if (existingTxCount === 0) {
+            // Check if there are bookings that should have transactions
+            const bookings = await prisma.booking.findMany({
+                where: { tenantId: req.tenant.id, agencyId: req.agencyId },
+                select: { id: true, tenantId: true, agencyId: true, bookingNumber: true, currency: true, subtotal: true, total: true, status: true, metadata: true, createdAt: true },
+                orderBy: { createdAt: 'asc' }
+            });
+            if (bookings.length > 0) {
+                for (const booking of bookings) {
+                    const b2bCost = Number(booking.subtotal || 0);
+                    const customerPrice = Number(booking.total || 0);
+                    const markup = customerPrice - b2bCost;
+                    const cur = booking.currency || 'TRY';
+                    const payMethod = booking.metadata?.paymentMethod || 'BALANCE';
+                    if (b2bCost <= 0) continue;
+                    const txs = [];
+                    txs.push({ tenantId: booking.tenantId, accountId, type: 'PURCHASE_INVOICE', amount: b2bCost, currency: cur, isCredit: false, description: `B2B Transfer Satın Alma – ${payMethod === 'BALANCE' ? 'Bakiyeden' : payMethod === 'PAY_IN_VEHICLE' ? 'Araçta Ödeme' : 'Kredi Kartı'} (PNR: ${booking.bookingNumber})`, date: booking.createdAt, referenceId: booking.id });
+                    if (markup > 0) txs.push({ tenantId: booking.tenantId, accountId, type: 'SALES_INVOICE', amount: markup, currency: cur, isCredit: true, description: `Acente Komisyon/Kâr (PNR: ${booking.bookingNumber})`, date: booking.createdAt, referenceId: booking.id });
+                    if (booking.status === 'CANCELLED') {
+                        txs.push({ tenantId: booking.tenantId, accountId, type: 'PAYMENT_RECEIVED', amount: b2bCost, currency: cur, isCredit: true, description: `İptal İadesi – B2B Maliyet (PNR: ${booking.bookingNumber})`, date: booking.createdAt, referenceId: booking.id });
+                        if (markup > 0) txs.push({ tenantId: booking.tenantId, accountId, type: 'PAYMENT_SENT', amount: markup, currency: cur, isCredit: false, description: `İptal – Komisyon İptali (PNR: ${booking.bookingNumber})`, date: booking.createdAt, referenceId: booking.id });
+                    }
+                    await prisma.transaction.createMany({ data: txs });
+                }
+                console.log(`[Statement] Auto-backfilled transactions for agency ${req.agencyId}`);
+            }
+        }
+        // ── End backfill ──
+
         // Fetch all transactions for this agency (chronological for balance calc)
         const allTransactions = await prisma.transaction.findMany({
             where: {
                 tenantId: req.tenant.id,
-                accountId: `agency-${req.agencyId}`
+                accountId
             },
             orderBy: { date: 'asc' }
         });
