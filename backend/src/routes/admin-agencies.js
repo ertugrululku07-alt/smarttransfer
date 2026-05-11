@@ -478,17 +478,19 @@ router.get('/:id/statement', authMiddleware, async (req, res) => {
             s.totalDebit = Math.round(s.totalDebit * 100) / 100;
         });
 
-        // Fetch tenant supported currencies
-        const tenant = await prisma.tenant.findUnique({
+        // Fetch tenant currencies from definitions (dynamic)
+        const tenantFull = await prisma.tenant.findUnique({
             where: { id: tenantId },
-            select: { supportedCurrencies: true, defaultCurrency: true }
+            select: { settings: true }
         });
+        const defCurrencies = tenantFull?.settings?.definitions?.currencies || [];
+        const dynamicCurrencyCodes = defCurrencies.map(c => c.code);
 
         res.json({ success: true, data: {
             transactions: filtered,
             currencySummaries: Object.values(summaries),
-            supportedCurrencies: tenant?.supportedCurrencies || ['TRY', 'EUR', 'USD'],
-            defaultCurrency: tenant?.defaultCurrency || 'TRY'
+            supportedCurrencies: dynamicCurrencyCodes.length > 0 ? dynamicCurrencyCodes : ['TRY'],
+            defaultCurrency: (defCurrencies.find(c => c.isDefault) || defCurrencies[0])?.code || 'TRY'
         }});
     } catch (error) {
         console.error('Admin agency statement error:', error);

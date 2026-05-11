@@ -1218,11 +1218,13 @@ router.get('/statement', authMiddleware, agencyMiddleware, async (req, res) => {
             });
         }
 
-        // Fetch tenant supported currencies
-        const tenant = await prisma.tenant.findUnique({
+        // Fetch tenant currencies from definitions (dynamic, not hardcoded)
+        const tenantFull = await prisma.tenant.findUnique({
             where: { id: req.tenant.id },
-            select: { supportedCurrencies: true, defaultCurrency: true }
+            select: { settings: true }
         });
+        const defCurrencies = tenantFull?.settings?.definitions?.currencies || [];
+        const dynamicCurrencyCodes = defCurrencies.map(c => c.code);
 
         res.json({
             success: true,
@@ -1230,8 +1232,8 @@ router.get('/statement', authMiddleware, agencyMiddleware, async (req, res) => {
                 transactions: filteredEntries,
                 currencySummaries: Object.values(currencySummaries),
                 periodSummaries: periodSummaries ? Object.values(periodSummaries) : null,
-                supportedCurrencies: tenant?.supportedCurrencies || ['TRY', 'EUR', 'USD'],
-                defaultCurrency: tenant?.defaultCurrency || 'TRY',
+                supportedCurrencies: dynamicCurrencyCodes.length > 0 ? dynamicCurrencyCodes : ['TRY'],
+                defaultCurrency: (defCurrencies.find(c => c.isDefault) || defCurrencies[0])?.code || 'TRY',
                 // Legacy field for backward compat
                 currentBalance: balanceByCurrency['TRY'] || 0
             }

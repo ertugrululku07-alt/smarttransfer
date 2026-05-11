@@ -8,6 +8,7 @@ import apiClient from '@/lib/api-client';
 import AgencyLayout from '../AgencyLayout';
 import AgencyGuard from '../AgencyGuard';
 import { useDefinitions } from '@/app/hooks/useDefinitions';
+import { useCurrency } from '@/app/context/CurrencyContext';
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
@@ -58,6 +59,9 @@ const TX_TYPE_MAP: Record<string, { label: string; color: string }> = {
 
 export default function AccountStatementPage() {
     const { currencies: defCurrencies } = useDefinitions();
+    const { currencies: ctxCurrencies } = useCurrency();
+    // Merge: useDefinitions primary, CurrencyContext fallback
+    const allCurrencyDefs = defCurrencies.length > 0 ? defCurrencies : ctxCurrencies.map(c => ({ ...c, id: c.code }));
     const [loading, setLoading] = useState(true);
     const [transactions, setTransactions] = useState<TransactionEntry[]>([]);
     const [currencySummaries, setCurrencySummaries] = useState<CurrencySummary[]>([]);
@@ -67,13 +71,13 @@ export default function AccountStatementPage() {
     const [agencyInfo, setAgencyInfo] = useState<any>(null);
     const [activeCurrency, setActiveCurrency] = useState<string>('ALL');
 
-    // Dynamic currency helpers from system definitions
+    // Dynamic currency helpers from merged definitions
     const getCurrencySymbol = (code: string) => {
-        const c = defCurrencies.find(cur => cur.code === code);
+        const c = allCurrencyDefs.find(cur => cur.code === code);
         return c?.symbol || code + ' ';
     };
     const getCurrencyColor = (code: string) => {
-        const idx = defCurrencies.findIndex(c => c.code === code);
+        const idx = allCurrencyDefs.findIndex(c => c.code === code);
         return COLOR_PALETTE[idx >= 0 ? idx % COLOR_PALETTE.length : 0];
     };
     const fmtMoney = (amount: number, currency: string) => {
@@ -129,15 +133,15 @@ export default function AccountStatementPage() {
     }, [transactions, activeCurrency]);
 
     const currencies = useMemo(() => {
-        // Use system definitions as primary source
-        const set = new Set(defCurrencies.map(c => c.code));
+        // Use merged definitions as primary source
+        const set = new Set(allCurrencyDefs.map(c => c.code));
         // Fallback: API-returned supportedCurrencies
         apiCurrencies.forEach(c => set.add(c));
         // Also include any currencies found in transactions/summaries
         transactions.forEach(t => set.add(t.currency));
         currencySummaries.forEach(s => set.add(s.currency));
         return Array.from(set).sort();
-    }, [transactions, currencySummaries, defCurrencies, apiCurrencies]);
+    }, [transactions, currencySummaries, allCurrencyDefs, apiCurrencies]);
 
     const getSummary = (cur: string): CurrencySummary => {
         return currencySummaries.find(s => s.currency === cur) || { currency: cur, totalCredit: 0, totalDebit: 0, balance: 0 };
