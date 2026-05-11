@@ -3463,6 +3463,69 @@ router.put('/bookings/:id/status', authMiddleware, async (req, res) => {
                 }
             });
 
+            // Agency Cari Hesap Reversal on Cancellation
+            if (status === 'CANCELLED' && currentBooking.agencyId && currentBooking.status !== 'CANCELLED') {
+                const b2bCost = Number(currentBooking.subtotal || 0);
+                const customerPrice = Number(currentBooking.total || 0);
+                const markupAmt = customerPrice - b2bCost;
+                const bookingCur = currentBooking.currency || 'TRY';
+                const payMethod = currentBooking.metadata?.paymentMethod || 'BALANCE';
+
+                if (b2bCost > 0) {
+                    // Reverse the B2B debit (credit back to agency)
+                    await tx.transaction.create({
+                        data: {
+                            tenantId: req.tenant.id,
+                            accountId: `agency-${currentBooking.agencyId}`,
+                            type: 'PAYMENT_RECEIVED',
+                            amount: b2bCost,
+                            currency: bookingCur,
+                            isCredit: true,
+                            description: `Admin İptali – B2B Maliyet İadesi (PNR: ${currentBooking.bookingNumber})`,
+                            date: new Date(),
+                            referenceId: currentBooking.id
+                        }
+                    });
+
+                    // Reverse commission/markup if any
+                    if (markupAmt > 0) {
+                        await tx.transaction.create({
+                            data: {
+                                tenantId: req.tenant.id,
+                                accountId: `agency-${currentBooking.agencyId}`,
+                                type: 'PAYMENT_SENT',
+                                amount: markupAmt,
+                                currency: bookingCur,
+                                isCredit: false,
+                                description: `Admin İptali – Komisyon İptali (PNR: ${currentBooking.bookingNumber})`,
+                                date: new Date(),
+                                referenceId: currentBooking.id
+                            }
+                        });
+                    }
+
+                    // Restore agency balance counters
+                    if (payMethod === 'BALANCE') {
+                        await tx.agency.update({
+                            where: { id: currentBooking.agencyId },
+                            data: {
+                                balance: { increment: b2bCost },
+                                debit: { decrement: b2bCost },
+                                ...(markupAmt > 0 ? { credit: { decrement: markupAmt } } : {})
+                            }
+                        });
+                    } else {
+                        await tx.agency.update({
+                            where: { id: currentBooking.agencyId },
+                            data: {
+                                debit: { decrement: b2bCost },
+                                ...(markupAmt > 0 ? { credit: { decrement: markupAmt } } : {})
+                            }
+                        });
+                    }
+                }
+            }
+
             // Custom Auditing for Cancellations
             if (status === 'CANCELLED') {
                 const { logActivity } = require('../utils/logger');

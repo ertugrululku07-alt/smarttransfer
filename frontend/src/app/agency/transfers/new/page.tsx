@@ -691,171 +691,200 @@ const AgencyNewTransferPage = () => {
     );
 
     const renderResultsStep = () => (
-        <div style={{ maxWidth: 960, margin: '0 auto' }}>
-            {/* Top Bar */}
-            <div style={{ marginBottom: 28, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+        <div style={{ maxWidth: 1060, margin: '0 auto' }}>
+            {/* Dark Route Header */}
+            <div style={{
+                background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #0f1f3d 100%)',
+                borderRadius: 20, padding: '20px 28px', marginBottom: 20,
+                display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap',
+                boxShadow: '0 8px 32px rgba(0,0,0,0.25)'
+            }}>
                 <button onClick={() => setCurrentStep('search')} style={{
-                    display: 'flex', alignItems: 'center', gap: 8, padding: '10px 20px',
-                    background: 'rgba(255,255,255,0.9)', border: '1px solid #e5e7eb',
-                    borderRadius: 12, cursor: 'pointer', fontWeight: 600, fontSize: 14, color: '#374151'
+                    display: 'flex', alignItems: 'center', gap: 7, padding: '8px 16px',
+                    background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.18)',
+                    borderRadius: 10, cursor: 'pointer', color: '#fff', fontWeight: 600, fontSize: 13,
+                    flexShrink: 0
                 }}>
-                    <ArrowLeftOutlined /> Aramaya Dön
+                    ← Yeni Arama
                 </button>
-                <div style={{
-                    background: 'rgba(255,255,255,0.9)', borderRadius: 14, padding: '12px 24px',
-                    border: '1px solid rgba(98,60,228,0.15)', display: 'flex', alignItems: 'center', gap: 16,
-                    boxShadow: '0 4px 16px rgba(0,0,0,0.06)'
-                }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{ fontSize: 20 }}>🛫</span>
-                        <span style={{ fontWeight: 700, color: '#1a1a2e', fontSize: 15, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pickup}</span>
+
+                {/* Route Timeline */}
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 14, minWidth: 280 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, maxWidth: 200 }}>
+                        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.45)', textTransform: 'uppercase', letterSpacing: 1 }}>NEREDEN</div>
+                        <div style={{ color: '#fff', fontWeight: 700, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pickup}</div>
                     </div>
-                    <div style={{
-                        width: 32, height: 32, borderRadius: '50%',
-                        background: 'linear-gradient(135deg, #623ce4, #8b5cf6)',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center'
-                    }}>
-                        <ArrowRightOutlined style={{ color: '#fff', fontSize: 12 }} />
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, minWidth: 90 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', width: '100%', gap: 6 }}>
+                            <div style={{ flex: 1, height: 1, background: 'linear-gradient(90deg, rgba(99,102,241,0.3), rgba(99,102,241,1))' }} />
+                            <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'linear-gradient(135deg, #6366f1, #818cf8)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, flexShrink: 0 }}>✈</div>
+                            <div style={{ flex: 1, height: 1, background: 'linear-gradient(90deg, rgba(99,102,241,1), rgba(99,102,241,0.3))' }} />
+                        </div>
+                        {routeStats && (
+                            <div style={{ display: 'flex', gap: 8 }}>
+                                <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)', background: 'rgba(255,255,255,0.08)', padding: '2px 9px', borderRadius: 50 }}>
+                                    📍 {typeof routeStats.distance === 'number' ? `${routeStats.distance.toFixed(0)} km` : `${routeStats.distance} km`}
+                                </span>
+                                <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)', background: 'rgba(255,255,255,0.08)', padding: '2px 9px', borderRadius: 50 }}>
+                                    ⏱ {routeStats.duration} dk
+                                </span>
+                            </div>
+                        )}
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{ fontSize: 20 }}>🛬</span>
-                        <span style={{ fontWeight: 700, color: '#1a1a2e', fontSize: 15, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{dropoff}</span>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, maxWidth: 200 }}>
+                        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.45)', textTransform: 'uppercase', letterSpacing: 1 }}>NEREYE</div>
+                        <div style={{ color: '#fff', fontWeight: 700, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{dropoff}</div>
                     </div>
                 </div>
-                {!loading && !searchError && results.length > 0 && (
-                    <div style={{ background: 'linear-gradient(135deg, #623ce4, #8b5cf6)', color: '#fff', borderRadius: 50, padding: '8px 18px', fontSize: 14, fontWeight: 700 }}>
-                        {results.length} Araç Bulundu
-                    </div>
-                )}
-            </div>
 
+                {/* Meta Chips */}
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', flexShrink: 0 }}>
+                    <div style={{ background: 'rgba(255,255,255,0.08)', borderRadius: 10, padding: '7px 14px', textAlign: 'center' }}>
+                        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase' }}>Tarih</div>
+                        <div style={{ color: '#fff', fontWeight: 700, fontSize: 12 }}>{date?.format('DD MMM YYYY')}</div>
+                    </div>
+                    <div style={{ background: 'rgba(255,255,255,0.08)', borderRadius: 10, padding: '7px 14px', textAlign: 'center' }}>
+                        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase' }}>Saat</div>
+                        <div style={{ color: '#fff', fontWeight: 700, fontSize: 12 }}>{(flightTimeValue || pickupTimeValue)?.format('HH:mm')}</div>
+                    </div>
+                    <div style={{ background: 'rgba(255,255,255,0.08)', borderRadius: 10, padding: '7px 14px', textAlign: 'center' }}>
+                        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase' }}>Yolcular</div>
+                        <div style={{ color: '#fff', fontWeight: 700, fontSize: 12 }}>{passengerCounts.adults + passengerCounts.children + passengerCounts.babies} Kişi</div>
+                    </div>
+                    <div style={{ background: 'linear-gradient(135deg, #6366f1, #818cf8)', borderRadius: 10, padding: '7px 14px', textAlign: 'center', boxShadow: '0 4px 12px rgba(99,102,241,0.4)' }}>
+                        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.8)', textTransform: 'uppercase' }}>Bulunan</div>
+                        <div style={{ color: '#fff', fontWeight: 700, fontSize: 12 }}>{results.length} Araç</div>
+                    </div>
+                </div>
+            </div>
+            {/* Vehicle List */}
             {loading ? (
-                <div style={{ textAlign: 'center', padding: '100px 0' }}>
-                    <div style={{ fontSize: 60, marginBottom: 20 }}>🔍</div>
+                <div style={{ textAlign: 'center', padding: '80px 0' }}>
                     <Spin size="large" />
-                    <div style={{ marginTop: 20, color: '#623ce4', fontWeight: 600, fontSize: 16 }}>Araçlar aranıyor...</div>
-                    <div style={{ color: '#9ca3af', marginTop: 6 }}>En iyi fiyatları buluyoruz</div>
+                    <div style={{ marginTop: 16, color: '#6366f1', fontWeight: 600, fontSize: 15 }}>Araçlar aranıyor...</div>
+                    <div style={{ color: '#94a3b8', marginTop: 6, fontSize: 13 }}>En uygun seçenekler listeleniyor</div>
                 </div>
             ) : searchError ? (
-                <div style={{ background: 'rgba(255,255,255,0.9)', borderRadius: 20, padding: 40, textAlign: 'center', border: '1px solid #fee2e2' }}>
-                    <div style={{ fontSize: 48, marginBottom: 16 }}>⚠️</div>
-                    <div style={{ color: '#dc2626', fontWeight: 700, fontSize: 18, marginBottom: 8 }}>Arama Hatası</div>
-                    <div style={{ color: '#6b7280' }}>{searchError}</div>
+                <div style={{ background: '#fff', borderRadius: 16, padding: 40, textAlign: 'center', border: '1px solid #fee2e2' }}>
+                    <div style={{ fontSize: 44, marginBottom: 12 }}>⚠️</div>
+                    <div style={{ color: '#dc2626', fontWeight: 700, fontSize: 18 }}>Arama Hatası</div>
+                    <div style={{ color: '#64748b', marginTop: 8 }}>{searchError}</div>
                 </div>
             ) : results.length === 0 ? (
-                <div style={{ background: 'rgba(255,255,255,0.9)', borderRadius: 20, padding: 40, textAlign: 'center' }}>
-                    <div style={{ fontSize: 48, marginBottom: 16 }}>🚗</div>
-                    <div style={{ fontWeight: 700, fontSize: 18, marginBottom: 8 }}>Sonuç Bulunamadı</div>
-                    <div style={{ color: '#6b7280' }}>Seçtiğiniz kriterlere uygun araç bulunamadı.</div>
+                <div style={{ background: '#fff', borderRadius: 16, padding: 60, textAlign: 'center', border: '1px solid #f1f5f9' }}>
+                    <div style={{ fontSize: 52, marginBottom: 16 }}>🚗</div>
+                    <div style={{ fontWeight: 700, fontSize: 20, color: '#0f172a' }}>Uygun Araç Bulunamadı</div>
+                    <div style={{ color: '#64748b', marginTop: 8 }}>Arama kriterlerinizi değiştirerek tekrar deneyin</div>
                 </div>
             ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                     {results.map((result, idx) => (
-                        <div
-                            key={result.id}
-                            style={{
-                                background: 'rgba(255,255,255,0.95)',
-                                borderRadius: 20,
-                                overflow: 'hidden',
-                                boxShadow: '0 4px 20px rgba(0,0,0,0.07)',
-                                border: '1px solid rgba(255,255,255,0.9)',
-                                display: 'flex',
-                                transition: 'all 0.3s ease'
-                            }}
-                            onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-3px)'; (e.currentTarget as HTMLDivElement).style.boxShadow = '0 12px 40px rgba(98,60,228,0.15)'; }}
-                            onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)'; (e.currentTarget as HTMLDivElement).style.boxShadow = '0 4px 20px rgba(0,0,0,0.07)'; }}
-                        >
-                            {/* Vehicle Image */}
+                        <div key={result.id} style={{
+                            background: '#fff', borderRadius: 18, overflow: 'hidden',
+                            border: '1px solid #f1f5f9', display: 'flex',
+                            boxShadow: '0 2px 12px rgba(0,0,0,0.05)', transition: 'all 0.22s ease'
+                        }}
+                        onMouseEnter={e => {
+                            (e.currentTarget as HTMLDivElement).style.boxShadow = '0 8px 28px rgba(99,102,241,0.14)';
+                            (e.currentTarget as HTMLDivElement).style.border = '1px solid rgba(99,102,241,0.25)';
+                            (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-2px)';
+                        }}
+                        onMouseLeave={e => {
+                            (e.currentTarget as HTMLDivElement).style.boxShadow = '0 2px 12px rgba(0,0,0,0.05)';
+                            (e.currentTarget as HTMLDivElement).style.border = '1px solid #f1f5f9';
+                            (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)';
+                        }}>
+                            {/* Image */}
                             <div style={{
-                                width: 200, minHeight: 160, flexShrink: 0,
-                                background: 'linear-gradient(135deg, #f8f7ff 0%, #ede9fe 100%)',
+                                width: 210, flexShrink: 0, minHeight: 155,
+                                background: result.isShuttle
+                                    ? 'linear-gradient(135deg, #ecfdf5, #d1fae5)'
+                                    : 'linear-gradient(135deg, #f5f3ff, #ede9fe)',
                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                                 position: 'relative', overflow: 'hidden'
                             }}>
-                                {result.image ? (
-                                    <img src={result.image} alt={result.vehicleType} style={{ width: '90%', height: '80%', objectFit: 'contain' }} />
-                                ) : (
-                                    <CarOutlined style={{ fontSize: 64, color: '#8b5cf6', opacity: 0.5 }} />
-                                )}
-                                <div style={{
-                                    position: 'absolute', top: 12, left: 12,
-                                    background: 'linear-gradient(135deg, #623ce4, #8b5cf6)',
-                                    color: '#fff', borderRadius: 50, padding: '4px 12px',
-                                    fontSize: 11, fontWeight: 700, letterSpacing: 0.5
-                                }}>
-                                    {result.vehicleType}
+                                {result.image
+                                    ? <img src={result.image} alt={result.vehicleType} style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.9 }} />
+                                    : <CarOutlined style={{ fontSize: 54, color: result.isShuttle ? '#059669' : '#7c3aed', opacity: 0.25 }} />}
+                                <div style={{ position: 'absolute', top: 10, left: 10, display: 'flex', flexDirection: 'column', gap: 5 }}>
+                                    <span style={{
+                                        background: result.isShuttle ? 'linear-gradient(135deg,#059669,#10b981)' : 'linear-gradient(135deg,#4f46e5,#7c3aed)',
+                                        color: '#fff', padding: '3px 11px', borderRadius: 50,
+                                        fontSize: 10, fontWeight: 800, letterSpacing: 0.3,
+                                        boxShadow: '0 2px 8px rgba(0,0,0,0.18)'
+                                    }}>{result.vehicleType}</span>
+                                    {idx === 0 && <span style={{ background: 'linear-gradient(135deg,#f59e0b,#fbbf24)', color: '#fff', padding: '3px 10px', borderRadius: 50, fontSize: 10, fontWeight: 700 }}>⭐ Önerilen</span>}
                                 </div>
-                                {idx === 0 && (
-                                    <div style={{
-                                        position: 'absolute', top: 12, right: 12,
-                                        background: 'linear-gradient(135deg, #f59e0b, #fbbf24)',
-                                        color: '#fff', borderRadius: 50, padding: '4px 10px',
-                                        fontSize: 11, fontWeight: 700
-                                    }}>⭐ Önerilen</div>
-                                )}
                             </div>
 
-                            {/* Info */}
-                            <div style={{ flex: 1, padding: '24px 28px' }}>
-                                <div style={{ marginBottom: 12 }}>
-                                    <div style={{ fontSize: 20, fontWeight: 800, color: '#1a1a2e' }}>{result.vehicleType}</div>
-                                    <div style={{ color: '#6b7280', fontSize: 13, marginTop: 2 }}>Sağlayıcı: {result.vendor}</div>
+                            {/* Middle Info */}
+                            <div style={{ flex: 1, padding: '20px 24px', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 10 }}>
+                                <div>
+                                    <div style={{ fontSize: 19, fontWeight: 800, color: '#0f172a' }}>{result.vehicleType}</div>
+                                    <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>
+                                        Sağlayıcı: <span style={{ color: '#475569', fontWeight: 600 }}>{result.vendor}</span>
+                                        {result.isShuttle && <span style={{ marginLeft: 8, background: '#ecfdf5', color: '#059669', border: '1px solid #a7f3d0', padding: '1px 8px', borderRadius: 50, fontSize: 11 }}>Paylaşımlı</span>}
+                                    </div>
                                 </div>
-                                <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#f3f4f6', borderRadius: 10, padding: '6px 14px' }}>
-                                        <UserOutlined style={{ color: '#623ce4' }} />
-                                        <span style={{ fontSize: 13, fontWeight: 600 }}>{result.capacity} Yolcu</span>
-                                    </div>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#f3f4f6', borderRadius: 10, padding: '6px 14px' }}>
-                                        <SafetyCertificateOutlined style={{ color: '#623ce4' }} />
-                                        <span style={{ fontSize: 13, fontWeight: 600 }}>{result.luggage} Bavul</span>
-                                    </div>
-                                    {!result.isShuttle && (
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#f3f4f6', borderRadius: 10, padding: '6px 14px' }}>
-                                            <ClockCircleOutlined style={{ color: '#623ce4' }} />
-                                            <span style={{ fontSize: 13, fontWeight: 600 }}>~{result.estimatedDuration || routeStats?.duration || '?'}</span>
-                                        </div>
+                                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                                    <span style={{ display:'flex', alignItems:'center', gap:5, background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:9, padding:'5px 12px', fontSize:12, fontWeight:600, color:'#374151' }}>
+                                        👤 {result.capacity} Yolcu
+                                    </span>
+                                    <span style={{ display:'flex', alignItems:'center', gap:5, background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:9, padding:'5px 12px', fontSize:12, fontWeight:600, color:'#374151' }}>
+                                        🧳 {result.luggage} Bavul
+                                    </span>
+                                    {routeStats && !result.isShuttle && (
+                                        <span style={{ display:'flex', alignItems:'center', gap:5, background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:9, padding:'5px 12px', fontSize:12, fontWeight:600, color:'#2563eb' }}>
+                                            ⏱ ~{routeStats.duration} dk
+                                        </span>
                                     )}
                                     {result.features?.includes('WiFi') && (
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#eff6ff', borderRadius: 10, padding: '6px 14px' }}>
-                                            <WifiOutlined style={{ color: '#3b82f6' }} />
-                                            <span style={{ fontSize: 13, fontWeight: 600, color: '#3b82f6' }}>Ücretsiz WiFi</span>
-                                        </div>
+                                        <span style={{ display:'flex', alignItems:'center', gap:5, background:'#f0fdf4', border:'1px solid #bbf7d0', borderRadius:9, padding:'5px 12px', fontSize:12, fontWeight:600, color:'#16a34a' }}>
+                                            📶 Ücretsiz WiFi
+                                        </span>
+                                    )}
+                                    {result.isShuttle && result.departureTimes && result.departureTimes.length > 0 && (
+                                        <span style={{ display:'flex', alignItems:'center', gap:5, background:'#fefce8', border:'1px solid #fde68a', borderRadius:9, padding:'5px 12px', fontSize:12, fontWeight:600, color:'#92400e' }}>
+                                            🕐 {result.departureTimes.slice(0,3).join(', ')}{result.departureTimes.length > 3 && ` +${result.departureTimes.length-3}`}
+                                        </span>
                                     )}
                                 </div>
+                                {routeStats && (
+                                    <div style={{ fontSize: 12, color: '#94a3b8', display:'flex', alignItems:'center', gap:6 }}>
+                                        <span>📍 {typeof routeStats.distance === 'number' ? `${routeStats.distance.toFixed(0)} km` : `${routeStats.distance} km`} mesafe</span>
+                                        <span style={{ color:'#e2e8f0' }}>•</span>
+                                        <span>Kapıdan kapıya özel transfer</span>
+                                    </div>
+                                )}
                             </div>
 
-                            {/* Price & CTA */}
+                            {/* Price Panel */}
                             <div style={{
-                                width: 200, flexShrink: 0, padding: '24px 20px',
-                                borderLeft: '1px solid #f3f4f6',
+                                width: 195, flexShrink: 0,
+                                background: 'linear-gradient(180deg, #0f172a 0%, #1e293b 100%)',
                                 display: 'flex', flexDirection: 'column',
                                 justifyContent: 'center', alignItems: 'center',
-                                background: 'linear-gradient(180deg, #fafafa 0%, #f5f3ff 100%)'
+                                padding: '20px 16px', gap: 2
                             }}>
-                                <div style={{ fontSize: 12, color: '#9ca3af', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>Önerilen Satış</div>
-                                <div style={{
-                                    fontSize: 34, fontWeight: 900, color: '#623ce4', lineHeight: 1.1,
-                                    background: 'linear-gradient(135deg, #623ce4, #8b5cf6)',
-                                    WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent'
-                                }}>
-                                    {getCurrencySymbol(result.currency)}{result.price}
+                                <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.45)', textTransform:'uppercase', letterSpacing:1, marginBottom: 2 }}>Önerilen Satış</div>
+                                <div style={{ fontSize: 30, fontWeight: 900, color: '#fff', lineHeight: 1 }}>
+                                    {getCurrencySymbol(result.currency)}{result.price.toLocaleString('tr-TR')}
                                 </div>
-                                <button
-                                    onClick={() => handleSelectVehicle(result)}
-                                    style={{
-                                        marginTop: 16, width: '100%', padding: '12px 0',
-                                        background: 'linear-gradient(135deg, #623ce4, #8b5cf6)',
-                                        color: '#fff', border: 'none', borderRadius: 12,
-                                        fontSize: 14, fontWeight: 700, cursor: 'pointer',
-                                        boxShadow: '0 4px 16px rgba(98,60,228,0.3)',
-                                        transition: 'all 0.2s'
-                                    }}
-                                    onMouseEnter={e => (e.currentTarget.style.transform = 'scale(1.03)')}
-                                    onMouseLeave={e => (e.currentTarget.style.transform = 'scale(1)')}
-                                >
+                                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginBottom: 12 }}>{result.currency}</div>
+                                <button onClick={() => handleSelectVehicle(result)} style={{
+                                    width: '100%', padding: '10px 0',
+                                    background: 'linear-gradient(135deg,#6366f1,#818cf8)',
+                                    color: '#fff', border: 'none', borderRadius: 11,
+                                    fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                                    boxShadow: '0 4px 14px rgba(99,102,241,0.45)', transition: 'all 0.18s'
+                                }}
+                                onMouseEnter={e => (e.currentTarget.style.transform = 'scale(1.04)')}
+                                onMouseLeave={e => (e.currentTarget.style.transform = 'scale(1)')}>
                                     Seç ve İlerle →
                                 </button>
+                                <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)', marginTop: 8 }}>
+                                    B2B: {getCurrencySymbol(result.currency)}{(result.basePrice || result.price).toLocaleString('tr-TR')}
+                                </div>
                             </div>
                         </div>
                     ))}
@@ -865,380 +894,321 @@ const AgencyNewTransferPage = () => {
     );
 
     const renderDetailsStep = () => (
-        <Card bordered={false} style={{ maxWidth: 800, margin: '0 auto', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
-            <div style={{ marginBottom: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <Button icon={<ArrowLeftOutlined />} onClick={() => setCurrentStep('results')}>
-                    Araçlara Dön
-                </Button>
-                <Title level={4} style={{ margin: 0 }}>Müşteri & Tutar Bilgisi</Title>
-            </div>
-
+        <div style={{ maxWidth: 920, margin: '0 auto' }}>
+            {/* Vehicle Summary Header */}
             {selectedVehicle && (
-                <Alert
-                    title={`Seçilen Araç: ${selectedVehicle.vehicleType} (${selectedVehicle.vendor})`}
-                    description={
-                        <div style={{ marginTop: 8 }}>
-                            <Row>
-                                <Col span={12}>
-                                    <div><Text type="secondary">Rota:</Text> {pickup} ➔ {dropoff}</div>
-                                    <div><Text type="secondary">Tarih:</Text> {date?.format('DD.MM.YYYY')} - {pickupTimeValue?.format('HH:mm')}</div>
-                                </Col>
-                                <Col span={12}>
-                                    <div style={{ textAlign: 'right' }}>
-                                        <Text type="secondary">Transfer Ücreti:</Text> <Text strong style={{ color: '#2b6cb0', fontSize: 16 }}>{selectedVehicle.price} {selectedVehicle.currency}</Text>
-                                    </div>
-                                </Col>
-                            </Row>
+                <div style={{
+                    background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #0f1f3d 100%)',
+                    borderRadius: 20, padding: '20px 28px', marginBottom: 20,
+                    display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap',
+                    boxShadow: '0 8px 32px rgba(0,0,0,0.22)'
+                }}>
+                    <Button icon={<ArrowLeftOutlined />} onClick={() => setCurrentStep('results')}
+                        style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.18)', color: '#fff', borderRadius: 10, flexShrink: 0 }}>
+                        Araçlara Dön
+                    </Button>
+                    <div style={{ width: 72, height: 52, borderRadius: 12, overflow: 'hidden', background: 'rgba(255,255,255,0.08)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        {selectedVehicle.image
+                            ? <img src={selectedVehicle.image} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
+                            : <CarOutlined style={{ fontSize: 28, color: 'rgba(255,255,255,0.4)' }} />}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 200 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5 }}>
+                            <span style={{ background: 'linear-gradient(135deg,#6366f1,#818cf8)', color: '#fff', padding: '2px 11px', borderRadius: 50, fontSize: 11, fontWeight: 700 }}>{selectedVehicle.vehicleType}</span>
+                            <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12 }}>· {selectedVehicle.vendor}</span>
                         </div>
-                    }
-                    type="info"
-                    style={{ marginBottom: 24 }}
-                    showIcon
-                    icon={<CarOutlined />}
-                />
+                        <div style={{ color: 'rgba(255,255,255,0.65)', fontSize: 13, marginBottom: 3 }}>
+                            📍 <span style={{ fontWeight: 600 }}>{pickup}</span>
+                            <span style={{ color: '#6366f1', margin: '0 8px' }}>→</span>
+                            <span style={{ fontWeight: 600 }}>{dropoff}</span>
+                        </div>
+                        <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12, display: 'flex', gap: 14 }}>
+                            <span>📅 {date?.format('DD MMM YYYY')}</span>
+                            <span>⏰ {pickupTimeValue?.format('HH:mm')}</span>
+                            {routeStats && <span>📍 {typeof routeStats.distance === 'number' ? `${routeStats.distance.toFixed(0)} km` : `${routeStats.distance} km`}</span>}
+                            {routeStats && <span>⏱ {routeStats.duration} dk</span>}
+                        </div>
+                    </div>
+                    <div style={{ textAlign: 'center', flexShrink: 0 }}>
+                        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: 1 }}>B2B Fiyat</div>
+                        <div style={{ fontSize: 28, fontWeight: 900, color: '#818cf8', lineHeight: 1.1 }}>
+                            {getCurrencySymbol(selectedVehicle.currency)}{selectedVehicle.price.toLocaleString('tr-TR')}
+                        </div>
+                        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>{selectedVehicle.currency}</div>
+                    </div>
+                </div>
             )}
 
             <Form form={form} layout="vertical" onFinish={handleSave}>
-                <Title level={5}>Yolcu Bilgileri</Title>
-
-                <Row gutter={16}>
-                    <Col xs={24} md={12}>
-                        <Form.Item name="contactName" label="Ad Soyad" rules={[{ required: true, message: 'Ad soyad zorunludur' }]}>
-                            <Input prefix={<UserOutlined />} placeholder="Adınız Soyadınız" size="large" />
-                        </Form.Item>
-                    </Col>
-                    <Col xs={24} md={12}>
-                        <Form.Item name="contactPhone" label="Telefon Numarası" rules={[{ required: true, message: 'Telefon zorunludur' }]}>
-                            <Input
-                                addonBefore={
-                                    <Select
-                                        defaultValue="TR"
-                                        style={{ width: 120 }}
-                                        popupMatchSelectWidth={false}
-                                        showSearch
-                                        filterOption={(input, option) =>
-                                            (option?.label ?? '').toString().toLowerCase().includes(input.toLowerCase())
-                                        }
-                                        options={COUNTRIES.map((c: any) => ({
-                                            label: `${c.flag} ${c.code} (${c.dial})`,
-                                            value: c.code
-                                        }))}
+                {/* Section 1: Passenger Info */}
+                <div style={{ background: '#fff', borderRadius: 16, padding: '24px 28px', marginBottom: 14, boxShadow: '0 2px 10px rgba(0,0,0,0.04)', border: '1px solid #f1f5f9' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
+                        <div style={{ width: 34, height: 34, borderRadius: 10, background: 'linear-gradient(135deg,#6366f1,#818cf8)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, flexShrink: 0 }}>👤</div>
+                        <div>
+                            <div style={{ fontWeight: 700, fontSize: 15, color: '#0f172a' }}>Yolcu Bilgileri</div>
+                            <div style={{ fontSize: 12, color: '#94a3b8' }}>Ana yolcu iletişim bilgileri</div>
+                        </div>
+                    </div>
+                    <Row gutter={[20, 0]}>
+                        <Col xs={24} md={12}>
+                            <Form.Item name="contactName" label={<span style={{ fontWeight: 600, color: '#374151', fontSize: 13 }}>Ad Soyad</span>} rules={[{ required: true, message: 'Ad soyad zorunludur' }]}>
+                                <Input prefix={<UserOutlined style={{ color: '#94a3b8' }} />} placeholder="Müşterinizin adı soyadı" size="large" style={{ borderRadius: 10 }} />
+                            </Form.Item>
+                        </Col>
+                        <Col xs={24} md={12}>
+                            <Form.Item name="contactPhone" label={<span style={{ fontWeight: 600, color: '#374151', fontSize: 13 }}>Telefon</span>} rules={[{ required: true, message: 'Telefon zorunludur' }]}>
+                                <Input addonBefore={
+                                    <Select defaultValue="TR" style={{ width: 110 }} popupMatchSelectWidth={false} showSearch
+                                        filterOption={(input, option) => (option?.label ?? '').toString().toLowerCase().includes(input.toLowerCase())}
+                                        options={COUNTRIES.map((c: any) => ({ label: `${c.flag} ${c.code} (${c.dial})`, value: c.code }))}
                                     />
-                                }
-                                placeholder="555 123 45 67"
-                                size="large"
-                            />
-                        </Form.Item>
-                    </Col>
-                </Row>
-
-                <Row gutter={16}>
-                    <Col xs={24} md={12}>
-                        <Form.Item name="contactEmail" label="E-posta Adresi" rules={[{ required: true, type: 'email', message: 'Geçerli bir e-posta giriniz' }]}>
-                            <Input placeholder="ornek@email.com" size="large" />
-                        </Form.Item>
-                    </Col>
-                    <Col xs={24} md={12}>
-                        <Form.Item name="contactNationality" label="Uyruk" rules={[{ required: true, message: 'Uyruk zorunludur' }]}>
-                            <Select
-                                placeholder="Uyruk Seçiniz"
-                                size="large"
-                                showSearch
-                                filterOption={(input, option) =>
-                                    (option?.label ?? '').toString().toLowerCase().includes(input.toLowerCase())
-                                }
-                                options={COUNTRIES.map((c: any) => ({
-                                    label: `${c.name}`,
-                                    value: c.code
-                                }))}
-                            />
-                        </Form.Item>
-                    </Col>
-                </Row>
-
-                <Row gutter={16}>
-                    <Col span={12}>
-                        <Form.Item name="startDate" label="Transfer Tarihi" rules={[{ required: true }]}>
-                            <DatePicker showTime style={{ width: '100%' }} format="YYYY-MM-DD HH:mm" size="large" />
-                        </Form.Item>
-                    </Col>
-                    <Col span={12}>
-                        <Form.Item name="passengers" label="Yolcu Sayısı" rules={[{ required: true }]}>
-                            <InputNumber
-                                min={1}
-                                max={currentStep === 'details' && selectedVehicle ? selectedVehicle.capacity : 50}
-                                style={{ width: '100%' }}
-                                size="large"
-                                onChange={(val) => {
-                                    if (!val) return;
-                                    const currentList = form.getFieldValue('passengersList') || [];
-                                    const newList = Array.from({ length: Math.max(0, val - 1) }, (_, i) => {
-                                        return currentList[i] || { firstName: '', lastName: '', nationality: '' };
-                                    });
-                                    form.setFieldsValue({ passengersList: newList });
-                                }}
-                            />
-                        </Form.Item>
-                    </Col>
-                </Row>
-
-                {isAirportTransfer && (
-                    <Alert
-                        type="info"
-                        showIcon
-                        message="✈️ Havalimanı Transferi Tespit Edildi"
-                        description="Hata yapmamak için uçuş saatini ve uçuş numarasını doğru girmeniz zorunludur."
-                        style={{ marginBottom: 16 }}
-                    />
-                )}
-                <Row gutter={16}>
-                    <Col xs={24} md={12}>
-                        <Form.Item
-                            name="flightNumber"
-                            label="Uçuş Numarası (Opsiyonel)"
-                        >
-                            <Input placeholder="Örn: TK1234" size="large" />
-                        </Form.Item>
-                    </Col>
-                    <Col xs={24} md={12}>
-                        {isAirportTransfer ? (
-                            <Form.Item
-                                name="flightTime"
-                                label="Uçuş Saatiniz"
-                                tooltip="Uçuşunuzun kalkış veya varış saatini giriniz. Şoförümüz bu saate göre sizi alır."
-                                rules={[{ required: true, message: 'Havalimanı transferi için uçuş saati zorunludur' }]}
-                            >
-                                <TimePicker
-                                    size="large"
-                                    format="HH:mm"
-                                    style={{ width: '100%' }}
-                                    placeholder="Uçuş Saatiniz (ÖR: 14:30)"
-                                    minuteStep={5}
+                                } placeholder="555 123 45 67" size="large" />
+                            </Form.Item>
+                        </Col>
+                        <Col xs={24} md={12}>
+                            <Form.Item name="contactEmail" label={<span style={{ fontWeight: 600, color: '#374151', fontSize: 13 }}>E-posta</span>} rules={[{ required: true, type: 'email', message: 'Geçerli e-posta giriniz' }]}>
+                                <Input placeholder="ornek@email.com" size="large" style={{ borderRadius: 10 }} />
+                            </Form.Item>
+                        </Col>
+                        <Col xs={24} md={12}>
+                            <Form.Item name="contactNationality" label={<span style={{ fontWeight: 600, color: '#374151', fontSize: 13 }}>Uyruk</span>} rules={[{ required: true, message: 'Uyruk zorunludur' }]}>
+                                <Select placeholder="Uyruk Seçiniz" size="large" showSearch
+                                    filterOption={(input, option) => (option?.label ?? '').toString().toLowerCase().includes(input.toLowerCase())}
+                                    options={COUNTRIES.map((c: any) => ({ label: c.name, value: c.code }))}
                                 />
                             </Form.Item>
-                        ) : null}
-                    </Col>
-                </Row>
+                        </Col>
+                    </Row>
+                </div>
 
-                <Row gutter={16}>
-                    <Col xs={24}>
-                        <Form.Item name="customerNotes" label="Sürücüye Not (Opsiyonel)">
-                            <Input placeholder="Örn: Bebek koltuğu istiyorum" size="large" />
-                        </Form.Item>
-                    </Col>
-                </Row>
-
-                <Divider />
-
-                <Title level={5}>Diğer Yolcular</Title>
-                <Text type="secondary" style={{ display: 'block', marginBottom: 16 }}>Lütfen diğer yolcunun kimlik bilgilerini giriniz.</Text>
-
-                <Form.List name="passengersList">
-                    {(fields) => (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                            {fields.map(({ key, name, ...restField }, index) => (
-                                <Card size="small" key={key} title={`${index + 1}. Yolcu`} styles={{ header: { backgroundColor: '#fafafa' } }}>
-                                    <Row gutter={16}>
-                                        <Col xs={24} md={8}>
-                                            <Form.Item
-                                                {...restField}
-                                                name={[name, 'firstName']}
-                                                rules={[{ required: true, message: 'Ad giriniz' }]}
-                                                style={{ marginBottom: 0 }}
-                                            >
-                                                <Input placeholder="Adı" />
-                                            </Form.Item>
-                                        </Col>
-                                        <Col xs={24} md={8}>
-                                            <Form.Item
-                                                {...restField}
-                                                name={[name, 'lastName']}
-                                                rules={[{ required: true, message: 'Soyad giriniz' }]}
-                                                style={{ marginBottom: 0 }}
-                                            >
-                                                <Input placeholder="Soyadı" />
-                                            </Form.Item>
-                                        </Col>
-                                        <Col xs={24} md={8}>
-                                            <Form.Item
-                                                {...restField}
-                                                name={[name, 'nationality']}
-                                                rules={[{ required: true, message: 'Uyruk seçiniz' }]}
-                                                style={{ marginBottom: 0 }}
-                                            >
-                                                <Select
-                                                    showSearch
-                                                    placeholder="Uyruk Seçiniz"
-                                                    optionFilterProp="children"
-                                                    filterOption={(input, option) =>
-                                                        (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
-                                                    }
-                                                    options={COUNTRIES.map((country: any) => ({
-                                                        value: country.code,
-                                                        label: `${country.name} (${country.code})`
-                                                    }))}
-                                                />
-                                            </Form.Item>
-                                        </Col>
-                                    </Row>
-                                </Card>
-                            ))}
+                {/* Section 2: Transfer Details */}
+                <div style={{ background: '#fff', borderRadius: 16, padding: '24px 28px', marginBottom: 14, boxShadow: '0 2px 10px rgba(0,0,0,0.04)', border: '1px solid #f1f5f9' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
+                        <div style={{ width: 34, height: 34, borderRadius: 10, background: 'linear-gradient(135deg,#0ea5e9,#38bdf8)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, flexShrink: 0 }}>🗓</div>
+                        <div>
+                            <div style={{ fontWeight: 700, fontSize: 15, color: '#0f172a' }}>Transfer Detayları</div>
+                            <div style={{ fontSize: 12, color: '#94a3b8' }}>Tarih, saat ve yolcu bilgileri</div>
+                        </div>
+                    </div>
+                    <Row gutter={[20, 0]}>
+                        <Col xs={24} md={12}>
+                            <Form.Item name="startDate" label={<span style={{ fontWeight: 600, color: '#374151', fontSize: 13 }}>Transfer Tarihi & Saati</span>} rules={[{ required: true }]}>
+                                <DatePicker showTime style={{ width: '100%', borderRadius: 10 }} format="YYYY-MM-DD HH:mm" size="large" />
+                            </Form.Item>
+                        </Col>
+                        <Col xs={24} md={12}>
+                            <Form.Item name="passengers" label={<span style={{ fontWeight: 600, color: '#374151', fontSize: 13 }}>Yolcu Sayısı</span>} rules={[{ required: true }]}>
+                                <InputNumber min={1} max={selectedVehicle?.capacity || 50} style={{ width: '100%', borderRadius: 10 }} size="large"
+                                    onChange={(val) => {
+                                        if (!val) return;
+                                        const currentList = form.getFieldValue('passengersList') || [];
+                                        const newList = Array.from({ length: Math.max(0, val - 1) }, (_, i) => currentList[i] || { firstName: '', lastName: '', nationality: '' });
+                                        form.setFieldsValue({ passengersList: newList });
+                                    }}
+                                />
+                            </Form.Item>
+                        </Col>
+                    </Row>
+                    {isAirportTransfer && (
+                        <div style={{ background: 'linear-gradient(135deg,#eff6ff,#dbeafe)', border: '1px solid #bfdbfe', borderRadius: 12, padding: '12px 16px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
+                            <span style={{ fontSize: 22 }}>✈️</span>
+                            <div>
+                                <div style={{ fontWeight: 700, color: '#1e40af', fontSize: 13 }}>Havalimanı Transferi Tespit Edildi</div>
+                                <div style={{ color: '#3b82f6', fontSize: 12 }}>Uçuş saati ve numarasını doğru girmeniz çok önemlidir</div>
+                            </div>
                         </div>
                     )}
-                </Form.List>
-
-                <Divider />
-
-                <Title level={5}>Fatura Bilgileri</Title>
-                <Form.Item name="wantsInvoice" valuePropName="checked">
-                    <Checkbox>Fatura İstiyorum</Checkbox>
-                </Form.Item>
-
-                <Title level={5}>Notlarınız</Title>
-                <Form.Item name="agencyNotes">
-                    <Input.TextArea rows={3} placeholder="Varsa ek istekleriniz..." />
-                </Form.Item>
-
-                <Collapse
-                    ghost
-                    defaultActiveKey={['1']}
-                    expandIconPlacement="end"
-                    items={[{
-                        key: '1',
-                        label: <Text strong>Ekstra Hizmetler (Opsiyonel)</Text>,
-                        children: (
-                            loadingExtraServices ? <Spin size="small" /> :
-                                extraServicesList.length === 0 ? <Text type="secondary">Bu araç için ekstra hizmet bulunmuyor.</Text> :
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                                        {extraServicesList.map((service, index) => (
-                                            <div key={service.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: index < extraServicesList.length - 1 ? '1px solid #f0f0f0' : 'none' }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                                                    {service.image && <img src={service.image} alt={service.name} style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 4 }} />}
-                                                    <div>
-                                                        <Text strong style={{ display: 'block' }}>{service.name}</Text>
-                                                        <Text type="secondary" style={{ fontSize: 12 }}>
-                                                            {service.price} {service.currency} {service.isPerPerson ? '(Kişi Başı)' : '(Adet)'}
-                                                        </Text>
-                                                    </div>
-                                                </div>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                                    <Button
-                                                        size="small"
-                                                        shape="circle"
-                                                        disabled={service.quantity <= 0}
-                                                        onClick={() => {
-                                                            const newList = [...extraServicesList];
-                                                            newList[index].quantity -= 1;
-                                                            setExtraServicesList(newList);
-
-                                                            // Auto-adjust form amount
-                                                            const currentAmount = form.getFieldValue('amount') || selectedVehicle?.price || 0;
-                                                            form.setFieldValue('amount', Math.max(selectedVehicle?.price || 0, currentAmount - service.price));
-                                                        }}
-                                                    >-</Button>
-                                                    <Text style={{ width: 24, textAlign: 'center' }}>{service.quantity}</Text>
-                                                    <Button
-                                                        size="small"
-                                                        shape="circle"
-                                                        onClick={() => {
-                                                            let maxQty = service.isPerPerson ? passengerCounts.adults + passengerCounts.children + passengerCounts.babies : 10;
-                                                            if (service.quantity >= maxQty) return;
-
-                                                            const newList = [...extraServicesList];
-                                                            newList[index].quantity += 1;
-                                                            setExtraServicesList(newList);
-
-                                                            // Auto-adjust form amount
-                                                            const currentAmount = form.getFieldValue('amount') || selectedVehicle?.price || 0;
-                                                            form.setFieldValue('amount', currentAmount + service.price);
-                                                        }}
-                                                    >+</Button>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                        )
-                    }]}
-                    style={{ background: '#fafafa', borderRadius: 8, marginBottom: 24, border: '1px solid #f0f0f0' }}
-                />
-
-                <Title level={5}>Ödeme Yöntemi</Title>
-                <Form.Item name="paymentMethod" initialValue="BALANCE">
-                    <Radio.Group style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                        <Radio value="BALANCE">
-                            Cari Hesaptan Öde <Text type="secondary">(Mevcut Bakiye: {agencyBalance.toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' })})</Text>
-                        </Radio>
-                        <Radio value="PAY_IN_VEHICLE">
-                            Araçta Nakit Ödeme <Tag color="orange" style={{ marginLeft: 8 }}>Geçici Bakiye Yansımaz</Tag>
-                        </Radio>
-                        <Tooltip
-                            title={!hasActivePOS ? 'Yönetici Paneli\'nde aktif bir Sanal POS tanımlanmamış. Kredi kartı ile ödeme için lütfen yöneticinizle iletişime geçin.' : undefined}
-                        >
-                            <span style={{ cursor: !hasActivePOS ? 'not-allowed' : 'inherit' }}>
-                                <Radio value="CREDIT_CARD" disabled={!hasActivePOS}>
-                                    Online Kredi Kartı ile Öde
-                                    <Tag color={hasActivePOS ? 'blue' : 'default'} style={{ marginLeft: 8 }}>
-                                        {hasActivePOS ? 'Müşteri Öder' : 'Tanımsız'}
-                                    </Tag>
-                                </Radio>
-                            </span>
-                        </Tooltip>
-                    </Radio.Group>
-                </Form.Item>
-
-                <Form.Item
-                    noStyle
-                    shouldUpdate={(prevValues, currentValues) => prevValues.paymentMethod !== currentValues.paymentMethod}
-                >
-                    {({ getFieldValue }) => {
-                        const method = getFieldValue('paymentMethod');
-                        if (method === 'CREDIT_CARD') {
-                            return (
-                                <Alert
-                                    type="info"
-                                    showIcon
-                                    message="Anında 3D Güvenli Ödeme & Kâr Transferi"
-                                    description="Bu seçenekte rezervasyonu tamamlarken ekranınızda güvenli Sanal POS açılır. İşlem tamamlandığında acente kârınız/komisyonunuz anında Cari Bakiyenize yatırılır."
-                                    style={{ marginTop: 16 }}
-                                />
-                            );
-                        } else if (method === 'PAY_IN_VEHICLE') {
-                            return (
-                                <Alert
-                                    type="warning"
-                                    showIcon
-                                    message="Cari Hesaba Sonradan Yansıtma İşlemi"
-                                    description="Ödeme araçta tahsil edilir. Transfer tamamlandıktan sonra acente kârı/komisyonu cari bakiyenize alacak olarak yansıtılır."
-                                    style={{ marginTop: 16 }}
-                                />
-                            );
-                        }
-                        return null;
-                    }}
-                </Form.Item>
-
-                <Divider />
-
-                <div style={{ background: '#f6ffed', border: '1px solid #b7eb8f', padding: 16, borderRadius: 8, marginBottom: 24 }}>
-                    <Text strong style={{ color: '#389e0d', display: 'block', marginBottom: 8 }}>Satış Bilgileri (Müşteriye Sunulan)</Text>
-                    <Form.Item
-                        name="amount"
-                        label="Acente Satış Tutarı (Müşteriden Alınacak Fiyat)"
-                        rules={[{ required: true, message: 'Satış tutarı zorunludur' }]}
-                        style={{ marginBottom: 0 }}
-                        extra="Bu tutar sizin müşterinize sattığınız fiyattır."
-                    >
-                        <InputNumber min={selectedVehicle?.price || 0} style={{ width: '100%' }} size="large" addonAfter={selectedVehicle?.currency || 'TRY'} />
+                    <Row gutter={[20, 0]}>
+                        <Col xs={24} md={12}>
+                            <Form.Item name="flightNumber" label={<span style={{ fontWeight: 600, color: '#374151', fontSize: 13 }}>Uçuş Numarası <span style={{ fontWeight: 400, color: '#94a3b8' }}>(Opsiyonel)</span></span>}>
+                                <Input placeholder="Örn: TK1234" size="large" style={{ borderRadius: 10 }} />
+                            </Form.Item>
+                        </Col>
+                        {isAirportTransfer && (
+                            <Col xs={24} md={12}>
+                                <Form.Item name="flightTime" label={<span style={{ fontWeight: 600, color: '#374151', fontSize: 13 }}>Uçuş Saati</span>}
+                                    tooltip="Uçuşunuzun kalkış veya varış saatini giriniz"
+                                    rules={[{ required: true, message: 'Havalimanı transferi için zorunludur' }]}>
+                                    <TimePicker size="large" format="HH:mm" style={{ width: '100%', borderRadius: 10 }} placeholder="14:30" minuteStep={5} />
+                                </Form.Item>
+                            </Col>
+                        )}
+                    </Row>
+                    <Form.Item name="customerNotes" label={<span style={{ fontWeight: 600, color: '#374151', fontSize: 13 }}>Sürücüye Not <span style={{ fontWeight: 400, color: '#94a3b8' }}>(Opsiyonel)</span></span>} style={{ marginBottom: 0 }}>
+                        <Input placeholder="Bebek koltuğu, özel istek vb." size="large" style={{ borderRadius: 10 }} />
                     </Form.Item>
                 </div>
 
-                <div style={{ textAlign: 'right' }}>
-                    <Button type="primary" htmlType="submit" loading={loading} size="large" style={{ minWidth: 200, backgroundColor: '#623ce4' }}>
-                        Rezervasyonu Tamamla
+                {/* Section 3: Other Passengers */}
+                <div style={{ background: '#fff', borderRadius: 16, padding: '24px 28px', marginBottom: 14, boxShadow: '0 2px 10px rgba(0,0,0,0.04)', border: '1px solid #f1f5f9' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+                        <div style={{ width: 34, height: 34, borderRadius: 10, background: 'linear-gradient(135deg,#8b5cf6,#a78bfa)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, flexShrink: 0 }}>👥</div>
+                        <div>
+                            <div style={{ fontWeight: 700, fontSize: 15, color: '#0f172a' }}>Diğer Yolcular</div>
+                            <div style={{ fontSize: 12, color: '#94a3b8' }}>Yolcu sayısını artırdığınızda burası otomatik dolar</div>
+                        </div>
+                    </div>
+                    <Form.List name="passengersList">
+                        {(fields) => (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                {fields.length === 0
+                                    ? <div style={{ color: '#cbd5e1', fontSize: 13, textAlign: 'center', padding: '12px 0', border: '1px dashed #e2e8f0', borderRadius: 10 }}>Henüz ek yolcu yok</div>
+                                    : fields.map(({ key, name, ...restField }, index) => (
+                                        <div key={key} style={{ background: '#f8fafc', borderRadius: 12, padding: '14px 18px', border: '1px solid #e2e8f0' }}>
+                                            <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 }}>{index + 1}. Yolcu</div>
+                                            <Row gutter={[12, 0]}>
+                                                <Col xs={24} md={8}>
+                                                    <Form.Item {...restField} name={[name, 'firstName']} rules={[{ required: true, message: 'Ad giriniz' }]} style={{ marginBottom: 0 }}>
+                                                        <Input placeholder="Adı" style={{ borderRadius: 8 }} />
+                                                    </Form.Item>
+                                                </Col>
+                                                <Col xs={24} md={8}>
+                                                    <Form.Item {...restField} name={[name, 'lastName']} rules={[{ required: true, message: 'Soyad giriniz' }]} style={{ marginBottom: 0 }}>
+                                                        <Input placeholder="Soyadı" style={{ borderRadius: 8 }} />
+                                                    </Form.Item>
+                                                </Col>
+                                                <Col xs={24} md={8}>
+                                                    <Form.Item {...restField} name={[name, 'nationality']} rules={[{ required: true, message: 'Uyruk seçiniz' }]} style={{ marginBottom: 0 }}>
+                                                        <Select placeholder="Uyruk" showSearch
+                                                            filterOption={(input, option) => (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())}
+                                                            options={COUNTRIES.map((country: any) => ({ value: country.code, label: `${country.name} (${country.code})` }))}
+                                                        />
+                                                    </Form.Item>
+                                                </Col>
+                                            </Row>
+                                        </div>
+                                    ))
+                                }
+                            </div>
+                        )}
+                    </Form.List>
+                </div>
+
+                {/* Section 4: Extras + Notes + Invoice */}
+                <div style={{ background: '#fff', borderRadius: 16, padding: '24px 28px', marginBottom: 14, boxShadow: '0 2px 10px rgba(0,0,0,0.04)', border: '1px solid #f1f5f9' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
+                        <div style={{ width: 34, height: 34, borderRadius: 10, background: 'linear-gradient(135deg,#10b981,#34d399)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, flexShrink: 0 }}>✨</div>
+                        <div>
+                            <div style={{ fontWeight: 700, fontSize: 15, color: '#0f172a' }}>Ekstra Hizmetler</div>
+                            <div style={{ fontSize: 12, color: '#94a3b8' }}>Opsiyonel ek hizmetler seçin</div>
+                        </div>
+                    </div>
+                    {loadingExtraServices ? <Spin size="small" /> :
+                        extraServicesList.length === 0
+                            ? <div style={{ color: '#cbd5e1', fontSize: 13, textAlign: 'center', padding: '10px 0', border: '1px dashed #e2e8f0', borderRadius: 10, marginBottom: 16 }}>Ekstra hizmet tanımlı değil</div>
+                            : <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
+                                {extraServicesList.map((service, index) => (
+                                    <div key={service.id} style={{
+                                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                        background: service.quantity > 0 ? '#f0fdf4' : '#f8fafc',
+                                        border: `1px solid ${service.quantity > 0 ? '#bbf7d0' : '#e2e8f0'}`,
+                                        borderRadius: 12, padding: '11px 16px', transition: 'all 0.2s'
+                                    }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                            {service.image && <img src={service.image} alt={service.name} style={{ width: 38, height: 38, objectFit: 'cover', borderRadius: 8 }} />}
+                                            <div>
+                                                <div style={{ fontWeight: 700, color: '#0f172a', fontSize: 13 }}>{service.name}</div>
+                                                <div style={{ fontSize: 11, color: '#64748b' }}>{service.price} {service.currency} {service.isPerPerson ? '/ kişi' : '/ adet'}</div>
+                                            </div>
+                                        </div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                            <button type="button" disabled={service.quantity <= 0}
+                                                onClick={() => {
+                                                    const nl = [...extraServicesList]; nl[index].quantity -= 1; setExtraServicesList(nl);
+                                                    form.setFieldValue('amount', Math.max(selectedVehicle?.price || 0, (form.getFieldValue('amount') || selectedVehicle?.price || 0) - service.price));
+                                                }}
+                                                style={{ width: 28, height: 28, borderRadius: 7, border: '1px solid #e2e8f0', background: service.quantity <= 0 ? '#f1f5f9' : '#fff', cursor: service.quantity <= 0 ? 'not-allowed' : 'pointer', fontSize: 16, fontWeight: 700, color: '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
+                                            <span style={{ width: 24, textAlign: 'center', fontWeight: 700, fontSize: 14 }}>{service.quantity}</span>
+                                            <button type="button"
+                                                onClick={() => {
+                                                    const maxQty = service.isPerPerson ? passengerCounts.adults + passengerCounts.children + passengerCounts.babies : 10;
+                                                    if (service.quantity >= maxQty) return;
+                                                    const nl = [...extraServicesList]; nl[index].quantity += 1; setExtraServicesList(nl);
+                                                    form.setFieldValue('amount', (form.getFieldValue('amount') || selectedVehicle?.price || 0) + service.price);
+                                                }}
+                                                style={{ width: 28, height: 28, borderRadius: 7, border: 'none', background: 'linear-gradient(135deg,#10b981,#34d399)', cursor: 'pointer', fontSize: 16, fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                    }
+                    <Form.Item name="agencyNotes" label={<span style={{ fontWeight: 600, color: '#374151', fontSize: 13 }}>Acente Notu <span style={{ fontWeight: 400, color: '#94a3b8' }}>(Opsiyonel)</span></span>} style={{ marginBottom: 12 }}>
+                        <Input.TextArea rows={2} placeholder="Dahili acente notları..." style={{ borderRadius: 10 }} />
+                    </Form.Item>
+                    <Form.Item name="wantsInvoice" valuePropName="checked" style={{ marginBottom: 0 }}>
+                        <Checkbox><span style={{ fontWeight: 600, color: '#374151' }}>Fatura İstiyorum</span></Checkbox>
+                    </Form.Item>
+                </div>
+
+                {/* Section 5: Payment */}
+                <div style={{ background: '#fff', borderRadius: 16, padding: '24px 28px', marginBottom: 14, boxShadow: '0 2px 10px rgba(0,0,0,0.04)', border: '1px solid #f1f5f9' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
+                        <div style={{ width: 34, height: 34, borderRadius: 10, background: 'linear-gradient(135deg,#f43f5e,#fb7185)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, flexShrink: 0 }}>💳</div>
+                        <div>
+                            <div style={{ fontWeight: 700, fontSize: 15, color: '#0f172a' }}>Ödeme Yöntemi</div>
+                            <div style={{ fontSize: 12, color: '#94a3b8' }}>Cari bakiye: {agencyBalance.toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' })}</div>
+                        </div>
+                    </div>
+                    <Form.Item name="paymentMethod" initialValue="BALANCE" style={{ marginBottom: 0 }}>
+                        <Radio.Group style={{ width: '100%' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                <Radio value="BALANCE">
+                                    <div style={{ paddingLeft: 6 }}>
+                                        <div style={{ fontWeight: 700, color: '#0f172a', fontSize: 14 }}>🏦 Cari Hesaptan Öde</div>
+                                        <div style={{ fontSize: 12, color: '#64748b' }}>Bakiye: {agencyBalance.toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' })}</div>
+                                    </div>
+                                </Radio>
+                                <Radio value="PAY_IN_VEHICLE">
+                                    <div style={{ paddingLeft: 6 }}>
+                                        <div style={{ fontWeight: 700, color: '#0f172a', fontSize: 14 }}>💵 Araçta Nakit Ödeme <Tag color="orange" style={{ marginLeft: 6 }}>Geçici</Tag></div>
+                                        <div style={{ fontSize: 12, color: '#64748b' }}>Transfer sonrası cari hesaba yansıtılır</div>
+                                    </div>
+                                </Radio>
+                                <Tooltip title={!hasActivePOS ? 'Sanal POS tanımlı değil — yöneticinizle iletişime geçin' : undefined}>
+                                    <span>
+                                        <Radio value="CREDIT_CARD" disabled={!hasActivePOS}>
+                                            <div style={{ paddingLeft: 6 }}>
+                                                <div style={{ fontWeight: 700, color: hasActivePOS ? '#0f172a' : '#94a3b8', fontSize: 14 }}>💳 Online Kredi Kartı <Tag color={hasActivePOS ? 'blue' : 'default'} style={{ marginLeft: 6 }}>{hasActivePOS ? 'Canlı POS' : 'Tanımsız'}</Tag></div>
+                                                <div style={{ fontSize: 12, color: '#64748b' }}>Müşteri 3D güvenli ödeme yapar, kâr anında yatırılır</div>
+                                            </div>
+                                        </Radio>
+                                    </span>
+                                </Tooltip>
+                            </div>
+                        </Radio.Group>
+                    </Form.Item>
+                </div>
+
+                {/* Section 6: Sale Price */}
+                <div style={{ background: 'linear-gradient(135deg,#0f172a,#1e293b)', borderRadius: 16, padding: '24px 28px', marginBottom: 24, boxShadow: '0 8px 28px rgba(0,0,0,0.2)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
+                        <div style={{ width: 34, height: 34, borderRadius: 10, background: 'linear-gradient(135deg,#6366f1,#818cf8)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, flexShrink: 0 }}>💰</div>
+                        <div>
+                            <div style={{ fontWeight: 700, fontSize: 15, color: '#fff' }}>Satış Tutarı</div>
+                            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)' }}>Müşterinize satacağınız fiyatı belirleyin</div>
+                        </div>
+                    </div>
+                    <Form.Item name="amount"
+                        label={<span style={{ color: 'rgba(255,255,255,0.7)', fontWeight: 600, fontSize: 13 }}>Müşteriden Alınacak Tutar</span>}
+                        rules={[{ required: true, message: 'Satış tutarı zorunludur' }]}
+                        extra={<span style={{ color: 'rgba(255,255,255,0.35)', fontSize: 12 }}>B2B maliyet: {getCurrencySymbol(selectedVehicle?.currency || 'TRY')}{(selectedVehicle?.basePrice || selectedVehicle?.price || 0).toLocaleString('tr-TR')}</span>}
+                        style={{ marginBottom: 0 }}>
+                        <InputNumber min={selectedVehicle?.price || 0} style={{ width: '100%', borderRadius: 10 }} size="large"
+                            addonAfter={<span style={{ fontWeight: 700 }}>{selectedVehicle?.currency || 'TRY'}</span>} />
+                    </Form.Item>
+                </div>
+
+                <div style={{ textAlign: 'center', paddingBottom: 32 }}>
+                    <Button type="primary" htmlType="submit" loading={loading} size="large" style={{
+                        minWidth: 260, height: 52, fontSize: 15, fontWeight: 700,
+                        background: 'linear-gradient(135deg,#6366f1,#818cf8)', border: 'none', borderRadius: 14,
+                        boxShadow: '0 8px 24px rgba(99,102,241,0.4)'
+                    }}>
+                        🎯 Rezervasyonu Tamamla
                     </Button>
                 </div>
             </Form>
-        </Card>
+        </div>
     );
 
     const renderSuccessStep = () => {

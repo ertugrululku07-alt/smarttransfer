@@ -236,8 +236,9 @@ router.post('/deposits/:id/approve', authMiddleware, async (req, res) => {
                 data: {
                     tenantId: req.tenant.id,
                     accountId: `agency-${deposit.agencyId}`,
-                    type: 'DEPOSIT', // Depozito
+                    type: 'DEPOSIT',
                     amount: deposit.amount,
+                    currency: deposit.currency || 'TRY',
                     isCredit: true,
                     description: `Admin Tarafından Depozito Onayı - ${deposit.transactionRef}`,
                     date: new Date(),
@@ -399,6 +400,188 @@ router.delete('/:id/contracts/:vehicleTypeId', authMiddleware, async (req, res) 
     } catch (error) {
         console.error('Delete agency contract error:', error);
         res.status(500).json({ success: false, error: 'Failed to delete contract' });
+    }
+});
+
+// ==========================================
+// ADMIN: AGENCY STATEMENT (VIEW ANY AGENCY'S CARİ HESAP)
+// ==========================================
+router.get('/:id/statement', authMiddleware, async (req, res) => {
+    try {
+        const tenantId = req.tenant?.id;
+        const { id: agencyId } = req.params;
+        const { startDate, endDate, currency: filterCurrency } = req.query;
+
+        const allTransactions = await prisma.transaction.findMany({
+            where: { tenantId, accountId: `agency-${agencyId}` },
+            orderBy: { date: 'asc' }
+        });
+
+        // Bulk-fetch references
+        const refIds = allTransactions.map(t => t.referenceId).filter(Boolean);
+        const [refBookings, refDeposits] = await Promise.all([
+            prisma.booking.findMany({
+                where: { id: { in: refIds } },
+                select: { id: true, bookingNumber: true, agent: { select: { fullName: true } } }
+            }),
+            prisma.agencyDeposit.findMany({
+                where: { id: { in: refIds } },
+                select: { id: true, transactionRef: true, approvedBy: { select: { fullName: true } } }
+            })
+        ]);
+        const bookingMap = Object.fromEntries(refBookings.map(b => [b.id, b]));
+        const depositMap = Object.fromEntries(refDeposits.map(d => [d.id, d]));
+
+        const entries = allTransactions.map(t => {
+            let personnelName = 'Sistem';
+            let referenceData = null;
+            if (t.referenceId) {
+                const bk = bookingMap[t.referenceId];
+                const dp = depositMap[t.referenceId];
+                if (bk) { personnelName = bk.agent?.fullName || '-'; referenceData = bk.bookingNumber; }
+                else if (dp) { personnelName = dp.approvedBy ? `Onaylayan: ${dp.approvedBy.fullName}` : 'Otomatik'; referenceData = dp.transactionRef; }
+            }
+            return {
+                id: t.id, date: t.date, type: t.type,
+                amount: parseFloat(t.amount), currency: t.currency || 'TRY',
+                isCredit: t.isCredit, description: t.description,
+                personnelName, referenceData, runningBalance: 0
+            };
+        });
+
+        // Per-currency running balance
+        const balByCur = {};
+        entries.forEach(e => {
+            if (!balByCur[e.currency]) balByCur[e.currency] = 0;
+            balByCur[e.currency] += e.isCredit ? e.amount : -e.amount;
+            e.runningBalance = Math.round(balByCur[e.currency] * 100) / 100;
+        });
+
+        let filtered = entries;
+        if (startDate && endDate) {
+            const s = new Date(startDate).toISOString().slice(0, 10);
+            const ed = new Date(endDate).toISOString().slice(0, 10);
+            filtered = entries.filter(en => { const d = new Date(en.date).toISOString().slice(0, 10); return d >= s && d <= ed; });
+        }
+        if (filterCurrency) filtered = filtered.filter(en => en.currency === filterCurrency);
+        filtered.reverse();
+
+        // Per-currency summaries
+        const summaries = {};
+        entries.forEach(e => {
+            if (!summaries[e.currency]) summaries[e.currency] = { currency: e.currency, totalCredit: 0, totalDebit: 0, balance: 0 };
+            if (e.isCredit) summaries[e.currency].totalCredit += e.amount; else summaries[e.currency].totalDebit += e.amount;
+        });
+        Object.values(summaries).forEach(s => {
+            s.balance = Math.round((s.totalCredit - s.totalDebit) * 100) / 100;
+            s.totalCredit = Math.round(s.totalCredit * 100) / 100;
+            s.totalDebit = Math.round(s.totalDebit * 100) / 100;
+        });
+
+        // Fetch tenant supported currencies
+        const tenant = await prisma.tenant.findUnique({
+            where: { id: tenantId },
+            select: { supportedCurrencies: true, defaultCurrency: true }
+        });
+
+        res.json({ success: true, data: {
+            transactions: filtered,
+            currencySummaries: Object.values(summaries),
+            supportedCurrencies: tenant?.supportedCurrencies || ['TRY', 'EUR', 'USD'],
+            defaultCurrency: tenant?.defaultCurrency || 'TRY'
+        }});
+    } catch (error) {
+        console.error('Admin agency statement error:', error);
+        res.status(500).json({ success: false, error: 'Failed to fetch statement' });
+    }
+});
+
+// ==========================================
+// ADMIN: ADD MANUAL TRANSACTION TO AGENCY
+// ==========================================
+router.post('/:id/transaction', authMiddleware, async (req, res) => {
+    try {
+        const tenantId = req.tenant?.id;
+        if (!tenantId) return res.status(400).json({ success: false, error: 'Tenant context missing' });
+
+        const { id: agencyId } = req.params;
+        const { amount, currency, isCredit, type, description } = req.body;
+
+        if (!amount || amount <= 0) return res.status(400).json({ success: false, error: 'Tutar 0\'dan büyük olmalıdır' });
+        if (!currency) return res.status(400).json({ success: false, error: 'Para birimi zorunludur' });
+        if (!description) return res.status(400).json({ success: false, error: 'Açıklama zorunludur' });
+
+        const parsedAmount = parseFloat(amount);
+        const txType = type || (isCredit ? 'MANUAL_IN' : 'MANUAL_OUT');
+        const adminName = [req.user?.firstName, req.user?.lastName].filter(Boolean).join(' ') || req.user?.email || 'Admin';
+
+        const result = await prisma.$transaction(async (tx) => {
+            const transaction = await tx.transaction.create({
+                data: {
+                    tenantId,
+                    accountId: `agency-${agencyId}`,
+                    type: txType,
+                    amount: parsedAmount,
+                    currency,
+                    isCredit: !!isCredit,
+                    description: `${description} (İşlemi Yapan: ${adminName})`,
+                    date: new Date()
+                }
+            });
+
+            // Update agency aggregate balance (only affects main balance field for TRY backward compat)
+            if (isCredit) {
+                await tx.agency.update({
+                    where: { id: agencyId },
+                    data: { balance: { increment: parsedAmount }, credit: { increment: parsedAmount } }
+                });
+            } else {
+                await tx.agency.update({
+                    where: { id: agencyId },
+                    data: { balance: { decrement: parsedAmount }, debit: { increment: parsedAmount } }
+                });
+            }
+
+            return transaction;
+        });
+
+        res.json({ success: true, data: result, message: isCredit ? 'Alacak kaydedildi' : 'Borç kaydedildi' });
+    } catch (error) {
+        console.error('Admin manual agency transaction error:', error);
+        res.status(500).json({ success: false, error: 'İşlem kaydedilemedi' });
+    }
+});
+
+// ==========================================
+// ADMIN: GET AGENCY PER-CURRENCY BALANCES
+// ==========================================
+router.get('/:id/balances', authMiddleware, async (req, res) => {
+    try {
+        const tenantId = req.tenant?.id;
+        const { id: agencyId } = req.params;
+
+        const transactions = await prisma.transaction.findMany({
+            where: { tenantId, accountId: `agency-${agencyId}` },
+            select: { amount: true, currency: true, isCredit: true }
+        });
+
+        const balances = {};
+        transactions.forEach(t => {
+            const c = t.currency || 'TRY';
+            if (!balances[c]) balances[c] = { currency: c, credit: 0, debit: 0, balance: 0 };
+            const amt = parseFloat(t.amount);
+            if (t.isCredit) balances[c].credit += amt; else balances[c].debit += amt;
+        });
+        Object.values(balances).forEach(b => {
+            b.balance = Math.round((b.credit - b.debit) * 100) / 100;
+            b.credit = Math.round(b.credit * 100) / 100;
+            b.debit = Math.round(b.debit * 100) / 100;
+        });
+
+        res.json({ success: true, data: Object.values(balances) });
+    } catch (error) {
+        console.error('Admin agency balances error:', error);
+        res.status(500).json({ success: false, error: 'Failed to fetch balances' });
     }
 });
 

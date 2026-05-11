@@ -151,7 +151,8 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, selectedKey = 'dash
               case 'payroll': return 'accounting';
               case 'partner-applications':
               case 'agencies':
-              case 'agency-contracts': return 'partner-operations';
+              case 'agency-contracts':
+              case 'agency-statement': return 'partner-operations';
               case 'bank-list':
               case 'virtual-pos': return 'bank-management';
               case 'vehicles':
@@ -383,6 +384,11 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, selectedKey = 'dash
                   key: 'agency-contracts',
                   label: 'Acenta Kontratları',
                   onClick: () => router.push('/admin/agencies/contracts')
+                },
+                {
+                  key: 'agency-statement',
+                  label: 'Acente Cari Hesap',
+                  onClick: () => router.push('/admin/agencies/statement')
                 }
               ]
             },

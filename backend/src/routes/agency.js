@@ -390,25 +390,94 @@ router.post('/bookings', authMiddleware, agencyMiddleware, async (req, res) => {
                 }
             });
 
-            // Deduct the net amount (B2B cost) from agency balance ONLY IF PAYING FROM BALANCE
+            // -----------------------------------------------------------
+            // ACCOUNTING: Create transaction records for ALL payment methods
+            // -----------------------------------------------------------
+            const bookingCurrency = req.body.currency || 'TRY';
+
             if (paymentMethod === 'BALANCE') {
+                // Deduct B2B cost from agency balance
                 await tx.agency.update({
                     where: { id: req.agencyId },
                     data: { balance: { decrement: netAmount }, debit: { increment: netAmount } }
                 });
 
-                // Create a transaction record for the account statement
                 await tx.transaction.create({
                     data: {
                         tenantId: req.tenant.id,
                         accountId: `agency-${req.agencyId}`,
-                        type: 'MANUAL_OUT', // Cari Çıkış (Borçlanma)
+                        type: 'PURCHASE_INVOICE',
                         amount: netAmount,
+                        currency: bookingCurrency,
                         isCredit: false,
-                        description: `B2B Transfer Rezervasyonu (PNR: ${bookingNumber})`,
+                        description: `B2B Transfer Satın Alma – Bakiyeden (PNR: ${bookingNumber})`,
                         date: new Date(),
                         referenceId: newBooking.id
                     }
+                });
+            } else if (paymentMethod === 'PAY_IN_VEHICLE') {
+                // Cash in vehicle – agency owes us the B2B cost (receivable)
+                await tx.agency.update({
+                    where: { id: req.agencyId },
+                    data: { debit: { increment: netAmount } }
+                });
+
+                await tx.transaction.create({
+                    data: {
+                        tenantId: req.tenant.id,
+                        accountId: `agency-${req.agencyId}`,
+                        type: 'PURCHASE_INVOICE',
+                        amount: netAmount,
+                        currency: bookingCurrency,
+                        isCredit: false,
+                        description: `B2B Transfer – Araçta Ödeme (PNR: ${bookingNumber})`,
+                        date: new Date(),
+                        referenceId: newBooking.id
+                    }
+                });
+            } else if (paymentMethod === 'CREDIT_CARD') {
+                // Credit card – customer pays online; track as debit pending payment
+                await tx.agency.update({
+                    where: { id: req.agencyId },
+                    data: { debit: { increment: netAmount } }
+                });
+
+                await tx.transaction.create({
+                    data: {
+                        tenantId: req.tenant.id,
+                        accountId: `agency-${req.agencyId}`,
+                        type: 'PURCHASE_INVOICE',
+                        amount: netAmount,
+                        currency: bookingCurrency,
+                        isCredit: false,
+                        description: `B2B Transfer – Kredi Kartı (PNR: ${bookingNumber})`,
+                        date: new Date(),
+                        referenceId: newBooking.id
+                    }
+                });
+            }
+
+            // If agency sells at a higher price, record the markup as agency commission (credit)
+            const markup = totalAmount - netAmount;
+            if (markup > 0) {
+                await tx.transaction.create({
+                    data: {
+                        tenantId: req.tenant.id,
+                        accountId: `agency-${req.agencyId}`,
+                        type: 'SALES_INVOICE',
+                        amount: markup,
+                        currency: bookingCurrency,
+                        isCredit: true,
+                        description: `Acente Komisyon/Kâr (PNR: ${bookingNumber})`,
+                        date: new Date(),
+                        referenceId: newBooking.id
+                    }
+                });
+
+                // Credit the markup to agency balance
+                await tx.agency.update({
+                    where: { id: req.agencyId },
+                    data: { credit: { increment: markup } }
                 });
             }
 
@@ -554,33 +623,72 @@ router.put('/bookings/:id/cancel', authMiddleware, agencyMiddleware, async (req,
         }
 
         const hoursUntil = (new Date(booking.startDate) - new Date()) / (1000 * 60 * 60);
-        const canRefund = hoursUntil > 6 && booking.paymentStatus === 'PAID';
+        const payMethod = booking.metadata?.paymentMethod || 'BALANCE';
+        const canRefund = hoursUntil > 6;
+        const bookingCurrency = booking.currency || 'TRY';
+        const b2bCost = Number(booking.subtotal || 0);
+        const customerPrice = Number(booking.total || 0);
+        const markupAmount = customerPrice - b2bCost;
 
         await prisma.$transaction(async (tx) => {
             await tx.booking.update({
                 where: { id },
-                data: { status: 'CANCELLED', paymentStatus: 'REFUNDED' }
+                data: { status: 'CANCELLED', paymentStatus: canRefund ? 'REFUNDED' : booking.paymentStatus }
             });
 
-            // Refund B2B cost to agency balance if >6h before transfer
-            if (canRefund && booking.paymentStatus === 'PAID' && booking.metadata?.paymentMethod !== 'CREDIT_CARD') {
-                await tx.agency.update({
-                    where: { id: req.agencyId },
-                    data: { balance: { increment: Number(booking.subtotal || 0) }, credit: { increment: Number(booking.subtotal || 0) } }
-                });
-
+            if (canRefund) {
+                // Reverse the B2B debit (credit back)
                 await tx.transaction.create({
                     data: {
                         tenantId: req.tenant.id,
                         accountId: `agency-${req.agencyId}`,
-                        type: 'MANUAL_IN', // Cari Giriş (İade/Alacak)
-                        amount: Number(booking.subtotal || 0),
+                        type: 'PAYMENT_RECEIVED',
+                        amount: b2bCost,
+                        currency: bookingCurrency,
                         isCredit: true,
-                        description: `İptal İadesi (PNR: ${booking.bookingNumber})`,
+                        description: `İptal İadesi – B2B Maliyet (PNR: ${booking.bookingNumber})`,
                         date: new Date(),
                         referenceId: booking.id
                     }
                 });
+
+                // Reverse commission/markup if any
+                if (markupAmount > 0) {
+                    await tx.transaction.create({
+                        data: {
+                            tenantId: req.tenant.id,
+                            accountId: `agency-${req.agencyId}`,
+                            type: 'PAYMENT_SENT',
+                            amount: markupAmount,
+                            currency: bookingCurrency,
+                            isCredit: false,
+                            description: `İptal – Komisyon İptali (PNR: ${booking.bookingNumber})`,
+                            date: new Date(),
+                            referenceId: booking.id
+                        }
+                    });
+                }
+
+                // Restore agency balance only if it was deducted (BALANCE method)
+                if (payMethod === 'BALANCE') {
+                    await tx.agency.update({
+                        where: { id: req.agencyId },
+                        data: {
+                            balance: { increment: b2bCost },
+                            debit: { decrement: b2bCost },
+                            credit: markupAmount > 0 ? { decrement: markupAmount } : undefined
+                        }
+                    });
+                } else {
+                    // For PAY_IN_VEHICLE/CREDIT_CARD: reverse the debit tracking
+                    await tx.agency.update({
+                        where: { id: req.agencyId },
+                        data: {
+                            debit: { decrement: b2bCost },
+                            credit: markupAmount > 0 ? { decrement: markupAmount } : undefined
+                        }
+                    });
+                }
             }
         });
 
@@ -588,7 +696,7 @@ router.put('/bookings/:id/cancel', authMiddleware, agencyMiddleware, async (req,
             success: true,
             refunded: canRefund,
             message: canRefund
-                ? `Rezervasyon iptal edildi. ${booking.subtotal} TRY bakiyenize iade edildi.`
+                ? `Rezervasyon iptal edildi. ${b2bCost} ${bookingCurrency} iade edildi.`
                 : 'Rezervasyon iptal edildi. Transfer saatine 6 saatten az kaldığı için iade yapılmadı.'
         });
     } catch (error) {
@@ -640,7 +748,10 @@ router.post('/bookings/bulk', authMiddleware, agencyMiddleware, async (req, res)
             if (bdLat) metadata.dropoffLat = Number(bdLat);
             if (bdLng) metadata.dropoffLng = Number(bdLng);
 
-            await prisma.booking.create({
+            const bulkCurrency = t.currency || 'TRY';
+            const bulkTotal = parseFloat(t.total) || netAmount;
+
+            const newBulkBooking = await prisma.booking.create({
                 data: {
                     tenantId: req.tenant.id,
                     agencyId: req.agencyId,
@@ -649,18 +760,54 @@ router.post('/bookings/bulk', authMiddleware, agencyMiddleware, async (req, res)
                     productType: 'TRANSFER',
                     startDate: new Date(t.date || Date.now()),
                     adults: t.passengers || 1,
-                    currency: 'TRY',
+                    currency: bulkCurrency,
                     subtotal: netAmount,
                     tax: 0,
                     serviceFee: 0,
-                    total: netAmount,
+                    total: bulkTotal,
                     contactName: t.contactName || 'Guest',
                     contactEmail: t.contactEmail || 'guest@example.com',
                     contactPhone: t.contactPhone || '000',
                     status: 'CONFIRMED',
+                    bookingType: 'B2B',
+                    bookedByUserId: req.user.id,
                     metadata
                 }
             });
+
+            // Create accounting entry for bulk booking
+            await prisma.transaction.create({
+                data: {
+                    tenantId: req.tenant.id,
+                    accountId: `agency-${req.agencyId}`,
+                    type: 'PURCHASE_INVOICE',
+                    amount: netAmount,
+                    currency: bulkCurrency,
+                    isCredit: false,
+                    description: `B2B Toplu Transfer (PNR: ${bookingNumber})`,
+                    date: new Date(),
+                    referenceId: newBulkBooking.id
+                }
+            });
+
+            // Markup/commission entry
+            const bulkMarkup = bulkTotal - netAmount;
+            if (bulkMarkup > 0) {
+                await prisma.transaction.create({
+                    data: {
+                        tenantId: req.tenant.id,
+                        accountId: `agency-${req.agencyId}`,
+                        type: 'SALES_INVOICE',
+                        amount: bulkMarkup,
+                        currency: bulkCurrency,
+                        isCredit: true,
+                        description: `Acente Komisyon/Kâr (PNR: ${bookingNumber})`,
+                        date: new Date(),
+                        referenceId: newBulkBooking.id
+                    }
+                });
+            }
+
             createdCount++;
         }
 
@@ -770,7 +917,7 @@ router.get('/deposits', authMiddleware, agencyMiddleware, async (req, res) => {
 // Create a new deposit
 router.post('/deposits', authMiddleware, agencyMiddleware, async (req, res) => {
     try {
-        const { amount, method, bankAccountId, notes } = req.body;
+        const { amount, currency: depositCurrency, method, bankAccountId, notes } = req.body;
 
         if (!amount || amount <= 0) {
             return res.status(400).json({ success: false, error: 'Geçersiz tutar' });
@@ -786,11 +933,13 @@ router.post('/deposits', authMiddleware, agencyMiddleware, async (req, res) => {
             status = 'APPROVED';
         }
 
+        const depCur = depositCurrency || 'TRY';
         const deposit = await prisma.agencyDeposit.create({
             data: {
                 tenantId: req.tenant.id,
                 agencyId: req.agencyId,
                 amount: parseFloat(amount),
+                currency: depCur,
                 method,
                 bankAccountId: method === 'BANK_TRANSFER' ? bankAccountId : null,
                 transactionRef,
@@ -813,6 +962,7 @@ router.post('/deposits', authMiddleware, agencyMiddleware, async (req, res) => {
                         accountId: `agency-${req.agencyId}`,
                         type: 'DEPOSIT',
                         amount: parseFloat(amount),
+                        currency: depCur,
                         isCredit: true,
                         description: `Depozito Yükleme (${method}) - ${transactionRef}`,
                         date: new Date(),
@@ -895,56 +1045,51 @@ router.get('/dashboard', authMiddleware, agencyMiddleware, async (req, res) => {
 });
 
 // ==========================================
-// ACCOUNT STATEMENT (HESAP EKSTRESİ)
+// ACCOUNT STATEMENT (HESAP EKSTRESİ) — Multi-Currency
 // ==========================================
-// Get agency's account statement (includes transactions with personnel details)
 router.get('/statement', authMiddleware, agencyMiddleware, async (req, res) => {
     try {
-        const { startDate, endDate } = req.query;
+        const { startDate, endDate, currency: filterCurrency } = req.query;
 
-        // Fetch all transactions for this agency
-        // We fetch all of them to calculate a proper running balance up to the selected date
-        // But we will only return the transactions that fall within the requested date range
+        // Fetch all transactions for this agency (chronological for balance calc)
         const allTransactions = await prisma.transaction.findMany({
             where: {
                 tenantId: req.tenant.id,
                 accountId: `agency-${req.agencyId}`
             },
-            orderBy: { date: 'asc' } // chronological for balance calculation
+            orderBy: { date: 'asc' }
         });
 
-        // Resolve reference IDs to get personnel details in parallel
-        const statementEntries = await Promise.all(allTransactions.map(async (t) => {
-            let personnelName = null;
+        // Pre-fetch all referenced bookings and deposits in bulk (avoid N+1)
+        const refIds = allTransactions.map(t => t.referenceId).filter(Boolean);
+        const [refBookings, refDeposits] = await Promise.all([
+            prisma.booking.findMany({
+                where: { id: { in: refIds } },
+                select: { id: true, bookingNumber: true, agent: { select: { fullName: true } } }
+            }),
+            prisma.agencyDeposit.findMany({
+                where: { id: { in: refIds } },
+                select: { id: true, transactionRef: true, approvedBy: { select: { fullName: true } } }
+            })
+        ]);
+        const bookingMap = Object.fromEntries(refBookings.map(b => [b.id, b]));
+        const depositMap = Object.fromEntries(refDeposits.map(d => [d.id, d]));
+
+        // Build entries with reference resolution
+        const statementEntries = allTransactions.map(t => {
+            let personnelName = 'Sistem';
             let referenceData = null;
+            const cur = t.currency || 'TRY';
 
             if (t.referenceId) {
-                // Determine if it was a booking (Booking type) or a deposit
-                if (t.type === 'MANUAL_OUT' || t.type === 'MANUAL_IN') {
-                    // Usually implies a booking purchase or cancellation refund
-                    const booking = await prisma.booking.findUnique({
-                        where: { id: t.referenceId },
-                        select: {
-                            bookingNumber: true,
-                            agent: { select: { firstName: true, lastName: true, fullName: true } }
-                        }
-                    });
-                    if (booking) {
-                        personnelName = booking.agent ? booking.agent.fullName : 'Bilinmeyen Personel';
-                        referenceData = booking.bookingNumber;
-                    }
-                } else if (t.type === 'DEPOSIT') {
-                    const deposit = await prisma.agencyDeposit.findUnique({
-                        where: { id: t.referenceId },
-                        select: {
-                            transactionRef: true,
-                            approvedBy: { select: { fullName: true } }
-                        }
-                    });
-                    if (deposit) {
-                        personnelName = deposit.approvedBy ? `Onaylayan: ${deposit.approvedBy.fullName}` : 'Sistem / Otomatik';
-                        referenceData = deposit.transactionRef;
-                    }
+                const booking = bookingMap[t.referenceId];
+                const deposit = depositMap[t.referenceId];
+                if (booking) {
+                    personnelName = booking.agent?.fullName || 'Bilinmeyen Personel';
+                    referenceData = booking.bookingNumber;
+                } else if (deposit) {
+                    personnelName = deposit.approvedBy ? `Onaylayan: ${deposit.approvedBy.fullName}` : 'Sistem / Otomatik';
+                    referenceData = deposit.transactionRef;
                 }
             }
 
@@ -953,50 +1098,104 @@ router.get('/statement', authMiddleware, agencyMiddleware, async (req, res) => {
                 date: t.date,
                 type: t.type,
                 amount: parseFloat(t.amount),
+                currency: cur,
                 isCredit: t.isCredit,
                 description: t.description,
-                personnelName: personnelName || 'Sistem',
+                personnelName,
                 referenceData,
-                runningBalance: 0 // Will calculate in the next step
+                runningBalance: 0
             };
-        }));
-
-        // Calculate running balance
-        let currentBalance = 0;
-        statementEntries.forEach(entry => {
-            if (entry.isCredit) {
-                currentBalance += entry.amount;
-            } else {
-                currentBalance -= entry.amount;
-            }
-            entry.runningBalance = currentBalance;
         });
 
-        // Filter by dates if provided
+        // Compute running balance PER CURRENCY
+        const balanceByCurrency = {}; // { TRY: 0, EUR: 0, USD: 0 }
+        statementEntries.forEach(entry => {
+            if (!balanceByCurrency[entry.currency]) balanceByCurrency[entry.currency] = 0;
+            if (entry.isCredit) {
+                balanceByCurrency[entry.currency] += entry.amount;
+            } else {
+                balanceByCurrency[entry.currency] -= entry.amount;
+            }
+            entry.runningBalance = Math.round(balanceByCurrency[entry.currency] * 100) / 100;
+        });
+
+        // Filter by date range if provided
         let filteredEntries = statementEntries;
         if (startDate && endDate) {
-            const startStr = new Date(startDate).toISOString().slice(0, 10);
-            const endStr = new Date(endDate).toISOString().slice(0, 10);
-            filteredEntries = statementEntries.filter(e => {
-                const eDateStr = new Date(e.date).toISOString().slice(0, 10);
-                return eDateStr >= startStr && eDateStr <= endStr;
+            const s = new Date(startDate).toISOString().slice(0, 10);
+            const e = new Date(endDate).toISOString().slice(0, 10);
+            filteredEntries = statementEntries.filter(en => {
+                const d = new Date(en.date).toISOString().slice(0, 10);
+                return d >= s && d <= e;
             });
         }
 
-        // Return from newest to oldest for the table
+        // Filter by currency if provided
+        if (filterCurrency) {
+            filteredEntries = filteredEntries.filter(en => en.currency === filterCurrency);
+        }
+
+        // Newest first for table display
         filteredEntries.reverse();
 
-        // Also fetch the current live agency balance just to be sure
-        const agency = await prisma.agency.findUnique({
-            where: { id: req.agencyId },
-            select: { balance: true }
+        // Compute per-currency summaries from ALL transactions (not just filtered)
+        const currencySummaries = {};
+        statementEntries.forEach(entry => {
+            const c = entry.currency;
+            if (!currencySummaries[c]) {
+                currencySummaries[c] = { currency: c, totalCredit: 0, totalDebit: 0, balance: 0 };
+            }
+            if (entry.isCredit) {
+                currencySummaries[c].totalCredit += entry.amount;
+            } else {
+                currencySummaries[c].totalDebit += entry.amount;
+            }
+        });
+        // Apply running balance to summary
+        Object.keys(currencySummaries).forEach(c => {
+            const s = currencySummaries[c];
+            s.balance = Math.round((s.totalCredit - s.totalDebit) * 100) / 100;
+            s.totalCredit = Math.round(s.totalCredit * 100) / 100;
+            s.totalDebit = Math.round(s.totalDebit * 100) / 100;
+        });
+
+        // If date range is provided, also compute period-only summaries
+        let periodSummaries = null;
+        if (startDate && endDate) {
+            periodSummaries = {};
+            const s = new Date(startDate).toISOString().slice(0, 10);
+            const e = new Date(endDate).toISOString().slice(0, 10);
+            statementEntries.forEach(entry => {
+                const d = new Date(entry.date).toISOString().slice(0, 10);
+                if (d >= s && d <= e) {
+                    const c = entry.currency;
+                    if (!periodSummaries[c]) periodSummaries[c] = { currency: c, totalCredit: 0, totalDebit: 0 };
+                    if (entry.isCredit) periodSummaries[c].totalCredit += entry.amount;
+                    else periodSummaries[c].totalDebit += entry.amount;
+                }
+            });
+            Object.values(periodSummaries).forEach(ps => {
+                ps.totalCredit = Math.round(ps.totalCredit * 100) / 100;
+                ps.totalDebit = Math.round(ps.totalDebit * 100) / 100;
+            });
+        }
+
+        // Fetch tenant supported currencies
+        const tenant = await prisma.tenant.findUnique({
+            where: { id: req.tenant.id },
+            select: { supportedCurrencies: true, defaultCurrency: true }
         });
 
         res.json({
             success: true,
             data: {
                 transactions: filteredEntries,
-                currentBalance: agency ? parseFloat(agency.balance) : currentBalance
+                currencySummaries: Object.values(currencySummaries),
+                periodSummaries: periodSummaries ? Object.values(periodSummaries) : null,
+                supportedCurrencies: tenant?.supportedCurrencies || ['TRY', 'EUR', 'USD'],
+                defaultCurrency: tenant?.defaultCurrency || 'TRY',
+                // Legacy field for backward compat
+                currentBalance: balanceByCurrency['TRY'] || 0
             }
         });
     } catch (error) {
