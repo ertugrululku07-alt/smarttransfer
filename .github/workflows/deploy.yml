@@ -30,12 +30,12 @@ jobs:
               
               if [ ! -d ".git" ]; then
                 git init
-                git remote add origin https://github.com/ertugrululku07-alt/smarttransfer.git
-                git fetch
-                git reset --hard origin/main
-              else
-                git pull origin main
               fi
+              
+              # Remote ayarını garantilemek ve değişiklikleri zorla (force) eşitlemek için:
+              git remote add origin https://github.com/ertugrululku07-alt/smarttransfer.git 2>/dev/null || true
+              git fetch origin
+              git reset --hard origin/main
               
               echo "E" | node setup.js
               npx pm2 restart all
