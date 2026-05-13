@@ -173,13 +173,19 @@ const LoginPage: React.FC = () => {
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 boxShadow: '0 8px 24px rgba(99,102,241,0.3)',
               }}>
-                <span style={{ fontSize: 24, fontWeight: 900, color: '#fff', fontFamily: 'monospace' }}>ST</span>
+                {branding.logoUrl ? (
+                  <img src={branding.logoUrl} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'contain', borderRadius: 18 }} />
+                ) : (
+                  <span style={{ fontSize: 24, fontWeight: 900, color: '#fff', fontFamily: 'monospace' }}>
+                    {branding.siteNameHighlight ? branding.siteNameHighlight.substring(0, 2).toUpperCase() : 'ST'}
+                  </span>
+                )}
               </div>
               <h1 style={{ fontSize: 26, fontWeight: 800, color: '#1a1a2e', margin: '0 0 4px', letterSpacing: -0.5 }}>
-                Smart<span style={{ color: '#6366f1' }}>Transfer</span>
+                {branding.siteNameHighlight || 'Smart'}<span style={{ color: '#6366f1' }}>{branding.siteName || 'Transfer'}</span>
               </h1>
               <p style={{ fontSize: 13, color: '#94a3b8', margin: 0, fontWeight: 500 }}>
-                Yönetim Paneline Giriş Yapın
+                {branding.companyName ? `${branding.companyName} Yönetim Paneline Giriş Yapın` : 'Yönetim Paneline Giriş Yapın'}
               </p>
             </div>
 
