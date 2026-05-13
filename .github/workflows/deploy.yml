@@ -25,6 +25,9 @@ jobs:
               export PATH=$PATH:/usr/local/bin:/www/server/nodejs/v18/bin:/www/server/nodejs/v20/bin
               cd /www/wwwroot/jet2home.com
               
+              # Git güvenlik uyarısını aşmak için klasörü güvenli dizin olarak ekliyoruz
+              git config --global --add safe.directory /www/wwwroot/jet2home.com
+              
               if [ ! -d ".git" ]; then
                 git init
                 git remote add origin https://github.com/ertugrululku07-alt/smarttransfer.git
