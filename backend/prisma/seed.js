@@ -1,30 +1,54 @@
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
+const path = require('path');
+const fs = require('fs');
 
 const prisma = new PrismaClient();
 
+// ── Load setup config (if available) ──
+function loadSetupConfig() {
+    const configPath = path.join(__dirname, '..', '..', 'setup.config.json');
+    const defaults = {
+        company: { name: 'SmartTravel Demo', tenantSlug: 'smarttravel-demo' },
+    };
+
+    if (!fs.existsSync(configPath)) {
+        console.log('ℹ️  setup.config.json not found, using defaults');
+        return defaults;
+    }
+
+    try {
+        const raw = fs.readFileSync(configPath, 'utf8');
+        const config = JSON.parse(raw);
+        return { ...defaults, ...config };
+    } catch (e) {
+        console.log('⚠️  Failed to parse setup.config.json, using defaults');
+        return defaults;
+    }
+}
+
 async function main() {
-    console.log('🌱 Starting seed...');
+    const config = loadSetupConfig();
+    const tenantSlug = config.company?.tenantSlug || 'smarttravel-demo';
+    const tenantName = config.company?.name || 'SmartTravel Demo';
+
+    console.log(`🌱 Starting seed for tenant: ${tenantName} (${tenantSlug})`);
 
     // 1. Create default tenant
     const defaultTenant = await prisma.tenant.upsert({
-        where: { slug: 'smarttravel-demo' },
+        where: { slug: tenantSlug },
         update: {
-            flightEnabled: false,
-            carEnabled: false,
-            cruiseEnabled: false,
-            heroImages: [
-                'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=2021&q=80',
-                'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?auto=format&fit=crop&w=2070&q=80'
-            ]
+            name: tenantName,
+            isActive: true,
         },
         create: {
             id: '00000000-0000-0000-0000-000000000001',
-            slug: 'smarttravel-demo',
-            name: 'SmartTravel Demo',
-            legalName: 'SmartTravel Turizm A.Ş.',
+            slug: tenantSlug,
+            name: tenantName,
+            legalName: `${tenantName} Turizm`,
             status: 'ACTIVE',
             plan: 'PREMIUM',
+            isActive: true,
             transferEnabled: true,
             tourEnabled: true,
             hotelEnabled: true,
@@ -38,7 +62,7 @@ async function main() {
         }
     });
 
-    console.log('✅ Tenant created');
+    console.log('✅ Tenant created:', defaultTenant.slug);
 
     // 2. Create permissions
     const perms = [
@@ -137,7 +161,7 @@ async function main() {
         }
     });
 
-    console.log('✅ AIRPORT_STAFF role created');
+    console.log('✅ Roles created');
 
     // 4. Create users
     const hashedPassword = await bcrypt.hash('Admin123!', 10);
@@ -244,7 +268,8 @@ async function main() {
     });
 
     console.log('\n🎉 Seed completed!');
-    console.log('🔐 Login: admin@smarttravel.com / Admin123!');
+    console.log(`🔐 Login: admin@smarttravel.com / Admin123!`);
+    console.log(`🏢 Tenant: ${tenantSlug}`);
 }
 
 main()

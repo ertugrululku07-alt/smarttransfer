@@ -7,7 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { Brand, StatusColors } from '../../constants/theme';
 
-const API_URL = 'https://backend-production-69e7.up.railway.app/api';
+const API_URL = 'http://localhost:4000/api';
 
 const NO_SHOW_REASON_LABELS: Record<string, string> = {
     CUSTOMER_NOT_FOUND: 'Müşteri buluşma noktasında değildi',

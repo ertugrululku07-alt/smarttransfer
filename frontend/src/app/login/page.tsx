@@ -18,7 +18,7 @@ const LoginPage: React.FC = () => {
   const onFinish = async (values: { email: string; password: string }) => {
     try {
       setLoading(true);
-      const res = await axios.post(`${(process.env.NEXT_PUBLIC_API_URL || 'https://backend-production-69e7.up.railway.app').replace(/[\r\n]+/g, '').trim()}/api/auth/login`, values);
+      const res = await axios.post(`${(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000').replace(/[\r\n]+/g, '').trim()}/api/auth/login`, values);
       const { user, token, refreshToken } = res.data.data;
       login(user, token);
       if (refreshToken) localStorage.setItem('refreshToken', refreshToken);

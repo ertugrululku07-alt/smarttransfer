@@ -26,7 +26,7 @@ export default function CompletedReservationsPage() {
             try {
                 const token = localStorage.getItem('token');
                 if (!token) { router.push('/login'); return; }
-                const response = await fetch(`${(process.env.NEXT_PUBLIC_API_URL || 'https://backend-production-69e7.up.railway.app').replace(/[\r\n]+/g, '').trim()}/api/transfer/partner/completed-bookings`, {
+                const response = await fetch(`${(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000').replace(/[\r\n]+/g, '').trim()}/api/transfer/partner/completed-bookings`, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
                 if (response.ok) {

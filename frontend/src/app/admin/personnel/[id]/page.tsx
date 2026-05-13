@@ -161,7 +161,7 @@ const PersonnelEditPage = ({ params }: { params: Promise<{ id: string }> }) => {
 
     const uploadProps = {
         name: 'file',
-        action: `${(process.env.NEXT_PUBLIC_API_URL || 'https://backend-production-69e7.up.railway.app').replace(/[\r\n]+/g, '').trim()}/api/upload/driver-docs`,
+        action: `${(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000').replace(/[\r\n]+/g, '').trim()}/api/upload/driver-docs`,
         headers: { authorization: 'authorization-text' },
         maxCount: 1,
         listType: "picture-card" as const,

@@ -1,3 +1,8 @@
+// ── SmartTransfer Frontend — Set Vercel Environment Variables ──
+// Usage: node setenv.js
+// Updates these before deploying to Vercel.
+// For GoDaddy / self-hosted deployments, edit .env.production directly instead.
+
 const { spawn } = require('child_process');
 
 async function setEnv(name, value) {
@@ -16,9 +21,13 @@ async function setEnv(name, value) {
 
 async function run() {
     try {
-        await setEnv('NEXT_PUBLIC_API_URL', 'https://smarttransfer-backend-production.up.railway.app');
-        await setEnv('NEXT_PUBLIC_SOCKET_URL', 'https://smarttransfer-backend-production.up.railway.app');
-        await setEnv('NEXT_PUBLIC_TENANT_SLUG', 'smarttravel-demo');
+        // ── UPDATE THESE VALUES FOR YOUR DEPLOYMENT ──
+        const BACKEND_URL = 'https://api.jet2home.com';  // Your backend domain
+        const TENANT = 'smarttravel-demo';
+
+        await setEnv('NEXT_PUBLIC_API_URL', BACKEND_URL);
+        await setEnv('NEXT_PUBLIC_SOCKET_URL', BACKEND_URL);
+        await setEnv('NEXT_PUBLIC_TENANT_SLUG', TENANT);
         console.log('All env vars set successfully');
     } catch (e) {
         console.error(e);

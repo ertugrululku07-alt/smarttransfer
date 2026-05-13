@@ -40,7 +40,7 @@ export default function AdminLiveSupportPage() {
 
     const fetchSessions = async () => {
         try {
-            const URL = process.env.NEXT_PUBLIC_API_URL || 'https://backend-production-69e7.up.railway.app';
+            const URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
             const { data } = await axios.get(`${URL}/api/live-chat/sessions`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
@@ -55,7 +55,7 @@ export default function AdminLiveSupportPage() {
     const fetchMessages = async (sid: string) => {
         setLoading(true);
         try {
-            const URL = process.env.NEXT_PUBLIC_API_URL || 'https://backend-production-69e7.up.railway.app';
+            const URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
             const { data } = await axios.get(`${URL}/api/live-chat/sessions/${sid}/messages`, {
                 headers: { Authorization: `Bearer ${token}` }
             });

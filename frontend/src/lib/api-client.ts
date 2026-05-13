@@ -1,25 +1,15 @@
 // API client with authentication
 import axios from 'axios';
 
-const rawApiUrl = (process.env.NEXT_PUBLIC_API_URL || 'https://backend-production-69e7.up.railway.app').replace(/[\r\n]+/g, '').trim();
-const rawTenantSlug = process.env.NEXT_PUBLIC_TENANT_SLUG || 'smarttravel-demo';
+// ── Central API Configuration ──
+// All URLs come from environment variables. NO hardcoded domains.
+// Dev: .env.local → http://localhost:4000
+// Prod: .env.production → https://your-domain.com  (set during deployment)
+const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000').replace(/[\r\n]+/g, '').trim();
+const SOCKET_URL = (process.env.NEXT_PUBLIC_SOCKET_URL || API_URL).replace(/[\r\n]+/g, '').trim();
+const TENANT_SLUG = (process.env.NEXT_PUBLIC_TENANT_SLUG || 'smarttravel-demo').replace(/[\r\n]+/g, '').trim();
 
-// Defensive check: Railway URLs use dashes, never underscores. 
-// If an underscore is found in the domain part, it's likely a typo in the environment variable.
-const sanitizeUrl = (url: string) => {
-    if (url.includes('up.railway.app') && url.includes('_')) {
-        // Only replace underscores in the hostname part
-        const parts = url.split('/');
-        if (parts.length >= 3) {
-            parts[2] = parts[2].replace(/_/g, '-');
-            return parts.join('/');
-        }
-    }
-    return url;
-};
-
-const API_URL = sanitizeUrl(rawApiUrl);
-const TENANT_SLUG = rawTenantSlug.replace(/[\r\n]+/g, '').trim();
+export { API_URL, SOCKET_URL, TENANT_SLUG };
 
 // Create axios instance
 const apiClient = axios.create({

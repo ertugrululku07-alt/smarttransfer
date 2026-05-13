@@ -27,6 +27,8 @@ import axios from 'axios';
 import dayjs from 'dayjs';
 import { useParams, useRouter } from 'next/navigation';
 
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000').replace(/[\r\n]+/g, '').trim();
+
 const { Header, Sider, Content } = Layout;
 const { Title, Text } = Typography;
 const { TextArea } = Input;
@@ -77,7 +79,7 @@ const AdminBookingDetailPage: React.FC = () => {
   const fetchBookingDetail = async () => {
     try {
       setLoading(true);
-      const res = await axios.get(`https://backend-production-69e7.up.railway.app/api/bookings/${bookingId}`);
+      const res = await axios.get(`${API_BASE}/api/bookings/${bookingId}`);
       if (res.data?.success) {
         setBooking(res.data.data);
         setInternalNotes(res.data.data.internalNotes || '');
@@ -101,7 +103,7 @@ const AdminBookingDetailPage: React.FC = () => {
 
   const handleSaveInternalNotes = async () => {
     try {
-      await axios.patch(`https://backend-production-69e7.up.railway.app/api/bookings/${bookingId}/internal-notes`, {
+      await axios.patch(`${API_BASE}/api/bookings/${bookingId}/internal-notes`, {
         internalNotes,
       });
       message.success('İç notlar kaydedildi.');
@@ -115,7 +117,7 @@ const AdminBookingDetailPage: React.FC = () => {
   const handleUpdateStatus = async (newStatus: Booking['status']) => {
     try {
       setStatusLoading(true);
-      await axios.patch(`https://backend-production-69e7.up.railway.app/api/bookings/${bookingId}/status`, {
+      await axios.patch(`${API_BASE}/api/bookings/${bookingId}/status`, {
         status: newStatus,
       });
       message.success('Rezervasyon durumu güncellendi.');
@@ -131,7 +133,7 @@ const AdminBookingDetailPage: React.FC = () => {
   const handleUpdatePaymentStatus = async (newPaymentStatus: Booking['paymentStatus']) => {
     try {
       setPaymentStatusLoading(true);
-      await axios.patch(`https://backend-production-69e7.up.railway.app/api/bookings/${bookingId}/payment-status`, {
+      await axios.patch(`${API_BASE}/api/bookings/${bookingId}/payment-status`, {
         paymentStatus: newPaymentStatus,
       });
       message.success('Ödeme durumu güncellendi.');

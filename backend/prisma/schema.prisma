@@ -23,6 +23,7 @@ model Tenant {
   name      String
   legalName String?
   taxNumber String?
+  isActive  Boolean @default(true)
 
   // Status & Subscription
   status             TenantStatus     @default(TRIAL)

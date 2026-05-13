@@ -1,0 +1,34 @@
+{
+  "company": {
+    "name": "Jet2Home",
+    "tenantSlug": "Jet2Home"
+  },
+  "domain": {
+    "frontend": "jet2home.com",
+    "backend": "api.jet2home.com"
+  },
+  "database": {
+    "url": "postgresql://jet2home:A05116454a@127.0.0.1:5432/jet2home_db?sslmode=disable"
+  },
+  "security": {
+    "jwtSecret": "a07f5a846631376f9af6578a27dab690ce55f38571ae9a672",
+    "jwtExpiration": "7d",
+    "refreshTokenExpiration": "7d"
+  },
+  "server": {
+    "backendPort": 4000,
+    "frontendPort": 3000,
+    "nodeEnv": "production"
+  },
+  "apiKeys": {
+    "aviationstackApiKey": "07248ed6502c4cb3d7e681e53ba542a1",
+    "hereApiKey": "RH04HVBUK6By3GfYWwVlCOG4Or1IzV-rRjygQRHbIvo"
+  },
+  "integrations": {
+    "n8nWebhookUrl": ""
+  },
+  "ssl": {
+    "enabled": true,
+    "email": "admin@jet2home.com"
+  }
+}

@@ -1926,7 +1926,7 @@ router.get('/fuel/vehicle', authMiddleware, ensureDriver, async (req, res) => {
 // ocrAttempted=true and ocrKm=null means OCR ran but couldn't read — flag as unreadable
 async function ocrReadOdometer(imageUrl) {
     const Tesseract = require('tesseract.js');
-    const fullUrl = imageUrl.startsWith('http') ? imageUrl : `https://backend-production-69e7.up.railway.app${imageUrl}`;
+    const fullUrl = imageUrl.startsWith('http') ? imageUrl : `${process.env.BACKEND_URL || 'http://localhost:4000'}${imageUrl}`;
 
     // Parse digits from raw text and return best candidate
     const parseKm = (rawText) => {

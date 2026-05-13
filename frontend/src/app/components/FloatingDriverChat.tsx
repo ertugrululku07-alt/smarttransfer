@@ -6,10 +6,8 @@ import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
 import { Socket } from 'socket.io-client';
 
-const RAILWAY_URL = 'https://backend-production-69e7.up.railway.app';
-const BASE_URL = (process.env.NEXT_PUBLIC_API_URL || RAILWAY_URL).replace(/[\r\n]+/g, '').trim();
+import { API_URL as BASE_URL, TENANT_SLUG } from '@/lib/api-client';
 const API_URL = BASE_URL.endsWith('/api') ? BASE_URL : `${BASE_URL}/api`;
-const TENANT_SLUG = process.env.NEXT_PUBLIC_TENANT_SLUG || 'smarttravel-demo';
 
 interface Driver {
     id: string;

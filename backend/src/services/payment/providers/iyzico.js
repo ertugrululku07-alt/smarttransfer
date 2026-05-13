@@ -37,7 +37,7 @@ class IyzicoProvider {
                 basketId: params.orderId,
                 paymentGroup: Iyzipay.PAYMENT_GROUP.PRODUCT,
                 // Iyzico requires the callback to hit the Backend to retrieve token summary
-                callbackUrl: `${process.env.BACKEND_URL || 'https://backend-production-69e7.up.railway.app'}/api/payment/callback/iyzico?tenantId=${tenantId}`,
+                callbackUrl: `${process.env.BACKEND_URL || 'http://localhost:4000'}/api/payment/callback/iyzico?tenantId=${tenantId}`,
                 enabledInstallments: [1],
                 buyer: {
                     id: params.user.id || 'Unknown',

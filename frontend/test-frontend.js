@@ -1,6 +1,6 @@
 async function testApi() {
     try {
-        const loginRes = await fetch('https://smarttransfer-backend-production.up.railway.app/api/auth/login', {
+        const loginRes = await fetch('http://localhost:4000/api/auth/login', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-Tenant-Slug': 'smarttravel-demo' },
             body: JSON.stringify({ email: 'admin@smarttravel.com', password: 'password123' })
@@ -12,7 +12,7 @@ async function testApi() {
         }
         const token = loginData.data.token;
 
-        const res = await fetch('https://smarttransfer-backend-production.up.railway.app/api/transfer/bookings', {
+        const res = await fetch('http://localhost:4000/api/transfer/bookings', {
             headers: { 'Authorization': `Bearer ${token}`, 'X-Tenant-Slug': 'smarttravel-demo' }
         });
         const data = await res.json();

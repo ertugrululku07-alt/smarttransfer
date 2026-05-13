@@ -58,4 +58,5 @@ export const Colors = {
   },
 };
 
-export const API_URL = 'http://187.127.76.249/api';
+// API_URL is now imported from config.ts — do NOT hardcode here
+// Usage: import { API_URL } from '../config';
