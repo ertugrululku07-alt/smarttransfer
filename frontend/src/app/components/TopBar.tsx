@@ -133,7 +133,14 @@ const TopBar: React.FC = () => {
         >
           {branding.logoUrl ? (
             <img
-              src={getImageUrl(branding.logoUrl)}
+              src={(() => {
+                const url = getImageUrl(branding.logoUrl);
+                console.log('ANTIGRAVITY_DEBUG_LOGO:', { original: branding.logoUrl, processed: url });
+                if (url && url.startsWith('/uploads')) {
+                  return `https://api.jet2home.com${url}`;
+                }
+                return url;
+              })()}
               alt={fullName}
               style={{ maxHeight: 36, maxWidth: 160, objectFit: 'contain' }}
             />

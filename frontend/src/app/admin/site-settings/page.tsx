@@ -590,7 +590,12 @@ const SiteSettingsPage: React.FC = () => {
                                 }}>
                                     {brandingData.logoUrl ? (
                                         <img
-                                            src={getImageUrl(brandingData.logoUrl)}
+                                            src={(() => {
+                                                const url = getImageUrl(brandingData.logoUrl);
+                                                console.log('ANTIGRAVITY_ADMIN_LOGO:', url);
+                                                if (url && url.startsWith('/uploads')) return `https://api.jet2home.com${url}`;
+                                                return url;
+                                            })()}
                                             alt="Logo"
                                             style={{ maxHeight: 40, maxWidth: 180, objectFit: 'contain' }}
                                             onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}

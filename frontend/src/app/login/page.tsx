@@ -175,7 +175,16 @@ const LoginPage: React.FC = () => {
                 boxShadow: '0 8px 24px rgba(99,102,241,0.3)',
               }}>
                 {branding.logoUrl ? (
-                  <img src={getImageUrl(branding.logoUrl)} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'contain', borderRadius: 18 }} />
+                  <img
+                    src={(() => {
+                      const url = getImageUrl(branding.logoUrl);
+                      console.log('Logo URL processing:', url);
+                      if (url && url.startsWith('/uploads')) return `https://api.jet2home.com${url}`;
+                      return url;
+                    })()}
+                    alt="Logo"
+                    style={{ maxHeight: 60, maxWidth: 220, objectFit: 'contain' }}
+                  />
                 ) : (
                   <span style={{ fontSize: 24, fontWeight: 900, color: '#fff', fontFamily: 'monospace' }}>
                     {branding.siteNameHighlight ? branding.siteNameHighlight.substring(0, 2).toUpperCase() : 'ST'}

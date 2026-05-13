@@ -78,8 +78,18 @@ const AccountLayout: React.FC<AccountLayoutProps> = ({ children }) => {
                 {branding.logoUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
-                        src={getImageUrl(branding.logoUrl)} alt={fullName}
+                        src={(() => {
+                            const url = getImageUrl(branding.logoUrl);
+                            console.log('Logo URL processed:', url);
+                            if (url && url.startsWith('/uploads')) return `https://api.jet2home.com${url}`;
+                            return url;
+                        })()}
+                        alt={fullName}
                         style={{ maxHeight: 36, maxWidth: collapsed && !forDrawer ? 40 : 140, objectFit: 'contain', filter: 'brightness(0) invert(1)' }}
+                        onError={(e) => {
+                            console.error('Logo failed to load, hiding...');
+                            (e.target as HTMLImageElement).style.display = 'none';
+                        }}
                     />
                 ) : (
                     <>

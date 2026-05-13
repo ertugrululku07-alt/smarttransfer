@@ -56,9 +56,13 @@ export default function BookingVoucher({ booking, tenant, agency, pickup: pickup
                     {agencyLogo ? (
                         <>
                             {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img 
-                                src={agencyLogo} 
-                                alt="Firma Logosu" 
+                            <img
+                              src={(() => {
+                                const url = agencyLogo;
+                                if (url && url.startsWith('/uploads')) return `https://api.jet2home.com${url}`;
+                                return url;
+                              })()}
+                              alt="Firma Logosu" 
                                 style={{ height: 70, maxWidth: 220, objectFit: 'contain', display: 'block' }} 
                                 onError={(e) => {
                                     (e.target as HTMLImageElement).style.display = 'none';
