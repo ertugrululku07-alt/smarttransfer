@@ -40,7 +40,7 @@ import Upload from 'antd/es/upload';
 import { THEMES } from '@/app/context/ThemeContext';
 import AdminGuard from '../AdminGuard';
 import AdminLayout from '../AdminLayout';
-import apiClient from '@/lib/api-client';
+import apiClient, { getImageUrl } from '@/lib/api-client';
 import axios from 'axios';
 
 const { Title, Text, Paragraph } = Typography;
@@ -590,7 +590,7 @@ const SiteSettingsPage: React.FC = () => {
                                 }}>
                                     {brandingData.logoUrl ? (
                                         <img
-                                            src={brandingData.logoUrl}
+                                            src={getImageUrl(brandingData.logoUrl)}
                                             alt="Logo"
                                             style={{ maxHeight: 40, maxWidth: 180, objectFit: 'contain' }}
                                             onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
@@ -614,7 +614,7 @@ const SiteSettingsPage: React.FC = () => {
                                 }}>
                                     {brandingData.logoUrl ? (
                                         <img
-                                            src={brandingData.logoUrl}
+                                            src={getImageUrl(brandingData.logoUrl)}
                                             alt="Logo"
                                             style={{ maxHeight: 40, maxWidth: 180, objectFit: 'contain' }}
                                             onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}

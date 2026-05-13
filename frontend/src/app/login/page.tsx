@@ -6,6 +6,7 @@ import { MailOutlined, LockOutlined, ArrowRightOutlined } from '@ant-design/icon
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { useBranding } from '../context/BrandingContext';
+import { getImageUrl } from '@/lib/api-client';
 
 const LoginPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
@@ -174,7 +175,7 @@ const LoginPage: React.FC = () => {
                 boxShadow: '0 8px 24px rgba(99,102,241,0.3)',
               }}>
                 {branding.logoUrl ? (
-                  <img src={branding.logoUrl} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'contain', borderRadius: 18 }} />
+                  <img src={getImageUrl(branding.logoUrl)} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'contain', borderRadius: 18 }} />
                 ) : (
                   <span style={{ fontSize: 24, fontWeight: 900, color: '#fff', fontFamily: 'monospace' }}>
                     {branding.siteNameHighlight ? branding.siteNameHighlight.substring(0, 2).toUpperCase() : 'ST'}

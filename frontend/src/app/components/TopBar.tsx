@@ -11,6 +11,7 @@ import { useTheme } from '../context/ThemeContext';
 import { useLanguage } from '../context/LanguageContext';
 import { localeLabels, supportedLocales, SupportedLocale } from '../locales';
 import axios from 'axios';
+import { getImageUrl } from '@/lib/api-client';
 
 const { Text } = Typography;
 const { Option } = Select;
@@ -132,7 +133,7 @@ const TopBar: React.FC = () => {
         >
           {branding.logoUrl ? (
             <img
-              src={branding.logoUrl}
+              src={getImageUrl(branding.logoUrl)}
               alt={fullName}
               style={{ maxHeight: 36, maxWidth: 160, objectFit: 'contain' }}
             />
