@@ -40,15 +40,15 @@ jobs:
               echo "E" | node setup.js
               
               # --- GEÇİCİ VERİTABANI AKTARIM VE TÜRKÇE KARAKTER DÜZELTME SCRİPTİ ---
-              echo "Railway'den UTF-8 formatında veritabanı yedeği çekiliyor..."
+              echo "Railway den UTF-8 formatinda veritabani yedegi cekiliyor..."
               export PGCLIENTENCODING=UTF8
               pg_dump --clean --if-exists --no-owner --no-privileges --dbname="postgresql://postgres:MziCNdjmUdEeOhhJanQRZCtbhmnDxRto@crossover.proxy.rlwy.net:58887/railway" -f /tmp/railway_dump.sql
               
-              echo "GoDaddy veritabanına Türkçe karakterler korunarak yükleniyor..."
+              echo "GoDaddy veritabanina Turkce karakterler korunarak yukleniyor..."
               psql "postgresql://jet2home:A05116454a@127.0.0.1:5432/jet2home_db?sslmode=disable" < /tmp/railway_dump.sql
               
-              echo "Giriş yapabilmeniz için Tenant (Şirket) adı Jet2Home olarak güncelleniyor..."
-              echo "UPDATE \"Tenant\" SET slug = 'Jet2Home';" | psql "postgresql://jet2home:A05116454a@127.0.0.1:5432/jet2home_db?sslmode=disable"
+              echo "Giris yapabilmeniz icin Tenant sirket adi Jet2Home olarak guncelleniyor..."
+              echo "UPDATE \"Tenant\" SET slug = '\''Jet2Home'\'';" | psql "postgresql://jet2home:A05116454a@127.0.0.1:5432/jet2home_db?sslmode=disable"
               # ---------------------------------------------------------------------
               
               npx pm2 restart all
