@@ -134,17 +134,8 @@ NEXT_PUBLIC_TENANT_SLUG=${config.company.tenantSlug || 'smarttravel-demo'}
 NEXT_PUBLIC_HERE_API_KEY=${config.apiKeys?.hereApiKey || ''}
 `;
 
-  const envLocal = `# Development — localhost
-NEXT_PUBLIC_API_URL=http://localhost:${config.server.backendPort || 4000}
-NEXT_PUBLIC_SOCKET_URL=http://localhost:${config.server.backendPort || 4000}
-NEXT_PUBLIC_TENANT_SLUG=${config.company.tenantSlug || 'smarttravel-demo'}
-NEXT_PUBLIC_HERE_API_KEY=${config.apiKeys?.hereApiKey || ''}
-`;
-
   fs.writeFileSync(path.join(ROOT, 'frontend', '.env.production'), envProd, 'utf8');
-  fs.writeFileSync(path.join(ROOT, 'frontend', '.env.local'), envLocal, 'utf8');
   log('Frontend .env.production oluşturuldu');
-  log('Frontend .env.local oluşturuldu');
 }
 
 // ══════════════════════════════════════════════════════════════

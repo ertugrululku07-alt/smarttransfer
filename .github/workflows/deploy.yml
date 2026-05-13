@@ -37,19 +37,10 @@ jobs:
               git fetch origin
               git reset --hard origin/main
               
+              # Eski localhost ayarını temizle ki build bozulmasın
+              rm -f frontend/.env.local
+              
               echo "E" | node setup.js
-              
-              # --- GEÇİCİ VERİTABANI AKTARIM VE TÜRKÇE KARAKTER DÜZELTME SCRİPTİ ---
-              echo "Railway den UTF-8 formatinda veritabani yedegi cekiliyor..."
-              export PGCLIENTENCODING=UTF8
-              pg_dump --clean --if-exists --no-owner --no-privileges --dbname="postgresql://postgres:MziCNdjmUdEeOhhJanQRZCtbhmnDxRto@crossover.proxy.rlwy.net:58887/railway" -f /tmp/railway_dump.sql
-              
-              echo "GoDaddy veritabanina Turkce karakterler korunarak yukleniyor..."
-              psql "postgresql://jet2home:A05116454a@127.0.0.1:5432/jet2home_db?sslmode=disable" < /tmp/railway_dump.sql
-              
-              echo "Giris yapabilmeniz icin Tenant sirket adi Jet2Home olarak guncelleniyor..."
-              echo "UPDATE \"Tenant\" SET slug = '\''Jet2Home'\'';" | psql "postgresql://jet2home:A05116454a@127.0.0.1:5432/jet2home_db?sslmode=disable"
-              # ---------------------------------------------------------------------
               
               npx pm2 restart all
             '
