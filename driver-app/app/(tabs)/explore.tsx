@@ -15,7 +15,7 @@ import * as Notifications from 'expo-notifications';
 import * as Location from 'expo-location';
 import { Brand, StatusColors } from '../../constants/theme';
 
-const API_URL = 'http://localhost:4000/api';
+const API_URL = 'https://api.jet2home.com/api';
 
 // Extract short airport/destination name from full address
 const extractDestinationName = (address: string): string => {

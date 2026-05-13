@@ -9,7 +9,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useRouter } from 'expo-router';
 import { Brand } from '../../constants/theme';
 
-const API_URL = 'http://localhost:4000/api';
+const API_URL = 'https://api.jet2home.com/api';
 
 export default function ProfileScreen() {
     const { user, token, signOut } = useAuth();

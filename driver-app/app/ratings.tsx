@@ -8,7 +8,7 @@ import { router } from 'expo-router';
 import { useAuth } from '../context/AuthContext';
 import { Brand } from '../constants/theme';
 
-const API_URL = 'http://localhost:4000/api';
+const API_URL = 'https://api.jet2home.com/api';
 
 interface RatingItem {
     bookingId: string;

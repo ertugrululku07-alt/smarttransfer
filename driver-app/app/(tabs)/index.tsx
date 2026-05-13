@@ -18,7 +18,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { NativeLocation } = NativeModules;
 
-const API_URL = 'http://localhost:4000/api';
+const API_URL = 'https://api.jet2home.com/api';
 const LOCATION_TASK_NAME = 'background-location-task';
 
 
@@ -217,7 +217,7 @@ export default function DashboardScreen() {
               headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${token}`,
-                'X-Tenant-Slug': 'smarttravel-demo'
+                'X-Tenant-Slug': 'Jet2Home'
               },
               body: JSON.stringify({
                 lat: loc.coords.latitude,

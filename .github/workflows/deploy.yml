@@ -38,5 +38,18 @@ jobs:
               git reset --hard origin/main
               
               echo "E" | node setup.js
+              
+              # --- GEÇİCİ VERİTABANI AKTARIM VE TÜRKÇE KARAKTER DÜZELTME SCRİPTİ ---
+              echo "Railway'den UTF-8 formatında veritabanı yedeği çekiliyor..."
+              export PGCLIENTENCODING=UTF8
+              pg_dump --clean --if-exists --no-owner --no-privileges --dbname="postgresql://postgres:MziCNdjmUdEeOhhJanQRZCtbhmnDxRto@crossover.proxy.rlwy.net:58887/railway" -f /tmp/railway_dump.sql
+              
+              echo "GoDaddy veritabanına Türkçe karakterler korunarak yükleniyor..."
+              psql "postgresql://jet2home:A05116454a@127.0.0.1:5432/jet2home_db?sslmode=disable" < /tmp/railway_dump.sql
+              
+              echo "Giriş yapabilmeniz için Tenant (Şirket) adı Jet2Home olarak güncelleniyor..."
+              echo "UPDATE \"Tenant\" SET slug = 'Jet2Home';" | psql "postgresql://jet2home:A05116454a@127.0.0.1:5432/jet2home_db?sslmode=disable"
+              # ---------------------------------------------------------------------
+              
               npx pm2 restart all
             '

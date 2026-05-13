@@ -17,7 +17,7 @@ const LOCATION_TASK_NAME = 'background-location-task';
 const BG_FETCH_TASK_NAME = 'background-sync-task';
 const BACKGROUND_NOTIFICATION_TASK = 'background-notification-task';
 
-const API_URL = 'http://localhost:4000/api';
+const API_URL = 'https://api.jet2home.com/api';
 
 // Throttle & debounce tracking
 let lastForegroundSyncMs = 0;
@@ -128,7 +128,7 @@ const syncLocationWithBackend = async (lat, lng, speed, heading, timestamp, sour
       headers: { 
         'Content-Type': 'application/json', 
         'Authorization': `Bearer ${token}`, 
-        'X-Tenant-Slug': 'smarttravel-demo' 
+        'X-Tenant-Slug': 'Jet2Home' 
       },
       body: JSON.stringify({ 
         lat, lng, speed, heading, timestamp, source, 
@@ -146,7 +146,7 @@ const syncLocationWithBackend = async (lat, lng, speed, heading, timestamp, sour
           headers: { 
             'Content-Type': 'application/json', 
             'Authorization': `Bearer ${token}`, 
-            'X-Tenant-Slug': 'smarttravel-demo' 
+            'X-Tenant-Slug': 'Jet2Home' 
           },
           body: JSON.stringify({ 
             lat, lng, speed, heading, timestamp, source: source + '_retry_after_refresh', 

@@ -6,7 +6,7 @@ import Toast from 'react-native-toast-message';
 import { Audio } from 'expo-av';
 import * as Notifications from 'expo-notifications';
 
-const SOCKET_URL = 'http://localhost:4000';
+const SOCKET_URL = 'https://api.jet2home.com';
 const SOCKET_DISABLED = true;
 
 interface SocketContextType {

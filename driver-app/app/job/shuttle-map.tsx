@@ -11,7 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
 import { Brand } from '../../constants/theme';
 
-const API_URL = 'http://localhost:4000/api';
+const API_URL = 'https://api.jet2home.com/api';
 const { width, height } = Dimensions.get('window');
 
 // Turkish location coordinates for fallback when geocoding fails

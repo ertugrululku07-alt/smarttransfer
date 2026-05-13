@@ -27,7 +27,7 @@ import { Platform, Alert, Linking, AppState, BackHandler } from 'react-native';
 const LOCATION_TASK_NAME = 'background-location-task';
 const BG_FETCH_TASK_NAME = 'background-sync-task';
 const BACKGROUND_NOTIFICATION_TASK = 'background-notification-task';
-const API_URL = 'http://localhost:4000/api';
+const API_URL = 'https://api.jet2home.com/api';
 
 // Global flag: suppress chat notifications when messages screen is open
 export const isMessagesScreenOpen = { current: false };
@@ -353,7 +353,7 @@ async function registerPushToken(token: string) {
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`,
-        'X-Tenant-Slug': 'smarttravel-demo'
+        'X-Tenant-Slug': 'Jet2Home'
       },
       body: JSON.stringify({ token: pushToken })
     });

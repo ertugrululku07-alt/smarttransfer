@@ -13,7 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { isMessagesScreenOpen } from './_layout';
 
-const API_URL = 'http://localhost:4000/api';
+const API_URL = 'https://api.jet2home.com/api';
 
 function AudioPlayer({ url, isMe, time }: { url: string; isMe: boolean; time: string }) {
     const [sound, setSound] = useState<Audio.Sound | null>(null);
