@@ -15,6 +15,7 @@ import TopBar from '@/app/components/TopBar';
 import apiClient from '@/lib/api-client';
 import { useCurrency } from '@/app/context/CurrencyContext';
 import { useTheme } from '@/app/context/ThemeContext';
+import { useBranding } from '@/app/context/BrandingContext';
 
 const { Content, Footer } = Layout;
 const { Title, Text } = Typography;
@@ -41,6 +42,7 @@ function HourlyResultsContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const { formatPrice } = useCurrency();
+    const { branding } = useBranding();
     const { theme } = useTheme();
 
     const pickup = searchParams.get('pickup') || '';
@@ -283,7 +285,7 @@ function HourlyResultsContent() {
                 )}
             </Content>
             <Footer style={{ textAlign: 'center', background: '#fff', fontSize: 12, color: '#94a3b8', borderTop: '1px solid #e2e8f0' }}>
-                SmartTransfer ©2026
+                {branding.companyName} ©{new Date().getFullYear()}
             </Footer>
         </Layout>
     );

@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "SmartTransfer Partner",
+    "name": "Partner App",
     "slug": "partner-app",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -10,14 +10,14 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.smarttransfer.partnerapp"
+      "bundleIdentifier": "com.transferapp.partner"
     },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#059669",
         "foregroundImage": "./assets/images/icon.png"
       },
-      "package": "com.smarttransfer.partnerapp",
+      "package": "com.transferapp.partner",
       "permissions": [
         "android.permission.POST_NOTIFICATIONS",
         "android.permission.VIBRATE"
@@ -37,7 +37,7 @@
           "icon": "./assets/images/icon.png",
           "color": "#059669",
           "androidMode": "default",
-          "androidCollapsedTitle": "SmartTransfer Partner"
+          "androidCollapsedTitle": "Partner App"
         }
       ],
       [

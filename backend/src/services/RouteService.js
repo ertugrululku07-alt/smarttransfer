@@ -19,7 +19,7 @@ const geocodeAddress = (address) => {
             path: `/search?q=${query}&format=json&limit=1`,
             method: 'GET',
             headers: {
-                'User-Agent': 'SmartTransfer/1.0 (contact@smartransfer.com)'
+                'User-Agent': 'TransferApp/1.0'
             }
         };
 

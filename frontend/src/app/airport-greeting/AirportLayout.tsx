@@ -8,6 +8,7 @@ import {
 } from '@ant-design/icons';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../context/AuthContext';
+import { useBranding } from '../context/BrandingContext';
 
 const { Header, Content } = Layout;
 
@@ -20,6 +21,7 @@ interface AirportLayoutProps {
 const AirportLayout: React.FC<AirportLayoutProps> = ({ children, title, subtitle }) => {
   const router = useRouter();
   const { user, logout } = useAuth();
+  const { branding } = useBranding();
   const [mounted, setMounted] = useState(false);
   React.useEffect(() => { setMounted(true); }, []);
 
@@ -85,7 +87,7 @@ const AirportLayout: React.FC<AirportLayoutProps> = ({ children, title, subtitle
             <div style={{
               color: 'rgba(255,255,255,0.6)', fontSize: 10, fontWeight: 500, lineHeight: 1,
             }}>
-              Smart Transfer
+              {branding.companyName}
             </div>
           </div>
         </div>

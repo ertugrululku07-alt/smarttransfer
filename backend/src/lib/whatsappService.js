@@ -208,7 +208,7 @@ async function sendBookingWhatsApp(tenantId, booking) {
         }
 
         const branding = tenant?.settings?.branding || {};
-        const companyName = branding.companyName || tenant?.name || 'SmartTransfer';
+        const companyName = branding.companyName || tenant?.name || '';
         const metadata = booking.metadata || {};
         const pickupDate = booking.startDate ? new Date(booking.startDate) : null;
         const formattedDate = pickupDate
@@ -274,8 +274,8 @@ async function sendRatingRequestWhatsApp(tenantId, booking) {
         const token = generateRatingToken(booking.id, tenantId);
 
         const branding = tenant?.settings?.branding || {};
-        const companyName = branding.companyName || tenant?.name || 'SmartTransfer';
-        const baseUrl = settings.publicBaseUrl || branding.siteUrl || process.env.PUBLIC_SITE_URL || 'https://smarttransfer.example.com';
+        const companyName = branding.companyName || tenant?.name || '';
+        const baseUrl = settings.publicBaseUrl || branding.siteUrl || process.env.PUBLIC_SITE_URL || 'https://example.com';
         const rateUrl = `${baseUrl.replace(/\/$/, '')}/rate/${token}`;
 
         const driverName = booking.driver?.fullName || 'Şoförümüz';
@@ -334,7 +334,7 @@ async function sendTestWhatsApp(tenantId, phone) {
     if (!config) {
         throw new Error('WhatsApp ayarları yapılandırılmamış veya devre dışı');
     }
-    const companyName = config.tenant?.settings?.branding?.companyName || config.tenant?.name || 'SmartTransfer';
+    const companyName = config.tenant?.settings?.branding?.companyName || config.tenant?.name || '';
     const message = `✅ *WhatsApp Bağlantı Testi Başarılı!*\n\nBu test mesajı *${companyName}* tarafından gönderilmiştir.\n\nWhatsApp entegrasyonunuz aktif ve çalışıyor. Rezervasyon mesajları otomatik olarak gönderilecektir.`;
 
     return await sendWhatsAppMessage(tenantId, phone, message);

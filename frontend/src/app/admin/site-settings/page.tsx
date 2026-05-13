@@ -57,14 +57,14 @@ const SiteSettingsPage: React.FC = () => {
 
     // Branding state
     const [brandingData, setBrandingData] = useState({
-        companyName: 'SmartTransfer',
-        siteName: 'Transfer',
-        siteNameHighlight: 'Smart',
-        slogan: 'Güvenilir, konforlu ve profesyonel transfer hizmetleri',
+        companyName: '',
+        siteName: '',
+        siteNameHighlight: '',
+        slogan: '',
         logoUrl: '',
         faviconUrl: '',
-        phone: '+90 (212) XXX XX XX',
-        email: 'info@smarttransfer.com',
+        phone: '',
+        email: '',
     });
     const [brandingSaving, setBrandingSaving] = useState(false);
     const [logoUploading, setLogoUploading] = useState(false);
@@ -493,7 +493,7 @@ const SiteSettingsPage: React.FC = () => {
                         <Form layout="vertical">
                             <Row gutter={[24, 0]}>
                                 <Col xs={24} md={12}>
-                                    <Form.Item label="Ticari Ünvan" extra="Firma resmi ticari ünvanı (örn: SmartTransfer Turizm A.Ş.)">
+                                    <Form.Item label="Ticari Ünvan" extra="Firma resmi ticari ünvanı (örn: ABC Turizm A.Ş.)">
                                         <Input
                                             size="large"
                                             placeholder="Firma Ticari Ünvanı"

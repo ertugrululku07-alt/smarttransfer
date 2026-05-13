@@ -77,7 +77,7 @@ const AdminBookingDetailPage: React.FC = () => {
   const fetchBookingDetail = async () => {
     try {
       setLoading(true);
-      const res = await axios.get(`https://smarttransfer-backend-production.up.railway.app/api/bookings/${bookingId}`);
+      const res = await axios.get(`https://backend-production-69e7.up.railway.app/api/bookings/${bookingId}`);
       if (res.data?.success) {
         setBooking(res.data.data);
         setInternalNotes(res.data.data.internalNotes || '');
@@ -101,7 +101,7 @@ const AdminBookingDetailPage: React.FC = () => {
 
   const handleSaveInternalNotes = async () => {
     try {
-      await axios.patch(`https://smarttransfer-backend-production.up.railway.app/api/bookings/${bookingId}/internal-notes`, {
+      await axios.patch(`https://backend-production-69e7.up.railway.app/api/bookings/${bookingId}/internal-notes`, {
         internalNotes,
       });
       message.success('İç notlar kaydedildi.');
@@ -115,7 +115,7 @@ const AdminBookingDetailPage: React.FC = () => {
   const handleUpdateStatus = async (newStatus: Booking['status']) => {
     try {
       setStatusLoading(true);
-      await axios.patch(`https://smarttransfer-backend-production.up.railway.app/api/bookings/${bookingId}/status`, {
+      await axios.patch(`https://backend-production-69e7.up.railway.app/api/bookings/${bookingId}/status`, {
         status: newStatus,
       });
       message.success('Rezervasyon durumu güncellendi.');
@@ -131,7 +131,7 @@ const AdminBookingDetailPage: React.FC = () => {
   const handleUpdatePaymentStatus = async (newPaymentStatus: Booking['paymentStatus']) => {
     try {
       setPaymentStatusLoading(true);
-      await axios.patch(`https://smarttransfer-backend-production.up.railway.app/api/bookings/${bookingId}/payment-status`, {
+      await axios.patch(`https://backend-production-69e7.up.railway.app/api/bookings/${bookingId}/payment-status`, {
         paymentStatus: newPaymentStatus,
       });
       message.success('Ödeme durumu güncellendi.');

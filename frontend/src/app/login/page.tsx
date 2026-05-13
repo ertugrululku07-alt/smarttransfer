@@ -5,11 +5,13 @@ import { Button, Form, Input, message } from 'antd';
 import { MailOutlined, LockOutlined, ArrowRightOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
+import { useBranding } from '../context/BrandingContext';
 
 const LoginPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
   const { login } = useAuth();
+  const { branding } = useBranding();
 
   useEffect(() => { setMounted(true); }, []);
 
@@ -230,7 +232,7 @@ const LoginPage: React.FC = () => {
             {/* Footer */}
             <div style={{ textAlign: 'center', marginTop: 32 }}>
               <p style={{ fontSize: 11, color: '#cbd5e1', margin: 0 }}>
-                SmartTransfer &copy; {new Date().getFullYear()}
+                {branding.companyName} &copy; {new Date().getFullYear()}
               </p>
             </div>
 

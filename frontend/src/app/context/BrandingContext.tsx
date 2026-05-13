@@ -24,14 +24,14 @@ export interface GoogleMapsSettings {
 }
 
 const DEFAULT_BRANDING: Branding = {
-  companyName: 'SmartTransfer',
-  siteName: 'Transfer',
-  siteNameHighlight: 'Smart',
-  slogan: 'Güvenilir, konforlu ve profesyonel transfer hizmetleri',
+  companyName: '',
+  siteName: '',
+  siteNameHighlight: '',
+  slogan: '',
   logoUrl: '',
   faviconUrl: '',
-  phone: '+90 (212) XXX XX XX',
-  email: 'info@smarttransfer.com',
+  phone: '',
+  email: '',
 };
 
 interface BrandingContextType {

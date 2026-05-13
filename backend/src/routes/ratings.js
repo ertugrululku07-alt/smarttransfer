@@ -220,7 +220,7 @@ router.get('/public/:token', async (req, res) => {
                 customerName: booking.contactName,
                 driverName: booking.driver?.fullName || 'Şoförünüz',
                 startDate: booking.startDate,
-                companyName: branding.companyName || booking.tenant?.name || 'SmartTransfer',
+                companyName: branding.companyName || booking.tenant?.name || '',
                 companyLogo: branding.logo || null,
                 questions: activeQuestions,
                 submitted,

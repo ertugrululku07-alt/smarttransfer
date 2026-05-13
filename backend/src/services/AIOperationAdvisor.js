@@ -127,7 +127,7 @@ Lütfen aşağıdaki JSON formatında yanıt ver ve SADECE JSON döndür (açık
         apiKey: process.env.OPENROUTER_API_KEY,
         defaultHeaders: {
             "HTTP-Referer": "https://webtecari.xyz", // Required by OpenRouter
-            "X-Title": "SmartTransfer" // Optional
+            "X-Title": "TransferApp" // Optional
         }
     });
 

@@ -379,7 +379,7 @@ async function sendCampaignAsync(campaignId, tenantId, channel, subject, body, f
         if (channel === 'EMAIL' || channel === 'BOTH') {
             try {
                 const { transporter, emailSettings } = await getTransporter(tenantId);
-                const senderName = emailSettings.senderName || 'SmartTransfer';
+                const senderName = emailSettings.senderName || req.tenant?.name || '';
                 const senderEmail = emailSettings.senderEmail || emailSettings.smtpUser;
 
                 for (const r of recipients) {

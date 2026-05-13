@@ -17,6 +17,7 @@ import {
 } from '@ant-design/icons';
 import apiClient from '@/lib/api-client';
 import { invalidateDefinitions } from '@/app/hooks/useDefinitions';
+import { useBranding } from '@/app/context/BrandingContext';
 
 const { Title, Text } = Typography;
 
@@ -107,6 +108,7 @@ const DEFAULT_VOUCHER_PREVIEW = `<!DOCTYPE html>
 </html>`;
 
 export default function DefinitionsPage() {
+    const { branding } = useBranding();
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [definitions, setDefinitions] = useState<{ vatRates: any[], currencies: any[] }>({
@@ -332,9 +334,9 @@ export default function DefinitionsPage() {
             price: '85.00',
             currency: 'EUR',
             notes: '',
-            companyName: 'SmartTransfer',
-            companyPhone: '+90 242 123 45 67',
-            companyEmail: 'info@smarttransfer.com',
+            companyName: branding.companyName || 'Firma Adı',
+            companyPhone: branding.phone || '',
+            companyEmail: branding.email || '',
             logoUrl: '',
             status: 'CONFIRMED',
             year: String(new Date().getFullYear()),
@@ -701,7 +703,7 @@ export default function DefinitionsPage() {
                                 <div>
                                     <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 6 }}>Gönderici Adı</label>
                                     <Input
-                                        placeholder="SmartTransfer"
+                                        placeholder={branding.companyName || 'Firma Adı'}
                                         value={emailSettings.senderName}
                                         onChange={(e) => setEmailSettings(prev => ({ ...prev, senderName: e.target.value }))}
                                         style={{ borderRadius: 8 }}

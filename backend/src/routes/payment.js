@@ -165,8 +165,8 @@ router.post('/callback/iyzico', async (req, res) => {
         }
 
         const config = tenant.paymentProviders.iyzico;
-        const fallbackSuccessUrl = config.successUrl || 'https://smarttransfer-backend-production.up.railway.app/payment/success';
-        const fallbackFailUrl = config.failUrl || 'https://smarttransfer-backend-production.up.railway.app/payment/fail';
+        const fallbackSuccessUrl = config.successUrl || `${process.env.BACKEND_URL || 'https://backend-production-69e7.up.railway.app'}/payment/success`;
+        const fallbackFailUrl = config.failUrl || `${process.env.BACKEND_URL || 'https://backend-production-69e7.up.railway.app'}/payment/fail`;
 
         const iyzipay = new Iyzipay({
             apiKey: config.apiKey,

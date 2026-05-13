@@ -12,7 +12,7 @@ import { useBranding } from '../../context/BrandingContext';
 const { Content, Footer } = Layout;
 const { Title, Text } = Typography;
 
-const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'https://smarttransfer-backend-production.up.railway.app').replace(/[\r\n]+/g, '').trim();
+const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'https://backend-production-69e7.up.railway.app').replace(/[\r\n]+/g, '').trim();
 const TENANT_SLUG = (process.env.NEXT_PUBLIC_TENANT_SLUG || 'smarttravel-demo').replace(/[\r\n]+/g, '').trim();
 
 interface PageData {

@@ -44,6 +44,7 @@ import apiClient, { getImageUrl } from '@/lib/api-client';
 import TopBar from '@/app/components/TopBar';
 import BookingMap from '@/app/components/BookingMap';
 import { useCurrency } from '@/app/context/CurrencyContext';
+import { useBranding } from '@/app/context/BrandingContext';
 import { countryList } from '@/lib/countryData';
 
 const { Content, Footer } = Layout;
@@ -51,6 +52,7 @@ const { Title, Text, Paragraph } = Typography;
 
 const TransferBookingContent: React.FC = () => {
     const { formatPrice, convertPrice, selectedCurrency } = useCurrency();
+    const { branding } = useBranding();
     const searchParams = useSearchParams();
     const router = useRouter();
     const [form] = Form.useForm();
@@ -1368,7 +1370,7 @@ const TransferBookingContent: React.FC = () => {
                 </Row>
             </Content>
 
-            <Footer style={{ textAlign: 'center' }}>SmartTransfer ©2026</Footer>
+            <Footer style={{ textAlign: 'center' }}>{branding.companyName} ©{new Date().getFullYear()}</Footer>
         </Layout >
     );
 };

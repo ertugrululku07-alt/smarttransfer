@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useBranding } from '../context/BrandingContext';
 import {
   UserOutlined, CarOutlined, ShopOutlined, ArrowRightOutlined,
   SafetyCertificateOutlined, GlobalOutlined, TeamOutlined
@@ -45,6 +46,7 @@ const roles = [
 
 export default function RegisterPage() {
   const router = useRouter();
+  const { branding } = useBranding();
   const [mounted, setMounted] = useState(false);
   const [hoveredKey, setHoveredKey] = useState<string | null>(null);
 
@@ -78,7 +80,7 @@ export default function RegisterPage() {
             Kayıt Ol
           </h1>
           <p style={{ fontSize: 15, color: '#64748b', margin: 0, maxWidth: 460, lineHeight: 1.5 }}>
-            Size en uygun hesap tipini seçerek SmartTransfer ailesine katılın
+            Size en uygun hesap tipini seçerek {branding.companyName} ailesine katılın
           </p>
         </div>
 

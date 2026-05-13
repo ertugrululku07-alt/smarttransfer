@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '../context/AuthContext';
+import { useBranding } from '../context/BrandingContext';
 import {
     HomeOutlined,
     CarOutlined,
@@ -22,6 +23,7 @@ const PartnerLayout: React.FC<PartnerLayoutProps> = ({ children }) => {
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const router = useRouter();
     const pathname = usePathname();
+    const { branding } = useBranding();
     const { user, logout } = useAuth();
 
     const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
@@ -157,7 +159,7 @@ const PartnerLayout: React.FC<PartnerLayoutProps> = ({ children }) => {
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         fontSize: 16,
                     }}>🚗</div>
-                    <span style={{ color: '#fff', fontSize: 17, fontWeight: 700, letterSpacing: 0.3 }}>SmartTransfer</span>
+                    <span style={{ color: '#fff', fontSize: 17, fontWeight: 700, letterSpacing: 0.3 }}>{branding.companyName}</span>
                 </div>
                 <div style={{
                     width: 36, height: 36, borderRadius: 10,
@@ -194,7 +196,7 @@ const PartnerLayout: React.FC<PartnerLayoutProps> = ({ children }) => {
                             fontSize: 22, boxShadow: '0 4px 15px rgba(16,185,129,0.35)',
                         }}>🚗</div>
                         <div>
-                            <div style={{ color: '#fff', fontSize: 19, fontWeight: 800, letterSpacing: 0.3, lineHeight: 1.2 }}>SmartTransfer</div>
+                            <div style={{ color: '#fff', fontSize: 19, fontWeight: 800, letterSpacing: 0.3, lineHeight: 1.2 }}>{branding.companyName}</div>
                             <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, fontWeight: 500, marginTop: 2 }}>Partner Panel</div>
                         </div>
                     </div>

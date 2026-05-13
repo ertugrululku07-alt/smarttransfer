@@ -92,7 +92,7 @@ async function sendBookingVoucher(tenantId, booking) {
         });
 
         const branding = tenant?.settings?.branding || {};
-        const companyName = branding.companyName || tenant?.name || 'SmartTransfer';
+        const companyName = branding.companyName || tenant?.name || '';
         const companyPhone = branding.phone || '';
         const companyEmail = branding.email || emailSettings.senderEmail || '';
         const logoUrl = branding.logoUrl || '';
@@ -167,7 +167,7 @@ async function sendTestEmail(tenantId, toEmail) {
             where: { id: tenantId },
             select: { name: true, settings: true }
         });
-        const companyName = tenant?.settings?.branding?.companyName || tenant?.name || 'SmartTransfer';
+        const companyName = tenant?.settings?.branding?.companyName || tenant?.name || '';
         const senderName = emailSettings.senderName || companyName;
         const senderEmail = emailSettings.senderEmail || emailSettings.smtpUser;
 

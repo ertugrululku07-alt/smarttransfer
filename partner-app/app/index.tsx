@@ -126,7 +126,7 @@ export default function LoginScreen() {
                         <View style={s.logoBox}>
                             <Ionicons name="car-sport" size={36} color="#fff" />
                         </View>
-                        <Text style={s.appName}>SmartTransfer</Text>
+                        <Text style={s.appName}>Partner</Text>
                         <Text style={s.appSub}>Partner Uygulaması</Text>
                     </Animated.View>
 
@@ -189,7 +189,7 @@ export default function LoginScreen() {
                         </TouchableOpacity>
                     </Animated.View>
 
-                    <Text style={s.version}>v1.0.0 • SmartTransfer Partner</Text>
+                    <Text style={s.version}>v1.0.0 • Partner</Text>
                 </ScrollView>
             </KeyboardAvoidingView>
         </LinearGradient>

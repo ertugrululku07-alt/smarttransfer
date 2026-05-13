@@ -41,6 +41,7 @@ import BookingMap from '@/app/components/BookingMap';
 import DynamicLocationSearchInput from '@/app/components/DynamicLocationSearchInput';
 import { getRouteDetails } from '@/lib/routing';
 import { useCurrency } from '@/app/context/CurrencyContext';
+import { useBranding } from '@/app/context/BrandingContext';
 
 const { Content, Footer } = Layout;
 const { Title, Text, Paragraph } = Typography;
@@ -67,6 +68,7 @@ interface TransferResult {
 
 const TransferSearchContent: React.FC = () => {
     const { formatPrice } = useCurrency();
+    const { branding } = useBranding();
     const searchParams = useSearchParams();
     const router = useRouter();
     const [loading, setLoading] = useState(true);
@@ -502,7 +504,7 @@ const TransferSearchContent: React.FC = () => {
                     <div style={{ textAlign: 'right', marginTop: 16 }}><Button onClick={() => setIsEditModalVisible(false)} style={{ marginRight: 8 }}>İptal</Button><Button type="primary" htmlType="submit">Güncelle ve Ara</Button></div>
                 </Form>
             </Modal>
-            <Footer style={{ textAlign: 'center', background: '#fff' }}>SmartTransfer ©2026</Footer>
+            <Footer style={{ textAlign: 'center', background: '#fff' }}>{branding.companyName} ©{new Date().getFullYear()}</Footer>
         </Layout>
     );
 };
