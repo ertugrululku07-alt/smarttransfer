@@ -23,30 +23,35 @@ const apiClient = axios.create({
 export const getImageUrl = (url?: string | null) => {
     if (!url) return undefined;
     
-    // Version: 2.3.6 (Prod-Ready)
+    // Version: 2.3.7 (Dynamic Absolute Path Resolver)
     const normalizedUrl = url.trim();
     
     if (normalizedUrl.startsWith('data:image')) {
         return normalizedUrl;
     }
     
+    // Dynamically resolve API_URL at execution time to prevent Next.js build-time inline issues
+    const currentApiUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000').replace(/[\r\n]+/g, '').trim();
+    
     // 1. Handle localhost/127.0.0.1 legacy URLs
     if (normalizedUrl.includes('localhost') || normalizedUrl.includes('127.0.0.1')) {
-        // Find the index of /uploads to preserve the path
         const uploadIndex = normalizedUrl.indexOf('/uploads');
         if (uploadIndex !== -1) {
-            return `${API_URL}${normalizedUrl.substring(uploadIndex)}`;
+            return `${currentApiUrl}${normalizedUrl.substring(uploadIndex)}`;
         }
     }
     
     // 2. Handle relative paths
     if (normalizedUrl.startsWith('/uploads')) {
-        return `${API_URL}${normalizedUrl}`;
+        // Enforce that currentApiUrl is applied. If currentApiUrl is empty for some reason, we must prevent broken URLs.
+        const safeApiUrl = currentApiUrl === '' ? (typeof window !== 'undefined' ? window.location.origin.replace('www.', 'api.') : '') : currentApiUrl;
+        return `${safeApiUrl}${normalizedUrl}`;
     }
     
     // 3. Handle just the filename (if somehow the prefix was lost)
     if (!normalizedUrl.startsWith('http') && !normalizedUrl.startsWith('/')) {
-        return `${API_URL}/uploads/${normalizedUrl}`;
+        const safeApiUrl = currentApiUrl === '' ? (typeof window !== 'undefined' ? window.location.origin.replace('www.', 'api.') : '') : currentApiUrl;
+        return `${safeApiUrl}/uploads/${normalizedUrl}`;
     }
     
     return normalizedUrl;
