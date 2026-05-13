@@ -167,14 +167,10 @@ const LoginPage: React.FC = () => {
           <div className="login-card-anim" style={{ opacity: mounted ? 1 : 0, transition: 'opacity 0.3s' }}>
 
             {/* Logo */}
+            {/* Logo or Text Branding */}
             <div style={{ textAlign: 'center', marginBottom: 44 }}>
-              <div style={{
-                width: 60, height: 60, borderRadius: 18, margin: '0 auto 16px',
-                background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                boxShadow: '0 8px 24px rgba(99,102,241,0.3)',
-              }}>
-                {branding.logoUrl ? (
+              {branding.logoUrl ? (
+                <div style={{ marginBottom: 16 }}>
                   <img
                     src={(() => {
                       const url = getImageUrl(branding.logoUrl);
@@ -183,17 +179,27 @@ const LoginPage: React.FC = () => {
                       return url;
                     })()}
                     alt="Logo"
-                    style={{ maxHeight: 60, maxWidth: 220, objectFit: 'contain' }}
+                    style={{ maxHeight: 80, maxWidth: 300, objectFit: 'contain' }}
                   />
-                ) : (
-                  <span style={{ fontSize: 24, fontWeight: 900, color: '#fff', fontFamily: 'monospace' }}>
-                    {branding.siteNameHighlight ? branding.siteNameHighlight.substring(0, 2).toUpperCase() : 'ST'}
-                  </span>
-                )}
-              </div>
-              <h1 style={{ fontSize: 26, fontWeight: 800, color: '#1a1a2e', margin: '0 0 4px', letterSpacing: -0.5 }}>
-                {branding.siteNameHighlight || 'Smart'}<span style={{ color: '#6366f1' }}>{branding.siteName || 'Transfer'}</span>
-              </h1>
+                </div>
+              ) : (
+                <>
+                  <div style={{
+                    width: 60, height: 60, borderRadius: 18, margin: '0 auto 16px',
+                    background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    boxShadow: '0 8px 24px rgba(99,102,241,0.3)',
+                  }}>
+                    <span style={{ fontSize: 24, fontWeight: 900, color: '#fff', fontFamily: 'monospace' }}>
+                      {branding.siteNameHighlight ? branding.siteNameHighlight.substring(0, 2).toUpperCase() : 'ST'}
+                    </span>
+                  </div>
+                  <h1 style={{ fontSize: 26, fontWeight: 800, color: '#1a1a2e', margin: '0 0 4px', letterSpacing: -0.5 }}>
+                    {branding.siteNameHighlight || 'Smart'}<span style={{ color: '#6366f1' }}>{branding.siteName || 'Transfer'}</span>
+                  </h1>
+                </>
+              )}
+              
               <p style={{ fontSize: 13, color: '#94a3b8', margin: 0, fontWeight: 500 }}>
                 {branding.companyName ? `${branding.companyName} Yönetim Paneline Giriş Yapın` : 'Yönetim Paneline Giriş Yapın'}
               </p>
