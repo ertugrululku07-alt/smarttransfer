@@ -22,7 +22,7 @@ jobs:
           script: |
             # Güvenlik nedeniyle root girişi kapalı olduğu için, smarttech üzerinden sudo ile root yetkisi alıyoruz
             echo "${{ secrets.SERVER_PASSWORD }}" | sudo -S sh -c '
-              export PATH=$PATH:/usr/local/bin:/www/server/nodejs/v18/bin:/www/server/nodejs/v20/bin
+              export PATH=$PATH:/usr/local/bin:/www/server/nodejs/v18/bin:/www/server/nodejs/v20/bin:/www/server/pgsql/bin:/usr/pgsql-14/bin:/usr/pgsql-15/bin
               cd /www/wwwroot/jet2home.com
               
               # Git güvenlik uyarısını aşmak için klasörü güvenli dizin olarak ekliyoruz
