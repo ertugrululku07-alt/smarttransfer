@@ -20,27 +20,20 @@ jobs:
           # key: ${{ secrets.SERVER_SSH_KEY }}
           port: ${{ secrets.SERVER_PORT }}
           script: |
-            # Ortam değişkenlerini (Node ve PM2) yükle
-            source ~/.bash_profile || true
-            source ~/.bashrc || true
-            export PATH=$PATH:/usr/local/bin:/www/server/nodejs/v18/bin:/www/server/nodejs/v20/bin
-            
-            # 1. aaPanel projenin kurulu olduğu dizine git
-            cd /www/wwwroot/jet2home.com
-            
-            # 2. Eğer klasörde .git yoksa (ilk defa çekiyorsa) tanımla, varsa sadece pull yap
-            if [ ! -d ".git" ]; then
-              git init
-              git remote add origin https://github.com/ertugrululku07-alt/smarttransfer.git
-              git fetch
-              git reset --hard origin/main
-            else
-              git pull origin main
-            fi
-            
-            # 3. Otomatik kurulum betiğini çalıştır
-            # Onay sorusuna otomatik "E" (Evet) cevabı gönderiyoruz
-            echo "E" | node setup.js
-            
-            # 4. PM2 ile çalışan uygulamaları yeniden başlat (npx ile garantiye alıyoruz)
-            npx pm2 restart all
+            # Güvenlik nedeniyle root girişi kapalı olduğu için, smarttech üzerinden sudo ile root yetkisi alıyoruz
+            echo "${{ secrets.SERVER_PASSWORD }}" | sudo -S sh -c '
+              export PATH=$PATH:/usr/local/bin:/www/server/nodejs/v18/bin:/www/server/nodejs/v20/bin
+              cd /www/wwwroot/jet2home.com
+              
+              if [ ! -d ".git" ]; then
+                git init
+                git remote add origin https://github.com/ertugrululku07-alt/smarttransfer.git
+                git fetch
+                git reset --hard origin/main
+              else
+                git pull origin main
+              fi
+              
+              echo "E" | node setup.js
+              npx pm2 restart all
+            '
