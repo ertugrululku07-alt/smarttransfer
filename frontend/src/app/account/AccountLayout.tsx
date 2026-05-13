@@ -17,6 +17,7 @@ import {
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '../context/AuthContext';
 import { useBranding } from '../context/BrandingContext';
+import { getImageUrl } from '@/lib/api-client';
 
 interface AccountLayoutProps {
     children: React.ReactNode;
@@ -77,7 +78,7 @@ const AccountLayout: React.FC<AccountLayoutProps> = ({ children }) => {
                 {branding.logoUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
-                        src={branding.logoUrl} alt={fullName}
+                        src={getImageUrl(branding.logoUrl)} alt={fullName}
                         style={{ maxHeight: 36, maxWidth: collapsed && !forDrawer ? 40 : 140, objectFit: 'contain', filter: 'brightness(0) invert(1)' }}
                     />
                 ) : (
