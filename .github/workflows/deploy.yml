@@ -36,9 +36,9 @@ jobs:
               git remote add origin https://github.com/ertugrululku07-alt/smarttransfer.git 2>/dev/null || true
               git fetch origin
               git reset --hard origin/main
-              
-              # Eski localhost ayarını temizle ki build bozulmasın
+              # Eski cache ve localhost ayarlarını temizle ki build tertemiz baştan yapılsın
               rm -f frontend/.env.local
+              rm -rf frontend/.next
               
               echo "E" | node setup.js
               
