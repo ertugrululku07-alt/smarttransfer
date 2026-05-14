@@ -14,7 +14,8 @@ import {
     BankOutlined,
     WalletOutlined,
     UnorderedListOutlined,
-    FileTextOutlined
+    FileTextOutlined,
+    ClockCircleOutlined
 } from '@ant-design/icons';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../context/AuthContext';
@@ -95,6 +96,12 @@ const AgencyLayout: React.FC<AgencyLayoutProps> = ({ children, selectedKey = 'da
                     label: 'Transfer Listesi',
                     icon: <UnorderedListOutlined />,
                     onClick: () => router.push('/agency/transfers/list')
+                },
+                {
+                    key: 'hourly-rental',
+                    label: 'Saatlik Kiralama',
+                    icon: <ClockCircleOutlined />,
+                    onClick: () => router.push('/agency/transfers/hourly')
                 }
             ]
         },

@@ -9,7 +9,7 @@ import {
     SearchOutlined, EditOutlined, StopOutlined, EyeOutlined,
     CarOutlined, ReloadOutlined, ClockCircleOutlined, CheckCircleOutlined,
     CloseCircleOutlined, CalendarOutlined, TeamOutlined, EnvironmentOutlined,
-    PrinterOutlined // NEW
+    PrinterOutlined, AimOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import apiClient from '@/lib/api-client';
@@ -98,10 +98,33 @@ export default function AgencyTransferListPage() {
         (new Date(b.startDate).getTime() - Date.now()) / (1000 * 60 * 60);
 
     const canEdit = (b: Booking) =>
-        hoursUntil(b) > 6 && b.status !== 'CANCELLED' && b.status !== 'COMPLETED';
+        hoursUntil(b) > 24 && b.status !== 'CANCELLED' && b.status !== 'COMPLETED';
 
     const canCancel = (b: Booking) =>
-        b.status !== 'CANCELLED' && b.status !== 'COMPLETED';
+        hoursUntil(b) > 24 && b.status !== 'CANCELLED' && b.status !== 'COMPLETED';
+
+    const isWithin30Min = (b: Booking) => {
+        const mins = (new Date(b.startDate).getTime() - Date.now()) / 60000;
+        return (mins <= 30 && mins >= -180) || b.status === 'IN_PROGRESS';
+    };
+
+    // Driver location state
+    const [driverLocation, setDriverLocation] = useState<any>(null);
+    const [driverLocationLoading, setDriverLocationLoading] = useState(false);
+
+    const fetchDriverLocation = async (bookingId: string) => {
+        try {
+            setDriverLocationLoading(true);
+            const res = await apiClient.get(`/api/agency/bookings/${bookingId}/driver-location`);
+            if (res.data.success) {
+                setDriverLocation(res.data.data);
+            }
+        } catch {
+            setDriverLocation(null);
+        } finally {
+            setDriverLocationLoading(false);
+        }
+    };
 
     const handleEdit = (b: Booking) => {
         setEditBooking(b);
@@ -136,18 +159,16 @@ export default function AgencyTransferListPage() {
 
     const handleCancel = (b: Booking) => {
         const hrs = hoursUntil(b);
-        const warningMsg = hrs <= 6
-            ? 'Transfer saatine 6 saatten az kaldığı için iade yapılmayacaktır.'
-            : hrs > 6 && b.paymentStatus === 'PAID'
-                ? 'Cari bakiyenize B2B maliyeti iade edilecektir.'
-                : '';
+        const warningMsg = b.paymentStatus === 'PAID'
+            ? 'Cari bakiyenize B2B maliyeti iade edilecektir.'
+            : '';
 
         Modal.confirm({
             title: 'Rezervasyonu İptal Et',
             content: (
                 <div>
                     <p><strong>{b.bookingNumber}</strong> numaralı rezervasyonu iptal etmek istediğinize emin misiniz?</p>
-                    {warningMsg && <Alert type={hrs <= 6 ? 'warning' : 'info'} message={warningMsg} showIcon style={{ marginTop: 12 }} />}
+                    {warningMsg && <Alert type="info" message={warningMsg} showIcon style={{ marginTop: 12 }} />}
                 </div>
             ),
             okText: 'Evet, İptal Et',
@@ -203,7 +224,7 @@ export default function AgencyTransferListPage() {
             width: 200,
             render: (_: any, r: Booking) => {
                 const hrs = hoursUntil(r);
-                const isUrgent = hrs > 0 && hrs <= 6 && r.status !== 'CANCELLED';
+                const isUrgent = hrs > 0 && hrs <= 24 && r.status !== 'CANCELLED';
                 return (
                     <div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
@@ -211,7 +232,7 @@ export default function AgencyTransferListPage() {
                                 {r.bookingNumber}
                             </Text>
                             {isUrgent && (
-                                <Tooltip title="Transfere 6 saatten az kaldı">
+                                <Tooltip title="Transfere 24 saatten az kaldı — düzenleme/iptal yapılamaz">
                                     <ClockCircleOutlined style={{ color: '#f59e0b', fontSize: 13 }} />
                                 </Tooltip>
                             )}
@@ -344,10 +365,21 @@ export default function AgencyTransferListPage() {
                             onClick={() => handlePrint(r)}
                         />
                     </Tooltip>
+                    {isWithin30Min(r) && r.status !== 'CANCELLED' && (
+                        <Tooltip title="Şoför Konumu">
+                            <Button
+                                type="default"
+                                size="small"
+                                icon={<AimOutlined />}
+                                style={{ borderRadius: 6, color: '#16a34a' }}
+                                onClick={() => { setDetailBooking(r); setDetailModalOpen(true); fetchDriverLocation(r.id); }}
+                            />
+                        </Tooltip>
+                    )}
                     <Tooltip title={canEdit(r) ? 'Düzenle' :
                         r.status === 'CANCELLED' ? 'İptal edildi' :
                             r.status === 'COMPLETED' ? 'Tamamlandı' :
-                                'Son 6 saat, düzenleme yapılamaz'}>
+                                'Son 24 saat, düzenleme yapılamaz'}>
                         <Button
                             type="default"
                             size="small"
@@ -514,7 +546,7 @@ export default function AgencyTransferListPage() {
                     <Alert
                         type="info"
                         showIcon
-                        message="Transfere 6 saatten fazla kaldığı için düzenleme yapılabilir."
+                        message="Transfere 24 saatten fazla kaldığı için düzenleme yapılabilir."
                         style={{ marginBottom: 16 }}
                     />
                     <Form form={editForm} layout="vertical">
@@ -588,7 +620,7 @@ export default function AgencyTransferListPage() {
                         </div>
                     }
                     open={detailModalOpen}
-                    onCancel={() => setDetailModalOpen(false)}
+                    onCancel={() => { setDetailModalOpen(false); setDriverLocation(null); }}
                     footer={[
                         <Button key="close" onClick={() => setDetailModalOpen(false)}>Kapat</Button>,
                         <Button key="print" type="default" icon={<PrinterOutlined />}
@@ -684,13 +716,76 @@ export default function AgencyTransferListPage() {
                                     )}
                                 </Row>
 
-                                {hoursUntil(detailBooking) > 0 && hoursUntil(detailBooking) <= 6 && (
+                                {hoursUntil(detailBooking) > 0 && hoursUntil(detailBooking) <= 24 && detailBooking.status !== 'CANCELLED' && detailBooking.status !== 'COMPLETED' && (
                                     <Alert
                                         type="warning"
                                         showIcon
-                                        message="Transfere 6 saatten az kaldığı için yalnızca iptal işlemi yapılabilir."
+                                        message="Transfere 24 saatten az kaldığı için düzenleme ve iptal işlemi yapılamaz."
                                         style={{ marginTop: 16 }}
                                     />
+                                )}
+
+                                {/* Driver Location Section */}
+                                {isWithin30Min(detailBooking) && detailBooking.status !== 'CANCELLED' && (
+                                    <div style={{ marginTop: 16 }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                                            <Text strong style={{ fontSize: 13, color: '#16a34a' }}>
+                                                <AimOutlined style={{ marginRight: 6 }} />
+                                                Şoför Konumu
+                                            </Text>
+                                            <Button
+                                                size="small"
+                                                icon={<ReloadOutlined />}
+                                                loading={driverLocationLoading}
+                                                onClick={() => fetchDriverLocation(detailBooking.id)}
+                                                style={{ borderRadius: 6 }}
+                                            >
+                                                Yenile
+                                            </Button>
+                                        </div>
+                                        {driverLocationLoading ? (
+                                            <div style={{ textAlign: 'center', padding: '24px 0', background: '#f8fafc', borderRadius: 8 }}>
+                                                <ClockCircleOutlined style={{ fontSize: 20, color: '#94a3b8' }} />
+                                                <div style={{ marginTop: 8, color: '#94a3b8', fontSize: 12 }}>Konum yükleniyor...</div>
+                                            </div>
+                                        ) : !driverLocation?.driverAssigned ? (
+                                            <Alert type="info" showIcon message="Bu transfere henüz şoför atanmamış." />
+                                        ) : !driverLocation?.allowed ? (
+                                            <Alert type="info" showIcon message="Şoför konumu transfer zamanına 30 dakika kala paylaşılır." />
+                                        ) : !driverLocation?.location ? (
+                                            <Alert type="warning" showIcon
+                                                message={`Şoför ${driverLocation?.driverName ? `(${driverLocation.driverName}) ` : ''}konumu şu an alınamıyor. ${driverLocation?.online ? 'Şoför çevrimiçi.' : 'Şoför çevrimdışı.'}`}
+                                            />
+                                        ) : (
+                                            <div>
+                                                <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+                                                    {driverLocation.driverName && (
+                                                        <Tag color="blue">🚗 {driverLocation.driverName}</Tag>
+                                                    )}
+                                                    <Tag color={driverLocation.online ? 'green' : 'default'}>
+                                                        {driverLocation.online ? '🟢 Çevrimiçi' : '⚪ Çevrimdışı'}
+                                                    </Tag>
+                                                    {driverLocation.location?.speed > 0 && (
+                                                        <Tag color="orange">🏎️ {Math.round(driverLocation.location.speed)} km/h</Tag>
+                                                    )}
+                                                    {driverLocation.lastSeen && (
+                                                        <Tag>Son güncelleme: {dayjs(driverLocation.lastSeen).format('HH:mm:ss')}</Tag>
+                                                    )}
+                                                </div>
+                                                <div style={{ width: '100%', height: 250, borderRadius: 10, overflow: 'hidden', border: '1px solid #e2e8f0' }}>
+                                                    <iframe
+                                                        title="driver-map"
+                                                        width="100%"
+                                                        height="250"
+                                                        style={{ border: 0 }}
+                                                        loading="lazy"
+                                                        allowFullScreen
+                                                        src={`https://maps.google.com/maps?q=${driverLocation.location.lat},${driverLocation.location.lng}&z=15&output=embed`}
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
                                 )}
                             </div>
                         );

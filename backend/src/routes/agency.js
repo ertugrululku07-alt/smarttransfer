@@ -519,7 +519,7 @@ router.get('/bookings', authMiddleware, agencyMiddleware, async (req, res) => {
     }
 });
 
-// PUT /api/agency/bookings/:id - Edit booking (only if >6h before startDate)
+// PUT /api/agency/bookings/:id - Edit booking (only if >24h before startDate)
 router.put('/bookings/:id', authMiddleware, agencyMiddleware, async (req, res) => {
     try {
         const { id } = req.params;
@@ -533,12 +533,12 @@ router.put('/bookings/:id', authMiddleware, agencyMiddleware, async (req, res) =
             return res.status(404).json({ success: false, error: 'Rezervasyon bulunamadı' });
         }
 
-        // Check 6-hour edit window
+        // Check 24-hour edit window
         const hoursUntil = (new Date(booking.startDate) - new Date()) / (1000 * 60 * 60);
-        if (hoursUntil <= 6) {
+        if (hoursUntil <= 24) {
             return res.status(400).json({
                 success: false,
-                error: 'Transfer saatine 6 saatten az kaldığı için düzenleme yapılamaz. Yalnızca iptal edebilirsiniz.'
+                error: 'Transfer saatine 24 saatten az kaldığı için düzenleme yapılamaz.'
             });
         }
 
@@ -568,7 +568,7 @@ router.put('/bookings/:id', authMiddleware, agencyMiddleware, async (req, res) =
     }
 });
 
-// PUT /api/agency/bookings/:id/cancel - Cancel booking (refund balance if >6h)
+// PUT /api/agency/bookings/:id/cancel - Cancel booking (only if >24h, refund balance)
 router.put('/bookings/:id/cancel', authMiddleware, agencyMiddleware, async (req, res) => {
     try {
         const { id } = req.params;
@@ -586,8 +586,17 @@ router.put('/bookings/:id/cancel', authMiddleware, agencyMiddleware, async (req,
         }
 
         const hoursUntil = (new Date(booking.startDate) - new Date()) / (1000 * 60 * 60);
+
+        // Block cancel if less than 24 hours remain
+        if (hoursUntil <= 24) {
+            return res.status(400).json({
+                success: false,
+                error: 'Transfer saatine 24 saatten az kaldığı için iptal işlemi yapılamaz.'
+            });
+        }
+
         const payMethod = booking.metadata?.paymentMethod || 'BALANCE';
-        const canRefund = hoursUntil > 6;
+        const canRefund = true; // Always refund since we only allow cancel when >24h
         const bookingCurrency = booking.currency || 'TRY';
         const b2bCost = Number(booking.subtotal || 0);
         const customerPrice = Number(booking.total || 0);
@@ -662,7 +671,7 @@ router.put('/bookings/:id/cancel', authMiddleware, agencyMiddleware, async (req,
             refunded: canRefund,
             message: canRefund
                 ? `Rezervasyon iptal edildi. ${b2bCost} ${bookingCurrency} iade edildi.`
-                : 'Rezervasyon iptal edildi. Transfer saatine 6 saatten az kaldığı için iade yapılmadı.'
+                : 'Rezervasyon iptal edildi.'
         });
     } catch (error) {
         console.error('Agency cancel booking error:', error);
@@ -670,6 +679,73 @@ router.put('/bookings/:id/cancel', authMiddleware, agencyMiddleware, async (req,
     }
 });
 
+
+// GET /api/agency/bookings/:id/driver-location
+// Returns current driver location IF transfer is within 30 minutes or in progress.
+router.get('/bookings/:id/driver-location', authMiddleware, agencyMiddleware, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const booking = await prisma.booking.findFirst({
+            where: { id, agencyId: req.agencyId, tenantId: req.tenant.id },
+            select: { id: true, status: true, startDate: true, driverId: true }
+        });
+        if (!booking) return res.status(404).json({ success: false, error: 'Rezervasyon bulunamadı' });
+        if (!booking.driverId) return res.json({ success: true, data: { location: null, online: false, driverAssigned: false } });
+
+        const minutesUntilPickup = booking.startDate
+            ? (new Date(booking.startDate).getTime() - Date.now()) / 60000
+            : null;
+        const inProgress = booking.status === 'IN_PROGRESS';
+        const allowed = inProgress || (minutesUntilPickup !== null && minutesUntilPickup <= 30 && minutesUntilPickup >= -180);
+        if (!allowed) {
+            return res.json({
+                success: true,
+                data: { location: null, online: false, driverAssigned: true, allowed: false, minutesUntilPickup }
+            });
+        }
+
+        const onlineDrivers = req.app.get('onlineDrivers') || {};
+        const info = onlineDrivers[booking.driverId];
+
+        let location = info?.location || null;
+        let lastSeen = info?.lastSeen || null;
+        let driverName = null;
+
+        if (!location) {
+            const driver = await prisma.user.findUnique({
+                where: { id: booking.driverId },
+                select: { fullName: true, metadata: true, lastSeenAt: true }
+            });
+            driverName = driver?.fullName;
+            const dm = driver?.metadata || {};
+            if (dm.lastLat && dm.lastLng) {
+                location = { lat: Number(dm.lastLat), lng: Number(dm.lastLng), heading: dm.lastHeading || 0, speed: dm.lastSpeed || 0 };
+            }
+            if (driver?.lastSeenAt) lastSeen = new Date(driver.lastSeenAt).getTime();
+        } else {
+            // Get driver name from user
+            try {
+                const driver = await prisma.user.findUnique({ where: { id: booking.driverId }, select: { fullName: true } });
+                driverName = driver?.fullName;
+            } catch {}
+        }
+
+        res.json({
+            success: true,
+            data: {
+                location,
+                online: !!info,
+                lastSeen,
+                driverAssigned: true,
+                allowed: true,
+                driverName
+            }
+        });
+    } catch (e) {
+        console.error('[Agency] driver location error:', e);
+        res.status(500).json({ success: false, error: 'Konum alınamadı' });
+    }
+});
 
 router.post('/bookings/bulk', authMiddleware, agencyMiddleware, async (req, res) => {
     try {

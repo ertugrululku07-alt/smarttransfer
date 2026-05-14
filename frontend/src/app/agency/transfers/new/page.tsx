@@ -46,7 +46,7 @@ const AgencyNewTransferPage = () => {
     };
 
     // Top level state
-    const [currentStep, setCurrentStep] = useState<'search' | 'results' | 'details' | 'success'>('search');
+    const [currentStep, setCurrentStep] = useState<'search' | 'results' | 'return-results' | 'details' | 'success'>('search');
     const [loading, setLoading] = useState(false);
     const [bookingResult, setBookingResult] = useState<any>(null);
 
@@ -104,6 +104,9 @@ const AgencyNewTransferPage = () => {
     const [searchError, setSearchError] = useState<string | null>(null);
     const [routeStats, setRouteStats] = useState<{ distance: string | number; duration: string | number } | null>(null);
     const [selectedVehicle, setSelectedVehicle] = useState<TransferResult | null>(null);
+    const [returnSelectedVehicle, setReturnSelectedVehicle] = useState<TransferResult | null>(null);
+    const [returnResults, setReturnResults] = useState<TransferResult[]>([]);
+    const [returnSearchLoading, setReturnSearchLoading] = useState(false);
 
     // Step 3: Extra Services & Form
     const [form] = Form.useForm();
@@ -326,8 +329,53 @@ const AgencyNewTransferPage = () => {
         }
     };
 
+    const handleSelectReturnVehicle = (vehicle: TransferResult) => {
+        setReturnSelectedVehicle(vehicle);
+        proceedToDetails(selectedVehicle!, vehicle);
+    };
+
+    const searchReturnVehicles = async () => {
+        try {
+            setReturnSearchLoading(true);
+            const totalPassengers = passengerCounts.adults + passengerCounts.children + passengerCounts.babies;
+            let returnPickupDateTime = returnDate!.hour(returnTimeValue ? returnTimeValue.hour() : 12).minute(returnTimeValue ? returnTimeValue.minute() : 0).second(0).format();
+            if (isAirportTransfer && returnFlightTimeValue) {
+                returnPickupDateTime = returnDate!.hour(returnFlightTimeValue.hour()).minute(returnFlightTimeValue.minute()).second(0).format();
+            }
+            const payload = {
+                pickup: dropoff,
+                dropoff: pickup,
+                pickupDateTime: returnPickupDateTime,
+                passengers: totalPassengers || 1,
+                transferType: 'ONE_WAY',
+                pickupLat: dropoffLocation?.lat,
+                pickupLng: dropoffLocation?.lng,
+                dropoffLat: pickupLocation?.lat,
+                dropoffLng: pickupLocation?.lng
+            };
+            const res = await apiClient.post('/api/transfer/search', payload);
+            if (res.data.success) {
+                setReturnResults(res.data.data.results);
+            }
+        } catch (err) {
+            console.error('Return search error:', err);
+            setReturnResults([]);
+        } finally {
+            setReturnSearchLoading(false);
+        }
+    };
+
     const handleSelectVehicle = (vehicle: TransferResult) => {
         setSelectedVehicle(vehicle);
+        if (tripType === 'ROUND_TRIP' && returnDate) {
+            setCurrentStep('return-results');
+            searchReturnVehicles();
+            return;
+        }
+        proceedToDetails(vehicle, null);
+    };
+
+    const proceedToDetails = (outboundVehicle: TransferResult, returnVehicle: TransferResult | null) => {
         setCurrentStep('details');
 
         // Fetch services in background when vehicle selected
@@ -342,10 +390,15 @@ const AgencyNewTransferPage = () => {
             firstName: '', lastName: '', nationality: ''
         }));
 
+        // Calculate total price including return if applicable
+        const outboundPrice = outboundVehicle.price;
+        const returnPrice = returnVehicle ? returnVehicle.price : 0;
+        const totalPrice = outboundPrice + returnPrice;
+
         form.setFieldsValue({
             startDate: fullDate,
             passengers: totalPax,
-            amount: vehicle.price,
+            amount: totalPrice,
             passengersList: initialPassengers,
             wantsInvoice: false,
             paymentMethod: 'BALANCE',
@@ -362,7 +415,10 @@ const AgencyNewTransferPage = () => {
 
             // B2B Pre-validation
             if (values.paymentMethod === 'BALANCE') {
-                const b2bCost = selectedVehicle.basePrice || selectedVehicle.price;
+                let b2bCost = selectedVehicle.basePrice || selectedVehicle.price;
+                if (returnSelectedVehicle) {
+                    b2bCost += returnSelectedVehicle.basePrice || returnSelectedVehicle.price;
+                }
                 if (agencyBalance < b2bCost) {
                     message.error(`Yetersiz bakiye. Bu işlem için minimum ${b2bCost} ${selectedVehicle.currency} bakiye gerekmektedir.`);
                     setLoading(false);
@@ -395,6 +451,12 @@ const AgencyNewTransferPage = () => {
                 }
             }
 
+            // Calculate total B2B provider price (outbound + return if applicable)
+            let totalProviderPrice = selectedVehicle.basePrice || selectedVehicle.price;
+            if (returnSelectedVehicle) {
+                totalProviderPrice += returnSelectedVehicle.basePrice || returnSelectedVehicle.price;
+            }
+
             const payload = {
                 ...values,
                 type: 'TRANSFER',
@@ -407,7 +469,7 @@ const AgencyNewTransferPage = () => {
                 startDate: startDateWithTime ? startDateWithTime.toISOString() : undefined,
                 vehicleId: selectedVehicle.id,
                 vehicleType: selectedVehicle.vehicleType,
-                providerPrice: selectedVehicle.basePrice || selectedVehicle.price,
+                providerPrice: totalProviderPrice,
                 currency: selectedVehicle.currency,
                 amount: values.amount,
                 passengers: values.passengers || (passengerCounts.adults + passengerCounts.children + passengerCounts.babies),
@@ -429,7 +491,15 @@ const AgencyNewTransferPage = () => {
                     wantsInvoice: values.wantsInvoice,
                     agencyNotes: values.agencyNotes,
                     paymentMethod: values.paymentMethod,
-                    extraServices: extraServicesList.filter((s: any) => s.quantity > 0)
+                    extraServices: extraServicesList.filter((s: any) => s.quantity > 0),
+                    isRoundTrip: tripType === 'ROUND_TRIP',
+                    returnVehicle: returnSelectedVehicle ? {
+                        vehicleType: returnSelectedVehicle.vehicleType,
+                        price: returnSelectedVehicle.price,
+                        basePrice: returnSelectedVehicle.basePrice,
+                        currency: returnSelectedVehicle.currency
+                    } : undefined,
+                    returnDate: returnDate ? returnDate.hour(returnTimeValue?.hour() ?? 12).minute(returnTimeValue?.minute() ?? 0).second(0).toISOString() : undefined
                 }
             };
 
@@ -925,6 +995,162 @@ const AgencyNewTransferPage = () => {
         </div>
     );
 
+    const renderReturnResultsStep = () => (
+        <div style={{ maxWidth: 1060, margin: '0 auto' }}>
+            {/* Header */}
+            <div style={{
+                background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #0f1f3d 100%)',
+                borderRadius: 20, padding: '20px 28px', marginBottom: 20,
+                display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap',
+                boxShadow: '0 8px 32px rgba(0,0,0,0.25)'
+            }}>
+                <button onClick={() => setCurrentStep('results')} style={{
+                    display: 'flex', alignItems: 'center', gap: 7, padding: '8px 16px',
+                    background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.18)',
+                    borderRadius: 10, cursor: 'pointer', color: '#fff', fontWeight: 600, fontSize: 13
+                }}>
+                    ← Gidiş Araçları
+                </button>
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 14, minWidth: 280 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, maxWidth: 200 }}>
+                        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.45)', textTransform: 'uppercase', letterSpacing: 1 }}>DÖNÜŞ: NEREDEN</div>
+                        <div style={{ color: '#fff', fontWeight: 700, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{dropoff}</div>
+                    </div>
+                    <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
+                        <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'linear-gradient(135deg, #f59e0b, #fbbf24)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12 }}>↩</div>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, maxWidth: 200 }}>
+                        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.45)', textTransform: 'uppercase', letterSpacing: 1 }}>NEREYE</div>
+                        <div style={{ color: '#fff', fontWeight: 700, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pickup}</div>
+                    </div>
+                </div>
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', flexShrink: 0 }}>
+                    <div style={{ background: 'rgba(255,255,255,0.08)', borderRadius: 10, padding: '7px 14px', textAlign: 'center' }}>
+                        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase' }}>Dönüş</div>
+                        <div style={{ color: '#fff', fontWeight: 700, fontSize: 12 }}>{returnDate?.format('DD MMM YYYY')}</div>
+                    </div>
+                    <div style={{ background: 'linear-gradient(135deg, #f59e0b, #fbbf24)', borderRadius: 10, padding: '7px 14px', textAlign: 'center' }}>
+                        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.8)', textTransform: 'uppercase' }}>Gidiş</div>
+                        <div style={{ color: '#fff', fontWeight: 700, fontSize: 12 }}>{getCurrencySymbol(selectedVehicle?.currency || 'TRY')}{selectedVehicle?.price.toLocaleString('tr-TR')}</div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Info Banner */}
+            <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 12, padding: '12px 18px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 20 }}>↩️</span>
+                <div>
+                    <div style={{ fontWeight: 700, color: '#92400e', fontSize: 14 }}>Dönüş Aracı Seçin</div>
+                    <div style={{ fontSize: 12, color: '#a16207' }}>Gidiş aracınız seçildi. Şimdi dönüş için araç seçin.</div>
+                </div>
+            </div>
+
+            {/* Return Vehicle List */}
+            {returnSearchLoading ? (
+                <div style={{ textAlign: 'center', padding: '80px 0' }}>
+                    <Spin size="large" />
+                    <div style={{ marginTop: 16, color: '#f59e0b', fontWeight: 600, fontSize: 15 }}>Dönüş araçları aranıyor...</div>
+                </div>
+            ) : returnResults.length === 0 ? (
+                <div style={{ background: '#fff', borderRadius: 16, padding: 60, textAlign: 'center', border: '1px solid #f1f5f9' }}>
+                    <div style={{ fontSize: 52, marginBottom: 16 }}>🚗</div>
+                    <div style={{ fontWeight: 700, fontSize: 20, color: '#0f172a' }}>Dönüş İçin Uygun Araç Bulunamadı</div>
+                    <div style={{ color: '#64748b', marginTop: 8 }}>Farklı tarih veya saat deneyin</div>
+                    <Button type="primary" style={{ marginTop: 16 }} onClick={() => { proceedToDetails(selectedVehicle!, null); }}>
+                        Dönüş Olmadan Devam Et
+                    </Button>
+                </div>
+            ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                    {returnResults.map((result, idx) => (
+                        <div key={result.id} style={{
+                            background: '#fff', borderRadius: 18, overflow: 'hidden',
+                            border: '1px solid #f1f5f9', display: 'flex',
+                            boxShadow: '0 2px 12px rgba(0,0,0,0.05)', transition: 'all 0.22s ease'
+                        }}
+                        onMouseEnter={e => {
+                            (e.currentTarget as HTMLDivElement).style.boxShadow = '0 8px 28px rgba(245,158,11,0.14)';
+                            (e.currentTarget as HTMLDivElement).style.border = '1px solid rgba(245,158,11,0.25)';
+                            (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-2px)';
+                        }}
+                        onMouseLeave={e => {
+                            (e.currentTarget as HTMLDivElement).style.boxShadow = '0 2px 12px rgba(0,0,0,0.05)';
+                            (e.currentTarget as HTMLDivElement).style.border = '1px solid #f1f5f9';
+                            (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)';
+                        }}>
+                            {/* Image */}
+                            <div style={{
+                                width: 210, flexShrink: 0, minHeight: 155,
+                                background: result.isShuttle ? 'linear-gradient(135deg, #ecfdf5, #d1fae5)' : 'linear-gradient(135deg, #fef3c7, #fde68a)',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                position: 'relative', overflow: 'hidden'
+                            }}>
+                                {result.image
+                                    ? <img src={result.image} alt={result.vehicleType} style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.9 }} />
+                                    : <CarOutlined style={{ fontSize: 54, color: result.isShuttle ? '#059669' : '#f59e0b', opacity: 0.25 }} />}
+                                <div style={{ position: 'absolute', top: 10, left: 10, display: 'flex', flexDirection: 'column', gap: 5 }}>
+                                    <span style={{
+                                        background: result.isShuttle ? 'linear-gradient(135deg,#059669,#10b981)' : 'linear-gradient(135deg,#f59e0b,#fbbf24)',
+                                        color: '#fff', padding: '3px 11px', borderRadius: 50, fontSize: 10, fontWeight: 800
+                                    }}>{result.vehicleType}</span>
+                                    <span style={{ background: 'rgba(0,0,0,0.6)', color: '#fff', padding: '3px 10px', borderRadius: 50, fontSize: 10, fontWeight: 700 }}>↩ Dönüş</span>
+                                </div>
+                            </div>
+
+                            {/* Middle Info */}
+                            <div style={{ flex: 1, padding: '20px 24px', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 10 }}>
+                                <div>
+                                    <div style={{ fontSize: 19, fontWeight: 800, color: '#0f172a' }}>{result.vehicleType}</div>
+                                    <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>
+                                        Sağlayıcı: <span style={{ color: '#475569', fontWeight: 600 }}>{result.vendor}</span>
+                                        {result.isShuttle && <span style={{ marginLeft: 8, background: '#ecfdf5', color: '#059669', border: '1px solid #a7f3d0', padding: '1px 8px', borderRadius: 50, fontSize: 11 }}>Paylaşımlı</span>}
+                                    </div>
+                                </div>
+                                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                                    <span style={{ display:'flex', alignItems:'center', gap:5, background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:9, padding:'5px 12px', fontSize:12, fontWeight:600, color:'#374151' }}>
+                                        👤 {result.capacity} Yolcu
+                                    </span>
+                                    <span style={{ display:'flex', alignItems:'center', gap:5, background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:9, padding:'5px 12px', fontSize:12, fontWeight:600, color:'#374151' }}>
+                                        🧳 {result.luggage} Bavul
+                                    </span>
+                                </div>
+                            </div>
+
+                            {/* Price Panel */}
+                            <div style={{
+                                width: 195, flexShrink: 0,
+                                background: 'linear-gradient(180deg, #78350f 0%, #92400e 100%)',
+                                display: 'flex', flexDirection: 'column',
+                                justifyContent: 'center', alignItems: 'center',
+                                padding: '20px 16px', gap: 2
+                            }}>
+                                <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.45)', textTransform:'uppercase', letterSpacing:1, marginBottom: 2 }}>Dönüş Fiyatı</div>
+                                <div style={{ fontSize: 30, fontWeight: 900, color: '#fff', lineHeight: 1 }}>
+                                    {getCurrencySymbol(result.currency)}{result.price.toLocaleString('tr-TR')}
+                                </div>
+                                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginBottom: 4 }}>{result.currency}</div>
+                                <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', marginBottom: 8 }}>
+                                    Toplam: {getCurrencySymbol(result.currency)}{((selectedVehicle?.price || 0) + result.price).toLocaleString('tr-TR')}
+                                </div>
+                                <button onClick={() => handleSelectReturnVehicle(result)} style={{
+                                    width: '100%', padding: '10px 0',
+                                    background: 'linear-gradient(135deg,#f59e0b,#fbbf24)',
+                                    color: '#fff', border: 'none', borderRadius: 11,
+                                    fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                                    boxShadow: '0 4px 14px rgba(245,158,11,0.45)', transition: 'all 0.18s'
+                                }}
+                                onMouseEnter={e => (e.currentTarget.style.transform = 'scale(1.04)')}
+                                onMouseLeave={e => (e.currentTarget.style.transform = 'scale(1)')}>
+                                    Seç ve İlerle →
+                                </button>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+
     const renderDetailsStep = () => (
         <div style={{ maxWidth: 920, margin: '0 auto' }}>
             {/* Vehicle Summary Header */}
@@ -935,7 +1161,7 @@ const AgencyNewTransferPage = () => {
                     display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap',
                     boxShadow: '0 8px 32px rgba(0,0,0,0.22)'
                 }}>
-                    <Button icon={<ArrowLeftOutlined />} onClick={() => setCurrentStep('results')}
+                    <Button icon={<ArrowLeftOutlined />} onClick={() => setCurrentStep(returnSelectedVehicle ? 'return-results' : 'results')}
                         style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.18)', color: '#fff', borderRadius: 10, flexShrink: 0 }}>
                         Araçlara Dön
                     </Button>
@@ -962,11 +1188,16 @@ const AgencyNewTransferPage = () => {
                         </div>
                     </div>
                     <div style={{ textAlign: 'center', flexShrink: 0 }}>
-                        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: 1 }}>B2B Fiyat</div>
-                        <div style={{ fontSize: 28, fontWeight: 900, color: '#818cf8', lineHeight: 1.1 }}>
-                            {getCurrencySymbol(selectedVehicle.currency)}{selectedVehicle.price.toLocaleString('tr-TR')}
+                        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: 1 }}>
+                            {returnSelectedVehicle ? 'Toplam B2B' : 'B2B Fiyat'}
                         </div>
-                        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>{selectedVehicle.currency}</div>
+                        <div style={{ fontSize: 28, fontWeight: 900, color: '#818cf8', lineHeight: 1.1 }}>
+                            {getCurrencySymbol(selectedVehicle.currency)}{((selectedVehicle.price || 0) + (returnSelectedVehicle?.price || 0)).toLocaleString('tr-TR')}
+                        </div>
+                        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>
+                            {selectedVehicle.currency}
+                            {returnSelectedVehicle && ' (Gidiş + Dönüş)'}
+                        </div>
                     </div>
                 </div>
             )}
@@ -1030,12 +1261,27 @@ const AgencyNewTransferPage = () => {
                         </Col>
                         <Col xs={24} md={12}>
                             <Form.Item name="passengers" label={<span style={{ fontWeight: 600, color: '#374151', fontSize: 13 }}>Yolcu Sayısı</span>} rules={[{ required: true }]}>
-                                <InputNumber min={1} max={selectedVehicle?.capacity || 50} style={{ width: '100%', borderRadius: 10 }} size="large"
+                                <InputNumber min={1} max={selectedVehicle?.isShuttle ? 50 : (selectedVehicle?.capacity || 50)} style={{ width: '100%', borderRadius: 10 }} size="large"
                                     onChange={(val) => {
                                         if (!val) return;
                                         const currentList = form.getFieldValue('passengersList') || [];
                                         const newList = Array.from({ length: Math.max(0, val - 1) }, (_, i) => currentList[i] || { firstName: '', lastName: '', nationality: '' });
                                         form.setFieldsValue({ passengersList: newList });
+
+                                        // Recalculate price for shuttle (per-person pricing)
+                                        if (selectedVehicle?.isShuttle) {
+                                            const originalPax = passengerCounts.adults + passengerCounts.children + passengerCounts.babies;
+                                            const pricePerPerson = (selectedVehicle.price || 0) / (originalPax || 1);
+                                            let newPrice = Math.round(pricePerPerson * val * 100) / 100;
+                                            // Add return vehicle price if round trip
+                                            if (returnSelectedVehicle?.isShuttle) {
+                                                const returnPricePerPerson = (returnSelectedVehicle.price || 0) / (originalPax || 1);
+                                                newPrice += Math.round(returnPricePerPerson * val * 100) / 100;
+                                            } else if (returnSelectedVehicle) {
+                                                newPrice += returnSelectedVehicle.price;
+                                            }
+                                            form.setFieldsValue({ amount: newPrice });
+                                        }
                                     }}
                                 />
                             </Form.Item>
@@ -1232,9 +1478,9 @@ const AgencyNewTransferPage = () => {
                     <Form.Item name="amount"
                         label={<span style={{ color: 'rgba(255,255,255,0.7)', fontWeight: 600, fontSize: 13 }}>Müşteriden Alınacak Tutar</span>}
                         rules={[{ required: true, message: 'Satış tutarı zorunludur' }]}
-                        extra={<span style={{ color: 'rgba(255,255,255,0.35)', fontSize: 12 }}>B2B maliyet: {getCurrencySymbol(selectedVehicle?.currency || 'TRY')}{(selectedVehicle?.basePrice || selectedVehicle?.price || 0).toLocaleString('tr-TR')}</span>}
+                        extra={<span style={{ color: 'rgba(255,255,255,0.35)', fontSize: 12 }}>B2B maliyet: {getCurrencySymbol(selectedVehicle?.currency || 'TRY')}{((selectedVehicle?.basePrice || selectedVehicle?.price || 0) + (returnSelectedVehicle?.basePrice || returnSelectedVehicle?.price || 0)).toLocaleString('tr-TR')}{returnSelectedVehicle ? ' (Gidiş+Dönüş)' : ''}</span>}
                         style={{ marginBottom: 0 }}>
-                        <InputNumber min={selectedVehicle?.basePrice || selectedVehicle?.price || 0} style={{ width: '100%', borderRadius: 10 }} size="large"
+                        <InputNumber min={(selectedVehicle?.basePrice || selectedVehicle?.price || 0) + (returnSelectedVehicle?.basePrice || returnSelectedVehicle?.price || 0)} style={{ width: '100%', borderRadius: 10 }} size="large"
                             addonAfter={<span style={{ fontWeight: 700, color: '#fff' }}>{selectedVehicle?.currency || 'TRY'}</span>} />
                     </Form.Item>
                 </div>
@@ -1352,7 +1598,7 @@ const AgencyNewTransferPage = () => {
                 <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
                     <button onClick={() => {
                         form.resetFields(); setCurrentStep('search');
-                        setPickup(''); setDropoff(''); setDate(null); setSelectedVehicle(null);
+                        setPickup(''); setDropoff(''); setDate(null); setSelectedVehicle(null); setReturnSelectedVehicle(null);
                     }} style={{
                         padding: '14px 32px', borderRadius: 14, border: 'none', cursor: 'pointer',
                         background: 'linear-gradient(135deg, #623ce4, #8b5cf6)', color: '#fff',
@@ -1403,6 +1649,7 @@ const AgencyNewTransferPage = () => {
                 }}>
                     {currentStep === 'search' && renderSearchStep()}
                     {currentStep === 'results' && renderResultsStep()}
+                    {currentStep === 'return-results' && renderReturnResultsStep()}
                     {currentStep === 'details' && renderDetailsStep()}
                     {currentStep === 'success' && renderSuccessStep()}
                 </div>
