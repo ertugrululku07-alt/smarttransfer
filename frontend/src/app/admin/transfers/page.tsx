@@ -14,7 +14,7 @@ import {
     FilterOutlined, SettingOutlined, FileExcelOutlined, FilePdfOutlined,
     FilterFilled, ClearOutlined, BgColorsOutlined, ReloadOutlined as ResetOutlined,
     EditOutlined, RocketOutlined, MoreOutlined, ThunderboltOutlined, HolderOutlined,
-    PlusOutlined, MinusOutlined, DeleteOutlined, DollarOutlined
+    PlusOutlined, MinusOutlined, DeleteOutlined, DollarOutlined, HistoryOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import 'dayjs/locale/tr';
@@ -29,6 +29,7 @@ import autoTable from 'jspdf-autotable';
 import { Resizable } from 'react-resizable';
 import DynamicLocationSearchInput from '@/app/components/DynamicLocationSearchInput';
 import MapPickerModal from '@/app/components/MapPickerModal';
+import BookingLogModal from '../components/BookingLogModal';
 
 dayjs.locale('tr');
 const { Title, Text } = Typography;
@@ -545,6 +546,11 @@ const TransfersPage: React.FC = () => {
     // Map picker for pickup/dropoff
     const [paxMapModalOpen, setPaxMapModalOpen] = useState(false);
     const [paxMapTarget, setPaxMapTarget] = useState<'pickup' | 'dropoff' | null>(null);
+
+    // Booking log modal state
+    const [logModalOpen, setLogModalOpen] = useState(false);
+    const [logBookingId, setLogBookingId] = useState<string | null>(null);
+    const [logBookingNumber, setLogBookingNumber] = useState<string>('');
 
     const saveCellEdit = async (bookingId: string, field: string, value: any) => {
         setCellSaving(true);
@@ -1360,6 +1366,7 @@ const TransfersPage: React.FC = () => {
               const items: MenuProps['items'] = [
                   {key:'detail',label:'Detaylar',icon:<EyeOutlined/>,onClick:()=>{setSelectedBooking(record);setDetailModalVisible(true);}},
                   {key:'editPax',label:'Rezervasyonu Düzenle',icon:<EditOutlined style={{color:'#6366f1'}}/>,onClick:()=>openPaxModal(record)},
+                  {key:'log',label:'Log',icon:<HistoryOutlined style={{color:'#8b5cf6'}}/>,onClick:()=>{setLogBookingId(record.id);setLogBookingNumber(record.bookingNumber);setLogModalOpen(true);}},
               ];
               if (record.status==='PENDING') {
                   items.push({type:'divider'} as any);
@@ -2396,6 +2403,14 @@ const TransfersPage: React.FC = () => {
                         body { background:white!important; }
                     }
                 `}</style>
+
+                {/* Booking Log Modal */}
+                <BookingLogModal
+                    open={logModalOpen}
+                    bookingId={logBookingId}
+                    bookingNumber={logBookingNumber}
+                    onClose={() => setLogModalOpen(false)}
+                />
 
             </AdminLayout>
         </AdminGuard>

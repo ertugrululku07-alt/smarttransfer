@@ -1941,6 +1941,54 @@ router.post('/book', optionalAuthMiddleware, async (req, res) => {
         }
         // -----------------------------------
 
+        // ── Explicit Activity Log for customer booking creation ──
+        try {
+            const { logActivity } = require('../utils/logger');
+            const source = outboundBooking.bookingType || 'WEB';
+            const paxName = outboundBooking.contactName || 'Misafir';
+            await logActivity({
+                tenantId,
+                userId: userId || null,
+                userEmail: outboundBooking.contactEmail || null,
+                action: 'CREATE_BOOKING',
+                entityType: 'Booking',
+                entityId: outboundBooking.id,
+                details: {
+                    message: `${paxName} — ${outboundBooking.bookingNumber} rezervasyonu oluşturuldu. (${source})`,
+                    bookingNumber: outboundBooking.bookingNumber,
+                    source,
+                    pickup: outboundBooking.metadata?.pickup,
+                    dropoff: outboundBooking.metadata?.dropoff,
+                    vehicleType: outboundBooking.metadata?.vehicleType,
+                    price: Number(outboundBooking.total || 0),
+                    currency: outboundBooking.currency || 'TRY',
+                    returnBookingId: returnBooking?.id || null,
+                    returnBookingNumber: returnBooking?.bookingNumber || null
+                },
+                ipAddress: req.headers['x-forwarded-for'] || req.socket?.remoteAddress
+            });
+            // Log return booking separately if exists
+            if (returnBooking) {
+                await logActivity({
+                    tenantId,
+                    userId: userId || null,
+                    userEmail: outboundBooking.contactEmail || null,
+                    action: 'CREATE_BOOKING',
+                    entityType: 'Booking',
+                    entityId: returnBooking.id,
+                    details: {
+                        message: `${paxName} — ${returnBooking.bookingNumber} dönüş rezervasyonu oluşturuldu.`,
+                        bookingNumber: returnBooking.bookingNumber,
+                        source,
+                        linkedOutbound: outboundBooking.bookingNumber
+                    },
+                    ipAddress: req.headers['x-forwarded-for'] || req.socket?.remoteAddress
+                });
+            }
+        } catch (logErr) {
+            console.error('[BookingLog] Create log failed:', logErr.message);
+        }
+
         res.status(201).json({
             success: true,
             data: {
@@ -2968,6 +3016,52 @@ router.patch('/bookings/:id', authMiddleware, async (req, res) => {
             }
         }
 
+        // ── Explicit Activity Log ──
+        try {
+            const { logActivity } = require('../utils/logger');
+            const changes = [];
+            if (driverId !== undefined) {
+                if (driverId) {
+                    const driverInfo = await prisma.user.findUnique({ where: { id: driverId }, select: { fullName: true } });
+                    changes.push(`Şoför atandı: ${driverInfo?.fullName || driverId}`);
+                } else {
+                    changes.push('Şoför kaldırıldı');
+                }
+            }
+            if (resolvedVehicleId) changes.push(`Araç atandı: ${resolvedVehicleId}`);
+            if (contactName !== undefined) changes.push(`İsim: ${req._auditPreviousState?.contactName} → ${contactName}`);
+            if (contactPhone !== undefined) changes.push(`Telefon: ${req._auditPreviousState?.contactPhone} → ${contactPhone}`);
+            if (pickupDateTime !== undefined) changes.push(`Transfer zamanı güncellendi`);
+            if (pickupLocation !== undefined) changes.push(`Alış yeri: ${pickupLocation}`);
+            if (dropoffLocation !== undefined) changes.push(`Bırakış yeri: ${dropoffLocation}`);
+            if (flightNumber !== undefined) changes.push(`Uçuş no: ${flightNumber}`);
+            if (price !== undefined) changes.push(`Fiyat: ${req._auditPreviousState?.price} → ${price}`);
+            if (newStatus !== undefined) changes.push(`Durum: ${req._auditPreviousState?.status} → ${newStatus}`);
+            if (operationalStatus !== undefined) changes.push(`Operasyon durumu: ${operationalStatus}`);
+            if (internalNotes !== undefined) changes.push(`İç not güncellendi`);
+            if (returnToReservation) changes.push(`Rezervasyona iade edildi: ${returnReason || '-'}`);
+            if (adults !== undefined || children !== undefined || infants !== undefined) changes.push(`Yolcu sayısı güncellendi: ${adults||'-'}Y ${children||0}Ç ${infants||0}B`);
+            if (passengerDetails) changes.push(`Yolcu detayları güncellendi`);
+
+            await logActivity({
+                tenantId: req.tenant?.id,
+                userId: req.user?.id,
+                userEmail: req.user?.email,
+                action: driverId !== undefined ? 'ASSIGN_DRIVER' : returnToReservation ? 'RETURN_TO_RESERVATION' : 'UPDATE_BOOKING',
+                entityType: 'Booking',
+                entityId: id,
+                details: {
+                    message: changes.join(' | ') || 'Rezervasyon güncellendi',
+                    changes,
+                    previousState: req._auditPreviousState,
+                    bookingNumber: updated.bookingNumber
+                },
+                ipAddress: req.headers['x-forwarded-for'] || req.socket?.remoteAddress
+            });
+        } catch (logErr) {
+            console.error('[BookingLog] Failed:', logErr.message);
+        }
+
         res.json({ success: true, data: updated });
     } catch (error) {
         console.error('Update booking patch error:', error);
@@ -3121,6 +3215,30 @@ router.post('/bookings/admin', authMiddleware, async (req, res) => {
             } catch (waErr) {
                 console.error('[WHATSAPP] Voucher setup failed:', waErr.message);
             }
+        }
+
+        // ── Explicit Activity Log for creation ──
+        try {
+            const { logActivity } = require('../utils/logger');
+            await logActivity({
+                tenantId,
+                userId: req.user?.id,
+                userEmail: req.user?.email,
+                action: 'CREATE_BOOKING',
+                entityType: 'Booking',
+                entityId: finalBooking.id,
+                details: {
+                    message: `${passengerName || 'Misafir'} — ${finalBooking.bookingNumber} rezervasyonu oluşturuldu.${agencyId ? ' (Acente: ' + (agencyName || agencyId) + ')' : ''}`,
+                    bookingNumber: finalBooking.bookingNumber,
+                    source: agencyId ? 'B2B' : 'SYSTEM',
+                    pickup, dropoff, vehicleType,
+                    price: Number(price || 0),
+                    currency: currency || 'TRY'
+                },
+                ipAddress: req.headers['x-forwarded-for'] || req.socket?.remoteAddress
+            });
+        } catch (logErr) {
+            console.error('[BookingLog] Create log failed:', logErr.message);
         }
 
         res.json({ success: true, data: finalBooking });
@@ -3526,22 +3644,52 @@ router.put('/bookings/:id/status', authMiddleware, async (req, res) => {
                 }
             }
 
-            // Custom Auditing for Cancellations
-            if (status === 'CANCELLED') {
+            // Custom Auditing for all status changes
+            {
                 const { logActivity } = require('../utils/logger');
-                const guestName = currentBooking.fullName || currentBooking.metadata?.passengerName || 'Misafir';
-                const logMsg = `${guestName} isimli kişinin ${currentBooking.bookingNumber || id} numaralı rezervasyonu iptal edildi.`;
-                
+                const guestName = currentBooking.contactName || currentBooking.fullName || currentBooking.metadata?.passengerName || 'Misafir';
+                const pnr = currentBooking.bookingNumber || id;
+                let logAction = 'UPDATE_BOOKING_STATUS';
+                let logMsg = '';
+
+                if (status === 'CANCELLED') {
+                    logAction = 'CANCEL_BOOKING';
+                    const reason = req.body.cancellationReason || '';
+                    const note = req.body.cancellationNote || '';
+                    logMsg = `${guestName} — ${pnr} rezervasyonu iptal edildi.${reason ? ' Sebep: ' + reason : ''}${note ? ' Not: ' + note : ''}`;
+                } else if (status === 'CONFIRMED' && subStatus === 'IN_OPERATION') {
+                    logAction = 'CONFIRM_TO_OPERATION';
+                    logMsg = `${guestName} — ${pnr} onaylandı ve operasyona aktarıldı.`;
+                } else if (status === 'CONFIRMED' && subStatus === 'IN_POOL') {
+                    logAction = 'CONFIRM_TO_POOL';
+                    logMsg = `${guestName} — ${pnr} onaylandı ve havuza aktarıldı.${poolPrice ? ' Havuz fiyatı: ' + poolPrice : ''}`;
+                } else if (status === 'CONFIRMED') {
+                    logAction = 'CONFIRM_BOOKING';
+                    logMsg = `${guestName} — ${pnr} onaylandı.`;
+                } else if (status === 'COMPLETED') {
+                    logAction = 'COMPLETE_BOOKING';
+                    logMsg = `${guestName} — ${pnr} tamamlandı.`;
+                } else if (status === 'NO_SHOW') {
+                    logAction = 'NO_SHOW_BOOKING';
+                    logMsg = `${guestName} — ${pnr} gelmedi olarak işaretlendi.`;
+                } else {
+                    logMsg = `${guestName} — ${pnr} durum değişikliği: ${currentBooking.status} → ${status}${subStatus ? ' (' + subStatus + ')' : ''}`;
+                }
+
                 await logActivity({
                     tenantId: req.tenant.id,
                     userId: req.user?.id,
                     userEmail: req.user?.email,
-                    action: 'CANCEL_BOOKING',
+                    action: logAction,
                     entityType: 'Booking',
                     entityId: id,
-                    details: { 
+                    details: {
                         message: logMsg,
-                        previousState: currentBooking 
+                        previousStatus: currentBooking.status,
+                        newStatus: status,
+                        subStatus: subStatus || null,
+                        previousState: req._auditPreviousState,
+                        bookingNumber: pnr
                     },
                     ipAddress: req.headers['x-forwarded-for'] || req.socket?.remoteAddress
                 });

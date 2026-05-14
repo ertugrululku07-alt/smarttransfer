@@ -476,6 +476,27 @@ router.post('/bookings', authMiddleware, agencyMiddleware, async (req, res) => {
             }
         }
 
+        // ── Activity Log ──
+        try {
+            const { logActivity } = require('../utils/logger');
+            await logActivity({
+                tenantId: req.tenant.id,
+                userId: req.user?.id,
+                userEmail: req.user?.email,
+                action: 'CREATE_BOOKING',
+                entityType: 'Booking',
+                entityId: booking.id,
+                details: {
+                    message: `${contactName || 'Misafir'} — ${booking.bookingNumber} acente rezervasyonu oluşturuldu.`,
+                    bookingNumber: booking.bookingNumber,
+                    source: 'B2B',
+                    agencyName: req.agencyName || null,
+                    price: Number(amount || providerPrice || 0)
+                },
+                ipAddress: req.headers['x-forwarded-for'] || req.socket?.remoteAddress
+            });
+        } catch (logErr) { console.error('[BookingLog]', logErr.message); }
+
         res.json({ success: true, data: booking });
     } catch (error) {
         console.error('Agency booking error:', error);
@@ -560,6 +581,33 @@ router.put('/bookings/:id', authMiddleware, agencyMiddleware, async (req, res) =
                 metadata: updatedMetadata
             }
         });
+
+        // ── Activity Log ──
+        try {
+            const { logActivity } = require('../utils/logger');
+            const changes = [];
+            if (contactName && contactName !== booking.contactName) changes.push(`İsim: ${booking.contactName} → ${contactName}`);
+            if (contactPhone && contactPhone !== booking.contactPhone) changes.push(`Telefon: ${booking.contactPhone} → ${contactPhone}`);
+            if (flightNumber !== undefined) changes.push(`Uçuş no: ${flightNumber}`);
+            if (agencyNotes !== undefined) changes.push(`Not güncellendi`);
+            if (pickup !== undefined) changes.push(`Alış yeri: ${pickup}`);
+            if (dropoff !== undefined) changes.push(`Bırakış yeri: ${dropoff}`);
+            await logActivity({
+                tenantId: req.tenant.id,
+                userId: req.user?.id,
+                userEmail: req.user?.email,
+                action: 'UPDATE_BOOKING',
+                entityType: 'Booking',
+                entityId: id,
+                details: {
+                    message: `${updated.contactName} — ${booking.bookingNumber || id} acente tarafından düzenlendi.`,
+                    changes,
+                    bookingNumber: booking.bookingNumber,
+                    source: 'B2B'
+                },
+                ipAddress: req.headers['x-forwarded-for'] || req.socket?.remoteAddress
+            });
+        } catch (logErr) { console.error('[BookingLog]', logErr.message); }
 
         res.json({ success: true, data: updated });
     } catch (error) {
@@ -665,6 +713,27 @@ router.put('/bookings/:id/cancel', authMiddleware, agencyMiddleware, async (req,
                 }
             }
         });
+
+        // ── Activity Log ──
+        try {
+            const { logActivity } = require('../utils/logger');
+            await logActivity({
+                tenantId: req.tenant.id,
+                userId: req.user?.id,
+                userEmail: req.user?.email,
+                action: 'CANCEL_BOOKING',
+                entityType: 'Booking',
+                entityId: id,
+                details: {
+                    message: `${booking.contactName || 'Misafir'} — ${booking.bookingNumber} acente tarafından iptal edildi.${canRefund ? ` ${b2bCost} ${bookingCurrency} iade edildi.` : ''}`,
+                    bookingNumber: booking.bookingNumber,
+                    refunded: canRefund,
+                    refundAmount: canRefund ? b2bCost : 0,
+                    source: 'B2B'
+                },
+                ipAddress: req.headers['x-forwarded-for'] || req.socket?.remoteAddress
+            });
+        } catch (logErr) { console.error('[BookingLog]', logErr.message); }
 
         res.json({
             success: true,
