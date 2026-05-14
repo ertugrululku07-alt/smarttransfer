@@ -89,6 +89,19 @@ export default function BookingVoucher({ booking, tenant, agency, pickup: pickup
                     </div>
                 </Col>
                 <Col style={{ textAlign: 'right' }}>
+                    {branding.logoUrl && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                            src={(() => {
+                                const url = getImageUrl(branding.logoUrl);
+                                if (url && url.startsWith('/uploads')) return `https://api.jet2home.com${url}`;
+                                return url;
+                            })()}
+                            alt={branding.companyName || 'Firma Logosu'}
+                            style={{ height: 50, maxWidth: 180, objectFit: 'contain', display: 'block', marginLeft: 'auto', marginBottom: 8 }}
+                            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                        />
+                    )}
                     <Title level={2} style={{ margin: 0, color: '#1890ff' }}>TRANSFER VOUCHER</Title>
                     <div style={{ marginTop: 8 }}>
                         <Text strong style={{ display: 'block' }}>PNR / Ref: {booking.bookingNumber}</Text>
