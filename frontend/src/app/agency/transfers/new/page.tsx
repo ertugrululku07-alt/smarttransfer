@@ -112,6 +112,7 @@ const AgencyNewTransferPage = () => {
     const [form] = Form.useForm();
     const [extraServicesList, setExtraServicesList] = useState<any[]>([]);
     const [loadingExtraServices, setLoadingExtraServices] = useState(false);
+    const [computedB2BCost, setComputedB2BCost] = useState(0);
     const [agencyBalance, setAgencyBalance] = useState<number>(0);
     const [agencyInfo, setAgencyInfo] = useState<any>(null);
     const [tenantInfo, setTenantInfo] = useState<any>(null);
@@ -310,6 +311,48 @@ const AgencyNewTransferPage = () => {
         return convertCurrency(markedUpPrice, serviceCurrency, bookingCurrency);
     };
 
+    // Get the B2B (raw, no markup) price of an extra service in booking currency
+    const getExtraServiceB2BPrice = (service: any) => {
+        const rawPrice = Number(service.price || 0);
+        const serviceCurrency = service.currency || 'TRY';
+        const bookingCurrency = selectedVehicle?.currency || 'TRY';
+        return convertCurrency(rawPrice, serviceCurrency, bookingCurrency);
+    };
+
+    // Calculate total B2B cost dynamically based on current passengers and extras
+    const calcB2BCost = (paxCount?: number, extrasOverride?: any[]) => {
+        const originalPax = passengerCounts.adults + passengerCounts.children + passengerCounts.babies;
+        const pax = paxCount || originalPax;
+        const extras = extrasOverride || extraServicesList;
+
+        // Vehicle cost
+        let vehicleCost = selectedVehicle?.basePrice || selectedVehicle?.price || 0;
+        if (selectedVehicle?.isShuttle) {
+            const perPerson = vehicleCost / (originalPax || 1);
+            vehicleCost = Math.round(perPerson * pax * 100) / 100;
+        }
+
+        // Return vehicle cost
+        if (returnSelectedVehicle) {
+            let returnCost = returnSelectedVehicle.basePrice || returnSelectedVehicle.price || 0;
+            if (returnSelectedVehicle.isShuttle) {
+                const perPerson = returnCost / (originalPax || 1);
+                returnCost = Math.round(perPerson * pax * 100) / 100;
+            }
+            vehicleCost += returnCost;
+        }
+
+        // Extras B2B cost (raw price, no markup)
+        let extrasCost = 0;
+        extras.forEach((s: any) => {
+            if (s.quantity > 0) {
+                extrasCost += getExtraServiceB2BPrice(s) * s.quantity;
+            }
+        });
+
+        return Math.round((vehicleCost + extrasCost) * 100) / 100;
+    };
+
     const fetchExtraServices = async () => {
         try {
             setLoadingExtraServices(true);
@@ -395,6 +438,10 @@ const AgencyNewTransferPage = () => {
         const returnPrice = returnVehicle ? returnVehicle.price : 0;
         const totalPrice = outboundPrice + returnPrice;
 
+        // Initialize B2B cost (no extras yet at this point)
+        const initialB2B = (outboundVehicle.basePrice || outboundVehicle.price || 0) + (returnVehicle ? (returnVehicle.basePrice || returnVehicle.price || 0) : 0);
+        setComputedB2BCost(initialB2B);
+
         form.setFieldsValue({
             startDate: fullDate,
             passengers: totalPax,
@@ -415,10 +462,7 @@ const AgencyNewTransferPage = () => {
 
             // B2B Pre-validation
             if (values.paymentMethod === 'BALANCE') {
-                let b2bCost = selectedVehicle.basePrice || selectedVehicle.price;
-                if (returnSelectedVehicle) {
-                    b2bCost += returnSelectedVehicle.basePrice || returnSelectedVehicle.price;
-                }
+                const b2bCost = computedB2BCost;
                 if (agencyBalance < b2bCost) {
                     message.error(`Yetersiz bakiye. Bu işlem için minimum ${b2bCost} ${selectedVehicle.currency} bakiye gerekmektedir.`);
                     setLoading(false);
@@ -451,11 +495,8 @@ const AgencyNewTransferPage = () => {
                 }
             }
 
-            // Calculate total B2B provider price (outbound + return if applicable)
-            let totalProviderPrice = selectedVehicle.basePrice || selectedVehicle.price;
-            if (returnSelectedVehicle) {
-                totalProviderPrice += returnSelectedVehicle.basePrice || returnSelectedVehicle.price;
-            }
+            // Use the dynamically computed B2B cost (includes passenger-adjusted shuttle pricing + extras)
+            const totalProviderPrice = computedB2BCost;
 
             const payload = {
                 ...values,
@@ -1280,8 +1321,15 @@ const AgencyNewTransferPage = () => {
                                             } else if (returnSelectedVehicle) {
                                                 newPrice += returnSelectedVehicle.price;
                                             }
-                                            form.setFieldsValue({ amount: newPrice });
+                                            // Add current extras cost (with markup) to the new amount
+                                            let extrasCustTotal = 0;
+                                            extraServicesList.forEach(s => {
+                                                if (s.quantity > 0) extrasCustTotal += getExtraServiceEffectivePrice(s) * s.quantity;
+                                            });
+                                            form.setFieldsValue({ amount: newPrice + extrasCustTotal });
                                         }
+                                        // Always recalculate B2B cost for new passenger count
+                                        setComputedB2BCost(calcB2BCost(val));
                                     }}
                                 />
                             </Form.Item>
@@ -1400,8 +1448,9 @@ const AgencyNewTransferPage = () => {
                                                 onClick={() => {
                                                     const nl = [...extraServicesList]; nl[index].quantity -= 1; setExtraServicesList(nl);
                                                     const effectivePrice = getExtraServiceEffectivePrice(service);
-                                                    const b2bMin = selectedVehicle?.basePrice || selectedVehicle?.price || 0;
-                                                    form.setFieldValue('amount', Math.max(b2bMin, (form.getFieldValue('amount') || selectedVehicle?.price || 0) - effectivePrice));
+                                                    const newB2B = calcB2BCost(form.getFieldValue('passengers'), nl);
+                                                    setComputedB2BCost(newB2B);
+                                                    form.setFieldValue('amount', Math.max(newB2B, (form.getFieldValue('amount') || selectedVehicle?.price || 0) - effectivePrice));
                                                 }}
                                                 style={{ width: 28, height: 28, borderRadius: 7, border: '1px solid #e2e8f0', background: service.quantity <= 0 ? '#f1f5f9' : '#fff', cursor: service.quantity <= 0 ? 'not-allowed' : 'pointer', fontSize: 16, fontWeight: 700, color: '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
                                             <span style={{ width: 24, textAlign: 'center', fontWeight: 700, fontSize: 14 }}>{service.quantity}</span>
@@ -1411,6 +1460,8 @@ const AgencyNewTransferPage = () => {
                                                     if (service.quantity >= maxQty) return;
                                                     const nl = [...extraServicesList]; nl[index].quantity += 1; setExtraServicesList(nl);
                                                     const effectivePrice = getExtraServiceEffectivePrice(service);
+                                                    const newB2B = calcB2BCost(form.getFieldValue('passengers'), nl);
+                                                    setComputedB2BCost(newB2B);
                                                     form.setFieldValue('amount', (form.getFieldValue('amount') || selectedVehicle?.price || 0) + effectivePrice);
                                                 }}
                                                 style={{ width: 28, height: 28, borderRadius: 7, border: 'none', background: 'linear-gradient(135deg,#10b981,#34d399)', cursor: 'pointer', fontSize: 16, fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
@@ -1478,9 +1529,9 @@ const AgencyNewTransferPage = () => {
                     <Form.Item name="amount"
                         label={<span style={{ color: 'rgba(255,255,255,0.7)', fontWeight: 600, fontSize: 13 }}>Müşteriden Alınacak Tutar</span>}
                         rules={[{ required: true, message: 'Satış tutarı zorunludur' }]}
-                        extra={<span style={{ color: 'rgba(255,255,255,0.35)', fontSize: 12 }}>B2B maliyet: {getCurrencySymbol(selectedVehicle?.currency || 'TRY')}{((selectedVehicle?.basePrice || selectedVehicle?.price || 0) + (returnSelectedVehicle?.basePrice || returnSelectedVehicle?.price || 0)).toLocaleString('tr-TR')}{returnSelectedVehicle ? ' (Gidiş+Dönüş)' : ''}</span>}
+                        extra={<span style={{ color: 'rgba(255,255,255,0.35)', fontSize: 12 }}>B2B maliyet: {getCurrencySymbol(selectedVehicle?.currency || 'TRY')}{computedB2BCost.toLocaleString('tr-TR')}{returnSelectedVehicle ? ' (Gidiş+Dönüş)' : ''}</span>}
                         style={{ marginBottom: 0 }}>
-                        <InputNumber min={(selectedVehicle?.basePrice || selectedVehicle?.price || 0) + (returnSelectedVehicle?.basePrice || returnSelectedVehicle?.price || 0)} style={{ width: '100%', borderRadius: 10 }} size="large"
+                        <InputNumber min={computedB2BCost} style={{ width: '100%', borderRadius: 10 }} size="large"
                             addonAfter={<span style={{ fontWeight: 700, color: '#fff' }}>{selectedVehicle?.currency || 'TRY'}</span>} />
                     </Form.Item>
                 </div>
