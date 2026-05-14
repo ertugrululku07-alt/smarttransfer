@@ -89,11 +89,11 @@ export default function BookingVoucher({ booking, tenant, agency, pickup: pickup
                     </div>
                 </Col>
                 <Col style={{ textAlign: 'right' }}>
-                    {branding.logoUrl && (
+                    {(branding.logoVariants?.voucher || branding.logoUrl) && (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
                             src={(() => {
-                                const url = getImageUrl(branding.logoUrl);
+                                const url = getImageUrl(branding.logoVariants?.voucher || branding.logoUrl);
                                 if (url && url.startsWith('/uploads')) return `https://api.jet2home.com${url}`;
                                 return url;
                             })()}

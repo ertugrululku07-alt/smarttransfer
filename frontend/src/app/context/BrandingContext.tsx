@@ -6,12 +6,21 @@ import axios from 'axios';
 const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000').replace(/[\r\n]+/g, '').trim();
 const TENANT_SLUG = (process.env.NEXT_PUBLIC_TENANT_SLUG || 'smarttravel-demo').replace(/[\r\n]+/g, '').trim();
 
+export interface LogoVariants {
+  original?: string;
+  header?: string;
+  favicon?: string;
+  voucher?: string;
+  email?: string;
+}
+
 export interface Branding {
   companyName: string;
   siteName: string;
   siteNameHighlight: string;
   slogan: string;
   logoUrl: string;
+  logoVariants?: LogoVariants | null;
   faviconUrl: string;
   phone: string;
   email: string;
@@ -29,6 +38,7 @@ const DEFAULT_BRANDING: Branding = {
   siteNameHighlight: '',
   slogan: '',
   logoUrl: '',
+  logoVariants: null,
   faviconUrl: '',
   phone: '',
   email: '',

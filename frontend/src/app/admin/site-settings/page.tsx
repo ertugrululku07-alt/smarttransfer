@@ -62,6 +62,7 @@ const SiteSettingsPage: React.FC = () => {
         siteNameHighlight: '',
         slogan: '',
         logoUrl: '',
+        logoVariants: null as any,
         faviconUrl: '',
         phone: '',
         email: '',
@@ -409,12 +410,18 @@ const SiteSettingsPage: React.FC = () => {
             setLogoUploading(true);
             const formData = new FormData();
             formData.append('file', file);
-            const res = await apiClient.post('/api/upload', formData, {
+            const res = await apiClient.post('/api/upload/logo', formData, {
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
             if (res.data.success) {
-                setBrandingData(prev => ({ ...prev, logoUrl: res.data.data.url }));
-                message.success('Logo yüklendi');
+                const { url, variants } = res.data.data;
+                setBrandingData(prev => ({
+                    ...prev,
+                    logoUrl: url,
+                    logoVariants: variants || null,
+                    faviconUrl: variants?.favicon || prev.faviconUrl
+                }));
+                message.success('Logo optimize edildi ve yüklendi');
             }
         } catch (error) {
             console.error('Logo upload error:', error);
@@ -560,8 +567,8 @@ const SiteSettingsPage: React.FC = () => {
                         <Row gutter={[24, 16]}>
                             <Col xs={24} md={12}>
                                 <Text type="secondary" style={{ display: 'block', marginBottom: 16 }}>
-                                    Firma logonuzu yükleyin. Logo, site başlığında (TopBar), footer ve belgelerde kullanılacaktır.
-                                    Önerilen boyut: 200x60 piksel, PNG veya SVG formatı.
+                                    Firma logonuzu yükleyin. Logo otomatik olarak tüm kullanım alanlarına uygun boyutlara optimize edilir.
+                                    Herhangi bir boyutta yükleyebilirsiniz — sistem otomatik hizalar.
                                 </Text>
                                 <Upload
                                     accept="image/*"
@@ -569,9 +576,24 @@ const SiteSettingsPage: React.FC = () => {
                                     beforeUpload={(file) => { handleLogoUpload(file); return false; }}
                                 >
                                     <Button icon={<UploadOutlined />} loading={logoUploading} size="large">
-                                        Logo Yükle
+                                        {logoUploading ? 'Optimize ediliyor...' : 'Logo Yükle'}
                                     </Button>
                                 </Upload>
+                                {brandingData.logoVariants && (
+                                    <div style={{ marginTop: 12, background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10, padding: '10px 14px' }}>
+                                        <Text style={{ fontSize: 12, color: '#16a34a', fontWeight: 600, display: 'block', marginBottom: 6 }}>✓ Logo optimize edildi — tüm varyantlar oluşturuldu:</Text>
+                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                                            {[
+                                                { key: 'header', label: 'Site Başlığı (200×60)' },
+                                                { key: 'voucher', label: 'Voucher (300×80)' },
+                                                { key: 'email', label: 'E-posta (200×50)' },
+                                                { key: 'favicon', label: 'Favicon (64×64)' },
+                                            ].map(v => brandingData.logoVariants[v.key] && (
+                                                <span key={v.key} style={{ background: '#dcfce7', color: '#15803d', borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 500 }}>{v.label}</span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                                 <div style={{ marginTop: 12 }}>
                                     <Text type="secondary" style={{ fontSize: 12 }}>veya URL girin:</Text>
                                     <Input
