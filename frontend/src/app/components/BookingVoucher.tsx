@@ -27,6 +27,15 @@ export default function BookingVoucher({ booking, tenant, agency, pickup: pickup
     const pickupLocation = booking.metadata?.pickup || pickupProp || 'Belirtilmedi';
     const dropoffLocation = booking.metadata?.dropoff || dropoffProp || 'Belirtilmedi';
 
+    // Round-trip support
+    const returnBooking = booking.returnBooking || null;
+    const isRoundTrip = !!returnBooking;
+    const returnPickup = returnBooking?.metadata?.pickup || dropoffLocation;
+    const returnDropoff = returnBooking?.metadata?.dropoff || pickupLocation;
+    const totalAmount = isRoundTrip
+        ? Number(booking.total || 0) + Number(returnBooking.total || 0)
+        : Number(booking.total || 0);
+
     // Agency logo & name - prefer agency logo over tenant, check all possible field names
     let agencyLogoRaw = agency?.logo || agency?.logoUrl || agency?.logoImage
         || tenant?.logoUrl || tenant?.logo || null;
@@ -139,15 +148,16 @@ export default function BookingVoucher({ booking, tenant, agency, pickup: pickup
                 </Col>
             </Row>
 
-            {/* Transfer Details */}
+            {/* Transfer Details — Outbound */}
             <Title level={5} style={{ color: '#1890ff', marginBottom: 16 }}>
-                <CarOutlined /> Transfer Detayları
+                <CarOutlined /> {isRoundTrip ? 'Gidiş Transferi' : 'Transfer Detayları'}
+                {isRoundTrip && <Tag color="blue" style={{ marginLeft: 8 }}>PNR: {booking.bookingNumber}</Tag>}
             </Title>
 
             <div style={{
                 borderLeft: '4px solid #1890ff',
                 paddingLeft: 20,
-                marginBottom: 30,
+                marginBottom: isRoundTrip ? 20 : 30,
                 background: '#fafafa',
                 padding: '16px 16px 16px 20px',
                 borderRadius: '0 8px 8px 0'
@@ -189,6 +199,51 @@ export default function BookingVoucher({ booking, tenant, agency, pickup: pickup
                 </Row>
             </div>
 
+            {/* Transfer Details — Return (only for round trip) */}
+            {isRoundTrip && (
+                <>
+                    <Title level={5} style={{ color: '#fa8c16', marginBottom: 16 }}>
+                        ↩️ Dönüş Transferi
+                        <Tag color="orange" style={{ marginLeft: 8 }}>PNR: {returnBooking.bookingNumber}</Tag>
+                    </Title>
+                    <div style={{
+                        borderLeft: '4px solid #fa8c16',
+                        paddingLeft: 20,
+                        marginBottom: 30,
+                        background: '#fffbe6',
+                        padding: '16px 16px 16px 20px',
+                        borderRadius: '0 8px 8px 0'
+                    }}>
+                        <Row gutter={[16, 12]}>
+                            <Col span={12}>
+                                <Text type="secondary" style={{ display: 'block', fontSize: 11 }}>Alış Noktası</Text>
+                                <Text strong style={{ fontSize: 15 }}>{returnPickup}</Text>
+                            </Col>
+                            <Col span={12}>
+                                <Text type="secondary" style={{ display: 'block', fontSize: 11 }}>Bırakış Noktası</Text>
+                                <Text strong style={{ fontSize: 15 }}>{returnDropoff}</Text>
+                            </Col>
+                            <Col span={12}>
+                                <Text type="secondary" style={{ display: 'block', fontSize: 11 }}>Tarih & Saat</Text>
+                                <Text strong style={{ fontSize: 15 }}>{dayjs(returnBooking.startDate).format('DD.MM.YYYY HH:mm')}</Text>
+                            </Col>
+                            <Col span={12}>
+                                <Text type="secondary" style={{ display: 'block', fontSize: 11 }}>Araç / Hizmet</Text>
+                                <Text strong style={{ fontSize: 15 }}>
+                                    {returnBooking.metadata?.vehicleType || 'VIP Transfer'}
+                                </Text>
+                            </Col>
+                            {returnBooking.metadata?.flightNumber && (
+                                <Col span={24}>
+                                    <Text type="secondary" style={{ display: 'block', fontSize: 11 }}>Uçuş Numarası</Text>
+                                    <Text strong>{returnBooking.metadata.flightNumber}</Text>
+                                </Col>
+                            )}
+                        </Row>
+                    </div>
+                </>
+            )}
+
             {/* Payment Summary */}
             <Row justify="end">
                 <Col span={12}>
@@ -196,10 +251,22 @@ export default function BookingVoucher({ booking, tenant, agency, pickup: pickup
                         <Title level={5} style={{ margin: 0, color: '#389e0d', marginBottom: 12 }}>
                             <CreditCardOutlined /> Ödeme Özeti
                         </Title>
+                        {isRoundTrip && (
+                            <>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, fontSize: 12 }}>
+                                    <Text type="secondary">Gidiş:</Text>
+                                    <Text>{Number(booking.total || 0).toLocaleString('tr-TR', { style: 'currency', currency: booking.currency || 'TRY' })}</Text>
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: 12 }}>
+                                    <Text type="secondary">Dönüş:</Text>
+                                    <Text>{Number(returnBooking.total || 0).toLocaleString('tr-TR', { style: 'currency', currency: returnBooking.currency || booking.currency || 'TRY' })}</Text>
+                                </div>
+                            </>
+                        )}
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                            <Text>Tutar:</Text>
+                            <Text strong>{isRoundTrip ? 'Toplam:' : 'Tutar:'}</Text>
                             <Text strong>
-                                {Number(booking.total || 0).toLocaleString('tr-TR', { style: 'currency', currency: booking.currency || 'TRY' })}
+                                {totalAmount.toLocaleString('tr-TR', { style: 'currency', currency: booking.currency || 'TRY' })}
                             </Text>
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between' }}>

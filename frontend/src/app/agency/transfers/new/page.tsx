@@ -498,6 +498,84 @@ const AgencyNewTransferPage = () => {
             // Use the dynamically computed B2B cost (includes passenger-adjusted shuttle pricing + extras)
             const totalProviderPrice = computedB2BCost;
 
+            // ── Round-trip price split ──
+            // Outbound = outbound vehicle B2B + extras (extras only on outbound).
+            // Return  = return vehicle B2B (no extras).
+            const totalCustomerPrice = Number(values.amount) || totalProviderPrice;
+            const isRound = tripType === 'ROUND_TRIP' && !!returnSelectedVehicle;
+            let outboundProvider = totalProviderPrice;
+            let outboundAmount = totalCustomerPrice;
+            let returnProvider = 0;
+            let returnAmount = 0;
+
+            if (isRound) {
+                const origPax = passengerCounts.adults + passengerCounts.children + passengerCounts.babies;
+                const curPax = Number(values.passengers) || origPax;
+
+                // Recompute per-leg B2B (passenger-adjusted for shuttles)
+                let outboundVehicleCost = selectedVehicle?.basePrice || selectedVehicle?.price || 0;
+                if (selectedVehicle?.isShuttle) {
+                    const perPerson = outboundVehicleCost / (origPax || 1);
+                    outboundVehicleCost = Math.round(perPerson * curPax * 100) / 100;
+                }
+                let returnVehicleCost = returnSelectedVehicle!.basePrice || returnSelectedVehicle!.price || 0;
+                if (returnSelectedVehicle!.isShuttle) {
+                    const perPerson = returnVehicleCost / (origPax || 1);
+                    returnVehicleCost = Math.round(perPerson * curPax * 100) / 100;
+                }
+
+                let extrasCost = 0;
+                extraServicesList.forEach((s: any) => {
+                    if (s.quantity > 0) extrasCost += getExtraServiceB2BPrice(s) * s.quantity;
+                });
+
+                outboundProvider = Math.round((outboundVehicleCost + extrasCost) * 100) / 100;
+                returnProvider = Math.round(returnVehicleCost * 100) / 100;
+
+                // Split customer price proportionally to provider cost (preserve markup)
+                const totalProv = outboundProvider + returnProvider;
+                if (totalProv > 0) {
+                    outboundAmount = Math.round(totalCustomerPrice * (outboundProvider / totalProv) * 100) / 100;
+                    returnAmount = Math.round((totalCustomerPrice - outboundAmount) * 100) / 100;
+                } else {
+                    outboundAmount = totalCustomerPrice;
+                    returnAmount = 0;
+                }
+            }
+
+            // Compute return startDate honoring airport buffer logic (reversed direction)
+            const computeReturnStartDate = () => {
+                if (!isRound || !returnDate) return null;
+                const baseTime = returnTimeValue || returnFlightTimeValue || dayjs().hour(12).minute(0);
+                let returnStart = returnDate
+                    .hour(baseTime.hour())
+                    .minute(baseTime.minute())
+                    .second(0)
+                    .millisecond(0);
+
+                // For return: pickup = original dropoff, dropoff = original pickup.
+                // Airport-dropoff for the return leg ↔ original pickup is airport.
+                const returnFlightTime = returnFlightTimeValue ? returnFlightTimeValue.format('HH:mm') : undefined;
+                if (returnFlightTime) {
+                    if (isAirportPickup) {
+                        // Return is going TO the airport → subtract buffer
+                        const durationMinutes = getDurationMinutes(routeStats?.duration ?? returnSelectedVehicle?.estimatedDuration);
+                        if (durationMinutes) {
+                            const isShuttle = !!returnSelectedVehicle?.isShuttle;
+                            const bufferHours = isShuttle ? 3 : 2;
+                            const totalBuffer = durationMinutes + (bufferHours * 60) + 30;
+                            const flightDate = dayjs(`${returnDate.format('YYYY-MM-DD')}T${returnFlightTime}`);
+                            returnStart = floorToNearest5(flightDate.subtract(totalBuffer, 'minute')).second(0).millisecond(0);
+                        }
+                    } else if (isAirportDropoff) {
+                        // Return is coming FROM the airport → pickup = landing time
+                        returnStart = dayjs(`${returnDate.format('YYYY-MM-DD')}T${returnFlightTime}`).second(0).millisecond(0);
+                    }
+                }
+                return returnStart;
+            };
+            const returnStartDate = computeReturnStartDate();
+
             const payload = {
                 ...values,
                 type: 'TRANSFER',
@@ -510,9 +588,9 @@ const AgencyNewTransferPage = () => {
                 startDate: startDateWithTime ? startDateWithTime.toISOString() : undefined,
                 vehicleId: selectedVehicle.id,
                 vehicleType: selectedVehicle.vehicleType,
-                providerPrice: totalProviderPrice,
+                providerPrice: outboundProvider,
                 currency: selectedVehicle.currency,
-                amount: values.amount,
+                amount: outboundAmount,
                 passengers: values.passengers || (passengerCounts.adults + passengerCounts.children + passengerCounts.babies),
                 passengersList: values.passengersList,
                 contactEmail: values.contactEmail || 'guest@example.com',
@@ -541,7 +619,25 @@ const AgencyNewTransferPage = () => {
                         currency: returnSelectedVehicle.currency
                     } : undefined,
                     returnDate: returnDate ? returnDate.hour(returnTimeValue?.hour() ?? 12).minute(returnTimeValue?.minute() ?? 0).second(0).toISOString() : undefined
-                }
+                },
+                ...(isRound && returnSelectedVehicle && returnStartDate ? {
+                    returnLeg: {
+                        startDate: returnStartDate.toISOString(),
+                        vehicleId: returnSelectedVehicle.id,
+                        vehicleType: returnSelectedVehicle.vehicleType,
+                        providerPrice: returnProvider,
+                        amount: returnAmount,
+                        // Reversed direction
+                        pickup: dropoff,
+                        dropoff: pickup,
+                        pickupLat: dropoffLocation?.lat,
+                        pickupLng: dropoffLocation?.lng,
+                        dropoffLat: pickupLocation?.lat,
+                        dropoffLng: pickupLocation?.lng,
+                        flightNumber: values.returnFlightNumber || undefined,
+                        flightTime: returnFlightTimeValue ? returnFlightTimeValue.format('HH:mm') : undefined,
+                    }
+                } : {})
             };
 
             const response = await apiClient.post('/api/agency/bookings', payload);
@@ -1603,7 +1699,7 @@ const AgencyNewTransferPage = () => {
                     <div style={{ background: 'rgba(255,255,255,0.95)', borderRadius: 20, padding: '24px 28px', boxShadow: '0 4px 20px rgba(0,0,0,0.07)', border: '1px solid rgba(255,255,255,0.9)' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
                             <div style={{ width: 40, height: 40, borderRadius: 12, background: 'linear-gradient(135deg, #f0fdf4, #dcfce7)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>🗺️</div>
-                            <div style={{ fontWeight: 700, color: '#1a1a2e', fontSize: 15 }}>Rota Bilgisi</div>
+                            <div style={{ fontWeight: 700, color: '#1a1a2e', fontSize: 15 }}>Gidiş Rotası</div>
                         </div>
                         <div style={{ fontSize: 13, color: '#6b7280', lineHeight: 1.8 }}>
                             <div>🛫 <strong>{pickup}</strong></div>
@@ -1614,7 +1710,7 @@ const AgencyNewTransferPage = () => {
                     <div style={{ background: 'rgba(255,255,255,0.95)', borderRadius: 20, padding: '24px 28px', boxShadow: '0 4px 20px rgba(0,0,0,0.07)', border: '1px solid rgba(255,255,255,0.9)' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
                             <div style={{ width: 40, height: 40, borderRadius: 12, background: 'linear-gradient(135deg, #eff6ff, #dbeafe)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>🕐</div>
-                            <div style={{ fontWeight: 700, color: '#1a1a2e', fontSize: 15 }}>Alınış Zamanı</div>
+                            <div style={{ fontWeight: 700, color: '#1a1a2e', fontSize: 15 }}>Gidiş Alınış Zamanı</div>
                         </div>
                         <div style={{ fontSize: 13, color: '#6b7280', lineHeight: 1.8 }}>
                             <div>📅 <strong>{date?.format('DD MMMM YYYY')}</strong></div>
@@ -1639,6 +1735,39 @@ const AgencyNewTransferPage = () => {
                         </div>
                     </div>
                 </div>
+
+                {/* Return Leg Info Cards (only for round trip) */}
+                {bookingResult?.returnBooking && (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24 }}>
+                        <div style={{ background: 'rgba(255,255,255,0.95)', borderRadius: 20, padding: '24px 28px', boxShadow: '0 4px 20px rgba(0,0,0,0.07)', border: '1px solid #fde68a' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+                                <div style={{ width: 40, height: 40, borderRadius: 12, background: 'linear-gradient(135deg, #fef3c7, #fde68a)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>↩️</div>
+                                <div style={{ fontWeight: 700, color: '#1a1a2e', fontSize: 15 }}>Dönüş Rotası</div>
+                            </div>
+                            <div style={{ fontSize: 13, color: '#6b7280', lineHeight: 1.8 }}>
+                                <div>🛫 <strong>{dropoff}</strong></div>
+                                <div style={{ marginLeft: 8, color: '#d1d5db' }}>↓</div>
+                                <div>🛬 <strong>{pickup}</strong></div>
+                                <div style={{ marginTop: 8, fontSize: 11, color: '#92400e' }}>
+                                    Rez. No: <strong>{bookingResult.returnBooking.bookingNumber}</strong>
+                                </div>
+                            </div>
+                        </div>
+                        <div style={{ background: 'rgba(255,255,255,0.95)', borderRadius: 20, padding: '24px 28px', boxShadow: '0 4px 20px rgba(0,0,0,0.07)', border: '1px solid #fde68a' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+                                <div style={{ width: 40, height: 40, borderRadius: 12, background: 'linear-gradient(135deg, #fef3c7, #fde68a)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>🕐</div>
+                                <div style={{ fontWeight: 700, color: '#1a1a2e', fontSize: 15 }}>Dönüş Alınış Zamanı</div>
+                            </div>
+                            <div style={{ fontSize: 13, color: '#6b7280', lineHeight: 1.8 }}>
+                                <div>📅 <strong>{dayjs(bookingResult.returnBooking.startDate).format('DD MMMM YYYY')}</strong></div>
+                                <div>⏰ Alınış: <strong style={{ color: '#d97706', fontSize: 15 }}>{dayjs(bookingResult.returnBooking.startDate).format('HH:mm')}</strong></div>
+                                {bookingResult.returnBooking.metadata?.flightTime && (
+                                    <div>✈️ Uçuş: <strong>{bookingResult.returnBooking.metadata.flightTime}</strong></div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {/* Voucher hidden */}
                 <div id="print-voucher-container" className="print-only-voucher" style={{ position: 'absolute', left: -9999, top: -9999, width: 0, height: 0, overflow: 'hidden' }}>

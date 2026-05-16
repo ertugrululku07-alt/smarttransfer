@@ -356,8 +356,111 @@ router.post('/bookings', authMiddleware, agencyMiddleware, async (req, res) => {
         if (dLat) metadata.dropoffLat = Number(dLat);
         if (dLng) metadata.dropoffLng = Number(dLng);
 
-        // Use transaction to create booking and deduct balance safely
-        const booking = await prisma.$transaction(async (tx) => {
+        // ── Round-trip support ──
+        // If client sent returnLeg, we will create a linked second booking (-D suffix).
+        const returnLeg = req.body.returnLeg || null;
+        const isRoundTrip = !!returnLeg;
+        const bookingCurrency = req.body.currency || 'TRY';
+
+        // Helper to build accounting transaction records for one leg
+        const recordLegAccounting = async (tx, leg, legBookingId, legBookingNumber) => {
+            const legNet = Number(leg.providerPrice) || 0;
+            const legTotal = Number(leg.amount) || legNet;
+
+            if (paymentMethod === 'BALANCE') {
+                await tx.agency.update({
+                    where: { id: req.agencyId },
+                    data: { balance: { decrement: legNet }, debit: { increment: legNet } }
+                });
+                await tx.transaction.create({
+                    data: {
+                        tenantId: req.tenant.id,
+                        accountId: `agency-${req.agencyId}`,
+                        type: 'PURCHASE_INVOICE',
+                        amount: legNet,
+                        currency: bookingCurrency,
+                        isCredit: false,
+                        description: `B2B Transfer Satın Alma – Bakiyeden (PNR: ${legBookingNumber})`,
+                        date: new Date(),
+                        referenceId: legBookingId
+                    }
+                });
+            }
+
+            const markup = legTotal - legNet;
+            if (markup > 0) {
+                await tx.transaction.create({
+                    data: {
+                        tenantId: req.tenant.id,
+                        accountId: `agency-${req.agencyId}`,
+                        type: 'SALES_INVOICE',
+                        amount: markup,
+                        currency: bookingCurrency,
+                        isCredit: true,
+                        description: `Acente Komisyon/Kâr (PNR: ${legBookingNumber})`,
+                        date: new Date(),
+                        referenceId: legBookingId
+                    }
+                });
+                await tx.agency.update({
+                    where: { id: req.agencyId },
+                    data: { credit: { increment: markup } }
+                });
+            }
+        };
+
+        // If BALANCE payment + round trip, re-verify total covers BOTH legs
+        if (paymentMethod === 'BALANCE' && isRoundTrip) {
+            const totalNetNeeded = netAmount + (Number(returnLeg.providerPrice) || 0);
+            const agency = await prisma.agency.findUnique({
+                where: { id: req.agencyId },
+                select: { balance: true }
+            });
+            if (!agency || agency.balance < totalNetNeeded) {
+                return res.status(400).json({ success: false, error: 'Yetersiz bakiye (gidiş+dönüş). Lütfen cari hesabınıza depozito yükleyin.' });
+            }
+        }
+
+        // Detect return-leg region codes if round trip
+        let returnMetadata = null;
+        if (isRoundTrip) {
+            const rPickup = returnLeg.pickup || dropoffText;
+            const rDropoff = returnLeg.dropoff || pickupText;
+            const rpLat = returnLeg.pickupLat ?? dLat;
+            const rpLng = returnLeg.pickupLng ?? dLng;
+            const rdLat = returnLeg.dropoffLat ?? pLat;
+            const rdLng = returnLeg.dropoffLng ?? pLng;
+            returnMetadata = {
+                ...(returnLeg.metadata || {}),
+                pickup: rPickup,
+                dropoff: rDropoff,
+                vehicleId: returnLeg.vehicleId,
+                vehicleType: returnLeg.vehicleType,
+                flightNumber: returnLeg.flightNumber,
+                flightTime: returnLeg.flightTime,
+                paymentMethod,
+                tripLeg: 'RETURN',
+                isRoundTrip: true,
+                pickupRegionCode: detectRegionCodeByPolygon(rpLat, rpLng, rPickup, zonesForRegion, hubs),
+                dropoffRegionCode: detectRegionCodeByPolygon(rdLat, rdLng, rDropoff, zonesForRegion, hubs),
+                pickupLat: rpLat ? Number(rpLat) : null,
+                pickupLng: rpLng ? Number(rpLng) : null,
+                dropoffLat: rdLat ? Number(rdLat) : null,
+                dropoffLng: rdLng ? Number(rdLng) : null,
+                contactNationality: metadata.contactNationality,
+                customerNotes: metadata.customerNotes,
+                agencyNotes: metadata.agencyNotes,
+            };
+        }
+
+        // Mark outbound metadata as OUTBOUND leg if round trip
+        if (isRoundTrip) {
+            metadata.tripLeg = 'OUTBOUND';
+            metadata.isRoundTrip = true;
+        }
+
+        // Use transaction to create booking(s) and deduct balance safely
+        const { booking, returnBooking } = await prisma.$transaction(async (tx) => {
             const newBooking = await tx.booking.create({
                 data: {
                     tenantId: req.tenant.id,
@@ -368,11 +471,11 @@ router.post('/bookings', authMiddleware, agencyMiddleware, async (req, res) => {
                     productType: type || 'TRANSFER',
                     startDate: new Date(startDate),
                     adults: passengers || 1,
-                    currency: req.body.currency || 'TRY',
-                    subtotal: netAmount, // B2B Cost
+                    currency: bookingCurrency,
+                    subtotal: netAmount, // B2B Cost (outbound only)
                     tax: 0,
                     serviceFee: 0,
-                    total: totalAmount, // Customer Selling Price
+                    total: totalAmount, // Customer Selling Price (outbound only)
                     contactName,
                     contactEmail,
                     contactPhone,
@@ -381,7 +484,6 @@ router.post('/bookings', authMiddleware, agencyMiddleware, async (req, res) => {
                     confirmationType: 'INSTANT',
                     specialRequests: customerNote || undefined,
 
-                    // Booking Type & Creator
                     bookingType: 'B2B',
                     bookedByUserId: req.user.id,
                     bookedByName: [req.user?.firstName, req.user?.lastName].filter(Boolean).join(' ') || req.user?.email || 'Acenta',
@@ -390,66 +492,63 @@ router.post('/bookings', authMiddleware, agencyMiddleware, async (req, res) => {
                 }
             });
 
-            // -----------------------------------------------------------
-            // ACCOUNTING: Create transaction records for ALL payment methods
-            // -----------------------------------------------------------
-            const bookingCurrency = req.body.currency || 'TRY';
+            await recordLegAccounting(tx, { providerPrice: netAmount, amount: totalAmount }, newBooking.id, newBooking.bookingNumber);
 
-            if (paymentMethod === 'BALANCE') {
-                // BALANCE: Agency pays from their pre-loaded balance
-                // Debit the B2B cost from balance
-                await tx.agency.update({
-                    where: { id: req.agencyId },
-                    data: { balance: { decrement: netAmount }, debit: { increment: netAmount } }
-                });
+            // Create linked return booking if round trip
+            let newReturnBooking = null;
+            if (isRoundTrip) {
+                const returnBookingNumber = `${bookingNumber}-D`;
+                const rNet = Number(returnLeg.providerPrice) || 0;
+                const rTotal = Number(returnLeg.amount) || rNet;
+                returnMetadata.linkedBookingNumber = bookingNumber;
 
-                await tx.transaction.create({
+                newReturnBooking = await tx.booking.create({
                     data: {
                         tenantId: req.tenant.id,
-                        accountId: `agency-${req.agencyId}`,
-                        type: 'PURCHASE_INVOICE',
-                        amount: netAmount,
+                        agencyId: req.agencyId,
+                        agentId: req.user.id,
+                        bookingNumber: returnBookingNumber,
+                        productId,
+                        productType: type || 'TRANSFER',
+                        startDate: new Date(returnLeg.startDate),
+                        adults: passengers || 1,
                         currency: bookingCurrency,
-                        isCredit: false,
-                        description: `B2B Transfer Satın Alma – Bakiyeden (PNR: ${bookingNumber})`,
-                        date: new Date(),
-                        referenceId: newBooking.id
-                    }
-                });
-            }
-            // PAY_IN_VEHICLE & CREDIT_CARD: Customer pays company directly (via driver or online)
-            // Agency does NOT owe anything — only commission is credited below
+                        subtotal: rNet,
+                        tax: 0,
+                        serviceFee: 0,
+                        total: rTotal,
+                        contactName,
+                        contactEmail,
+                        contactPhone,
+                        status: paymentMethod === 'CREDIT_CARD' ? 'PENDING' : 'CONFIRMED',
+                        paymentStatus: paymentMethod === 'BALANCE' ? 'PAID' : 'PENDING',
+                        confirmationType: 'INSTANT',
+                        specialRequests: customerNote || undefined,
 
-            // If agency sells at a higher price, record the markup as agency commission (credit)
-            const markup = totalAmount - netAmount;
-            if (markup > 0) {
-                await tx.transaction.create({
-                    data: {
-                        tenantId: req.tenant.id,
-                        accountId: `agency-${req.agencyId}`,
-                        type: 'SALES_INVOICE',
-                        amount: markup,
-                        currency: bookingCurrency,
-                        isCredit: true,
-                        description: `Acente Komisyon/Kâr (PNR: ${bookingNumber})`,
-                        date: new Date(),
-                        referenceId: newBooking.id
+                        bookingType: 'B2B',
+                        bookedByUserId: req.user.id,
+                        bookedByName: [req.user?.firstName, req.user?.lastName].filter(Boolean).join(' ') || req.user?.email || 'Acenta',
+
+                        metadata: returnMetadata
                     }
                 });
 
-                // Credit the markup to agency balance
-                await tx.agency.update({
-                    where: { id: req.agencyId },
-                    data: { credit: { increment: markup } }
+                await recordLegAccounting(tx, { providerPrice: rNet, amount: rTotal }, newReturnBooking.id, newReturnBooking.bookingNumber);
+
+                // Backfill linkedBookingNumber on outbound metadata
+                await tx.booking.update({
+                    where: { id: newBooking.id },
+                    data: { metadata: { ...metadata, linkedReturnBookingNumber: returnBookingNumber } }
                 });
             }
 
-            return newBooking;
+            return { booking: newBooking, returnBooking: newReturnBooking };
         });
 
         const io = req.app.get('io');
         if (io) {
             io.to('admin_monitoring').emit('new_booking', booking);
+            if (returnBooking) io.to('admin_monitoring').emit('new_booking', returnBooking);
         }
 
         // Send voucher email (async, don't block response)
@@ -497,7 +596,14 @@ router.post('/bookings', authMiddleware, agencyMiddleware, async (req, res) => {
             });
         } catch (logErr) { console.error('[BookingLog]', logErr.message); }
 
-        res.json({ success: true, data: booking });
+        res.json({
+            success: true,
+            data: {
+                ...booking,
+                returnBooking: returnBooking || null,
+                totalPrice: Number(booking.total) + (returnBooking ? Number(returnBooking.total) : 0)
+            }
+        });
     } catch (error) {
         console.error('Agency booking error:', error);
         res.status(500).json({ success: false, error: 'Failed to create booking' });
