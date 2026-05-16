@@ -568,6 +568,11 @@ const TransferBookingContent: React.FC = () => {
                 vehicleType: returnVehicleDetails.vehicleType,
                 pickup: dropoff, // Reverse direction
                 dropoff: pickup,
+                // Reverse coordinates for accurate region detection on return leg
+                pickupLat: searchParams.get('dropoffLat') || undefined,
+                pickupLng: searchParams.get('dropoffLng') || undefined,
+                dropoffLat: searchParams.get('pickupLat') || undefined,
+                dropoffLng: searchParams.get('pickupLng') || undefined,
                 pickupDateTime: returnTimes?.finalPickupDateTime || returnDate,
                 passengers: Number(passengers),
                 adults: Number(adultsParam) || Number(passengers) || 1,

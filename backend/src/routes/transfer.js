@@ -1584,10 +1584,16 @@ router.post('/book', optionalAuthMiddleware, async (req, res) => {
             const bn = linkedBookingNumber ? `${linkedBookingNumber}-D` : `TR-${dateStr}-${Math.floor(1000 + Math.random() * 9000)}`;
             
             // Use polygon-based detection (coordinates from data or req.body)
-            const pLat = data.pickupLat || req.body.pickupLat || req.body.outbound?.pickupLat;
-            const pLng = data.pickupLng || req.body.pickupLng || req.body.outbound?.pickupLng;
-            const dLat = data.dropoffLat || req.body.dropoffLat || req.body.outbound?.dropoffLat;
-            const dLng = data.dropoffLng || req.body.dropoffLng || req.body.outbound?.dropoffLng;
+            // For return leg (linkedBookingNumber set), reverse outbound coords if return payload omitted them.
+            const isReturnLeg = !!linkedBookingNumber;
+            const pLat = data.pickupLat
+                || (isReturnLeg ? req.body.outbound?.dropoffLat : (req.body.pickupLat || req.body.outbound?.pickupLat));
+            const pLng = data.pickupLng
+                || (isReturnLeg ? req.body.outbound?.dropoffLng : (req.body.pickupLng || req.body.outbound?.pickupLng));
+            const dLat = data.dropoffLat
+                || (isReturnLeg ? req.body.outbound?.pickupLat : (req.body.dropoffLat || req.body.outbound?.dropoffLat));
+            const dLng = data.dropoffLng
+                || (isReturnLeg ? req.body.outbound?.pickupLng : (req.body.dropoffLng || req.body.outbound?.dropoffLng));
             const pickupRegionCode = detectRegionCodeByPolygon(pLat, pLng, pickup, zonesForRegion, hubs);
             const dropoffRegionCode = detectRegionCodeByPolygon(dLat, dLng, dropoff, zonesForRegion, hubs);
             const airportZones = hubs.filter(h => h.isAirport);
