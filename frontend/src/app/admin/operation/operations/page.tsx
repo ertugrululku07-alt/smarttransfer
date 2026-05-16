@@ -48,6 +48,9 @@ import {
     GlobalOutlined,
     CloseCircleOutlined,
     SendOutlined,
+    BellOutlined,
+    WarningOutlined,
+    CheckCircleOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import 'dayjs/locale/tr';
@@ -200,6 +203,7 @@ export default function OperationsPage() {
     const [sosDetailModal, setSosDetailModal] = useState<any | null>(null);
     const [sosResolveNote, setSosResolveNote] = useState('');
     const [sosResolving, setSosResolving] = useState(false);
+    const [alertPanelOpen, setAlertPanelOpen] = useState(false);
     const [loading, setLoading] = useState(true);
     const [vehicles, setVehicles] = useState<any[]>([]);
     const [drivers, setDrivers] = useState<any[]>([]);
@@ -4208,55 +4212,6 @@ export default function OperationsPage() {
                             </div>
                         </div>
 
-                        {/* ── DEADHEAD ALERT BANNER ── */}
-                        {(() => {
-                            const mainRgn = (rc: string) => (rc || '').split(/[\s\-\/]+/)[0].toUpperCase();
-                            const alerts: { plate: string; from: string; to: string; prevTime: string; nextTime: string }[] = [];
-                            vehicleAvailability.forEach((v: any) => {
-                                if (!v.assignedBookings || v.assignedBookings.length < 2) return;
-                                for (let i = 1; i < v.assignedBookings.length; i++) {
-                                    const prev = v.assignedBookings[i - 1];
-                                    const curr = v.assignedBookings[i];
-                                    const pDrop = prev.dropoffRegionCode;
-                                    const cPick = curr.pickupRegionCode;
-                                    if (pDrop && cPick && mainRgn(pDrop) !== mainRgn(cPick)) {
-                                        alerts.push({
-                                            plate: v.plateNumber,
-                                            from: pDrop,
-                                            to: cPick,
-                                            prevTime: dayjs(prev.pickupTime).format('HH:mm'),
-                                            nextTime: dayjs(curr.pickupTime).format('HH:mm'),
-                                        });
-                                    }
-                                }
-                            });
-                            if (!alerts.length) return null;
-                            return (
-                                <div style={{
-                                    margin: '8px 20px 0', padding: '10px 16px',
-                                    background: 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)',
-                                    border: '2px solid #fca5a5', borderRadius: 10,
-                                    animation: 'sosPulse 2s infinite',
-                                }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                                        <span style={{ fontSize: 18 }}>🚨</span>
-                                        <span style={{ fontWeight: 800, color: '#991b1b', fontSize: 13, letterSpacing: 0.5 }}>
-                                            BOŞ KİLOMETRE UYARISI — {alerts.length} araçta boş gidiş tespit edildi!
-                                        </span>
-                                    </div>
-                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                                        {alerts.map((a, i) => (
-                                            <Tooltip key={i} title={`${a.plate}: Saat ${a.prevTime} bırakış ${a.from} → Saat ${a.nextTime} alış ${a.to} — arada araç boş gidecek!`}>
-                                                <Tag color="error" style={{ fontWeight: 700, fontSize: 11, cursor: 'help', margin: 0 }}>
-                                                    🚛 {a.plate}: {a.from} → {a.to} ({a.prevTime}-{a.nextTime})
-                                                </Tag>
-                                            </Tooltip>
-                                        ))}
-                                    </div>
-                                </div>
-                            );
-                        })()}
-
                         {/* Vehicle Table */}
                         <div style={{ flex: 1, overflow: 'auto', padding: '12px 20px' }}>
                             <Table
@@ -6069,108 +6024,15 @@ export default function OperationsPage() {
                         })()}
                     </Modal>
 
-                    {/* ══════ SOS ALERT BANNER ══════ */}
-                    {sosAlerts.filter(a => a.status === 'ACTIVE').length > 0 && (
-                        <div style={{
-                            position: 'fixed', top: 70, right: 24, zIndex: 9999,
-                            background: 'linear-gradient(135deg, #dc2626, #991b1b)',
-                            color: '#fff', borderRadius: 12, padding: '12px 16px',
-                            boxShadow: '0 8px 24px rgba(220, 38, 38, 0.5)',
-                            display: 'flex', alignItems: 'center', gap: 12,
-                            animation: 'sosPulse 1.2s infinite',
-                            maxWidth: 380, cursor: 'pointer',
-                        }} onClick={() => {
-                            const active = sosAlerts.find(a => a.status === 'ACTIVE');
-                            if (active) setSosDetailModal(active);
-                        }}>
-                            <div style={{ fontSize: 28 }}>🚨</div>
-                            <div style={{ flex: 1 }}>
-                                <div style={{ fontSize: 11, opacity: 0.85, fontWeight: 600, letterSpacing: 1 }}>ACİL DURUM</div>
-                                <div style={{ fontSize: 14, fontWeight: 800 }}>
-                                    {sosAlerts.filter(a => a.status === 'ACTIVE').length} aktif SOS uyarısı
-                                </div>
-                                <div style={{ fontSize: 12, opacity: 0.9, marginTop: 2 }}>
-                                    En son: {sosAlerts.filter(a => a.status === 'ACTIVE')[0]?.driverName}
-                                </div>
-                            </div>
-                            <div style={{ fontSize: 20 }}>›</div>
-                        </div>
-                    )}
-                    {/* ══════ FLOATING GREETER NOTES ALERT ══════ */}
+                    {/* ══════════════════════════════════════════════════════════
+                         UNIFIED ALERT BELL — single icon, dropdown panel
+                    ══════════════════════════════════════════════════════════ */}
                     {(() => {
-                        // Collect bookings (private + shuttle) that have karşılamacı notu
-                        const collected: { id: string; bookingNumber: string; passenger: string; lastNote: string; count: number }[] = [];
-                        const collect = (b: any) => {
-                            const notes = Array.isArray(b?.metadata?.greeterNotes) ? b.metadata.greeterNotes : [];
-                            if (!notes.length) return;
-                            const last = notes[notes.length - 1];
-                            collected.push({
-                                id: b.id,
-                                bookingNumber: b.bookingNumber || '',
-                                passenger: b.contactName || b.passengerName || '',
-                                lastNote: last?.text || '',
-                                count: notes.length,
-                            });
-                        };
-                        bookings.forEach(collect);
-                        shuttleRuns.forEach((run: any) => (run.bookings || []).forEach(collect));
-                        if (!collected.length) return null;
-                        const hasSos = sosAlerts.filter(a => a.status === 'ACTIVE').length > 0;
-                        const topOffset = hasSos ? 220 : 140;
-                        return (
-                            <div style={{
-                                position: 'fixed', top: topOffset, right: 24, zIndex: 9997,
-                                background: 'linear-gradient(135deg, #8b5cf6, #6d28d9)',
-                                color: '#fff', borderRadius: 12, padding: '10px 14px',
-                                boxShadow: '0 6px 20px rgba(139, 92, 246, 0.4)',
-                                display: 'flex', alignItems: 'center', gap: 10,
-                                maxWidth: 380, cursor: 'pointer',
-                                animation: 'greeterPulse 3s infinite',
-                            }}
-                                onClick={() => {
-                                    Modal.info({
-                                        title: <span style={{ color: '#5b21b6' }}>🛬 Karşılamacı Notu Olan Rezervasyonlar ({collected.length})</span>,
-                                        width: 560,
-                                        content: (
-                                            <div style={{ maxHeight: 420, overflowY: 'auto', paddingTop: 8 }}>
-                                                {collected.map((c, i) => (
-                                                    <div key={c.id + i} style={{
-                                                        marginBottom: 10, padding: 10,
-                                                        background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: 8,
-                                                    }}>
-                                                        <div style={{ fontWeight: 700, color: '#4c1d95', fontSize: 12, marginBottom: 2 }}>
-                                                            {c.bookingNumber} — {c.passenger || 'Misafir'}
-                                                            {c.count > 1 && <Tag color="purple" style={{ marginLeft: 6 }}>{c.count} not</Tag>}
-                                                        </div>
-                                                        <div style={{ fontSize: 13, color: '#1f2937', whiteSpace: 'pre-wrap' }}>{c.lastNote}</div>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        ),
-                                    });
-                                }}
-                            >
-                                <div style={{ fontSize: 22 }}>🛬</div>
-                                <div style={{ flex: 1 }}>
-                                    <div style={{ fontSize: 10, opacity: 0.85, fontWeight: 600, letterSpacing: 1 }}>KARŞILAMACI NOTU</div>
-                                    <div style={{ fontSize: 13, fontWeight: 800 }}>
-                                        {collected.length} rezervasyonda not var
-                                    </div>
-                                    <div style={{ fontSize: 11, opacity: 0.9, marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 260 }}>
-                                        {collected[0].bookingNumber}: {collected[0].lastNote}
-                                    </div>
-                                </div>
-                                <div style={{ fontSize: 18 }}>›</div>
-                            </div>
-                        );
-                    })()}
+                        // ── Compute all alert groups ──
+                        const activeSos = sosAlerts.filter(a => a.status === 'ACTIVE');
 
-                    {/* ══════ FLOATING DEADHEAD ALERT (private mode only) ══════ */}
-                    {(() => {
-                        if (operationsMode !== 'private') return null;
-                        if (!vehicleAvailability.length) return null;
                         const mainRgn = (rc: string) => (rc || '').split(/[\s\-\/]+/)[0].toUpperCase();
-                        const dAlerts: { plate: string; from: string; to: string }[] = [];
+                        const deadheadAlerts: { plate: string; from: string; to: string; prevTime: string; nextTime: string }[] = [];
                         vehicleAvailability.forEach((v: any) => {
                             if (!v.assignedBookings || v.assignedBookings.length < 2) return;
                             for (let i = 1; i < v.assignedBookings.length; i++) {
@@ -6179,50 +6041,257 @@ export default function OperationsPage() {
                                 const pDrop = prev.dropoffRegionCode;
                                 const cPick = curr.pickupRegionCode;
                                 if (pDrop && cPick && mainRgn(pDrop) !== mainRgn(cPick)) {
-                                    dAlerts.push({ plate: v.plateNumber, from: pDrop, to: cPick });
+                                    deadheadAlerts.push({
+                                        plate: v.plateNumber, from: pDrop, to: cPick,
+                                        prevTime: dayjs(prev.pickupTime).format('HH:mm'),
+                                        nextTime: dayjs(curr.pickupTime).format('HH:mm'),
+                                    });
                                 }
                             }
                         });
-                        if (!dAlerts.length) return null;
-                        const hasSos = sosAlerts.filter(a => a.status === 'ACTIVE').length > 0;
+
+                        const greeterNoted: { id: string; bookingNumber: string; passenger: string; lastNote: string; count: number }[] = [];
+                        const collectGreeter = (b: any) => {
+                            const notes = Array.isArray(b?.metadata?.greeterNotes) ? b.metadata.greeterNotes : [];
+                            if (!notes.length) return;
+                            const last = notes[notes.length - 1];
+                            greeterNoted.push({ id: b.id, bookingNumber: b.bookingNumber || '', passenger: b.contactName || b.passengerName || '', lastNote: last?.text || '', count: notes.length });
+                        };
+                        bookings.forEach(collectGreeter);
+                        shuttleRuns.forEach((run: any) => (run.bookings || []).forEach(collectGreeter));
+
+                        const totalCount = activeSos.length + deadheadAlerts.length + greeterNoted.length;
+                        if (totalCount === 0) return null;
+
+                        const hasCritical = activeSos.length > 0;
+
                         return (
-                            <div style={{
-                                position: 'fixed', top: hasSos ? 150 : 70, right: 24, zIndex: 9998,
-                                background: 'linear-gradient(135deg, #f97316, #ea580c)',
-                                color: '#fff', borderRadius: 12, padding: '10px 14px',
-                                boxShadow: '0 6px 20px rgba(249, 115, 22, 0.4)',
-                                display: 'flex', alignItems: 'center', gap: 10,
-                                maxWidth: 360, cursor: 'pointer',
-                                animation: 'deadheadPulse 3s infinite',
-                            }} onClick={() => { setOperationsMode('vehicles' as any); fetchVehicleAvailability(); }}>
-                                <div style={{ fontSize: 22 }}>🚛</div>
-                                <div style={{ flex: 1 }}>
-                                    <div style={{ fontSize: 10, opacity: 0.85, fontWeight: 600, letterSpacing: 1 }}>BOŞ KİLOMETRE</div>
-                                    <div style={{ fontSize: 13, fontWeight: 800 }}>
-                                        {dAlerts.length} araçta boş gidiş var
-                                    </div>
-                                    <div style={{ fontSize: 11, opacity: 0.9, marginTop: 1 }}>
-                                        {dAlerts.slice(0, 2).map(a => `${a.plate}: ${a.from}→${a.to}`).join(' · ')}
+                            <>
+                                {/* ── Bell Icon Button ── */}
+                                <div
+                                    style={{
+                                        position: 'fixed', top: 16, right: 80, zIndex: 10000,
+                                    }}
+                                    onClick={(e) => { e.stopPropagation(); setAlertPanelOpen(p => !p); }}
+                                >
+                                    <div style={{
+                                        width: 42, height: 42, borderRadius: 12,
+                                        background: hasCritical
+                                            ? 'linear-gradient(135deg, #dc2626, #991b1b)'
+                                            : 'linear-gradient(135deg, #f97316, #ea580c)',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        cursor: 'pointer', boxShadow: hasCritical
+                                            ? '0 4px 16px rgba(220,38,38,0.55)'
+                                            : '0 4px 16px rgba(249,115,22,0.45)',
+                                        animation: hasCritical ? 'alertBellPulse 1.4s infinite' : 'alertBellSoft 3s infinite',
+                                        position: 'relative',
+                                    }}>
+                                        <BellOutlined style={{ color: '#fff', fontSize: 18 }} />
+                                        <div style={{
+                                            position: 'absolute', top: -6, right: -6,
+                                            minWidth: 20, height: 20, borderRadius: 10,
+                                            background: hasCritical ? '#fff' : '#fef9c3',
+                                            color: hasCritical ? '#dc2626' : '#92400e',
+                                            fontSize: 11, fontWeight: 800,
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            padding: '0 5px',
+                                            border: `2px solid ${hasCritical ? '#dc2626' : '#f97316'}`,
+                                            lineHeight: 1,
+                                        }}>
+                                            {totalCount}
+                                        </div>
                                     </div>
                                 </div>
-                                <div style={{ fontSize: 18 }}>›</div>
-                            </div>
+
+                                {/* ── Backdrop: click outside closes panel ── */}
+                                {alertPanelOpen && (
+                                    <div
+                                        style={{ position: 'fixed', inset: 0, zIndex: 9999 }}
+                                        onClick={() => setAlertPanelOpen(false)}
+                                    />
+                                )}
+
+                                {/* ── Alert Panel ── */}
+                                {alertPanelOpen && (
+                                    <div
+                                        style={{
+                                            position: 'fixed', top: 66, right: 72, zIndex: 10000,
+                                            width: 380, maxHeight: '80vh',
+                                            background: '#fff',
+                                            borderRadius: 16,
+                                            boxShadow: '0 20px 60px rgba(0,0,0,0.18), 0 4px 16px rgba(0,0,0,0.10)',
+                                            border: '1px solid #e2e8f0',
+                                            overflow: 'hidden',
+                                            display: 'flex', flexDirection: 'column',
+                                        }}
+                                        onClick={(e) => e.stopPropagation()}
+                                    >
+                                        {/* Panel header */}
+                                        <div style={{
+                                            padding: '14px 16px 12px',
+                                            background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+                                            display: 'flex', alignItems: 'center', gap: 10,
+                                            flexShrink: 0,
+                                        }}>
+                                            <BellOutlined style={{ color: '#f8fafc', fontSize: 16 }} />
+                                            <span style={{ color: '#f8fafc', fontWeight: 800, fontSize: 14, flex: 1 }}>Uyarılar</span>
+                                            <span style={{
+                                                background: hasCritical ? '#dc2626' : '#f97316',
+                                                color: '#fff', borderRadius: 10, fontSize: 11,
+                                                fontWeight: 800, padding: '2px 8px',
+                                            }}>{totalCount} aktif</span>
+                                            <div
+                                                style={{ color: '#94a3b8', fontSize: 18, cursor: 'pointer', lineHeight: 1, marginLeft: 4 }}
+                                                onClick={() => setAlertPanelOpen(false)}
+                                            >×</div>
+                                        </div>
+
+                                        {/* Scrollable items */}
+                                        <div style={{ overflowY: 'auto', flex: 1 }}>
+
+                                            {/* ── SOS Alerts ── */}
+                                            {activeSos.length > 0 && (
+                                                <div style={{ padding: '10px 12px 4px', borderBottom: '1px solid #f1f5f9' }}>
+                                                    <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 6 }}>🚨 Acil Durum</div>
+                                                    {activeSos.map((sos: any) => (
+                                                        <div
+                                                            key={sos.id}
+                                                            onClick={() => { setSosDetailModal(sos); setAlertPanelOpen(false); }}
+                                                            style={{
+                                                                display: 'flex', alignItems: 'flex-start', gap: 10,
+                                                                padding: '10px 12px', marginBottom: 6,
+                                                                background: 'linear-gradient(135deg, #fef2f2, #fee2e2)',
+                                                                borderRadius: 10, cursor: 'pointer',
+                                                                border: '1px solid #fca5a5',
+                                                                borderLeft: '4px solid #dc2626',
+                                                                transition: 'transform 0.12s, box-shadow 0.12s',
+                                                            }}
+                                                            onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.transform = 'translateX(-2px)'; (e.currentTarget as HTMLDivElement).style.boxShadow = '0 4px 12px rgba(220,38,38,0.18)'; }}
+                                                            onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.transform = ''; (e.currentTarget as HTMLDivElement).style.boxShadow = ''; }}
+                                                        >
+                                                            <div style={{ fontSize: 20, lineHeight: 1.2 }}>🚨</div>
+                                                            <div style={{ flex: 1, minWidth: 0 }}>
+                                                                <div style={{ fontWeight: 800, fontSize: 13, color: '#991b1b' }}>{sos.driverName}</div>
+                                                                <div style={{ fontSize: 11, color: '#b91c1c', fontWeight: 600, marginTop: 1 }}>
+                                                                    {sos.type === 'ACCIDENT' ? 'Kaza' : sos.type === 'VEHICLE' ? 'Araç Arızası' : sos.type === 'PASSENGER' ? 'Müşteri Sorunu' : sos.type === 'MEDICAL' ? 'Sağlık' : 'Acil'}
+                                                                    {sos.createdAt && <span style={{ color: '#ef4444', marginLeft: 6 }}>{dayjs(sos.createdAt).format('HH:mm')}</span>}
+                                                                </div>
+                                                                {sos.message && <div style={{ fontSize: 11, color: '#7f1d1d', marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sos.message}</div>}
+                                                            </div>
+                                                            <div style={{ color: '#dc2626', fontSize: 16, alignSelf: 'center' }}>›</div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+
+                                            {/* ── Deadhead / Boş Kilometre ── */}
+                                            {deadheadAlerts.length > 0 && (
+                                                <div style={{ padding: '10px 12px 4px', borderBottom: '1px solid #f1f5f9' }}>
+                                                    <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 6 }}>🚛 Boş Kilometre</div>
+                                                    {deadheadAlerts.map((a, i) => (
+                                                        <div
+                                                            key={i}
+                                                            onClick={() => { setAlertPanelOpen(false); setOperationsMode('vehicles' as any); fetchVehicleAvailability(); }}
+                                                            style={{
+                                                                display: 'flex', alignItems: 'flex-start', gap: 10,
+                                                                padding: '10px 12px', marginBottom: 6,
+                                                                background: 'linear-gradient(135deg, #fff7ed, #ffedd5)',
+                                                                borderRadius: 10, cursor: 'pointer',
+                                                                border: '1px solid #fed7aa',
+                                                                borderLeft: '4px solid #f97316',
+                                                                transition: 'transform 0.12s, box-shadow 0.12s',
+                                                            }}
+                                                            onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.transform = 'translateX(-2px)'; (e.currentTarget as HTMLDivElement).style.boxShadow = '0 4px 12px rgba(249,115,22,0.18)'; }}
+                                                            onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.transform = ''; (e.currentTarget as HTMLDivElement).style.boxShadow = ''; }}
+                                                        >
+                                                            <div style={{ fontSize: 20, lineHeight: 1.2 }}>🚛</div>
+                                                            <div style={{ flex: 1, minWidth: 0 }}>
+                                                                <div style={{ fontWeight: 700, fontSize: 13, color: '#9a3412' }}>{a.plate}</div>
+                                                                <div style={{ fontSize: 11, color: '#c2410c', marginTop: 2 }}>
+                                                                    <span style={{ fontWeight: 600 }}>{a.from}</span>
+                                                                    <span style={{ margin: '0 4px', color: '#fb923c' }}>→</span>
+                                                                    <span style={{ fontWeight: 600 }}>{a.to}</span>
+                                                                    <span style={{ color: '#ea580c', marginLeft: 6 }}>{a.prevTime} – {a.nextTime}</span>
+                                                                </div>
+                                                            </div>
+                                                            <div style={{ color: '#f97316', fontSize: 16, alignSelf: 'center' }}>›</div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+
+                                            {/* ── Karşılamacı Notları ── */}
+                                            {greeterNoted.length > 0 && (
+                                                <div style={{ padding: '10px 12px 4px' }}>
+                                                    <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 6 }}>🛬 Karşılamacı Notu</div>
+                                                    {greeterNoted.map((c) => (
+                                                        <div
+                                                            key={c.id}
+                                                            onClick={() => {
+                                                                setAlertPanelOpen(false);
+                                                                const booking = bookings.find(b => b.id === c.id);
+                                                                if (booking) setEditReservationModal({ booking });
+                                                            }}
+                                                            style={{
+                                                                display: 'flex', alignItems: 'flex-start', gap: 10,
+                                                                padding: '10px 12px', marginBottom: 6,
+                                                                background: 'linear-gradient(135deg, #f5f3ff, #ede9fe)',
+                                                                borderRadius: 10, cursor: 'pointer',
+                                                                border: '1px solid #ddd6fe',
+                                                                borderLeft: '4px solid #7c3aed',
+                                                                transition: 'transform 0.12s, box-shadow 0.12s',
+                                                            }}
+                                                            onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.transform = 'translateX(-2px)'; (e.currentTarget as HTMLDivElement).style.boxShadow = '0 4px 12px rgba(124,58,237,0.15)'; }}
+                                                            onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.transform = ''; (e.currentTarget as HTMLDivElement).style.boxShadow = ''; }}
+                                                        >
+                                                            <div style={{ fontSize: 20, lineHeight: 1.2 }}>🛬</div>
+                                                            <div style={{ flex: 1, minWidth: 0 }}>
+                                                                <div style={{ fontWeight: 700, fontSize: 13, color: '#4c1d95' }}>
+                                                                    {c.bookingNumber}
+                                                                    {c.passenger && <span style={{ fontWeight: 400, color: '#6d28d9', marginLeft: 6 }}>{c.passenger}</span>}
+                                                                    {c.count > 1 && <span style={{ fontSize: 10, background: '#7c3aed', color: '#fff', borderRadius: 8, padding: '1px 6px', marginLeft: 6 }}>{c.count} not</span>}
+                                                                </div>
+                                                                <div style={{ fontSize: 11, color: '#5b21b6', marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.lastNote}</div>
+                                                            </div>
+                                                            <div style={{ color: '#7c3aed', fontSize: 16, alignSelf: 'center' }}>›</div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+
+                                        </div>
+
+                                        {/* Panel footer */}
+                                        <div style={{
+                                            padding: '10px 16px',
+                                            borderTop: '1px solid #f1f5f9',
+                                            background: '#fafafa',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                            flexShrink: 0,
+                                        }}>
+                                            <span style={{ fontSize: 11, color: '#94a3b8' }}>Uyarıya tıklayarak detaya gidin</span>
+                                            <Button size="small" type="text" onClick={() => setAlertPanelOpen(false)} style={{ color: '#64748b', fontSize: 11 }}>Kapat</Button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                <style>{`
+                                    @keyframes alertBellPulse {
+                                        0%, 100% { box-shadow: 0 4px 16px rgba(220,38,38,0.55); transform: scale(1); }
+                                        50% { box-shadow: 0 6px 24px rgba(220,38,38,0.80); transform: scale(1.07); }
+                                    }
+                                    @keyframes alertBellSoft {
+                                        0%, 100% { box-shadow: 0 4px 16px rgba(249,115,22,0.45); }
+                                        50% { box-shadow: 0 6px 22px rgba(249,115,22,0.65); }
+                                    }
+                                    @keyframes sosPulse {
+                                        0%, 100% { box-shadow: 0 8px 24px rgba(220, 38, 38, 0.5); transform: scale(1); }
+                                        50% { box-shadow: 0 12px 32px rgba(220, 38, 38, 0.8); transform: scale(1.02); }
+                                    }
+                                `}</style>
+                            </>
                         );
                     })()}
-                    <style>{`
-                        @keyframes sosPulse {
-                            0%, 100% { box-shadow: 0 8px 24px rgba(220, 38, 38, 0.5); transform: scale(1); }
-                            50% { box-shadow: 0 12px 32px rgba(220, 38, 38, 0.8); transform: scale(1.02); }
-                        }
-                        @keyframes deadheadPulse {
-                            0%, 100% { box-shadow: 0 6px 20px rgba(249, 115, 22, 0.4); }
-                            50% { box-shadow: 0 8px 28px rgba(249, 115, 22, 0.7); }
-                        }
-                        @keyframes greeterPulse {
-                            0%, 100% { box-shadow: 0 6px 20px rgba(139, 92, 246, 0.4); }
-                            50% { box-shadow: 0 8px 28px rgba(139, 92, 246, 0.7); }
-                        }
-                    `}</style>
 
                     {/* ══════ SOS DETAY MODAL ══════ */}
                     <Modal
