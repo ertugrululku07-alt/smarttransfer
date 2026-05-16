@@ -608,7 +608,7 @@ const SiteSettingsPage: React.FC = () => {
                                 <Text type="secondary" style={{ display: 'block', marginBottom: 8, fontSize: 13 }}>Önizleme:</Text>
                                 <div style={{
                                     background: '#0f172a', borderRadius: 12, padding: '20px 24px',
-                                    display: 'flex', alignItems: 'center', gap: 12, minHeight: 70
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, minHeight: 70
                                 }}>
                                     {brandingData.logoUrl ? (
                                         <img
@@ -636,7 +636,7 @@ const SiteSettingsPage: React.FC = () => {
                                 </div>
                                 <div style={{
                                     background: '#fff', borderRadius: 12, padding: '20px 24px', marginTop: 8,
-                                    display: 'flex', alignItems: 'center', gap: 12, minHeight: 70,
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, minHeight: 70,
                                     border: '1px solid #e5e7eb'
                                 }}>
                                     {brandingData.logoUrl ? (

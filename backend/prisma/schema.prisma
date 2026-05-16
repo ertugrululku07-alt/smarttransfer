@@ -200,6 +200,7 @@ model User {
   approvedAgencyDeposits AgencyDeposit[]         @relation("ApprovedDeposits")
   driverCollections      DriverCollection[]      @relation("DriverCollections")
   handoversReceived      DriverCollection[]      @relation("HandoverRecipient")
+  collectionsConfirmed   DriverCollection[]      @relation("CollectionConfirmer")
   locationHistory        DriverLocationHistory[] @relation("DriverLocations")
   fuelRecords            FuelRecord[]            @relation("DriverFuelRecords")
   customerChats          ChatSession[]           @relation("CustomerChats")
@@ -1805,6 +1806,12 @@ model DriverCollection {
   handedOverTo     String? // User ID of accounting personnel
   handedOverToUser User?     @relation("HandoverRecipient", fields: [handedOverTo], references: [id])
   handoverNotes    String?
+
+  // Confirmation details (when status is CONFIRMED — accounting confirmed receipt)
+  confirmedAt     DateTime?
+  confirmedBy     String? // User ID of admin/accounting who confirmed
+  confirmedByUser User?     @relation("CollectionConfirmer", fields: [confirmedBy], references: [id])
+  confirmNotes    String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

@@ -2120,7 +2120,9 @@ router.post('/driver-collections/:id/confirm', authMiddleware, async (req, res) 
             where: { id },
             data: {
                 status: 'CONFIRMED',
-                handoverNotes: notes || collection.handoverNotes
+                confirmedAt: new Date(),
+                confirmedBy: adminId || null,
+                confirmNotes: notes || null
             }
         });
 

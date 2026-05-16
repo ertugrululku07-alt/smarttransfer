@@ -37,7 +37,7 @@ export default function AccountingScreen() {
   const [collections, setCollections] = useState<Collection[]>([]);
   const [totals, setTotals] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(false);
-  const [filter, setFilter] = useState<'ALL' | 'PENDING' | 'HANDED_OVER'>('ALL');
+  const [filter, setFilter] = useState<'ALL' | 'PENDING' | 'HANDED_OVER' | 'CONFIRMED'>('ALL');
   
   // Handover modal
   const [handoverModal, setHandoverModal] = useState(false);
@@ -126,7 +126,7 @@ export default function AccountingScreen() {
       });
       const json = await res.json();
       if (json.success) {
-        Alert.alert('✅ Başarılı', 'Tahsilat muhasebeye teslim edildi');
+        Alert.alert('Teslim Edildi — Onay Bekliyor', 'Tahsilat muhasebeye iletildi. Muhasebe onayladığında "Teslim Edildi" olarak güncellenecek.');
         setHandoverModal(false);
         fetchCollections();
       } else {
@@ -211,12 +211,12 @@ export default function AccountingScreen() {
         icon: 'time-outline' as const, gradient: ['#FB923C', '#F97316'] as const
       };
       case 'HANDED_OVER': return { 
-        bg: '#EFF6FF', border: '#93C5FD', color: '#1D4ED8', label: 'Teslim Edildi',
-        icon: 'arrow-redo-outline' as const, gradient: ['#60A5FA', '#3B82F6'] as const
+        bg: '#FFF7ED', border: '#FDBA74', color: '#C2410C', label: 'Onay Bekliyor',
+        icon: 'hourglass-outline' as const, gradient: ['#FB923C', '#F97316'] as const
       };
       case 'CONFIRMED': return { 
-        bg: '#F0FDF4', border: '#86EFAC', color: '#15803D', label: 'Onaylandı',
-        icon: 'checkmark-circle-outline' as const, gradient: ['#4ADE80', '#22C55E'] as const
+        bg: '#F0FDF4', border: '#86EFAC', color: '#15803D', label: 'Teslim Edildi',
+        icon: 'checkmark-done-circle-outline' as const, gradient: ['#4ADE80', '#22C55E'] as const
       };
       default: return { 
         bg: '#F9FAFB', border: '#D1D5DB', color: '#6B7280', label: status,
@@ -337,17 +337,17 @@ export default function AccountingScreen() {
             </View>
             <View style={[st.summaryCard, st.summaryHandedOver]}>
               <View style={st.summaryIconBox}>
-                <Ionicons name="arrow-redo" size={18} color="#3B82F6" />
+                <Ionicons name="hourglass" size={18} color="#F97316" />
               </View>
               <Text style={st.summaryValue}>{handedOverCount}</Text>
-              <Text style={st.summaryLabel}>Teslim Edildi</Text>
+              <Text style={st.summaryLabel}>Onay Bekliyor</Text>
             </View>
             <View style={[st.summaryCard, st.summaryConfirmed]}>
               <View style={st.summaryIconBox}>
-                <Ionicons name="checkmark-circle" size={18} color="#22C55E" />
+                <Ionicons name="checkmark-done-circle" size={18} color="#22C55E" />
               </View>
               <Text style={st.summaryValue}>{confirmedCount}</Text>
-              <Text style={st.summaryLabel}>Onaylanan</Text>
+              <Text style={st.summaryLabel}>Teslim Edildi</Text>
             </View>
           </ScrollView>
         </SafeAreaView>
@@ -359,7 +359,8 @@ export default function AccountingScreen() {
           {[
             { key: 'ALL', label: 'Tümü', icon: 'apps' as const },
             { key: 'PENDING', label: 'Bekleyen', icon: 'time' as const },
-            { key: 'HANDED_OVER', label: 'Teslim', icon: 'checkmark-done' as const },
+            { key: 'HANDED_OVER', label: 'Onay Bekliyor', icon: 'hourglass' as const },
+            { key: 'CONFIRMED', label: 'Teslim Edildi', icon: 'checkmark-done' as const },
           ].map((tab) => {
             const active = filter === tab.key;
             return (

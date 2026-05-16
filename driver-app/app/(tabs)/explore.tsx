@@ -65,6 +65,10 @@ export default function JobListScreen() {
   const [collectedAmount, setCollectedAmount] = useState('');
   const [collectedCurrency, setCollectedCurrency] = useState('TRY');
   const [paymentSaving, setPaymentSaving] = useState(false);
+  // ── Cumulative partial payments ──
+  const [paymentLines, setPaymentLines] = useState<Array<{ amount: number; currency: string; at: string }>>([]);
+  const [paymentSummary, setPaymentSummary] = useState<{ totalCollected: number; remaining: number; fullyPaid: boolean; expectedAmount: number; expectedCurrency: string }>({ totalCollected: 0, remaining: 0, fullyPaid: false, expectedAmount: 0, expectedCurrency: 'TRY' });
+  const [completing, setCompleting] = useState(false);
   const [tenantCurrencies, setTenantCurrencies] = useState<string[]>(['TRY', 'EUR', 'USD']);
   const [defaultCurrency, setDefaultCurrency] = useState('TRY');
   const [exchangeRates, setExchangeRates] = useState<Record<string, number>>({});
@@ -414,18 +418,31 @@ export default function JobListScreen() {
     } catch { Alert.alert('Hata', 'Bağlantı hatası'); }
   };
 
-  // Handle "Alındı" press — check if payment is PAY_IN_VEHICLE
+  // Fetch existing partial payments for a booking
+  const fetchPaymentState = async (bookingId: string) => {
+    try {
+      const res = await fetch(`${API_URL}/driver/bookings/${bookingId}/payments`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const json = await res.json();
+      if (json.success && json.data) {
+        setPaymentLines(json.data.payments || []);
+        setPaymentSummary({
+          totalCollected: Number(json.data.totalCollected || 0),
+          remaining: Number(json.data.remaining || 0),
+          fullyPaid: !!json.data.fullyPaid,
+          expectedAmount: Number(json.data.expectedAmount || 0),
+          expectedCurrency: json.data.expectedCurrency || 'TRY',
+        });
+        return json.data;
+      }
+    } catch (e) { console.warn('fetchPaymentState failed', e); }
+    return null;
+  };
+
+  // Handle "Alındı" press — for PAY_IN_VEHICLE open cumulative payment modal.
   const handlePickup = async (bookingId: string, paymentMethod?: string, total?: number, currency?: string) => {
     if (paymentMethod === 'PAY_IN_VEHICLE') {
-      // Immediately mark IN_PROGRESS so driver cannot revert (security: prevents cancel-after-seeing-price fraud)
-      setJobs(prev => prev.map(j => j.id === bookingId ? { ...j, status: 'IN_PROGRESS' } : j));
-      try {
-        await fetch(`${API_URL}/driver/bookings/${bookingId}/status`, {
-          method: 'PUT',
-          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: 'IN_PROGRESS' })
-        });
-      } catch { /* status will sync on next fetch */ }
       const useCurrency = currency || defaultCurrency || 'TRY';
       setPaymentModal({
         visible: true,
@@ -433,14 +450,18 @@ export default function JobListScreen() {
         expectedAmount: total || 0,
         expectedCurrency: useCurrency
       });
-      setCollectedAmount(String(total || 0));
+      setCollectedAmount('');
       setCollectedCurrency(useCurrency);
+      setPaymentLines([]);
+      setPaymentSummary({ totalCollected: 0, remaining: total || 0, fullyPaid: false, expectedAmount: total || 0, expectedCurrency: useCurrency });
+      await fetchPaymentState(bookingId);
     } else {
       updateStatus(bookingId, 'IN_PROGRESS');
     }
   };
 
-  const submitPaymentAndPickup = async () => {
+  // Add a partial payment line; backend accumulates and reports remaining.
+  const addPartialPayment = async () => {
     if (!paymentModal.bookingId) return;
     const amount = parseFloat(collectedAmount);
     if (isNaN(amount) || amount <= 0) {
@@ -449,25 +470,91 @@ export default function JobListScreen() {
     }
     setPaymentSaving(true);
     try {
-      // 1. Record payment
       const payRes = await fetch(`${API_URL}/driver/bookings/${paymentModal.bookingId}/payment-received`, {
         method: 'PUT',
         headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ collectedAmount: amount, collectedCurrency: collectedCurrency })
+        body: JSON.stringify({ collectedAmount: amount, collectedCurrency })
       });
       const payJson = await payRes.json();
       if (!payJson.success) {
         Alert.alert('Hata', payJson.error || 'Ödeme kaydedilemedi');
-        setPaymentSaving(false);
         return;
       }
-      // Status already set to IN_PROGRESS in handlePickup — just close modal
-      setPaymentModal({ visible: false, bookingId: null, expectedAmount: 0, expectedCurrency: 'TRY' });
-      setTimeout(() => fetchJobs(), 1000);
+      setPaymentLines(payJson.data.payments || []);
+      setPaymentSummary({
+        totalCollected: Number(payJson.data.totalCollected || 0),
+        remaining: Number(payJson.data.remaining || 0),
+        fullyPaid: !!payJson.data.fullyPaid,
+        expectedAmount: Number(payJson.data.expectedAmount || 0),
+        expectedCurrency: payJson.data.expectedCurrency || 'TRY',
+      });
+      setCollectedAmount('');
     } catch {
       Alert.alert('Hata', 'Bağlantı hatası');
     } finally {
       setPaymentSaving(false);
+    }
+  };
+
+  const resetPartialPayments = async () => {
+    if (!paymentModal.bookingId) return;
+    Alert.alert(
+      'Tahsilatı Sıfırla',
+      'Bu rezervasyon için kaydedilen tüm parçalı ödemeler silinecek. Onaylıyor musunuz?',
+      [
+        { text: 'Vazgeç', style: 'cancel' },
+        {
+          text: 'Sıfırla', style: 'destructive', onPress: async () => {
+            try {
+              const res = await fetch(`${API_URL}/driver/bookings/${paymentModal.bookingId}/payment-received`, {
+                method: 'PUT',
+                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ reset: true })
+              });
+              const json = await res.json();
+              if (json.success) {
+                setPaymentLines([]);
+                setPaymentSummary({
+                  totalCollected: 0,
+                  remaining: paymentModal.expectedAmount,
+                  fullyPaid: false,
+                  expectedAmount: paymentModal.expectedAmount,
+                  expectedCurrency: paymentModal.expectedCurrency,
+                });
+              }
+            } catch { Alert.alert('Hata', 'Bağlantı hatası'); }
+          }
+        }
+      ]
+    );
+  };
+
+  // Finalize: transition booking to IN_PROGRESS only when fully paid.
+  const finalizeAndPickup = async () => {
+    if (!paymentModal.bookingId) return;
+    if (!paymentSummary.fullyPaid) {
+      Alert.alert('Eksik Tahsilat', `Henüz ${paymentSummary.remaining.toFixed(2)} ${paymentSummary.expectedCurrency} kalan var.`);
+      return;
+    }
+    setCompleting(true);
+    try {
+      const res = await fetch(`${API_URL}/driver/bookings/${paymentModal.bookingId}/status`, {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'IN_PROGRESS' })
+      });
+      const json = await res.json();
+      if (!json.success) {
+        Alert.alert('Hata', json.error || 'Durum güncellenemedi');
+        return;
+      }
+      setJobs(prev => prev.map(j => j.id === paymentModal.bookingId ? { ...j, status: 'IN_PROGRESS' } : j));
+      setPaymentModal({ visible: false, bookingId: null, expectedAmount: 0, expectedCurrency: 'TRY' });
+      setTimeout(() => fetchJobs(), 800);
+    } catch {
+      Alert.alert('Hata', 'Bağlantı hatası');
+    } finally {
+      setCompleting(false);
     }
   };
 
@@ -940,70 +1027,129 @@ export default function JobListScreen() {
         </View>
       </Modal>
 
-      {/* Payment Collection Modal — NO escape: driver MUST record payment */}
-      <Modal visible={paymentModal.visible} animationType="slide" transparent onRequestClose={() => { /* blocked — driver must confirm payment */ }}>
+      {/* Payment Collection Modal — Cumulative partial payments */}
+      <Modal visible={paymentModal.visible} animationType="slide" transparent onRequestClose={() => { /* blocked */ }}>
         <View style={st.modalOverlay}>
-          <View style={st.modalCard}>
-            <View style={st.modalHeader}>
-              <Text style={st.modalTitle}>Ödeme Tahsilatı</Text>
-            </View>
+          <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'flex-end' }} keyboardShouldPersistTaps="handled">
+            <View style={st.modalCard}>
+              <View style={st.modalHeader}>
+                <Text style={st.modalTitle}>Ödeme Tahsilatı</Text>
+                {paymentLines.length === 0 && (
+                  <TouchableOpacity onPress={() => setPaymentModal({ visible: false, bookingId: null, expectedAmount: 0, expectedCurrency: 'TRY' })}>
+                    <Ionicons name="close" size={24} color="#64748b" />
+                  </TouchableOpacity>
+                )}
+              </View>
 
-            <View style={st.payExpectedRow}>
-              <Ionicons name="cash-outline" size={20} color="#059669" />
-              <Text style={st.payExpectedLabel}>Alınması Gereken Tutar:</Text>
-            </View>
-            <Text style={st.payExpectedAmount}>
-              {paymentModal.expectedAmount.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} {paymentModal.expectedCurrency}
-            </Text>
+              <View style={st.payExpectedRow}>
+                <Ionicons name="cash-outline" size={20} color="#059669" />
+                <Text style={st.payExpectedLabel}>Alınması Gereken:</Text>
+              </View>
+              <Text style={st.payExpectedAmount}>
+                {Number(paymentSummary.expectedAmount || paymentModal.expectedAmount).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} {paymentSummary.expectedCurrency || paymentModal.expectedCurrency}
+              </Text>
 
-            <Text style={st.modalLabel}>Alınan Tutar</Text>
-            <TextInput
-              style={st.payAmountInput}
-              keyboardType="decimal-pad"
-              placeholder="0.00"
-              placeholderTextColor="#94a3b8"
-              value={collectedAmount}
-              onChangeText={setCollectedAmount}
-            />
+              <View style={st.payProgressRow}>
+                <View style={[st.payProgressBox, { backgroundColor: '#dcfce7' }]}>
+                  <Text style={[st.payProgressLabel, { color: '#15803d' }]}>Tahsil Edilen</Text>
+                  <Text style={[st.payProgressValue, { color: '#15803d' }]}>
+                    {paymentSummary.totalCollected.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} {paymentSummary.expectedCurrency}
+                  </Text>
+                </View>
+                <View style={[st.payProgressBox, { backgroundColor: paymentSummary.fullyPaid ? '#dbeafe' : '#fee2e2' }]}>
+                  <Text style={[st.payProgressLabel, { color: paymentSummary.fullyPaid ? '#1d4ed8' : '#b91c1c' }]}>Kalan</Text>
+                  <Text style={[st.payProgressValue, { color: paymentSummary.fullyPaid ? '#1d4ed8' : '#b91c1c' }]}>
+                    {paymentSummary.remaining.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} {paymentSummary.expectedCurrency}
+                  </Text>
+                </View>
+              </View>
 
-            <Text style={st.modalLabel}>Para Birimi</Text>
-            <View style={st.currencyRow}>
-              {tenantCurrencies.map(c => (
-                <TouchableOpacity
-                  key={c}
-                  style={[st.currencyChip, collectedCurrency === c && st.currencyChipActive]}
-                  onPress={() => {
-                    setCollectedCurrency(c);
-                    // Convert amount using exchange rates
-                    const fromRate = exchangeRates[paymentModal.expectedCurrency];
-                    const toRate = exchangeRates[c];
-                    if (fromRate && toRate && fromRate > 0 && toRate > 0) {
-                      const converted = (paymentModal.expectedAmount * fromRate) / toRate;
-                      setCollectedAmount(String(Math.round(converted * 100) / 100));
+              {paymentLines.length > 0 && (
+                <View style={st.payLinesWrap}>
+                  <Text style={st.modalLabel}>Kayıtlı Ödemeler ({paymentLines.length})</Text>
+                  {paymentLines.map((p, i) => (
+                    <View key={i} style={st.payLineRow}>
+                      <Ionicons name="checkmark-circle" size={16} color="#059669" />
+                      <Text style={st.payLineText}>
+                        {Number(p.amount).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} {p.currency}
+                      </Text>
+                      <Text style={st.payLineDate}>
+                        {new Date(p.at).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
+                      </Text>
+                    </View>
+                  ))}
+                  <TouchableOpacity onPress={resetPartialPayments} style={st.payResetBtn}>
+                    <Ionicons name="refresh" size={13} color="#b91c1c" />
+                    <Text style={st.payResetBtnText}>Tahsilatı sıfırla</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {!paymentSummary.fullyPaid && (
+                <>
+                  <Text style={st.modalLabel}>Yeni Tahsilat (Alınan Tutar)</Text>
+                  <TextInput
+                    style={st.payAmountInput}
+                    keyboardType="decimal-pad"
+                    placeholder="0.00"
+                    placeholderTextColor="#94a3b8"
+                    value={collectedAmount}
+                    onChangeText={setCollectedAmount}
+                  />
+                  <Text style={st.modalLabel}>Para Birimi</Text>
+                  <View style={st.currencyRow}>
+                    {tenantCurrencies.map(c => (
+                      <TouchableOpacity
+                        key={c}
+                        style={[st.currencyChip, collectedCurrency === c && st.currencyChipActive]}
+                        onPress={() => setCollectedCurrency(c)}
+                      >
+                        <Text style={[st.currencyChipText, collectedCurrency === c && st.currencyChipTextActive]}>{c}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  <TouchableOpacity
+                    style={[st.modalSubmit, { backgroundColor: '#0ea5e9', marginTop: 4 }, paymentSaving && { opacity: 0.6 }]}
+                    onPress={addPartialPayment}
+                    disabled={paymentSaving}
+                  >
+                    {paymentSaving
+                      ? <ActivityIndicator color="#fff" size="small" />
+                      : <>
+                        <Ionicons name="add-circle" size={18} color="#fff" />
+                        <Text style={st.modalSubmitText}>Ödeme Ekle</Text>
+                      </>
                     }
-                  }}
-                >
-                  <Text style={[st.currencyChipText, collectedCurrency === c && st.currencyChipTextActive]}>{c}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+                  </TouchableOpacity>
+                </>
+              )}
 
-            <View style={st.modalBtnRow}>
-              <TouchableOpacity
-                style={[st.modalSubmit, { backgroundColor: '#059669' }, paymentSaving && { opacity: 0.6 }]}
-                onPress={submitPaymentAndPickup}
-                disabled={paymentSaving}
-              >
-                {paymentSaving
-                  ? <ActivityIndicator color="#fff" size="small" />
-                  : <>
-                      <Ionicons name="checkmark-circle" size={16} color="#fff" />
-                      <Text style={st.modalSubmitText}>Ödeme Alındı</Text>
+              <View style={st.modalBtnRow}>
+                <TouchableOpacity style={st.modalCancel} onPress={() => setPaymentModal({ visible: false, bookingId: null, expectedAmount: 0, expectedCurrency: 'TRY' })}>
+                  <Text style={st.modalCancelText}>{paymentLines.length === 0 ? 'Daha Sonra' : 'Kapat'}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    st.modalSubmit,
+                    { backgroundColor: paymentSummary.fullyPaid ? '#059669' : '#94a3b8' },
+                    (!paymentSummary.fullyPaid || completing) && { opacity: 0.6 }
+                  ]}
+                  onPress={finalizeAndPickup}
+                  disabled={!paymentSummary.fullyPaid || completing}
+                >
+                  {completing
+                    ? <ActivityIndicator color="#fff" size="small" />
+                    : <>
+                      <Ionicons name="checkmark-done-circle" size={18} color="#fff" />
+                      <Text style={st.modalSubmitText}>
+                        {paymentSummary.fullyPaid ? 'Bitti — Müşteri Alındı' : 'Tahsilat Eksik'}
+                      </Text>
                     </>
-                }
-              </TouchableOpacity>
+                  }
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
+          </ScrollView>
         </View>
       </Modal>
 
@@ -1364,6 +1510,17 @@ const st = StyleSheet.create({
   payExpectedRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
   payExpectedLabel: { fontSize: 14, color: '#374151', fontWeight: '600' },
   payExpectedAmount: { fontSize: 28, fontWeight: '800', color: '#059669', marginVertical: 12, textAlign: 'center' },
+  // ── Cumulative payment progress + lines ──
+  payProgressRow: { flexDirection: 'row', gap: 10, marginBottom: 12 },
+  payProgressBox: { flex: 1, paddingVertical: 12, paddingHorizontal: 12, borderRadius: 12, alignItems: 'center' },
+  payProgressLabel: { fontSize: 11, fontWeight: '700', marginBottom: 4 },
+  payProgressValue: { fontSize: 16, fontWeight: '800' },
+  payLinesWrap: { backgroundColor: '#f8fafc', borderRadius: 12, padding: 10, marginBottom: 8, borderWidth: 1, borderColor: '#e2e8f0' },
+  payLineRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: '#e2e8f0' },
+  payLineText: { flex: 1, fontSize: 14, fontWeight: '700', color: '#0f172a' },
+  payLineDate: { fontSize: 11, color: '#64748b' },
+  payResetBtn: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-end', gap: 4, marginTop: 6, paddingHorizontal: 8, paddingVertical: 4 },
+  payResetBtnText: { fontSize: 11, color: '#b91c1c', fontWeight: '600' },
   payAmountInput: {
     backgroundColor: '#f9fafb', borderRadius: 12, borderWidth: 1.5, borderColor: '#e5e7eb',
     paddingHorizontal: 16, height: 52, fontSize: 20, fontWeight: '700', color: '#111827', textAlign: 'center',

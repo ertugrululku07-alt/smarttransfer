@@ -552,6 +552,22 @@ router.put('/bookings/:id/status', authMiddleware, ensureDriver, async (req, res
             return res.status(404).json({ success: false, error: 'Rezervasyon bulunamadı veya bu şoföre atanmamış' });
         }
 
+        // Guard: PAY_IN_VEHICLE bookings cannot transition to IN_PROGRESS / COMPLETED
+        // until full payment has been collected (fullyPaid === true).
+        const existingMeta = existing.metadata || {};
+        if (
+            existingMeta.paymentMethod === 'PAY_IN_VEHICLE' &&
+            (status === 'IN_PROGRESS' || status === 'COMPLETED') &&
+            existing.paymentStatus !== 'PAID' &&
+            existingMeta.fullyPaid !== true
+        ) {
+            return res.status(400).json({
+                success: false,
+                error: 'Tahsilat tamamlanmadan transfer başlatılamaz / bitirilemez. Lütfen kalan tutarı tahsil edin.',
+                code: 'PAYMENT_INCOMPLETE'
+            });
+        }
+
         const booking = await prisma.booking.update({
             where: { id: id },
             data: updateData,
@@ -596,15 +612,50 @@ router.put('/bookings/:id/status', authMiddleware, ensureDriver, async (req, res
     }
 });
 
+// ── Helper: compute cumulative payment status for a booking ──────────────
+// Returns { totalCollected, remaining, fullyPaid, expectedAmount, expectedCurrency }
+// All amounts computed in expectedCurrency using tenant exchange rates.
+async function computePaymentSummary(booking, payments, tenantId) {
+    const expectedAmount = Number(booking.total || 0);
+    const expectedCurrency = booking.currency || 'TRY';
+
+    const tenant = await prisma.tenant.findUnique({
+        where: { id: tenantId },
+        select: { settings: true }
+    });
+    const currencyDefs = tenant?.settings?.definitions?.currencies || [];
+    const rates = {};
+    currencyDefs.forEach(c => { if (c.code && c.rate) rates[c.code] = Number(c.rate); });
+    if (!rates[expectedCurrency]) rates[expectedCurrency] = 1;
+
+    let totalCollected = 0;
+    for (const p of (payments || [])) {
+        const fromRate = rates[p.currency] || 1;
+        const toRate = rates[expectedCurrency] || 1;
+        totalCollected += (Number(p.amount) * fromRate) / toRate;
+    }
+    totalCollected = Math.round(totalCollected * 100) / 100;
+    const remaining = Math.max(0, Math.round((expectedAmount - totalCollected) * 100) / 100);
+    const fullyPaid = totalCollected + 0.01 >= expectedAmount;
+    return { totalCollected, remaining, fullyPaid, expectedAmount, expectedCurrency };
+}
+
 // PUT /api/driver/bookings/:id/payment-received
-// Driver marks payment as received (used for PAY_IN_VEHICLE)
+// Driver records a (possibly partial) payment. Multiple calls accumulate.
+// Body: { collectedAmount, collectedCurrency } OR { reset: true } to clear all.
 router.put('/bookings/:id/payment-received', authMiddleware, ensureDriver, async (req, res) => {
     try {
         const { id } = req.params;
-        const { collectedAmount, collectedCurrency } = req.body;
+        const { collectedAmount, collectedCurrency, reset } = req.body;
 
         const booking = await prisma.booking.findFirst({
-            where: { id, driverId: req.user.id }
+            where: {
+                id,
+                OR: [
+                    { driverId: req.user.id },
+                    { metadata: { path: ['driverId'], equals: req.user.id } }
+                ]
+            }
         });
         if (!booking) {
             return res.status(404).json({ success: false, error: 'Rezervasyon bulunamadı' });
@@ -616,32 +667,71 @@ router.put('/bookings/:id/payment-received', authMiddleware, ensureDriver, async
             return res.status(400).json({ success: false, error: 'Bu rezervasyon araçta ödeme değil' });
         }
 
-        const amount = collectedAmount !== undefined ? Number(collectedAmount) : Number(booking.total || 0);
+        // Reset path: clear pending (un-handed-over) collections + payments array
+        if (reset === true) {
+            await prisma.driverCollection.deleteMany({
+                where: { bookingId: id, driverId: req.user.id, status: 'PENDING' }
+            });
+            const updated = await prisma.booking.update({
+                where: { id },
+                data: {
+                    paymentStatus: 'UNPAID',
+                    paidAmount: 0,
+                    metadata: { ...meta, payments: [], collectedAmount: 0 }
+                }
+            });
+            const summary = await computePaymentSummary(updated, [], req.user.tenantId);
+            return res.json({ success: true, data: { booking: updated, payments: [], ...summary } });
+        }
+
+        const amount = Number(collectedAmount);
+        if (!collectedAmount || isNaN(amount) || amount <= 0) {
+            return res.status(400).json({ success: false, error: 'Geçerli tutar gerekli' });
+        }
         const currency = collectedCurrency || booking.currency || 'TRY';
+
+        const prevPayments = Array.isArray(meta.payments) ? meta.payments : [];
+        const newLine = {
+            amount,
+            currency,
+            at: new Date().toISOString(),
+            by: req.user.id,
+            byName: req.user.fullName || null
+        };
+        const payments = [...prevPayments, newLine];
+
+        // Compute cumulative summary
+        const summary = await computePaymentSummary(booking, payments, req.user.tenantId);
+
+        const newPaymentStatus = summary.fullyPaid
+            ? 'PAID'
+            : (summary.totalCollected > 0 ? 'PARTIAL' : 'UNPAID');
 
         const updated = await prisma.booking.update({
             where: { id },
             data: {
-                paymentStatus: 'PAID',
-                paidAmount: amount,
+                paymentStatus: newPaymentStatus,
+                paidAmount: summary.totalCollected,
                 metadata: {
                     ...meta,
+                    payments,
+                    collectedAmount: summary.totalCollected,
+                    collectedCurrency: summary.expectedCurrency,
                     paymentReceivedAt: new Date().toISOString(),
                     paymentReceivedBy: req.user.id,
-                    collectedAmount: amount,
-                    collectedCurrency: currency
+                    fullyPaid: summary.fullyPaid
                 }
             }
         });
 
-        // Create DriverCollection record for accounting tracking
+        // Create one DriverCollection row for the partial payment (accounting handover unit)
         await prisma.driverCollection.create({
             data: {
                 tenantId: req.user.tenantId,
                 driverId: req.user.id,
                 bookingId: id,
-                amount: Number(amount),
-                currency: currency,
+                amount,
+                currency,
                 customerName: booking.contactName,
                 bookingNumber: booking.bookingNumber,
                 paymentMethod: 'CASH',
@@ -653,17 +743,50 @@ router.put('/bookings/:id/payment-received', authMiddleware, ensureDriver, async
         if (io) {
             io.to('admin_monitoring').emit('booking_payment_update', {
                 bookingId: id,
-                paymentStatus: 'PAID',
+                paymentStatus: newPaymentStatus,
                 driverId: req.user.id,
                 driverName: req.user.fullName,
                 collectedAmount: amount,
-                collectedCurrency: currency
+                collectedCurrency: currency,
+                totalCollected: summary.totalCollected,
+                remaining: summary.remaining,
+                fullyPaid: summary.fullyPaid
             });
         }
 
-        res.json({ success: true, data: updated });
+        res.json({
+            success: true,
+            data: { booking: updated, payments, ...summary }
+        });
     } catch (error) {
         console.error('Driver payment received error:', error);
+        res.status(500).json({ success: false, error: 'Server error' });
+    }
+});
+
+// GET /api/driver/bookings/:id/payments
+// Returns cumulative payment state for a booking (for resuming the collection modal).
+router.get('/bookings/:id/payments', authMiddleware, ensureDriver, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const booking = await prisma.booking.findFirst({
+            where: {
+                id,
+                OR: [
+                    { driverId: req.user.id },
+                    { metadata: { path: ['driverId'], equals: req.user.id } }
+                ]
+            }
+        });
+        if (!booking) {
+            return res.status(404).json({ success: false, error: 'Rezervasyon bulunamadı' });
+        }
+        const meta = booking.metadata || {};
+        const payments = Array.isArray(meta.payments) ? meta.payments : [];
+        const summary = await computePaymentSummary(booking, payments, req.user.tenantId);
+        res.json({ success: true, data: { payments, ...summary } });
+    } catch (error) {
+        console.error('Get booking payments error:', error);
         res.status(500).json({ success: false, error: 'Server error' });
     }
 });
