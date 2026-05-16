@@ -4372,9 +4372,28 @@ router.get('/airport-arrivals', authMiddleware, async (req, res) => {
             greeters.forEach(g => { greeterMap[g.id] = `${g.firstName} ${g.lastName}`; });
         }
 
+        // Helper: phone is revealed only when the flight has actually landed
+        // OR the customer has been met / handed off. Pre-landing the contact
+        // info is masked to prevent greeting personnel from poaching customers.
+        const maskPhone = (raw) => {
+            if (!raw) return null;
+            const digits = String(raw).replace(/[^0-9+]/g, '');
+            if (digits.length < 4) return '***';
+            const last4 = digits.slice(-4);
+            return `*** *** **${last4}`;
+        };
+
         const mapped = arrivals.map(b => {
             const vehId = b.metadata?.assignedVehicleId || b.metadata?.vehicleId || null;
             const vehicle = vehId ? vehicleMap[vehId] : null;
+            const greetingStatus = b.metadata?.greetingStatus || 'WAITING';
+            const flightStatus = b.metadata?.flightStatus || 'ON_TIME';
+            const phoneRevealed = (
+                flightStatus === 'LANDED' ||
+                !!b.metadata?.actualLanding ||
+                ['LANDED', 'MET', 'HANDED_OFF'].includes(greetingStatus)
+            );
+            const fullPhone = b.contactPhone || null;
             return {
                 id: b.id,
                 bookingNumber: b.bookingNumber,
@@ -4384,8 +4403,14 @@ router.get('/airport-arrivals', authMiddleware, async (req, res) => {
                 flightTime: b.metadata?.flightTime || null,
                 // Customer
                 passengerName: b.contactName,
-                passengerPhone: b.contactPhone,
-                contactEmail: b.contactEmail,
+                // Phone redaction: reveal only after the flight has landed.
+                // Frontend can call /airport-greeting/reveal-phone to get the full number on demand
+                // (audited). Pre-landing only a masked tail is exposed.
+                passengerPhone: phoneRevealed ? fullPhone : null,
+                passengerPhoneMasked: phoneRevealed ? null : maskPhone(fullPhone),
+                phoneRevealed,
+                // Email is also withheld until landing to prevent off-platform contact
+                contactEmail: phoneRevealed ? b.contactEmail : null,
                 adults: b.adults,
                 children: b.children || 0,
                 infants: b.infants || 0,
@@ -4822,6 +4847,258 @@ router.get('/greeting-drivers', authMiddleware, async (req, res) => {
     } catch (error) {
         console.error('[Airport] greeting-drivers error:', error);
         res.status(500).json({ success: false, error: 'Şoför listesi alınamadı' });
+    }
+});
+
+/**
+ * POST /api/transfer/airport-greeting/reveal-phone
+ * Body: { bookingId }
+ * Returns the full passenger phone number IFF the flight has landed (or
+ * the customer has been met / handed off, or pickup time has already passed).
+ * Every reveal is audited in booking.metadata.phoneReveals[] for fraud review.
+ */
+router.post('/airport-greeting/reveal-phone', authMiddleware, async (req, res) => {
+    try {
+        const { bookingId, reason } = req.body || {};
+        if (!bookingId) {
+            return res.status(400).json({ success: false, error: 'bookingId gereklidir' });
+        }
+
+        const booking = await prisma.booking.findUnique({ where: { id: bookingId } });
+        if (!booking) return res.status(404).json({ success: false, error: 'Rezervasyon bulunamadı' });
+
+        const meta = booking.metadata || {};
+        const greetingStatus = meta.greetingStatus || 'WAITING';
+        const flightStatus = meta.flightStatus || 'ON_TIME';
+        const pickupPassed = booking.startDate && new Date(booking.startDate).getTime() <= Date.now();
+        const allowed = (
+            flightStatus === 'LANDED' ||
+            !!meta.actualLanding ||
+            ['LANDED', 'MET', 'HANDED_OFF'].includes(greetingStatus) ||
+            pickupPassed
+        );
+
+        if (!allowed) {
+            return res.status(403).json({
+                success: false,
+                error: 'Müşteri telefonu uçak inmeden gösterilemez',
+                code: 'PHONE_LOCKED'
+            });
+        }
+
+        // Audit the reveal
+        const reveals = Array.isArray(meta.phoneReveals) ? meta.phoneReveals : [];
+        reveals.push({
+            by: req.user.id,
+            byName: `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || req.user.email || null,
+            at: new Date().toISOString(),
+            ip: req.headers['x-forwarded-for'] || req.ip || null,
+            userAgent: req.headers['user-agent'] || null,
+            reason: reason || null,
+            greetingStatus,
+            flightStatus,
+        });
+        await prisma.booking.update({
+            where: { id: bookingId },
+            data: { metadata: { ...meta, phoneReveals: reveals } }
+        });
+
+        res.json({
+            success: true,
+            data: {
+                passengerPhone: booking.contactPhone || null,
+                contactEmail: booking.contactEmail || null,
+                revealCount: reveals.length,
+            }
+        });
+    } catch (error) {
+        console.error('[Airport] reveal-phone error:', error);
+        res.status(500).json({ success: false, error: 'Telefon açılamadı' });
+    }
+});
+
+/**
+ * GET /api/transfer/airport-greeting/driver-locations
+ * Returns live locations of drivers assigned to today's airport-arrival
+ * bookings whose pickup is within the next 60 minutes (or already in progress).
+ * Used by greeting personnel to anticipate delays.
+ */
+router.get('/airport-greeting/driver-locations', authMiddleware, async (req, res) => {
+    try {
+        const tenantId = req.user.tenantId || req.tenant?.id;
+        if (!tenantId) return res.status(400).json({ success: false, error: 'Tenant bulunamadı' });
+
+        const now = new Date();
+        const dayStart = new Date(now); dayStart.setHours(0, 0, 0, 0);
+        const dayEnd = new Date(now); dayEnd.setHours(23, 59, 59, 999);
+        const horizon = new Date(now.getTime() + 60 * 60 * 1000); // +60 min
+
+        const bookings = await prisma.booking.findMany({
+            where: {
+                tenantId,
+                productType: 'TRANSFER',
+                startDate: { gte: dayStart, lte: dayEnd },
+                status: { in: ['CONFIRMED', 'PENDING', 'IN_PROGRESS'] },
+                driverId: { not: null }
+            },
+            select: {
+                id: true, bookingNumber: true, startDate: true, status: true,
+                driverId: true, contactName: true, metadata: true
+            }
+        });
+
+        // Keep only ARV (airport pickup) bookings
+        const arrivals = bookings.filter(b => {
+            const pickup = (b.metadata?.pickup || '').toLowerCase();
+            return AIRPORT_KEYWORDS.some(kw => pickup.includes(kw));
+        });
+
+        // Group by driver, only keep drivers whose ANY assigned booking is within +60 min OR IN_PROGRESS
+        const byDriver = {};
+        arrivals.forEach(b => {
+            const startTs = b.startDate ? new Date(b.startDate).getTime() : 0;
+            const within60 = startTs >= now.getTime() - 30 * 60 * 1000 && startTs <= horizon.getTime();
+            const inProgress = b.status === 'IN_PROGRESS';
+            if (!within60 && !inProgress) return;
+            if (!byDriver[b.driverId]) byDriver[b.driverId] = [];
+            byDriver[b.driverId].push({
+                id: b.id,
+                bookingNumber: b.bookingNumber,
+                pickupDateTime: b.startDate,
+                contactName: b.contactName,
+                vehicleType: b.metadata?.vehicleType || null,
+                vehiclePlate: b.metadata?.vehiclePlate || null,
+                shuttleRouteId: b.metadata?.shuttleRouteId || null,
+                manualRunId: b.metadata?.manualRunId || null,
+                status: b.status,
+                greetingStatus: b.metadata?.greetingStatus || 'WAITING',
+            });
+        });
+
+        const driverIds = Object.keys(byDriver);
+        if (driverIds.length === 0) {
+            return res.json({ success: true, data: [] });
+        }
+
+        const drivers = await prisma.user.findMany({
+            where: { id: { in: driverIds } },
+            select: { id: true, fullName: true, phone: true, avatar: true, lastSeenAt: true, metadata: true }
+        });
+
+        // Vehicles for plate display
+        const vehicles = await prisma.vehicle.findMany({
+            where: { tenantId, status: 'ACTIVE' },
+            select: { id: true, plateNumber: true, brand: true, model: true, metadata: true }
+        });
+        const vehicleByDriver = {};
+        vehicles.forEach(v => { if (v.metadata?.driverId) vehicleByDriver[v.metadata.driverId] = v; });
+
+        const onlineDrivers = req.app.get('onlineDrivers') || {};
+
+        const result = drivers.map(d => {
+            const info = onlineDrivers[d.id];
+            const dm = d.metadata || {};
+            const location = info?.location || (
+                dm.lastLat && dm.lastLng
+                    ? { lat: Number(dm.lastLat), lng: Number(dm.lastLng), heading: dm.lastHeading || 0, speed: dm.lastSpeed || 0 }
+                    : null
+            );
+            const lastSeen = info?.lastSeen || (d.lastSeenAt ? new Date(d.lastSeenAt).getTime() : null);
+            const v = vehicleByDriver[d.id];
+            return {
+                driverId: d.id,
+                name: d.fullName,
+                phone: d.phone,
+                avatar: d.avatar,
+                online: !!info,
+                lastSeen,
+                location,
+                vehicle: v ? {
+                    id: v.id,
+                    plate: v.plateNumber,
+                    brand: `${v.brand || ''} ${v.model || ''}`.trim()
+                } : null,
+                bookings: byDriver[d.id] || [],
+            };
+        });
+
+        res.json({ success: true, data: result });
+    } catch (error) {
+        console.error('[Airport] driver-locations error:', error);
+        res.status(500).json({ success: false, error: 'Şoför konumları alınamadı' });
+    }
+});
+
+/**
+ * GET /api/transfer/airport-greeting/completed
+ * Returns today's completed greetings (HANDED_OFF / NO_SHOW / CANCELLED) so
+ * personnel can review what they finished during the day.
+ * Query: ?date=YYYY-MM-DD
+ */
+router.get('/airport-greeting/completed', authMiddleware, async (req, res) => {
+    try {
+        const tenantId = req.user.tenantId || req.tenant?.id;
+        if (!tenantId) return res.status(400).json({ success: false, error: 'Tenant bulunamadı' });
+
+        const { date, airport } = req.query;
+        const targetDate = date ? new Date(date) : new Date();
+        const dayStart = new Date(targetDate); dayStart.setHours(0, 0, 0, 0);
+        const dayEnd = new Date(targetDate); dayEnd.setHours(23, 59, 59, 999);
+
+        const bookings = await prisma.booking.findMany({
+            where: {
+                tenantId,
+                productType: 'TRANSFER',
+                startDate: { gte: dayStart, lte: dayEnd },
+            },
+            include: {
+                driver: { select: { id: true, fullName: true, phone: true } },
+            },
+            orderBy: { startDate: 'asc' }
+        });
+
+        const completed = bookings.filter(b => {
+            const pickup = (b.metadata?.pickup || '').toLowerCase();
+            const isArrival = AIRPORT_KEYWORDS.some(kw => pickup.includes(kw));
+            if (!isArrival) return false;
+            if (airport && !pickup.includes(String(airport).toLowerCase())) return false;
+            const gs = b.metadata?.greetingStatus;
+            return ['HANDED_OFF', 'NO_SHOW', 'CANCELLED'].includes(gs);
+        });
+
+        const mapped = completed.map(b => ({
+            id: b.id,
+            bookingNumber: b.bookingNumber,
+            passengerName: b.contactName,
+            passengerPhone: b.contactPhone, // already finished — phone allowed
+            adults: b.adults,
+            children: b.children || 0,
+            infants: b.infants || 0,
+            flightNumber: b.metadata?.flightNumber || null,
+            flightTime: b.metadata?.flightTime || null,
+            pickup: b.metadata?.pickup || '',
+            dropoff: b.metadata?.dropoff || '',
+            pickupDateTime: b.startDate,
+            vehicleType: b.metadata?.vehicleType || null,
+            vehiclePlate: b.metadata?.vehiclePlate || null,
+            driverName: b.driver?.fullName || b.metadata?.handoffDriverName || null,
+            driverPhone: b.driver?.phone || b.metadata?.handoffDriverPhone || null,
+            driverId: b.driverId || null,
+            greetingStatus: b.metadata?.greetingStatus || null,
+            greetedAt: b.metadata?.greetedAt || null,
+            handedOffAt: b.metadata?.handedOffAt || null,
+            greeterId: b.metadata?.greeterId || null,
+            greeterName: b.metadata?.greeterName || null,
+            shuttleRouteId: b.metadata?.shuttleRouteId || null,
+            manualRunId: b.metadata?.manualRunId || null,
+            shuttleMasterTime: b.metadata?.shuttleMasterTime || null,
+        }));
+
+        // Group shuttle completions for display
+        res.json({ success: true, data: mapped });
+    } catch (error) {
+        console.error('[Airport] completed error:', error);
+        res.status(500).json({ success: false, error: 'Tamamlanan kayıtlar alınamadı' });
     }
 });
 

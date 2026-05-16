@@ -11,7 +11,8 @@ import {
     EnvironmentOutlined, CalendarOutlined, IdcardOutlined, TeamOutlined,
     CheckCircleOutlined, ClockCircleOutlined, CloseCircleOutlined,
     ExclamationCircleOutlined, SendOutlined, UserOutlined, LoadingOutlined,
-    GlobalOutlined, SwapRightOutlined
+    GlobalOutlined, SwapRightOutlined, LockOutlined, EyeOutlined,
+    AimOutlined, WifiOutlined, HistoryOutlined, CompassOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import 'dayjs/locale/tr';
@@ -65,7 +66,17 @@ export default function AirportGreetingStandalonePage() {
     const [airportFilter, setAirportFilter] = useState('');
     const [selectedDate, setSelectedDate] = useState(dayjs());
     const [autoRefresh, setAutoRefresh] = useState(true);
-    const [viewTab, setViewTab] = useState<'all' | 'shuttle' | 'private'>('all');
+    const [viewTab, setViewTab] = useState<'all' | 'shuttle' | 'private' | 'completed'>('all');
+    // ── Completed greetings (today's HANDED_OFF / NO_SHOW / CANCELLED) ──
+    const [completed, setCompleted] = useState<any[]>([]);
+    const [completedLoading, setCompletedLoading] = useState(false);
+    // ── Driver locations modal (anti-delay tool) ──
+    const [driverLocModal, setDriverLocModal] = useState(false);
+    const [driverLocations, setDriverLocations] = useState<any[]>([]);
+    const [driverLocLoading, setDriverLocLoading] = useState(false);
+    const driverLocTimer = useRef<any>(null);
+    // ── Phone reveal cache: bookingId -> { phone, email } ──
+    const [revealedPhones, setRevealedPhones] = useState<Record<string, { phone: string; email?: string | null }>>({});
     const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
     const [noteModal, setNoteModal] = useState<{ visible: boolean; bookingId: string; bookingNumber: string }>({ visible: false, bookingId: '', bookingNumber: '' });
     const [noteText, setNoteText] = useState('');
@@ -111,11 +122,19 @@ export default function AirportGreetingStandalonePage() {
         return () => { if (refreshTimer.current) clearInterval(refreshTimer.current); };
     }, [autoRefresh, fetchArrivals]);
 
+    /* ── Active set: hide finished bookings from active list. They go to "Tamamlanan" tab. ── */
+    const FINISHED = ['HANDED_OFF', 'NO_SHOW', 'CANCELLED'];
+    const activeArrivals = useMemo(
+        () => arrivals.filter(b => !FINISHED.includes(b.greetingStatus)),
+        [arrivals]
+    );
+
     /* ── Search ── */
     const filtered = useMemo(() => {
-        if (!searchText) return arrivals;
+        const base = activeArrivals;
+        if (!searchText) return base;
         const q = searchText.toLowerCase();
-        return arrivals.filter(b =>
+        return base.filter(b =>
             b.bookingNumber?.toLowerCase().includes(q) ||
             b.passengerName?.toLowerCase().includes(q) ||
             b.passengerPhone?.toLowerCase().includes(q) ||
@@ -123,7 +142,97 @@ export default function AirportGreetingStandalonePage() {
             b.driverName?.toLowerCase().includes(q) ||
             b.vehiclePlate?.toLowerCase().includes(q)
         );
-    }, [arrivals, searchText]);
+    }, [activeArrivals, searchText]);
+
+    /* ── Fetch today's completed greetings (separate from active list) ── */
+    const fetchCompleted = useCallback(async () => {
+        setCompletedLoading(true);
+        try {
+            const params: any = { date: selectedDate.format('YYYY-MM-DD') };
+            if (airportFilter) params.airport = airportFilter;
+            const res = await apiClient.get('/api/transfer/airport-greeting/completed', { params });
+            if (res.data.success) setCompleted(res.data.data || []);
+        } catch { /* silent */ }
+        finally { setCompletedLoading(false); }
+    }, [selectedDate, airportFilter]);
+
+    useEffect(() => { fetchCompleted(); }, [fetchCompleted]);
+
+    /* ── Driver locations: fetch + auto-refresh while modal open ── */
+    const fetchDriverLocations = useCallback(async () => {
+        setDriverLocLoading(true);
+        try {
+            const res = await apiClient.get('/api/transfer/airport-greeting/driver-locations');
+            if (res.data.success) setDriverLocations(res.data.data || []);
+        } catch { /* silent */ }
+        finally { setDriverLocLoading(false); }
+    }, []);
+
+    useEffect(() => {
+        if (driverLocModal) {
+            fetchDriverLocations();
+            driverLocTimer.current = setInterval(fetchDriverLocations, 30000);
+        }
+        return () => { if (driverLocTimer.current) clearInterval(driverLocTimer.current); };
+    }, [driverLocModal, fetchDriverLocations]);
+
+    /* ── Reveal masked phone (gated; audited server-side) ── */
+    const revealPhone = useCallback(async (bookingId: string) => {
+        if (revealedPhones[bookingId]) return;
+        try {
+            const res = await apiClient.post('/api/transfer/airport-greeting/reveal-phone', { bookingId });
+            if (res.data.success) {
+                setRevealedPhones(prev => ({
+                    ...prev,
+                    [bookingId]: { phone: res.data.data.passengerPhone || '', email: res.data.data.contactEmail || null }
+                }));
+                message.success('Müşteri telefonu açıldı (audit kaydedildi)');
+            } else {
+                message.warning(res.data.error || 'Telefon açılamadı');
+            }
+        } catch (err: any) {
+            const errCode = err?.response?.data?.code;
+            if (errCode === 'PHONE_LOCKED') {
+                message.warning('Müşteri telefonu uçak inmeden gösterilemez');
+            } else {
+                message.error('Telefon açılamadı');
+            }
+        }
+    }, [revealedPhones]);
+
+    /* ── Helper: render passenger phone with redaction guard ── */
+    const renderPassengerPhone = (r: any) => {
+        const cached = revealedPhones[r.id];
+        const phone = cached?.phone || r.passengerPhone;
+        if (phone) {
+            return (
+                <a href={`tel:${phone}`} style={{ fontSize: 11, color: '#3b82f6', display: 'flex', alignItems: 'center', gap: 3, textDecoration: 'none' }}>
+                    <PhoneOutlined style={{ fontSize: 9 }} />
+                    {phone}
+                </a>
+            );
+        }
+        if (r.passengerPhoneMasked) {
+            return (
+                <Tooltip title="Müşteri uçağı inmeden telefon açılamaz (anti-fraud koruması)">
+                    <span style={{ fontSize: 11, color: '#94a3b8', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                        <LockOutlined style={{ fontSize: 9 }} />
+                        <span style={{ fontFamily: 'monospace' }}>{r.passengerPhoneMasked}</span>
+                        <Button
+                            type="link"
+                            size="small"
+                            icon={<EyeOutlined />}
+                            onClick={(e) => { e.stopPropagation(); revealPhone(r.id); }}
+                            style={{ padding: 0, fontSize: 10, height: 16 }}
+                        >
+                            Göster
+                        </Button>
+                    </span>
+                </Tooltip>
+            );
+        }
+        return null;
+    };
 
     /* ── Separate private vs shuttle ── */
     const isShuttle = (b: any) => {
@@ -399,12 +508,7 @@ export default function AirportGreetingStandalonePage() {
                 return (
                     <div>
                         <div style={{ fontWeight: 700, fontSize: 13, color: '#1e293b' }}>{r.passengerName || '-'}</div>
-                        {r.passengerPhone && (
-                            <a href={`tel:${r.passengerPhone}`} style={{ fontSize: 11, color: '#3b82f6', display: 'flex', alignItems: 'center', gap: 3, textDecoration: 'none' }}>
-                                <PhoneOutlined style={{ fontSize: 9 }} />
-                                {r.passengerPhone}
-                            </a>
-                        )}
+                        {renderPassengerPhone(r)}
                         <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 2 }}>
                             <Badge count={pax} style={{ backgroundColor: '#6366f1', fontSize: 9, height: 16, lineHeight: '16px' }} />
                             <span style={{ marginLeft: 4 }}>kişi</span>
@@ -707,12 +811,35 @@ export default function AirportGreetingStandalonePage() {
                                     </div>
                                 ),
                             },
+                            {
+                                value: 'completed',
+                                label: (
+                                    <div style={{ padding: '2px 6px', display: 'flex', alignItems: 'center', gap: 5 }}>
+                                        <HistoryOutlined style={{ fontSize: 12 }} />
+                                        <span style={{ fontSize: 12, fontWeight: 600 }}>Tamamlanan</span>
+                                        <Badge count={completed.length} style={{ backgroundColor: '#16a34a', fontSize: 9 }} />
+                                    </div>
+                                ),
+                            },
                         ]}
                         style={{
                             borderRadius: 10, background: '#f1f5f9',
                             boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
                         }}
                     />
+                    <div style={{ flex: 1 }} />
+                    <Button
+                        icon={<CompassOutlined />}
+                        onClick={() => setDriverLocModal(true)}
+                        size="small"
+                        style={{
+                            borderRadius: 8, fontWeight: 700, fontSize: 11,
+                            background: 'linear-gradient(135deg, #fef3c7, #fde68a)',
+                            color: '#92400e', borderColor: '#fcd34d',
+                        }}
+                    >
+                        Şoför Konumları (1 saat)
+                    </Button>
                 </div>
 
                 {/* ═══ SHUTTLE RUNS (Compact Accordion) ═══ */}
@@ -799,11 +926,7 @@ export default function AirportGreetingStandalonePage() {
                                                         <div style={{ overflow: 'hidden' }}>
                                                             <div style={{ fontWeight: 700, fontSize: 12, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.passengerName}</div>
                                                             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                                                {b.passengerPhone && (
-                                                                    <a href={`tel:${b.passengerPhone}`} style={{ fontSize: 10, color: '#3b82f6', textDecoration: 'none', whiteSpace: 'nowrap' }}>
-                                                                        <PhoneOutlined style={{ fontSize: 8, marginRight: 2 }} />{b.passengerPhone}
-                                                                    </a>
-                                                                )}
+                                                                {renderPassengerPhone(b)}
                                                                 <span style={{ fontSize: 9, color: '#cbd5e1', fontFamily: 'monospace' }}>{b.bookingNumber}</span>
                                                             </div>
                                                         </div>
@@ -935,6 +1058,211 @@ export default function AirportGreetingStandalonePage() {
                         />
                     </Card>
                 )}
+
+                {/* ═══ COMPLETED GREETINGS TAB ═══ */}
+                {viewTab === 'completed' && (
+                    <Card
+                        styles={{ body: { padding: 0 } }}
+                        style={{
+                            borderRadius: 10, overflow: 'hidden', border: '1px solid #e2e8f0',
+                            boxShadow: '0 1px 6px rgba(0,0,0,0.04)'
+                        }}
+                    >
+                        <Table
+                            size="small"
+                            rowKey="id"
+                            loading={completedLoading}
+                            dataSource={completed}
+                            pagination={{ pageSize: 20, showSizeChanger: true, pageSizeOptions: ['10', '20', '50'], style: { padding: '8px 12px', margin: 0 } }}
+                            scroll={{ x: 1000 }}
+                            locale={{
+                                emptyText: (
+                                    <div style={{ padding: '40px 0', textAlign: 'center' }}>
+                                        <div style={{ fontSize: 36, marginBottom: 8 }}>✓</div>
+                                        <div style={{ fontSize: 13, fontWeight: 600, color: '#6b7280', marginBottom: 4 }}>Henüz tamamlanan karşılama yok</div>
+                                        <div style={{ fontSize: 11, color: '#9ca3af' }}>Bugün tamamlanan kayıtlar burada görünecek</div>
+                                    </div>
+                                )
+                            }}
+                            columns={[
+                                {
+                                    title: 'Saat',
+                                    key: 'time',
+                                    width: 90,
+                                    render: (_, r) => (
+                                        <div>
+                                            <div style={{ fontWeight: 700, fontSize: 12, color: '#0ea5e9', fontFamily: 'monospace' }}>
+                                                {r.flightTime || (r.pickupDateTime ? dayjs(r.pickupDateTime).format('HH:mm') : '-')}
+                                            </div>
+                                            {r.flightNumber && <div style={{ fontSize: 10, color: '#64748b', fontFamily: 'monospace' }}>{r.flightNumber}</div>}
+                                        </div>
+                                    )
+                                },
+                                {
+                                    title: 'Müşteri',
+                                    key: 'customer',
+                                    width: 200,
+                                    render: (_, r) => (
+                                        <div>
+                                            <div style={{ fontWeight: 700, fontSize: 13 }}>{r.passengerName || '-'}</div>
+                                            {r.passengerPhone && (
+                                                <a href={`tel:${r.passengerPhone}`} style={{ fontSize: 11, color: '#3b82f6' }}>
+                                                    <PhoneOutlined style={{ fontSize: 9, marginRight: 3 }} />{r.passengerPhone}
+                                                </a>
+                                            )}
+                                            <div style={{ fontSize: 10, color: '#cbd5e1', fontFamily: 'monospace' }}>{r.bookingNumber}</div>
+                                        </div>
+                                    )
+                                },
+                                {
+                                    title: 'Varış',
+                                    key: 'dropoff',
+                                    width: 220,
+                                    render: (_, r) => (
+                                        <span style={{ fontSize: 11, color: '#334155' }}>
+                                            <EnvironmentOutlined style={{ color: '#ef4444', fontSize: 10, marginRight: 3 }} />
+                                            {r.dropoff || '-'}
+                                        </span>
+                                    )
+                                },
+                                {
+                                    title: 'Şoför',
+                                    key: 'driver',
+                                    width: 180,
+                                    render: (_, r) => (
+                                        <div>
+                                            <div style={{ fontSize: 12, fontWeight: 600, color: '#1e293b' }}>{r.driverName || '-'}</div>
+                                            {r.vehiclePlate && (
+                                                <span style={{ fontSize: 10, fontFamily: 'monospace', color: '#0369a1', background: '#f0f9ff', padding: '1px 5px', borderRadius: 3 }}>
+                                                    {r.vehiclePlate}
+                                                </span>
+                                            )}
+                                        </div>
+                                    )
+                                },
+                                {
+                                    title: 'Karşılayan',
+                                    key: 'greeter',
+                                    width: 140,
+                                    render: (_, r) => <span style={{ fontSize: 11, color: '#64748b' }}>{r.greeterName || '-'}</span>
+                                },
+                                {
+                                    title: 'Durum',
+                                    dataIndex: 'greetingStatus',
+                                    key: 'status',
+                                    width: 130,
+                                    render: (_, r) => {
+                                        const gs = GREETING_STATUS[r.greetingStatus] || GREETING_STATUS.HANDED_OFF;
+                                        const ts = r.handedOffAt || r.greetedAt;
+                                        return (
+                                            <div>
+                                                <Tag style={{ background: gs.bg, color: gs.color, border: `1px solid ${gs.border}`, fontSize: 10, fontWeight: 700, borderRadius: 6 }}>
+                                                    {gs.icon} {gs.label}
+                                                </Tag>
+                                                {ts && <div style={{ fontSize: 9, color: '#94a3b8', marginTop: 2 }}>{dayjs(ts).format('HH:mm')}</div>}
+                                            </div>
+                                        );
+                                    }
+                                },
+                            ]}
+                        />
+                    </Card>
+                )}
+
+                {/* ═══ DRIVER LOCATIONS MODAL (1 hour window, anti-delay tool) ═══ */}
+                <Modal
+                    open={driverLocModal}
+                    onCancel={() => setDriverLocModal(false)}
+                    footer={null}
+                    width={780}
+                    title={
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <CompassOutlined style={{ color: '#d97706' }} />
+                            <span>Şoför Konumları — Önümüzdeki 1 saat</span>
+                            <Button size="small" icon={<ReloadOutlined />} loading={driverLocLoading} onClick={fetchDriverLocations} style={{ marginLeft: 'auto' }}>
+                                Yenile
+                            </Button>
+                        </div>
+                    }
+                >
+                    <div style={{ maxHeight: '70vh', overflowY: 'auto' }}>
+                        {driverLocations.length === 0 && !driverLocLoading && (
+                            <div style={{ textAlign: 'center', padding: '40px 0', color: '#94a3b8' }}>
+                                <AimOutlined style={{ fontSize: 40, marginBottom: 8 }} />
+                                <div style={{ fontSize: 13, fontWeight: 600 }}>Önümüzdeki 1 saat içinde aktif şoför yok</div>
+                                <div style={{ fontSize: 11 }}>Sadece pickup'ı 1 saat içinde olan veya devam eden seferlerin şoförleri burada listelenir</div>
+                            </div>
+                        )}
+                        {driverLocations.map((d: any) => {
+                            const minutesAgo = d.lastSeen ? Math.round((Date.now() - d.lastSeen) / 60000) : null;
+                            const stale = minutesAgo === null || minutesAgo > 5;
+                            return (
+                                <div key={d.driverId} style={{
+                                    display: 'flex', gap: 12, alignItems: 'flex-start',
+                                    padding: 12, marginBottom: 8, borderRadius: 10,
+                                    background: '#fff', border: `1px solid ${d.online && !stale ? '#86efac' : '#fde68a'}`,
+                                    borderLeft: `4px solid ${d.online && !stale ? '#16a34a' : '#f59e0b'}`,
+                                }}>
+                                    <div style={{
+                                        width: 40, height: 40, borderRadius: 20,
+                                        background: d.online && !stale ? 'linear-gradient(135deg, #dcfce7, #bbf7d0)' : 'linear-gradient(135deg, #fef3c7, #fde68a)',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                                    }}>
+                                        <IdcardOutlined style={{ color: d.online && !stale ? '#16a34a' : '#92400e', fontSize: 16 }} />
+                                    </div>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                            <span style={{ fontWeight: 700, fontSize: 14, color: '#1e293b' }}>{d.name}</span>
+                                            {d.vehicle?.plate && (
+                                                <span style={{ fontSize: 10, fontWeight: 700, fontFamily: 'monospace', color: '#0369a1', background: '#f0f9ff', padding: '1px 6px', borderRadius: 3, border: '1px solid #bae6fd' }}>
+                                                    <CarOutlined style={{ fontSize: 9, marginRight: 3 }} />{d.vehicle.plate}
+                                                </span>
+                                            )}
+                                            <Tag color={d.online && !stale ? 'success' : 'warning'} style={{ fontSize: 10, fontWeight: 700, margin: 0 }}>
+                                                <WifiOutlined style={{ fontSize: 9, marginRight: 3 }} />
+                                                {d.online && !stale ? 'Çevrimiçi' : (minutesAgo !== null ? `${minutesAgo} dk önce` : 'Bilinmiyor')}
+                                            </Tag>
+                                        </div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 4, flexWrap: 'wrap' }}>
+                                            {d.phone && (
+                                                <a href={`tel:${d.phone}`} style={{ fontSize: 12, color: '#3b82f6', textDecoration: 'none' }}>
+                                                    <PhoneOutlined style={{ fontSize: 10, marginRight: 3 }} />{d.phone}
+                                                </a>
+                                            )}
+                                            {d.location && (
+                                                <a
+                                                    href={`https://www.google.com/maps?q=${d.location.lat},${d.location.lng}`}
+                                                    target="_blank" rel="noopener noreferrer"
+                                                    style={{ fontSize: 11, color: '#7c3aed', textDecoration: 'none' }}
+                                                >
+                                                    <EnvironmentOutlined style={{ fontSize: 10, marginRight: 3 }} />
+                                                    Haritada Aç ({d.location.lat.toFixed(4)}, {d.location.lng.toFixed(4)})
+                                                </a>
+                                            )}
+                                            {!d.location && (
+                                                <span style={{ fontSize: 11, color: '#94a3b8' }}>
+                                                    <AimOutlined style={{ fontSize: 10, marginRight: 3 }} />
+                                                    Konum yok
+                                                </span>
+                                            )}
+                                        </div>
+                                        <div style={{ fontSize: 11, color: '#64748b', marginTop: 6 }}>
+                                            <strong>{d.bookings?.length || 0}</strong> sefer:{' '}
+                                            {(d.bookings || []).slice(0, 3).map((b: any, i: number) => (
+                                                <span key={b.id}>
+                                                    {i > 0 && ', '}
+                                                    <span style={{ fontFamily: 'monospace', fontSize: 10, color: '#0ea5e9' }}>{b.bookingNumber}</span>
+                                                    {b.pickupDateTime && <span style={{ color: '#94a3b8' }}> @ {dayjs(b.pickupDateTime).format('HH:mm')}</span>}
+                                                </span>
+                                            ))}
+                                            {(d.bookings?.length || 0) > 3 && <span style={{ color: '#94a3b8' }}> +{d.bookings.length - 3} daha</span>}
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </Modal>
 
                 {/* ═══ FLIGHT INFO MODAL ═══ */}
                 <Modal
