@@ -4418,6 +4418,9 @@ router.get('/airport-arrivals', authMiddleware, async (req, res) => {
                 shuttleRouteId: b.metadata?.shuttleRouteId || null,
                 shuttleMasterTime: b.metadata?.shuttleMasterTime || null,
                 manualRunId: b.metadata?.manualRunId || null,
+                manualRunName: b.metadata?.manualRunName || null,
+                pickupRegionCode: b.metadata?.pickupRegionCode || null,
+                dropoffRegionCode: b.metadata?.dropoffRegionCode || null,
                 // Timestamps
                 pickedUpAt: b.pickedUpAt,
                 droppedOffAt: b.droppedOffAt,

@@ -136,15 +136,31 @@ export default function AirportGreetingStandalonePage() {
     const shuttleRunGroups = useMemo(() => {
         const shuttles = filtered.filter(b => isShuttle(b));
         const groups: Record<string, { key: string; time: string; flight: string; pax: number; bookings: any[] }> = {};
+        // Mirror operations.js shuttle-runs grouping: prefer manual/route IDs,
+        // otherwise group by direction (ARV here) + dropoff region + master time / hour bucket
+        // so same-airport same-time arrivals merge into one run on the greeter screen.
         shuttles.forEach(b => {
-            const runKey = b.manualRunId || b.shuttleRouteId || b.shuttleMasterTime || b.flightNumber || 'unknown';
-            const time = b.shuttleMasterTime || (b.pickupDateTime ? dayjs(b.pickupDateTime).format('HH:mm') : '--:--');
+            const masterTime = b.shuttleMasterTime || (b.pickupDateTime ? dayjs(b.pickupDateTime).format('HH:mm') : '');
+            // Bucket by hour when no master time exists, so flights in same hour group
+            const hourBucket = masterTime ? masterTime.split(':')[0] : '';
+            const region = (b.dropoffRegionCode || b.pickupRegionCode || 'X').toString().split(/[\s\-\/]+/)[0].toUpperCase();
+            let runKey: string;
+            if (b.manualRunId) {
+                runKey = `MANUAL::${b.manualRunId}`;
+            } else if (b.shuttleRouteId) {
+                runKey = `ROUTE::${b.shuttleRouteId}::${masterTime || hourBucket}`;
+            } else {
+                runKey = `ADHOC::ARV::${region}::${masterTime || hourBucket || 'NA'}`;
+            }
+            const time = masterTime || '--:--';
             if (!groups[runKey]) {
                 groups[runKey] = { key: runKey, time, flight: b.flightNumber || '', pax: 0, bookings: [] };
             }
             groups[runKey].bookings.push(b);
             groups[runKey].pax += (b.adults || 1) + (b.children || 0) + (b.infants || 0);
-            if (!groups[runKey].flight && b.flightNumber) groups[runKey].flight = b.flightNumber;
+            if (b.flightNumber && !groups[runKey].flight.split(',').includes(b.flightNumber)) {
+                groups[runKey].flight = groups[runKey].flight ? `${groups[runKey].flight}, ${b.flightNumber}` : b.flightNumber;
+            }
         });
         return Object.values(groups).sort((a, b) => a.time.localeCompare(b.time));
     }, [filtered]);

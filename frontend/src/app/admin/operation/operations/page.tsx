@@ -863,6 +863,48 @@ export default function OperationsPage() {
             }
         },
         {
+            title: 'KARŞILAMACI NOTU',
+            key: 'greeterNotes',
+            width: 140,
+            render: (_: any, record: any) => {
+                const notes: any[] = Array.isArray(record.metadata?.greeterNotes) ? record.metadata.greeterNotes : [];
+                if (!notes.length) return <Text type="secondary" style={{ fontSize: 10 }}>—</Text>;
+                const last = notes[notes.length - 1];
+                const summary = last?.text || '';
+                return (
+                    <Popover
+                        title={<span style={{ color: '#7c3aed' }}>🛬 Karşılamacı Notları ({notes.length})</span>}
+                        content={(
+                            <div style={{ maxWidth: 320, maxHeight: 280, overflowY: 'auto' }}>
+                                {notes.map((n: any, idx: number) => (
+                                    <div key={idx} style={{
+                                        marginBottom: 8, paddingBottom: 8,
+                                        borderBottom: idx < notes.length - 1 ? '1px dashed #e5e7eb' : 'none'
+                                    }}>
+                                        <div style={{ fontSize: 10, color: '#6b7280', fontWeight: 600, marginBottom: 2 }}>
+                                            {n.by || 'Karşılamacı'} · {n.at ? dayjs(n.at).format('DD.MM HH:mm') : ''}
+                                        </div>
+                                        <div style={{ fontSize: 12, color: '#1f2937', whiteSpace: 'pre-wrap' }}>{n.text}</div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    >
+                        <div style={{
+                            fontSize: 10, color: '#5b21b6',
+                            background: '#ede9fe', border: '1px solid #c4b5fd',
+                            borderRadius: 5, padding: '2px 6px',
+                            cursor: 'pointer', maxWidth: 125, overflow: 'hidden',
+                            textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                            fontWeight: 600
+                        }}>
+                            🛬 {notes.length > 1 ? `${notes.length}× ` : ''}{summary}
+                        </div>
+                    </Popover>
+                );
+            }
+        },
+        {
             title: 'MÜŞTERİ ADI',
             key: 'customerName',
             width: 160,
@@ -2104,6 +2146,7 @@ export default function OperationsPage() {
         { key: 'extras',      width: 160, label: 'EKSTRA HİZMET',   hidden: false },
         { key: 'status',      width: 100, label: 'DURUM',          hidden: false },
         { key: 'driverNote', width: 160, label: 'ŞOFÖR NOTU',     hidden: false },
+        { key: 'greeterNote', width: 160, label: 'KARŞILAMACI NOTU', hidden: false },
     ];
     const [shuttleCols, setShuttleCols] = useState<ShuttleColCfg[]>(SHUTTLE_DEFAULT_COLS);
     const [shuttleColEditVisible, setShuttleColEditVisible] = useState(false);
@@ -4040,6 +4083,44 @@ export default function OperationsPage() {
                                                                                 >
                                                                                     {note ? `📝 ${note}` : '📝 -'}
                                                                                 </span>
+                                                                            );
+                                                                        }
+                                                                        case 'greeterNote': {
+                                                                            const gNotes: any[] = Array.isArray(b.metadata?.greeterNotes) ? b.metadata.greeterNotes : [];
+                                                                            if (!gNotes.length) {
+                                                                                return <span style={{ fontSize: 11, color: '#bbb' }}>—</span>;
+                                                                            }
+                                                                            const last = gNotes[gNotes.length - 1];
+                                                                            return (
+                                                                                <Popover
+                                                                                    title={<span style={{ color: '#7c3aed' }}>🛬 Karşılamacı Notları ({gNotes.length})</span>}
+                                                                                    content={(
+                                                                                        <div style={{ maxWidth: 320, maxHeight: 280, overflowY: 'auto' }}>
+                                                                                            {gNotes.map((n: any, idx: number) => (
+                                                                                                <div key={idx} style={{
+                                                                                                    marginBottom: 8, paddingBottom: 8,
+                                                                                                    borderBottom: idx < gNotes.length - 1 ? '1px dashed #e5e7eb' : 'none'
+                                                                                                }}>
+                                                                                                    <div style={{ fontSize: 10, color: '#6b7280', fontWeight: 600, marginBottom: 2 }}>
+                                                                                                        {n.by || 'Karşılamacı'} · {n.at ? dayjs(n.at).format('DD.MM HH:mm') : ''}
+                                                                                                    </div>
+                                                                                                    <div style={{ fontSize: 12, color: '#1f2937', whiteSpace: 'pre-wrap' }}>{n.text}</div>
+                                                                                                </div>
+                                                                                            ))}
+                                                                                        </div>
+                                                                                    )}
+                                                                                >
+                                                                                    <span style={{
+                                                                                        fontSize: 11, color: '#5b21b6',
+                                                                                        background: '#ede9fe', border: '1px solid #c4b5fd',
+                                                                                        borderRadius: 5, padding: '2px 6px',
+                                                                                        cursor: 'pointer', fontWeight: 600,
+                                                                                        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                                                                                        display: 'inline-block', maxWidth: '100%'
+                                                                                    }}>
+                                                                                        🛬 {gNotes.length > 1 ? `${gNotes.length}× ` : ''}{last?.text || ''}
+                                                                                    </span>
+                                                                                </Popover>
                                                                             );
                                                                         }
                                                                         default: return null;
@@ -6015,6 +6096,75 @@ export default function OperationsPage() {
                             <div style={{ fontSize: 20 }}>›</div>
                         </div>
                     )}
+                    {/* ══════ FLOATING GREETER NOTES ALERT ══════ */}
+                    {(() => {
+                        // Collect bookings (private + shuttle) that have karşılamacı notu
+                        const collected: { id: string; bookingNumber: string; passenger: string; lastNote: string; count: number }[] = [];
+                        const collect = (b: any) => {
+                            const notes = Array.isArray(b?.metadata?.greeterNotes) ? b.metadata.greeterNotes : [];
+                            if (!notes.length) return;
+                            const last = notes[notes.length - 1];
+                            collected.push({
+                                id: b.id,
+                                bookingNumber: b.bookingNumber || '',
+                                passenger: b.contactName || b.passengerName || '',
+                                lastNote: last?.text || '',
+                                count: notes.length,
+                            });
+                        };
+                        bookings.forEach(collect);
+                        shuttleRuns.forEach((run: any) => (run.bookings || []).forEach(collect));
+                        if (!collected.length) return null;
+                        const hasSos = sosAlerts.filter(a => a.status === 'ACTIVE').length > 0;
+                        const topOffset = hasSos ? 220 : 140;
+                        return (
+                            <div style={{
+                                position: 'fixed', top: topOffset, right: 24, zIndex: 9997,
+                                background: 'linear-gradient(135deg, #8b5cf6, #6d28d9)',
+                                color: '#fff', borderRadius: 12, padding: '10px 14px',
+                                boxShadow: '0 6px 20px rgba(139, 92, 246, 0.4)',
+                                display: 'flex', alignItems: 'center', gap: 10,
+                                maxWidth: 380, cursor: 'pointer',
+                                animation: 'greeterPulse 3s infinite',
+                            }}
+                                onClick={() => {
+                                    Modal.info({
+                                        title: <span style={{ color: '#5b21b6' }}>🛬 Karşılamacı Notu Olan Rezervasyonlar ({collected.length})</span>,
+                                        width: 560,
+                                        content: (
+                                            <div style={{ maxHeight: 420, overflowY: 'auto', paddingTop: 8 }}>
+                                                {collected.map((c, i) => (
+                                                    <div key={c.id + i} style={{
+                                                        marginBottom: 10, padding: 10,
+                                                        background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: 8,
+                                                    }}>
+                                                        <div style={{ fontWeight: 700, color: '#4c1d95', fontSize: 12, marginBottom: 2 }}>
+                                                            {c.bookingNumber} — {c.passenger || 'Misafir'}
+                                                            {c.count > 1 && <Tag color="purple" style={{ marginLeft: 6 }}>{c.count} not</Tag>}
+                                                        </div>
+                                                        <div style={{ fontSize: 13, color: '#1f2937', whiteSpace: 'pre-wrap' }}>{c.lastNote}</div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ),
+                                    });
+                                }}
+                            >
+                                <div style={{ fontSize: 22 }}>🛬</div>
+                                <div style={{ flex: 1 }}>
+                                    <div style={{ fontSize: 10, opacity: 0.85, fontWeight: 600, letterSpacing: 1 }}>KARŞILAMACI NOTU</div>
+                                    <div style={{ fontSize: 13, fontWeight: 800 }}>
+                                        {collected.length} rezervasyonda not var
+                                    </div>
+                                    <div style={{ fontSize: 11, opacity: 0.9, marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 260 }}>
+                                        {collected[0].bookingNumber}: {collected[0].lastNote}
+                                    </div>
+                                </div>
+                                <div style={{ fontSize: 18 }}>›</div>
+                            </div>
+                        );
+                    })()}
+
                     {/* ══════ FLOATING DEADHEAD ALERT (private mode only) ══════ */}
                     {(() => {
                         if (operationsMode !== 'private') return null;
@@ -6067,6 +6217,10 @@ export default function OperationsPage() {
                         @keyframes deadheadPulse {
                             0%, 100% { box-shadow: 0 6px 20px rgba(249, 115, 22, 0.4); }
                             50% { box-shadow: 0 8px 28px rgba(249, 115, 22, 0.7); }
+                        }
+                        @keyframes greeterPulse {
+                            0%, 100% { box-shadow: 0 6px 20px rgba(139, 92, 246, 0.4); }
+                            50% { box-shadow: 0 8px 28px rgba(139, 92, 246, 0.7); }
                         }
                     `}</style>
 
