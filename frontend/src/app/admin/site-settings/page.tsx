@@ -608,18 +608,17 @@ const SiteSettingsPage: React.FC = () => {
                                 <Text type="secondary" style={{ display: 'block', marginBottom: 8, fontSize: 13 }}>Önizleme:</Text>
                                 <div style={{
                                     background: '#0f172a', borderRadius: 12, padding: '20px 24px',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, minHeight: 70
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, minHeight: 90
                                 }}>
                                     {brandingData.logoUrl ? (
                                         <img
                                             src={(() => {
-                                                const url = getImageUrl(brandingData.logoUrl);
-                                                console.log('ANTIGRAVITY_ADMIN_LOGO:', url);
+                                                const url = getImageUrl(brandingData.logoVariants?.header || brandingData.logoUrl);
                                                 if (url && url.startsWith('/uploads')) return `https://api.jet2home.com${url}`;
                                                 return url;
                                             })()}
                                             alt="Logo"
-                                            style={{ maxHeight: 40, maxWidth: 180, objectFit: 'contain' }}
+                                            style={{ height: 60, maxWidth: 280, objectFit: 'contain' }}
                                             onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                                         />
                                     ) : (
@@ -636,14 +635,18 @@ const SiteSettingsPage: React.FC = () => {
                                 </div>
                                 <div style={{
                                     background: '#fff', borderRadius: 12, padding: '20px 24px', marginTop: 8,
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, minHeight: 70,
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, minHeight: 90,
                                     border: '1px solid #e5e7eb'
                                 }}>
                                     {brandingData.logoUrl ? (
                                         <img
-                                            src={getImageUrl(brandingData.logoUrl)}
+                                            src={(() => {
+                                                const url = getImageUrl(brandingData.logoVariants?.header || brandingData.logoUrl);
+                                                if (url && url.startsWith('/uploads')) return `https://api.jet2home.com${url}`;
+                                                return url;
+                                            })()}
                                             alt="Logo"
-                                            style={{ maxHeight: 40, maxWidth: 180, objectFit: 'contain' }}
+                                            style={{ height: 60, maxWidth: 280, objectFit: 'contain' }}
                                             onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                                         />
                                     ) : (

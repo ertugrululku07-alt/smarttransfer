@@ -155,12 +155,13 @@ router.post('/logo', authMiddleware, upload.single('file'), async (req, res) => 
             const outputFilename = `${baseName}${variant.suffix}.png`;
             const outputPath = path.join(logoDir, outputFilename);
 
-            await sharp(inputPath)
-                .resize(variant.maxWidth, variant.maxHeight, {
-                    fit: 'inside',
-                    withoutEnlargement: true,
-                    background: { r: 0, g: 0, b: 0, alpha: 0 }
-                })
+            let pipeline = sharp(inputPath).trim();
+            pipeline = pipeline.resize(variant.maxWidth, variant.maxHeight, {
+                fit: variant.name === 'favicon' ? 'cover' : 'inside',
+                withoutEnlargement: false,
+                background: { r: 0, g: 0, b: 0, alpha: 0 }
+            });
+            await pipeline
                 .png({ quality: 90, compressionLevel: 8 })
                 .toFile(outputPath);
 
