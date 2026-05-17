@@ -270,6 +270,127 @@ router.patch('/:id/active', authMiddleware, async (req, res) => {
 });
 
 /**
+ * GET /api/users/diagnose-login?email=foo@bar.com&password=optional
+ * Super-admin only. Returns a full diagnostic of every User row in the
+ * database for that email (across ALL tenants), incl. per-tenant status,
+ * tenant.status, deletedAt, and (if password supplied) bcrypt match.
+ */
+router.get('/diagnose-login', authMiddleware, async (req, res) => {
+    try {
+        if (req.user?.roleType !== 'SUPER_ADMIN' && req.user?.roleType !== 'TENANT_ADMIN') {
+            return res.status(403).json({ success: false, error: 'Yetki yok' });
+        }
+        const email = String(req.query.email || '').toLowerCase().trim();
+        const password = req.query.password ? String(req.query.password) : '';
+        if (!email) {
+            return res.status(400).json({ success: false, error: 'email query param zorunlu' });
+        }
+
+        const rows = await prisma.user.findMany({
+            where: { email: { in: [email, email.toUpperCase()] } },
+            select: {
+                id: true, tenantId: true, email: true, status: true,
+                deletedAt: true, passwordHash: true,
+                firstName: true, lastName: true, fullName: true,
+                role: { select: { code: true, name: true, type: true } },
+                tenant: { select: { id: true, name: true, slug: true, status: true } }
+            }
+        });
+
+        const out = [];
+        for (const u of rows) {
+            const passwordMatches = (password && u.passwordHash)
+                ? await bcrypt.compare(password, u.passwordHash)
+                : null;
+            out.push({
+                id: u.id,
+                email: u.email,
+                emailCaseOk: u.email === u.email.toLowerCase(),
+                status: u.status,
+                deletedAt: u.deletedAt,
+                tenant: u.tenant,
+                tenantOk: u.tenant && (u.tenant.status === 'ACTIVE' || u.tenant.status === 'TRIAL'),
+                role: u.role,
+                hasPasswordHash: !!u.passwordHash,
+                passwordHashPreview: u.passwordHash ? u.passwordHash.slice(0, 12) + '...' : null,
+                passwordMatches,
+                fullName: u.fullName
+            });
+        }
+
+        res.json({
+            success: true,
+            queryEmail: email,
+            rowCount: rows.length,
+            wouldLogin: out.find(r => r.passwordMatches === true && r.tenantOk && r.status === 'ACTIVE' && !r.deletedAt) || null,
+            users: out
+        });
+    } catch (error) {
+        console.error('diagnose-login error:', error);
+        res.status(500).json({ success: false, error: 'Teşhis başarısız: ' + error.message });
+    }
+});
+
+/**
+ * POST /api/users/force-reset-password
+ * Super-admin only. Body: { email, newPassword }
+ * Resets passwordHash + status=ACTIVE + deletedAt=null + lowercases email
+ * on EVERY matching User row across all tenants. Also un-marks tenant
+ * issues by reporting them so the caller can act.
+ */
+router.post('/force-reset-password', authMiddleware, async (req, res) => {
+    try {
+        if (req.user?.roleType !== 'SUPER_ADMIN' && req.user?.roleType !== 'TENANT_ADMIN') {
+            return res.status(403).json({ success: false, error: 'Yetki yok' });
+        }
+        const email = String(req.body?.email || '').toLowerCase().trim();
+        const newPassword = String(req.body?.newPassword || '');
+        if (!email || !newPassword) {
+            return res.status(400).json({ success: false, error: 'email ve newPassword zorunlu' });
+        }
+        if (newPassword.length < 6) {
+            return res.status(400).json({ success: false, error: 'Şifre en az 6 karakter olmalı' });
+        }
+
+        const rows = await prisma.user.findMany({
+            where: { email: { in: [email, email.toUpperCase()] } },
+            include: { tenant: { select: { id: true, name: true, status: true } } }
+        });
+        if (rows.length === 0) {
+            return res.status(404).json({ success: false, error: 'Bu email ile hiç kullanıcı yok' });
+        }
+
+        const newHash = await bcrypt.hash(newPassword, 10);
+        const updated = [];
+        for (const u of rows) {
+            await prisma.user.update({
+                where: { id: u.id },
+                data: {
+                    passwordHash: newHash,
+                    status: 'ACTIVE',
+                    deletedAt: null,
+                    email: email,
+                }
+            });
+            updated.push({
+                id: u.id,
+                tenant: u.tenant,
+                tenantOk: u.tenant && (u.tenant.status === 'ACTIVE' || u.tenant.status === 'TRIAL'),
+            });
+        }
+
+        res.json({
+            success: true,
+            message: `${updated.length} kayıt güncellendi`,
+            updated
+        });
+    } catch (error) {
+        console.error('force-reset-password error:', error);
+        res.status(500).json({ success: false, error: 'Sıfırlama başarısız: ' + error.message });
+    }
+});
+
+/**
  * DELETE /api/users/:id
  * Soft-delete the user AND cascade to the linked Personnel record so the
  * two pages (Kullanıcılar / Personel) never drift apart.
