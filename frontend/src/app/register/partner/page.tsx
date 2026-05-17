@@ -1,4 +1,5 @@
 'use client';
+import { API_URL } from '@/lib/api-client';
 
 import React, { useState, useEffect } from 'react';
 import { Button, Form, Input, InputNumber, Select, message, Upload, Row, Col } from 'antd';
@@ -11,7 +12,7 @@ import { useRouter } from 'next/navigation';
 
 const { Option } = Select;
 
-const API_URL = (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' ? 'https://api.' + window.location.hostname.replace('www.', '') : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000').replace(/[\r\n]+/g, '').trim());
+
 const TENANT_SLUG = (process.env.NEXT_PUBLIC_TENANT_SLUG || 'smarttravel-demo').replace(/[\r\n]+/g, '').trim();
 
 const STEPS = [

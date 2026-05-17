@@ -47,7 +47,7 @@ import {
   SettingOutlined,
 } from '@ant-design/icons';
 import { Avatar, List, Tooltip } from 'antd';
-import apiClient, { getImageUrl } from '@/lib/api-client';
+import apiClient, { API_URL, getImageUrl } from '@/lib/api-client';
 import dayjs from 'dayjs';
 import { useBranding } from '@/app/context/BrandingContext';
 import AdminGuard from '../AdminGuard';
@@ -1277,7 +1277,7 @@ const VehiclesPage: React.FC = () => {
                           listType="picture-card"
                           className="avatar-uploader"
                           showUploadList={false}
-                          action={`${(typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' ? 'https://api.' + window.location.hostname.replace('www.', '') : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000').replace(/[\r\n]+/g, '').trim())}/api/upload`}
+                          action={`${API_URL}/api/upload`}
                           headers={{ Authorization: typeof window !== 'undefined' ? `Bearer ${localStorage.getItem('token')}` : '' }}
                           onChange={handleUploadChange}
                         >

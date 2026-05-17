@@ -1,4 +1,5 @@
 'use client';
+import { API_URL } from '@/lib/api-client';
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Button, Input, List, Typography, Space, Spin, Avatar, Badge } from 'antd';
@@ -34,7 +35,7 @@ const LiveChatWidget: React.FC = () => {
         }
         setSessionId(sid);
 
-        const rawApiUrl = (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' ? 'https://api.' + window.location.hostname.replace('www.', '') : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000').replace(/[\r\n]+/g, '').trim());
+        const rawApiUrl = API_URL;
         const SOCKET_URL = rawApiUrl.includes('_') ? rawApiUrl.replace(/_/g, '-') : rawApiUrl;
 
         const newSocket = io(SOCKET_URL, {

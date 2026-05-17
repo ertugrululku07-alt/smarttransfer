@@ -2,23 +2,24 @@
 import axios from 'axios';
 
 // ── Central API Configuration ──
-// All URLs are dynamically managed to avoid baked-in build-time URLs (like Railway).
-// Dev: http://localhost:4000
-// Prod: Dynamically resolved from window.location.hostname (e.g. jet2home.com -> https://api.jet2home.com)
-let dynamicApiUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000').replace(/[\r\n]+/g, '').trim();
-
-if (typeof window !== 'undefined') {
-    const hostname = window.location.hostname;
-    if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
-        const baseDomain = hostname.replace('www.', '');
-        // If the user visits jet2home.com, API will be api.jet2home.com
-        dynamicApiUrl = `https://api.${baseDomain}`;
+// CRITICAL: Do NOT use process.env.NEXT_PUBLIC_API_URL as a fallback with old URLs.
+// Next.js Turbopack may fail to statically replace process.env references,
+// causing the fallback string to be used at runtime in the browser.
+// Instead, derive the API URL purely from window.location.hostname at runtime.
+function resolveApiUrl(): string {
+    if (typeof window !== 'undefined') {
+        const hostname = window.location.hostname;
+        if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
+            return `https://api.${hostname.replace('www.', '')}`;
+        }
     }
+    // SSR or localhost fallback
+    return 'http://localhost:4000';
 }
 
-const API_URL = dynamicApiUrl;
+const API_URL = resolveApiUrl();
 const SOCKET_URL = API_URL;
-const TENANT_SLUG = (process.env.NEXT_PUBLIC_TENANT_SLUG || 'smarttravel-demo').replace(/[\r\n]+/g, '').trim();
+const TENANT_SLUG = 'Jet2Home';
 
 export { API_URL, SOCKET_URL, TENANT_SLUG };
 

@@ -52,7 +52,7 @@ import {
 } from '@ant-design/icons';
 import axios from 'axios';
 import dayjs, { Dayjs } from 'dayjs';
-import { getImageUrl } from '@/lib/api-client';
+import { API_URL, getImageUrl } from '@/lib/api-client';
 
 // ─── Havalimanı Tespiti ───
 const AIRPORT_CODES = [
@@ -98,7 +98,7 @@ interface TransferOption {
   features: string[];
 }
 
-const API_BASE = (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' ? 'https://api.' + window.location.hostname.replace('www.', '') : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000').replace(/[\r\n]+/g, '').trim());
+const API_BASE = API_URL;
 
 const HomePage: React.FC = () => {
   const router = useRouter();

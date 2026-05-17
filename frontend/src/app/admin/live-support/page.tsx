@@ -1,4 +1,5 @@
 'use client';
+import { API_URL } from '@/lib/api-client';
 
 import React, { useEffect, useState, useRef } from 'react';
 import { Card, Layout, List, Input, Button, Typography, Tag, notification, Space, Empty, Spin } from 'antd';
@@ -40,7 +41,7 @@ export default function AdminLiveSupportPage() {
 
     const fetchSessions = async () => {
         try {
-            const URL = typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' ? 'https://api.' + window.location.hostname.replace('www.', '') : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000');
+            const URL = typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' ? 'https://api.' + window.location.hostname.replace('www.', '') : (API_URL);
             const { data } = await axios.get(`${URL}/api/live-chat/sessions`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
@@ -55,7 +56,7 @@ export default function AdminLiveSupportPage() {
     const fetchMessages = async (sid: string) => {
         setLoading(true);
         try {
-            const URL = typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' ? 'https://api.' + window.location.hostname.replace('www.', '') : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000');
+            const URL = typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' ? 'https://api.' + window.location.hostname.replace('www.', '') : (API_URL);
             const { data } = await axios.get(`${URL}/api/live-chat/sessions/${sid}/messages`, {
                 headers: { Authorization: `Bearer ${token}` }
             });

@@ -1,4 +1,5 @@
 'use client';
+import { API_URL } from '@/lib/api-client';
 
 import React, { useState, useEffect, use } from 'react';
 import { useRouter } from 'next/navigation';
@@ -41,7 +42,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
             try {
                 const token = localStorage.getItem('token');
                 if (!token) { router.push('/login'); return; }
-                const response = await fetch(`${(typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' ? 'https://api.' + window.location.hostname.replace('www.', '') : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000').replace(/[\r\n]+/g, '').trim())}/api/transfer/bookings/${id}`, {
+                const response = await fetch(`${API_URL}/api/transfer/bookings/${id}`, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
                 if (response.ok) {
@@ -63,7 +64,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
             const body = status === 'COMPLETED'
                 ? { status: 'COMPLETED', subStatus: 'COMPLETED' }
                 : { status: status === 'CONFIRMED' ? 'CONFIRMED' : 'CANCELLED', subStatus: status === 'CONFIRMED' ? 'PARTNER_ACCEPTED' : 'PARTNER_REJECTED' };
-            const response = await fetch(`${(typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' ? 'https://api.' + window.location.hostname.replace('www.', '') : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000').replace(/[\r\n]+/g, '').trim())}/api/transfer/bookings/${booking.id}/status`, {
+            const response = await fetch(`${API_URL}/api/transfer/bookings/${booking.id}/status`, {
                 method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify(body)
             });

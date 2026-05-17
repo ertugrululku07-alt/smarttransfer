@@ -1,3 +1,4 @@
+import { API_URL } from '@/lib/api-client';
 import type { Metadata, ResolvingMetadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
@@ -27,7 +28,7 @@ async function getTenantBranding() {
   };
 
   try {
-    const API_URL = (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' ? 'https://api.' + window.location.hostname.replace('www.', '') : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000').replace(/[\r\n]+/g, '').trim());
+    
     const TENANT_SLUG = (process.env.NEXT_PUBLIC_TENANT_SLUG || 'smarttravel-demo').replace(/[\r\n]+/g, '').trim();
     
     const res = await fetch(`${API_URL}/api/tenant/info`, {
