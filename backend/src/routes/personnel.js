@@ -239,20 +239,60 @@ router.put('/:id', authMiddleware, async (req, res) => {
         // If personnel has no userId but has phone/email + password, create and link a user account
         let linkedUserId = existing.userId;
         if (!linkedUserId && data.password && (data.phone || data.email)) {
+            // Resolve role code from jobTitle (fallback DRIVER for backwards-compat)
+            let roleCode = 'DRIVER';
+            const jt = data.jobTitle || existing.jobTitle;
+            if (['DRIVER', 'ACCOUNTANT', 'OPERATION', 'RESERVATION', 'AIRPORT_STAFF'].includes(jt)) {
+                roleCode = jt;
+            } else if (jt) {
+                roleCode = 'TENANT_STAFF';
+            }
+            let role = await prisma.role.findFirst({ where: { tenantId, code: roleCode } });
+            if (!role) {
+                role = await prisma.role.create({
+                    data: {
+                        tenantId,
+                        code: roleCode,
+                        name: roleCode === 'DRIVER' ? 'Sürücü' :
+                            roleCode === 'ACCOUNTANT' ? 'Muhasebe' :
+                                roleCode === 'OPERATION' ? 'Operasyon' :
+                                    roleCode === 'RESERVATION' ? 'Rezervasyon' :
+                                        roleCode === 'AIRPORT_STAFF' ? 'Havalimanı Karşılama' : 'Personel',
+                        type: roleCode === 'AIRPORT_STAFF' ? 'AIRPORT_STAFF' :
+                            roleCode === 'DRIVER' ? 'DRIVER' : 'TENANT_STAFF'
+                    }
+                });
+            }
+
             const hashedPassword = await bcrypt.hash(data.password, 10);
+            const emailLc = (data.email || existing.email || '').toLowerCase().trim();
+            const fName = data.firstName || existing.firstName || '-';
+            const lName = data.lastName || existing.lastName || '-';
             const newUser = await prisma.user.create({
                 data: {
                     tenantId,
-                    fullName: `${data.firstName || existing.firstName} ${data.lastName || existing.lastName}`.trim(),
-                    email: data.email || existing.email || null,
+                    email: emailLc || null,
                     phone: data.phone || existing.phone || null,
-                    password: hashedPassword,
-                    roleCode: 'DRIVER',
-                    roleType: 'DRIVER',
-                    isActive: true,
+                    passwordHash: hashedPassword,
+                    firstName: fName,
+                    lastName: lName,
+                    fullName: `${fName} ${lName}`.trim(),
+                    roleId: role.id,
+                    emailVerified: true,
+                    status: 'ACTIVE',
                 }
             });
             linkedUserId = newUser.id;
+        }
+
+        // If personnel already has a linked user AND a new password is supplied,
+        // reset the user's password (this is how admins recover login for staff).
+        if (linkedUserId && data.password) {
+            const newHash = await bcrypt.hash(data.password, 10);
+            await prisma.user.update({
+                where: { id: linkedUserId },
+                data: { passwordHash: newHash, status: 'ACTIVE' }
+            }).catch(err => console.error('Password reset failed:', err));
         }
 
         // Build update payload - only include fields that are explicitly provided
