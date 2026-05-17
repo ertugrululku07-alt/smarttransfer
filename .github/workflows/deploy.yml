@@ -76,9 +76,22 @@ jobs:
               npx pm2 stop all 2>/dev/null || true
               npx pm2 delete all 2>/dev/null || true
               
-              # Nginx cache temizle
+              # Nginx cache - TUM olasi konumlari temizle (aaPanel/BT Panel)
               rm -rf /tmp/nginx_cache 2>/dev/null || true
-              nginx -s reload 2>/dev/null || true
+              rm -rf /tmp/nginx_proxy_cache 2>/dev/null || true
+              rm -rf /dev/shm/nginx_cache 2>/dev/null || true
+              rm -rf /www/wwwroot/.cache 2>/dev/null || true
+              rm -rf /www/server/nginx/proxy_cache_dir 2>/dev/null || true
+              find /tmp -name "nginx*" -type d -exec rm -rf {} + 2>/dev/null || true
+              find /dev/shm -name "nginx*" -type d -exec rm -rf {} + 2>/dev/null || true
+              # aaPanel proxy cache
+              find /www -path "*/proxy_cache*" -type d -exec rm -rf {} + 2>/dev/null || true
+              
+              # Nginx tamamen yeniden baslat (reload degil, restart)
+              nginx -s stop 2>/dev/null || true
+              sleep 1
+              nginx 2>/dev/null || true
+              echo "Nginx restarted"
               
               # PM2 yeniden baslat (ecosystem.config.js ile)
               cd /www/wwwroot/jet2home.com
