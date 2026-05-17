@@ -52,18 +52,10 @@ const NEXT_STATUS: Record<string, string> = {
     MET:      'HANDED_OFF',
 };
 
-const AIRPORTS = [
-    { value: '', label: 'Tüm Havalimanları' },
-    { value: 'antalya', label: 'Antalya (AYT)' },
-    { value: 'gazipaşa', label: 'Gazipaşa (GZP)' },
-    { value: 'dalaman', label: 'Dalaman (DLM)' },
-];
-
 export default function AirportGreetingStandalonePage() {
     const [arrivals, setArrivals] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchText, setSearchText] = useState('');
-    const [airportFilter, setAirportFilter] = useState('');
     const [selectedDate, setSelectedDate] = useState(dayjs());
     const [autoRefresh, setAutoRefresh] = useState(true);
     const [viewTab, setViewTab] = useState<'all' | 'shuttle' | 'private' | 'completed'>('all');
@@ -96,7 +88,6 @@ export default function AirportGreetingStandalonePage() {
         setLoading(true);
         try {
             const params: any = { date: selectedDate.format('YYYY-MM-DD') };
-            if (airportFilter) params.airport = airportFilter;
             const res = await apiClient.get('/api/transfer/airport-arrivals', { params });
             if (res.data.success) {
                 setArrivals(res.data.data);
@@ -119,7 +110,7 @@ export default function AirportGreetingStandalonePage() {
             setLoading(false);
             setLastRefresh(new Date());
         }
-    }, [selectedDate, airportFilter]);
+    }, [selectedDate]);
 
     useEffect(() => { fetchArrivals(); }, [fetchArrivals]);
 
@@ -158,12 +149,11 @@ export default function AirportGreetingStandalonePage() {
         setCompletedLoading(true);
         try {
             const params: any = { date: selectedDate.format('YYYY-MM-DD') };
-            if (airportFilter) params.airport = airportFilter;
             const res = await apiClient.get('/api/transfer/airport-greeting/completed', { params });
             if (res.data.success) setCompleted(res.data.data || []);
         } catch { /* silent */ }
         finally { setCompletedLoading(false); }
-    }, [selectedDate, airportFilter]);
+    }, [selectedDate]);
 
     useEffect(() => { fetchCompleted(); }, [fetchCompleted]);
 
@@ -715,13 +705,6 @@ export default function AirportGreetingStandalonePage() {
                         style={{ borderRadius: 8, width: 120 }}
                         size="small"
                         allowClear={false}
-                    />
-                    <Select
-                        value={airportFilter}
-                        onChange={setAirportFilter}
-                        options={AIRPORTS}
-                        style={{ width: 150, borderRadius: 8 }}
-                        size="small"
                     />
                     <Input
                         placeholder="Ara..."
