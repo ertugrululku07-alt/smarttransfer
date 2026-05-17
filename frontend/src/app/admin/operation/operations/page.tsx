@@ -204,6 +204,9 @@ export default function OperationsPage() {
     const [sosResolveNote, setSosResolveNote] = useState('');
     const [sosResolving, setSosResolving] = useState(false);
     const [alertPanelOpen, setAlertPanelOpen] = useState(false);
+    // ── Draggable alert bell position ──
+    const [alertBellPos, setAlertBellPos] = useState<{ x: number; y: number }>({ x: -1, y: 16 });
+    const alertBellDrag = useRef<{ dragging: boolean; startX: number; startY: number; origX: number; origY: number; moved: boolean }>({ dragging: false, startX: 0, startY: 0, origX: 0, origY: 0, moved: false });
     const [loading, setLoading] = useState(true);
     const [vehicles, setVehicles] = useState<any[]>([]);
     const [drivers, setDrivers] = useState<any[]>([]);
@@ -234,6 +237,38 @@ export default function OperationsPage() {
 
     // ── Column titles from user metadata ──
     const [columnTitles, setColumnTitles] = useState<Record<string, string>>({});
+
+    // ── Alert bell drag helpers ──
+    const saveAlertBellPos = async (pos: { x: number; y: number }) => {
+        try {
+            const res = await apiClient.get('/api/auth/metadata');
+            const currentMeta = res.data?.data || {};
+            const currentPrefs = currentMeta.operations_preferences || {};
+            await apiClient.put('/api/auth/metadata', { preferences: { operations_preferences: { ...currentPrefs, alertBellPos: pos } } });
+        } catch {}
+    };
+
+    useEffect(() => {
+        const onMouseMove = (e: MouseEvent) => {
+            const d = alertBellDrag.current;
+            if (!d.dragging) return;
+            const dx = e.clientX - d.startX;
+            const dy = e.clientY - d.startY;
+            if (Math.abs(dx) > 3 || Math.abs(dy) > 3) d.moved = true;
+            setAlertBellPos({ x: Math.max(0, Math.min(window.innerWidth - 50, d.origX + dx)), y: Math.max(0, Math.min(window.innerHeight - 50, d.origY + dy)) });
+        };
+        const onMouseUp = () => {
+            const d = alertBellDrag.current;
+            if (!d.dragging) return;
+            d.dragging = false;
+            if (d.moved) {
+                setAlertBellPos(prev => { saveAlertBellPos(prev); return prev; });
+            }
+        };
+        window.addEventListener('mousemove', onMouseMove);
+        window.addEventListener('mouseup', onMouseUp);
+        return () => { window.removeEventListener('mousemove', onMouseMove); window.removeEventListener('mouseup', onMouseUp); };
+    }, []);
 
     const saveColumnTitleToAPI = async (key: string, title: string) => {
         try {
@@ -1540,6 +1575,9 @@ export default function OperationsPage() {
                 }
                 if (prefs.airportColors) {
                     setAirportColors(prefs.airportColors);
+                }
+                if (prefs.alertBellPos && typeof prefs.alertBellPos.x === 'number') {
+                    setAlertBellPos(prefs.alertBellPos);
                 }
             } catch (e) {
                 console.error('Failed to load color preferences:', e);
@@ -6089,12 +6127,25 @@ export default function OperationsPage() {
 
                         return (
                             <>
-                                {/* ── Bell Icon Button ── */}
+                                {/* ── Bell Icon Button (draggable) ── */}
                                 <div
                                     style={{
-                                        position: 'fixed', top: 16, right: 80, zIndex: 10000,
+                                        position: 'fixed',
+                                        left: alertBellPos.x < 0 ? undefined : alertBellPos.x,
+                                        right: alertBellPos.x < 0 ? 80 : undefined,
+                                        top: alertBellPos.y,
+                                        zIndex: 10000,
+                                        cursor: alertBellDrag.current.dragging ? 'grabbing' : 'grab',
+                                        userSelect: 'none',
+                                        touchAction: 'none',
                                     }}
-                                    onClick={(e) => { e.stopPropagation(); setAlertPanelOpen(p => !p); }}
+                                    onMouseDown={(e) => {
+                                        e.preventDefault();
+                                        const rect = e.currentTarget.getBoundingClientRect();
+                                        alertBellDrag.current = { dragging: true, startX: e.clientX, startY: e.clientY, origX: rect.left, origY: rect.top, moved: false };
+                                        if (alertBellPos.x < 0) setAlertBellPos({ x: rect.left, y: rect.top });
+                                    }}
+                                    onClick={(e) => { e.stopPropagation(); if (!alertBellDrag.current.moved) setAlertPanelOpen(p => !p); }}
                                 >
                                     <div style={{
                                         width: 42, height: 42, borderRadius: 12,
@@ -6137,7 +6188,11 @@ export default function OperationsPage() {
                                 {alertPanelOpen && (
                                     <div
                                         style={{
-                                            position: 'fixed', top: 66, right: 72, zIndex: 10000,
+                                            position: 'fixed',
+                                            top: Math.min(alertBellPos.y + 50, window.innerHeight - 500),
+                                            left: alertBellPos.x < 0 ? undefined : Math.min(alertBellPos.x, window.innerWidth - 400),
+                                            right: alertBellPos.x < 0 ? 72 : undefined,
+                                            zIndex: 10000,
                                             width: 380, maxHeight: '80vh',
                                             background: '#fff',
                                             borderRadius: 16,
