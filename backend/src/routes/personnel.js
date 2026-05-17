@@ -73,6 +73,9 @@ router.post('/', authMiddleware, async (req, res) => {
             return res.status(400).json({ success: false, error: 'E-posta ve Şifre zorunludur' });
         }
 
+        // Normalize email once and reuse everywhere
+        data.email = String(data.email).toLowerCase().trim();
+
         // Check uniqueness of TC Number within tenant logic...
         const existing = await prisma.personnel.findFirst({
             where: {
@@ -112,11 +115,12 @@ router.post('/', authMiddleware, async (req, res) => {
             }
         }
 
-        // Check if user email exists
+        // Check if user email exists (only ACTIVE / non-deleted rows count)
         const existingUser = await prisma.user.findFirst({
             where: {
                 tenantId,
-                email: data.email
+                email: data.email,
+                deletedAt: null
             }
         });
 
@@ -168,6 +172,7 @@ router.post('/', authMiddleware, async (req, res) => {
                     firstName: data.firstName,
                     lastName: data.lastName,
                     fullName: `${data.firstName} ${data.lastName}`,
+                    phone: data.phone || null,
                     roleId: role.id,
                     emailVerified: true,
                     status: 'ACTIVE',
@@ -210,7 +215,7 @@ router.post('/', authMiddleware, async (req, res) => {
                 }
             });
 
-            return newPersonnel;
+            return { ...newPersonnel, user: { id: newUser.id, email: newUser.email } };
         });
 
         res.json({ success: true, data: result });
@@ -295,6 +300,11 @@ router.put('/:id', authMiddleware, async (req, res) => {
             }).catch(err => console.error('Password reset failed:', err));
         }
 
+        // Normalize email if provided so user/personnel stay consistent
+        if (data.email !== undefined && data.email !== null) {
+            data.email = String(data.email).toLowerCase().trim();
+        }
+
         // Build update payload - only include fields that are explicitly provided
         const updatePayload = {};
         if (data.firstName !== undefined) updatePayload.firstName = data.firstName;
@@ -372,17 +382,33 @@ router.put('/:id', authMiddleware, async (req, res) => {
             }).catch(() => {});
         }
 
+        // Mirror profile fields (name / email / phone / avatar) to the linked
+        // user so /admin/users and /admin/personnel never drift apart.
+        const targetUserId = existing.userId || linkedUserId;
+        if (targetUserId) {
+            const userPatch = {};
+            if (data.firstName !== undefined) userPatch.firstName = data.firstName;
+            if (data.lastName !== undefined) userPatch.lastName = data.lastName;
+            if (data.firstName !== undefined || data.lastName !== undefined) {
+                const fn = data.firstName !== undefined ? data.firstName : existing.firstName;
+                const ln = data.lastName !== undefined ? data.lastName : existing.lastName;
+                userPatch.fullName = `${fn || ''} ${ln || ''}`.trim() || 'Personel';
+            }
+            if (data.email !== undefined && data.email) userPatch.email = data.email;
+            if (data.phone !== undefined) userPatch.phone = data.phone || null;
+            if (data.photo !== undefined) userPatch.avatar = data.photo;
+            if (Object.keys(userPatch).length > 0) {
+                await prisma.user.update({
+                    where: { id: targetUserId },
+                    data: userPatch
+                }).catch(err => console.error('User mirror update failed:', err));
+            }
+        }
+
         const personnel = await prisma.personnel.update({
             where: { id },
             data: updatePayload
         });
-
-        if (personnel.userId && data.photo !== undefined) {
-            await prisma.user.update({
-                where: { id: personnel.userId },
-                data: { avatar: data.photo }
-            });
-        }
 
         res.json({ success: true, data: personnel });
     } catch (error) {
@@ -391,25 +417,89 @@ router.put('/:id', authMiddleware, async (req, res) => {
     }
 });
 
-// Delete personnel (Soft delete)
+// Delete personnel (Soft delete) — also cascades to the linked User so the
+// row disappears from /admin/users and the email becomes reusable.
 router.delete('/:id', authMiddleware, async (req, res) => {
     try {
         const { tenantId } = req.user;
         const { id } = req.params;
 
-        const personnel = await prisma.personnel.updateMany({
-            where: { id, tenantId },
-            data: { deletedAt: new Date(), isActive: false }
+        const existing = await prisma.personnel.findFirst({
+            where: { id, tenantId, deletedAt: null }
         });
-
-        if (personnel.count === 0) {
+        if (!existing) {
             return res.status(404).json({ success: false, error: 'Personel bulunamadı' });
         }
 
-        res.json({ success: true, message: 'Personel silindi' });
+        const now = new Date();
+        await prisma.$transaction(async (tx) => {
+            await tx.personnel.update({
+                where: { id },
+                data: { deletedAt: now, isActive: false }
+            });
+
+            if (existing.userId) {
+                // Free up the email (rename to deleted-<ts>-<email>) so the same
+                // address can be re-used for a brand new personnel record.
+                const userRow = await tx.user.findUnique({ where: { id: existing.userId } });
+                if (userRow) {
+                    const freedEmail = userRow.email && !userRow.email.startsWith('deleted-')
+                        ? `deleted-${now.getTime()}-${userRow.email}`
+                        : userRow.email;
+                    await tx.user.update({
+                        where: { id: existing.userId },
+                        data: {
+                            status: 'INACTIVE',
+                            deletedAt: now,
+                            email: freedEmail,
+                        }
+                    });
+                }
+            }
+        });
+
+        res.json({ success: true, message: 'Personel ve bağlı kullanıcı silindi' });
     } catch (error) {
         console.error('Delete personnel error:', error);
-        res.status(500).json({ success: false, error: 'Personel silinemedi' });
+        res.status(500).json({ success: false, error: 'Personel silinemedi: ' + error.message });
+    }
+});
+
+// One-off cleanup: deactivate user rows that point at a soft-deleted
+// personnel record OR that are flagged as personnel but have no personnel
+// record at all. Useful to fix orphan users created before this patch.
+router.post('/sync-users', authMiddleware, async (req, res) => {
+    try {
+        const { tenantId } = req.user;
+
+        // 1. Users linked to a soft-deleted personnel → soft-delete user too
+        const orphanByDeletedPersonnel = await prisma.user.findMany({
+            where: {
+                tenantId,
+                deletedAt: null,
+                personnel: { is: { deletedAt: { not: null } } }
+            },
+            select: { id: true, email: true }
+        });
+        const now = new Date();
+        for (const u of orphanByDeletedPersonnel) {
+            const freedEmail = u.email && !u.email.startsWith('deleted-')
+                ? `deleted-${now.getTime()}-${u.email}`
+                : u.email;
+            await prisma.user.update({
+                where: { id: u.id },
+                data: { status: 'INACTIVE', deletedAt: now, email: freedEmail }
+            });
+        }
+
+        res.json({
+            success: true,
+            cleaned: orphanByDeletedPersonnel.length,
+            details: orphanByDeletedPersonnel
+        });
+    } catch (error) {
+        console.error('sync-users error:', error);
+        res.status(500).json({ success: false, error: 'Senkronizasyon başarısız: ' + error.message });
     }
 });
 

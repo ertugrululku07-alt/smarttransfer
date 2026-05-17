@@ -269,4 +269,49 @@ router.patch('/:id/active', authMiddleware, async (req, res) => {
     }
 });
 
+/**
+ * DELETE /api/users/:id
+ * Soft-delete the user AND cascade to the linked Personnel record so the
+ * two pages (Kullanıcılar / Personel) never drift apart.
+ */
+router.delete('/:id', authMiddleware, async (req, res) => {
+    try {
+        const tenantId = req.tenant?.id;
+        const { id } = req.params;
+        if (!tenantId) {
+            return res.status(400).json({ success: false, error: 'Tenant context missing' });
+        }
+
+        const user = await prisma.user.findFirst({
+            where: { id, tenantId, deletedAt: null },
+            include: { personnel: true }
+        });
+        if (!user) {
+            return res.status(404).json({ success: false, error: 'Kullanıcı bulunamadı' });
+        }
+
+        const now = new Date();
+        await prisma.$transaction(async (tx) => {
+            const freedEmail = user.email && !user.email.startsWith('deleted-')
+                ? `deleted-${now.getTime()}-${user.email}`
+                : user.email;
+            await tx.user.update({
+                where: { id },
+                data: { status: 'INACTIVE', deletedAt: now, email: freedEmail }
+            });
+            if (user.personnel && !user.personnel.deletedAt) {
+                await tx.personnel.update({
+                    where: { id: user.personnel.id },
+                    data: { deletedAt: now, isActive: false }
+                });
+            }
+        });
+
+        res.json({ success: true, message: 'Kullanıcı ve bağlı personel silindi' });
+    } catch (error) {
+        console.error('Delete user error:', error);
+        res.status(500).json({ success: false, error: 'Kullanıcı silinemedi: ' + error.message });
+    }
+});
+
 module.exports = router;

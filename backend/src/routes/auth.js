@@ -26,11 +26,17 @@ router.post('/login', async (req, res) => {
             });
         }
 
-        // Find user (across all tenants for now, can be scoped to req.tenant if needed)
-        const user = await prisma.user.findFirst({
+        // Find ALL active users matching the email (across tenants).
+        // Email is unique per tenant only, so the same address may exist in
+        // several tenants. We must try each candidate until one's password
+        // matches and its tenant is active/trial — otherwise admins who
+        // reset the password on tenant A would never be able to log into
+        // tenant A because we picked tenant B's stale row first.
+        const candidates = await prisma.user.findMany({
             where: {
                 email: email.toLowerCase(),
-                status: 'ACTIVE'
+                status: 'ACTIVE',
+                deletedAt: null
             },
             include: {
                 role: {
@@ -57,19 +63,27 @@ router.post('/login', async (req, res) => {
                         accentColor: true
                     }
                 }
-            }
+            },
+            orderBy: { lastLoginAt: 'desc' } // prefer most recently used row
         });
 
-        if (!user) {
+        if (candidates.length === 0) {
             return res.status(401).json({
                 success: false,
                 error: 'Invalid email or password'
             });
         }
 
-        // Verify password
-        const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
-        if (!isPasswordValid) {
+        // Try password against each candidate; first match wins.
+        let user = null;
+        for (const c of candidates) {
+            if (!c.passwordHash) continue;
+            // eslint-disable-next-line no-await-in-loop
+            const ok = await bcrypt.compare(password, c.passwordHash);
+            if (ok) { user = c; break; }
+        }
+
+        if (!user) {
             return res.status(401).json({
                 success: false,
                 error: 'Invalid email or password'
