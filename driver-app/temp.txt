@@ -25,7 +25,7 @@ class LocationSyncService : Service() {
         const val TAG = "NativeSyncSvc"
         const val CHANNEL_ID = "location_tracking"
         const val NOTIFICATION_ID = 1001
-        const val API_BASE = "https://backend-production-69e7.up.railway.app/api"
+        const val API_BASE = "https://api.jet2home.com/api"
         const val HTTP_INTERVAL_MS     = 1500L
         const val ACTION_START = "START_TRACKING"
         const val ACTION_STOP  = "STOP_TRACKING"

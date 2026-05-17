@@ -48,7 +48,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://backend-production-69e7.up.railway.app/api/live-chat/n8n-response",
+        "url": "https://api.jet2home.com/api/live-chat/n8n-response",
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
@@ -68,7 +68,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://backend-production-69e7.up.railway.app/api/live-chat/n8n-response",
+        "url": "https://api.jet2home.com/api/live-chat/n8n-response",
         "sendBody": true,
         "bodyParameters": {
           "parameters": [

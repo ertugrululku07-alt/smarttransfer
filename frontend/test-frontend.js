@@ -18,7 +18,7 @@ async function testApi() {
         const data = await res.json();
         if (data.success) {
             const b2b = data.data.find(b => b.bookingNumber === 'B2B428253');
-            console.log('Booking returned from Railway API:', JSON.stringify(b2b, null, 2));
+            console.log('Booking returned from API:', JSON.stringify(b2b, null, 2));
         } else {
             console.log('API Error', data);
         }

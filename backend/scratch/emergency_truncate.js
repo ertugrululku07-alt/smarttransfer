@@ -1,6 +1,10 @@
 const { Client } = require('pg');
 
-const connectionString = 'postgresql://postgres:MziCNdjmUdEeOhhJanQRZCtbhmnDxRto@crossover.proxy.rlwy.net:58887/railway';
+const connectionString = process.env.DATABASE_URL;
+if (!connectionString) {
+    console.error('DATABASE_URL env var is required');
+    process.exit(1);
+}
 
 async function tryTruncate() {
   const client = new Client({

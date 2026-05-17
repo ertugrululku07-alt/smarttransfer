@@ -18,7 +18,7 @@ function makeRequest(options, data) {
 
 async function main() {
     const loginRes = await makeRequest({
-        hostname: 'backend-production-69e7.up.railway.app',
+        hostname: process.env.API_HOST || 'api.jet2home.com',
         path: '/api/auth/login',
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
@@ -32,7 +32,7 @@ async function main() {
     
     console.log('Testing PATCH with operationalStatus=POOL...');
     const r = await makeRequest({
-        hostname: 'backend-production-69e7.up.railway.app',
+        hostname: process.env.API_HOST || 'api.jet2home.com',
         path: `/api/transfer/bookings/${testId}`,
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
@@ -43,7 +43,7 @@ async function main() {
         console.log('✅ SUCCESS! Pool transfer works!');
         // Revert back
         await makeRequest({
-            hostname: 'backend-production-69e7.up.railway.app',
+            hostname: process.env.API_HOST || 'api.jet2home.com',
             path: `/api/transfer/bookings/${testId}`,
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }

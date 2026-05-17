@@ -28,7 +28,7 @@ async function testSearch() {
   };
 
   for (const p of [payload1, payload2]) {
-      const response = await fetch('https://frontend-production-18bd.up.railway.app/api/transfer/search', {
+      const response = await fetch(`${process.env.API_URL || 'https://api.jet2home.com'}/api/transfer/search`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(p)
