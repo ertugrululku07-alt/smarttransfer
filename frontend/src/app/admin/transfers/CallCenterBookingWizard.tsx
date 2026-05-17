@@ -66,6 +66,13 @@ const CallCenterBookingWizard: React.FC<Props> = ({ open, onClose, onSuccess }) 
 
     // Step 2 (Selected + Customer)
     const [selected, setSelected] = useState<TransferResult | null>(null);
+    // Round-trip: return-leg search results and selection
+    const [returnResults, setReturnResults] = useState<TransferResult[]>([]);
+    const [returnSearching, setReturnSearching] = useState(false);
+    const [returnSearchError, setReturnSearchError] = useState<string | null>(null);
+    const [returnSelected, setReturnSelected] = useState<TransferResult | null>(null);
+    // Selection phase: 'outbound' = picking outbound vehicle, 'return' = picking return vehicle
+    const [selectionPhase, setSelectionPhase] = useState<'outbound' | 'return'>('outbound');
     const [customerForm] = Form.useForm();
     const [creating, setCreating] = useState(false);
 
@@ -140,6 +147,20 @@ const CallCenterBookingWizard: React.FC<Props> = ({ open, onClose, onSuccess }) 
         return total;
     })();
 
+    // Grand total = outbound + return (if roundtrip) + extras
+    const grandTotal = (Number(selected?.price || 0))
+        + (tripType === 'roundTrip' ? Number(returnSelected?.price || 0) : 0)
+        + extrasTotal;
+
+    // Keep return date >= pickup date (auto-adjust if user shifts pickup later)
+    useEffect(() => {
+        if (tripType !== 'roundTrip' || !pickupDateTime || !returnDateTime) return;
+        if (returnDateTime.isBefore(pickupDateTime)) {
+            setReturnDateTime(pickupDateTime.add(2, 'hour'));
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [pickupDateTime, tripType]);
+
     const resetAll = () => {
         setStep(0);
         setPickup(''); setDropoff('');
@@ -150,6 +171,9 @@ const CallCenterBookingWizard: React.FC<Props> = ({ open, onClose, onSuccess }) 
         setAdults(1); setChildren(0); setInfants(0);
         setResults([]); setSearchError(null); setRouteInfo(null);
         setSelected(null);
+        setReturnResults([]); setReturnSelected(null);
+        setReturnSearching(false); setReturnSearchError(null);
+        setSelectionPhase('outbound');
         setSelectedAgencyId(null);
         setExtraServices([]); setSelectedServices(new Map());
         customerForm.resetFields();
@@ -219,7 +243,58 @@ const CallCenterBookingWizard: React.FC<Props> = ({ open, onClose, onSuccess }) 
         }
     };
 
+    // ── Search return leg (swapped pickup/dropoff, returnDateTime) ──
+    const handleReturnSearch = async () => {
+        if (!pickup || !dropoff || !returnDateTime) return;
+        try {
+            setReturnSearching(true);
+            setReturnSearchError(null);
+            setReturnResults([]);
+            const payload = {
+                pickup: dropoff,      // swapped
+                dropoff: pickup,      // swapped
+                pickupDateTime: returnDateTime.toISOString(),
+                passengers: Number(adults) + Number(children) + Number(infants) || 1,
+                transferType: 'ONE_WAY',
+                pickupLat: dropoffCoords.lat,
+                pickupLng: dropoffCoords.lng,
+                dropoffLat: pickupCoords.lat,
+                dropoffLng: pickupCoords.lng,
+            };
+            const res = await apiClient.post('/api/transfer/search', payload);
+            if (res.data.success) {
+                const list: TransferResult[] = res.data.data.results || [];
+                if (list.length === 0) setReturnSearchError('Dönüş için uygun araç bulunamadı.');
+                setReturnResults(list);
+            } else {
+                setReturnSearchError('Dönüş arama sonuçları alınamadı.');
+            }
+        } catch (err: any) {
+            setReturnSearchError(err?.response?.data?.error || 'Dönüş arama hatası');
+        } finally {
+            setReturnSearching(false);
+        }
+    };
+
     const handleSelectVehicle = (r: TransferResult) => {
+        // Round-trip: first select outbound, then trigger return search
+        if (tripType === 'roundTrip' && selectionPhase === 'outbound') {
+            setSelected(r);
+            setSelectionPhase('return');
+            handleReturnSearch();
+            return;
+        }
+        // Round-trip: selecting return vehicle
+        if (tripType === 'roundTrip' && selectionPhase === 'return') {
+            setReturnSelected(r);
+            setStep(1);
+            customerForm.setFieldsValue({
+                adults, children, infants,
+                paymentMethod: 'PAY_IN_VEHICLE'
+            });
+            return;
+        }
+        // One-way: original flow
         setSelected(r);
         setStep(1);
         customerForm.setFieldsValue({
@@ -267,7 +342,9 @@ const CallCenterBookingWizard: React.FC<Props> = ({ open, onClose, onSuccess }) 
                 } : null;
             }).filter(Boolean) as Array<{ id: string; name: string; price: number; currency: string; quantity: number; total: number }>;
 
-            const totalPrice = Number(selected.price) + extrasTotal;
+            const outboundPrice = Number(selected.price);
+            const returnPrice = tripType === 'roundTrip' && returnSelected ? Number(returnSelected.price) : 0;
+            const totalPrice = outboundPrice + returnPrice + extrasTotal;
 
             const payload = {
                 passengerName: values.passengerName,
@@ -297,7 +374,22 @@ const CallCenterBookingWizard: React.FC<Props> = ({ open, onClose, onSuccess }) 
                 isShuttle: !!selected.isShuttle,
                 shuttleRouteId: selected.isShuttle ? selected.id.replace('shuttle_', '') : null,
                 shuttleMasterTime: shuttleMasterTime || selected.matchedMasterTime || null,
-                passengerDetails: Array.isArray(values.passengerDetails) ? values.passengerDetails : []
+                passengerDetails: Array.isArray(values.passengerDetails) ? values.passengerDetails : [],
+                // Round-trip return leg (backend creates a linked -D booking)
+                returnLeg: (tripType === 'roundTrip' && returnSelected) ? {
+                    pickup: dropoff,
+                    dropoff: pickup,
+                    pickupDateTime: returnDateTime.toISOString(),
+                    vehicleType: returnSelected.vehicleType,
+                    price: Number(returnSelected.price),
+                    currency: returnSelected.currency || 'TRY',
+                    pickupLat: dropoffCoords.lat, pickupLng: dropoffCoords.lng,
+                    dropoffLat: pickupCoords.lat, dropoffLng: pickupCoords.lng,
+                    isShuttle: !!returnSelected.isShuttle,
+                    shuttleRouteId: returnSelected.isShuttle ? returnSelected.id.replace('shuttle_', '') : null,
+                    shuttleMasterTime: returnSelected.matchedMasterTime || null,
+                } : undefined,
+                tripType: tripType === 'roundTrip' ? 'ROUND_TRIP' : 'ONE_WAY'
             };
 
             const res = await apiClient.post('/api/transfer/bookings/admin', payload);
@@ -651,6 +743,7 @@ const CallCenterBookingWizard: React.FC<Props> = ({ open, onClose, onSuccess }) 
                                                 format="DD.MM.YYYY HH:mm"
                                                 value={pickupDateTime}
                                                 onChange={setPickupDateTime}
+                                                disabledDate={(current) => current && current.isBefore(dayjs().startOf('day'))}
                                                 style={{ width: '100%', borderRadius: 8, height: 36, fontWeight: 600 }}
                                             />
                                         </div>
@@ -708,6 +801,24 @@ const CallCenterBookingWizard: React.FC<Props> = ({ open, onClose, onSuccess }) 
                                                 value={returnDateTime}
                                                 onChange={setReturnDateTime}
                                                 disabled={tripType !== 'roundTrip'}
+                                                disabledDate={(current) => {
+                                                    if (!current || !pickupDateTime) return false;
+                                                    return current.isBefore(pickupDateTime.startOf('day'));
+                                                }}
+                                                disabledTime={(current) => {
+                                                    if (!current || !pickupDateTime || !current.isSame(pickupDateTime, 'day')) {
+                                                        return {};
+                                                    }
+                                                    const ph = pickupDateTime.hour();
+                                                    const pm = pickupDateTime.minute();
+                                                    return {
+                                                        disabledHours: () => Array.from({ length: ph }, (_, i) => i),
+                                                        disabledMinutes: (selectedHour: number) =>
+                                                            selectedHour === ph
+                                                                ? Array.from({ length: pm }, (_, i) => i)
+                                                                : [],
+                                                    };
+                                                }}
                                                 style={{ width: '100%', borderRadius: 8, height: 36, fontWeight: 600 }}
                                             />
                                         </div>
@@ -904,26 +1015,82 @@ const CallCenterBookingWizard: React.FC<Props> = ({ open, onClose, onSuccess }) 
                                 </div>
                             )}
 
-                            {/* Vehicle Results */}
-                            {!searching && results.length > 0 && (
+                            {/* ── Outbound Selected Summary (in return phase) ── */}
+                            {tripType === 'roundTrip' && selectionPhase === 'return' && selected && (
+                                <div style={{
+                                    marginTop: 20, padding: '12px 14px',
+                                    background: 'linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%)',
+                                    border: '1.5px solid #86efac', borderRadius: 12,
+                                    display: 'flex', alignItems: 'center', gap: 12,
+                                }}>
+                                    <div style={{
+                                        width: 34, height: 34, borderRadius: 10,
+                                        background: '#dcfce7', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    }}>
+                                        <CheckCircleOutlined style={{ color: '#16a34a', fontSize: 16 }} />
+                                    </div>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                        <div style={{ fontSize: 10, fontWeight: 700, color: '#16a34a', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                                            Gidiş Aracı Seçildi
+                                        </div>
+                                        <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>
+                                            {selected.vehicleType} · {formatPrice(selected.price, selected.currency)}
+                                        </div>
+                                        <div style={{ fontSize: 11, color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                            {pickup} → {dropoff} · {pickupDateTime?.format('DD.MM.YYYY HH:mm')}
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={() => { setSelected(null); setSelectionPhase('outbound'); setReturnResults([]); setReturnSelected(null); }}
+                                        style={{
+                                            border: '1px solid #86efac', background: '#fff',
+                                            color: '#16a34a', fontSize: 11, fontWeight: 700,
+                                            padding: '6px 12px', borderRadius: 8, cursor: 'pointer',
+                                        }}
+                                    >
+                                        <ArrowLeftOutlined /> Değiştir
+                                    </button>
+                                </div>
+                            )}
+
+                            {/* ── Return phase loading/error ── */}
+                            {tripType === 'roundTrip' && selectionPhase === 'return' && returnSearching && (
+                                <div style={{ textAlign: 'center', padding: '40px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+                                    <Spin size="large" />
+                                    <div style={{ fontSize: 13, color: '#94a3b8', fontWeight: 500 }}>Dönüş için araçlar aranıyor...</div>
+                                </div>
+                            )}
+                            {tripType === 'roundTrip' && selectionPhase === 'return' && returnSearchError && (
+                                <Alert type="warning" showIcon message={returnSearchError} style={{ marginTop: 12, borderRadius: 12 }} />
+                            )}
+
+                            {/* Vehicle Results (phase-aware) */}
+                            {(() => {
+                                const isReturnPhase = tripType === 'roundTrip' && selectionPhase === 'return';
+                                const currentList = isReturnPhase ? returnResults : results;
+                                const currentSearching = isReturnPhase ? returnSearching : searching;
+                                if (currentSearching || currentList.length === 0) return null;
+                                return (
                                 <div style={{ marginTop: 20 }}>
                                     <div style={{
                                         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                                         marginBottom: 14,
                                     }}>
                                         <div style={{ fontSize: 14, fontWeight: 700, color: '#1e293b' }}>
-                                            Uygun Araclar
+                                            {isReturnPhase ? '🔄 Dönüş Aracı Seçin' : (tripType === 'roundTrip' ? '➡️ Gidiş Aracı Seçin' : 'Uygun Araclar')}
                                         </div>
                                         <Tag style={{
                                             borderRadius: 8, fontWeight: 700, fontSize: 12, margin: 0,
-                                            background: '#eef2ff', color: '#6366f1', border: '1px solid #c7d2fe',
+                                            background: isReturnPhase ? '#fef3c7' : '#eef2ff',
+                                            color: isReturnPhase ? '#d97706' : '#6366f1',
+                                            border: `1px solid ${isReturnPhase ? '#fcd34d' : '#c7d2fe'}`,
                                             padding: '2px 10px',
                                         }}>
-                                            {results.length} sonuc
+                                            {currentList.length} sonuç
                                         </Tag>
                                     </div>
                                     <div style={{ maxHeight: 400, overflowY: 'auto', paddingRight: 4 }}>
-                                        {results.map((r, idx) => (
+                                        {currentList.map((r, idx) => (
                                             <div
                                                 key={r.id}
                                                 onClick={() => handleSelectVehicle(r)}
@@ -1035,37 +1202,38 @@ const CallCenterBookingWizard: React.FC<Props> = ({ open, onClose, onSuccess }) 
                                         ))}
                                     </div>
                                 </div>
-                            )}
+                                );
+                            })()}
                         </div>
                     )}
 
                     {/* ─── STEP 2: Customer + Payment ─── */}
                     {step === 1 && selected && (
                         <div>
-                            {/* Selected Vehicle Summary */}
+                            {/* Outbound Vehicle Summary */}
                             <div style={{
                                 background: 'linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%)',
-                                borderRadius: 14, padding: '16px 20px',
+                                borderRadius: 14, padding: '14px 18px',
                                 border: '1.5px solid #86efac',
-                                marginBottom: 20,
-                                display: 'flex', alignItems: 'center', gap: 16,
+                                marginBottom: tripType === 'roundTrip' && returnSelected ? 10 : 20,
+                                display: 'flex', alignItems: 'center', gap: 14,
                             }}>
                                 <div style={{
-                                    width: 44, height: 44, borderRadius: 12,
+                                    width: 40, height: 40, borderRadius: 11,
                                     background: '#dcfce7', border: '2px solid #86efac',
                                     display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                                 }}>
-                                    <CheckCircleOutlined style={{ fontSize: 20, color: '#16a34a' }} />
+                                    <ArrowRightOutlined style={{ fontSize: 16, color: '#16a34a' }} />
                                 </div>
                                 <div style={{ flex: 1, minWidth: 0 }}>
-                                    <div style={{ fontSize: 11, fontWeight: 700, color: '#16a34a', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                                        Secilen Arac
+                                    <div style={{ fontSize: 10, fontWeight: 700, color: '#16a34a', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                        {tripType === 'roundTrip' ? 'Gidiş Aracı' : 'Seçilen Araç'}
                                     </div>
-                                    <div style={{ fontSize: 15, fontWeight: 800, color: '#1e293b', marginTop: 1 }}>
+                                    <div style={{ fontSize: 14, fontWeight: 800, color: '#1e293b', marginTop: 1 }}>
                                         {selected.vehicleType}
-                                        {selected.isShuttle && <Tag style={{ marginLeft: 8, borderRadius: 6, fontSize: 10, fontWeight: 700, background: '#f3e8ff', color: '#7c3aed', border: 'none' }}>SHUTTLE</Tag>}
+                                        {selected.isShuttle && <Tag style={{ marginLeft: 6, borderRadius: 6, fontSize: 10, fontWeight: 700, background: '#f3e8ff', color: '#7c3aed', border: 'none' }}>SHUTTLE</Tag>}
                                     </div>
-                                    <div style={{ fontSize: 12, color: '#64748b', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    <div style={{ fontSize: 11, color: '#64748b', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                         {pickup} <SwapRightOutlined style={{ margin: '0 4px', color: '#94a3b8' }} /> {dropoff}
                                     </div>
                                     <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
@@ -1075,22 +1243,72 @@ const CallCenterBookingWizard: React.FC<Props> = ({ open, onClose, onSuccess }) 
                                     </div>
                                 </div>
                                 <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                                    <div style={{ fontSize: 22, fontWeight: 900, color: '#059669', letterSpacing: '-0.5px' }}>
+                                    <div style={{ fontSize: 18, fontWeight: 900, color: '#059669', letterSpacing: '-0.5px' }}>
                                         {formatPrice(selected.price, selected.currency)}
                                     </div>
                                     <button
                                         onClick={() => setStep(0)}
                                         style={{
                                             marginTop: 4, border: 'none', background: 'none',
-                                            color: '#6366f1', fontSize: 12, fontWeight: 600,
+                                            color: '#6366f1', fontSize: 11, fontWeight: 600,
                                             cursor: 'pointer', padding: 0,
                                             display: 'flex', alignItems: 'center', gap: 4,
                                         }}
                                     >
-                                        <ArrowLeftOutlined style={{ fontSize: 10 }} /> Degistir
+                                        <ArrowLeftOutlined style={{ fontSize: 10 }} /> Değiştir
                                     </button>
                                 </div>
                             </div>
+
+                            {/* Return Vehicle Summary (round-trip) */}
+                            {tripType === 'roundTrip' && returnSelected && (
+                                <div style={{
+                                    background: 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)',
+                                    borderRadius: 14, padding: '14px 18px',
+                                    border: '1.5px solid #fcd34d',
+                                    marginBottom: 20,
+                                    display: 'flex', alignItems: 'center', gap: 14,
+                                }}>
+                                    <div style={{
+                                        width: 40, height: 40, borderRadius: 11,
+                                        background: '#fef3c7', border: '2px solid #fcd34d',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                                    }}>
+                                        <ArrowLeftOutlined style={{ fontSize: 16, color: '#d97706' }} />
+                                    </div>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                        <div style={{ fontSize: 10, fontWeight: 700, color: '#d97706', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                            Dönüş Aracı
+                                        </div>
+                                        <div style={{ fontSize: 14, fontWeight: 800, color: '#1e293b', marginTop: 1 }}>
+                                            {returnSelected.vehicleType}
+                                            {returnSelected.isShuttle && <Tag style={{ marginLeft: 6, borderRadius: 6, fontSize: 10, fontWeight: 700, background: '#f3e8ff', color: '#7c3aed', border: 'none' }}>SHUTTLE</Tag>}
+                                        </div>
+                                        <div style={{ fontSize: 11, color: '#64748b', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                            {dropoff} <SwapRightOutlined style={{ margin: '0 4px', color: '#94a3b8' }} /> {pickup}
+                                        </div>
+                                        <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+                                            {returnDateTime?.format('DD.MM.YYYY HH:mm')}
+                                        </div>
+                                    </div>
+                                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                                        <div style={{ fontSize: 18, fontWeight: 900, color: '#d97706', letterSpacing: '-0.5px' }}>
+                                            {formatPrice(returnSelected.price, returnSelected.currency)}
+                                        </div>
+                                        <button
+                                            onClick={() => { setStep(0); setReturnSelected(null); setSelectionPhase('return'); }}
+                                            style={{
+                                                marginTop: 4, border: 'none', background: 'none',
+                                                color: '#d97706', fontSize: 11, fontWeight: 600,
+                                                cursor: 'pointer', padding: 0,
+                                                display: 'flex', alignItems: 'center', gap: 4,
+                                            }}
+                                        >
+                                            <ArrowLeftOutlined style={{ fontSize: 10 }} /> Değiştir
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
 
                             <Form form={customerForm} layout="vertical" requiredMark={false}>
                                 {/* Customer Info */}
@@ -1344,6 +1562,44 @@ const CallCenterBookingWizard: React.FC<Props> = ({ open, onClose, onSuccess }) 
                                     </div>
                                 </div>
 
+                                {/* Price Breakdown */}
+                                <div style={{
+                                    background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
+                                    borderRadius: 14, padding: '14px 18px',
+                                    border: '1.5px solid #e2e8f0', marginBottom: 16,
+                                }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                                        <div style={{ width: 28, height: 28, borderRadius: 8, background: '#dcfce7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                            <DollarOutlined style={{ fontSize: 13, color: '#16a34a' }} />
+                                        </div>
+                                        <span style={{ fontSize: 14, fontWeight: 700, color: '#1e293b' }}>Fiyat Özeti</span>
+                                    </div>
+                                    <div style={{ fontSize: 12, color: '#475569' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px dashed #e2e8f0' }}>
+                                            <span>{tripType === 'roundTrip' ? 'Gidiş aracı' : 'Araç ücreti'} ({selected.vehicleType})</span>
+                                            <span style={{ fontWeight: 700, color: '#1e293b' }}>{formatPrice(Number(selected.price), selected.currency)}</span>
+                                        </div>
+                                        {tripType === 'roundTrip' && returnSelected && (
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px dashed #e2e8f0' }}>
+                                                <span>Dönüş aracı ({returnSelected.vehicleType})</span>
+                                                <span style={{ fontWeight: 700, color: '#1e293b' }}>{formatPrice(Number(returnSelected.price), returnSelected.currency)}</span>
+                                            </div>
+                                        )}
+                                        {extrasTotal > 0 && (
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px dashed #e2e8f0' }}>
+                                                <span>Ekstra hizmetler ({selectedServices.size} adet)</span>
+                                                <span style={{ fontWeight: 700, color: '#1e293b' }}>{formatPrice(extrasTotal, selected.currency || 'TRY')}</span>
+                                            </div>
+                                        )}
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0 2px', alignItems: 'center' }}>
+                                            <span style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>Toplam</span>
+                                            <span style={{ fontSize: 20, fontWeight: 900, color: '#059669', letterSpacing: '-0.5px' }}>
+                                                {formatPrice(grandTotal, selected.currency || 'TRY')}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+
                                 {/* Notes */}
                                 <div style={{
                                     background: '#fff', borderRadius: 14, padding: '16px 20px',
@@ -1404,7 +1660,7 @@ const CallCenterBookingWizard: React.FC<Props> = ({ open, onClose, onSuccess }) 
                                     onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 4px 16px rgba(16,185,129,0.3)'; }}
                                 >
                                     {creating ? <Spin size="small" style={{ filter: 'brightness(10)' }} /> : <CheckCircleOutlined style={{ fontSize: 16 }} />}
-                                    Rezervasyonu Olustur · {formatPrice(selected.price, selected.currency)}
+                                    Rezervasyonu Oluştur · {formatPrice(grandTotal, selected.currency)}
                                 </button>
                             </div>
                         </div>

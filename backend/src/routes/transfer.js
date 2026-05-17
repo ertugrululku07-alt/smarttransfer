@@ -3093,7 +3093,9 @@ router.post('/bookings/admin', authMiddleware, async (req, res) => {
             currency,
             passengerDetails,
             extraServices, extrasTotal, vehiclePrice,
-            agencyId, agencyName
+            agencyId, agencyName,
+            // Round-trip
+            returnLeg, tripType: clientTripType
         } = req.body;
 
         const tenantId = req.tenant?.id;
@@ -3136,8 +3138,15 @@ router.post('/bookings/admin', authMiddleware, async (req, res) => {
             extrasTotal: Number(extrasTotal || 0),
             vehiclePrice: vehiclePrice != null ? Number(vehiclePrice) : null,
             tripType: getTripType(pickup, dropoff, hubs.filter(h => h.isAirport)),
+            isRoundTrip: clientTripType === 'ROUND_TRIP' && !!returnLeg,
             agencyName: agencyName || null
         };
+
+        // Outbound total excludes return leg to avoid double-counting in reports.
+        // Extras stay on outbound only (we zero them out on return leg).
+        const outboundTotal = (clientTripType === 'ROUND_TRIP' && returnLeg?.price)
+            ? Number(price || 0) - Number(returnLeg.price || 0)
+            : Number(price || 0);
 
         const booking = await prisma.booking.create({
             data: {
@@ -3149,8 +3158,8 @@ router.post('/bookings/admin', authMiddleware, async (req, res) => {
                 startDate: new Date(pickupDateTime),
                 endDate: new Date(pickupDateTime),
                 currency: currency || 'TRY',
-                total: Number(price || 0),
-                subtotal: Number(price || 0),
+                total: outboundTotal,
+                subtotal: outboundTotal,
                 contactName: passengerName || 'Misafir',
                 contactEmail: passengerEmail || '',
                 contactPhone: passengerPhone || '',
@@ -3170,6 +3179,104 @@ router.post('/bookings/admin', authMiddleware, async (req, res) => {
                 metadata: metadata,
             }
         });
+
+        // ── Round-trip: create linked return-leg booking (-D) ──
+        let returnBooking = null;
+        if (clientTripType === 'ROUND_TRIP' && returnLeg && returnLeg.pickupDateTime) {
+            try {
+                const returnBookingNumber = `${booking.bookingNumber}-D`;
+                const rPickupRegion = detectRegionCodeByPolygon(returnLeg.pickupLat, returnLeg.pickupLng, returnLeg.pickup, zonesForRegionAdmin, hubs);
+                const rDropoffRegion = detectRegionCodeByPolygon(returnLeg.dropoffLat, returnLeg.dropoffLng, returnLeg.dropoff, zonesForRegionAdmin, hubs);
+                const returnMetadata = {
+                    pickup: returnLeg.pickup,
+                    dropoff: returnLeg.dropoff,
+                    flightNumber: flightNumber || '',
+                    vehicleType: returnLeg.vehicleType,
+                    passengerName,
+                    creationSource: 'ADMIN_MANUAL',
+                    pickupRegionCode: rPickupRegion || null,
+                    dropoffRegionCode: rDropoffRegion || null,
+                    paymentMethod: paymentMethod || 'PAY_IN_VEHICLE',
+                    pickupLat: returnLeg.pickupLat != null ? Number(returnLeg.pickupLat) : null,
+                    pickupLng: returnLeg.pickupLng != null ? Number(returnLeg.pickupLng) : null,
+                    dropoffLat: returnLeg.dropoffLat != null ? Number(returnLeg.dropoffLat) : null,
+                    dropoffLng: returnLeg.dropoffLng != null ? Number(returnLeg.dropoffLng) : null,
+                    isShuttle: !!returnLeg.isShuttle,
+                    shuttleRouteId: returnLeg.shuttleRouteId || null,
+                    shuttleMasterTime: returnLeg.shuttleMasterTime || null,
+                    passengerDetails: Array.isArray(passengerDetails) ? passengerDetails : [],
+                    extraServices: [], // extras belong only to outbound to avoid double billing
+                    extrasTotal: 0,
+                    vehiclePrice: Number(returnLeg.price || 0),
+                    tripType: getTripType(returnLeg.pickup, returnLeg.dropoff, hubs.filter(h => h.isAirport)),
+                    isRoundTrip: true,
+                    linkedBookingId: booking.id,
+                    linkedBookingNumber: booking.bookingNumber,
+                    agencyName: agencyName || null
+                };
+                returnBooking = await prisma.booking.create({
+                    data: {
+                        tenantId,
+                        bookingNumber: returnBookingNumber,
+                        productType: 'TRANSFER',
+                        status: 'CONFIRMED',
+                        paymentStatus: 'PENDING',
+                        startDate: new Date(returnLeg.pickupDateTime),
+                        endDate: new Date(returnLeg.pickupDateTime),
+                        currency: returnLeg.currency || currency || 'TRY',
+                        total: Number(returnLeg.price || 0),
+                        subtotal: Number(returnLeg.price || 0),
+                        contactName: passengerName || 'Misafir',
+                        contactEmail: passengerEmail || '',
+                        contactPhone: passengerPhone || '',
+                        adults: Number(adults || 1),
+                        children: Number(children || 0),
+                        infants: Number(infants || 0),
+                        specialRequests: notes || '',
+                        bookingType: agencyId ? 'B2B' : 'SYSTEM',
+                        bookedByUserId: req.user?.id || null,
+                        bookedByName: [req.user?.firstName, req.user?.lastName].filter(Boolean).join(' ') || req.user?.email || 'Sistem',
+                        agencyId: agencyId || null,
+                        metadata: returnMetadata,
+                    }
+                });
+                // Backfill outbound metadata with linked return id
+                await prisma.booking.update({
+                    where: { id: booking.id },
+                    data: {
+                        metadata: {
+                            ...(booking.metadata || {}),
+                            linkedBookingId: returnBooking.id,
+                            linkedBookingNumber: returnBooking.bookingNumber,
+                        }
+                    }
+                });
+            } catch (rtErr) {
+                console.error('[RoundTrip-Admin] Return leg creation failed (non-blocking):', rtErr);
+            }
+        }
+
+        // ── Agency Transaction record (sub-agency assignment audit) ──
+        if (agencyId) {
+            try {
+                const totalAmount = Number(price || 0) + Number(returnLeg?.price || 0);
+                await prisma.transaction.create({
+                    data: {
+                        tenantId,
+                        accountId: `agency-${agencyId}`,
+                        type: 'SALES_INVOICE',
+                        amount: totalAmount,
+                        currency: currency || 'TRY',
+                        isCredit: true,
+                        description: `Admin tarafından oluşturulan rezervasyon (${booking.bookingNumber}${returnBooking ? ' + ' + returnBooking.bookingNumber : ''})`,
+                        date: new Date(),
+                        referenceId: booking.id,
+                    }
+                });
+            } catch (txErr) {
+                console.error('[AgencyTx-Admin] Transaction record failed (non-blocking):', txErr);
+            }
+        }
 
         // ── Server-side Auto-Approve (Admin bookings) ──
         let finalBooking = booking;
