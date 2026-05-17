@@ -20,27 +20,52 @@ jobs:
           # key: ${{ secrets.SERVER_SSH_KEY }}
           port: ${{ secrets.SERVER_PORT }}
           script: |
-            # Güvenlik nedeniyle root girişi kapalı olduğu için, smarttech üzerinden sudo ile root yetkisi alıyoruz
             echo "${{ secrets.SERVER_PASSWORD }}" | sudo -S sh -c '
               export PATH=$PATH:/usr/local/bin:/www/server/nodejs/v18/bin:/www/server/nodejs/v20/bin:/www/server/pgsql/bin:/usr/pgsql-14/bin:/usr/pgsql-15/bin
               cd /www/wwwroot/jet2home.com
               
-              # Git güvenlik uyarısını aşmak için klasörü güvenli dizin olarak ekliyoruz
               git config --global --add safe.directory /www/wwwroot/jet2home.com
               
               if [ ! -d ".git" ]; then
                 git init
               fi
               
-              # Remote ayarını garantilemek ve değişiklikleri zorla (force) eşitlemek için:
               git remote add origin https://github.com/ertugrululku07-alt/smarttransfer.git 2>/dev/null || true
               git fetch origin
               git reset --hard origin/main
-              # Eski cache ve localhost ayarlarını temizle ki build tertemiz baştan yapılsın
+
+              # ── 1. Eski build cache ve env.local komple temizle ──
               rm -f frontend/.env.local
               rm -rf frontend/.next
+              rm -rf frontend/node_modules/.cache
+
+              # ── 2. Backend bağımlılıkları ve Prisma ──
+              cd backend
+              npm install --production 2>/dev/null || true
+              npx prisma generate 2>/dev/null || true
+              npx prisma db push 2>/dev/null || true
+              cd ..
+
+              # ── 3. Frontend: env.production oluştur (setup.js yerine direkt) ──
+              cat > frontend/.env.production << ENVEOF
+NEXT_PUBLIC_API_URL=https://api.jet2home.com
+NEXT_PUBLIC_SOCKET_URL=https://api.jet2home.com
+NEXT_PUBLIC_TENANT_SLUG=Jet2Home
+NEXT_PUBLIC_HERE_API_KEY=RH04HVBUK6By3GfYWwVlCOG4Or1IzV-rRjygQRHbIvo
+ENVEOF
+
+              # ── 4. Frontend bağımlılıkları (devDependencies dahil - build için gerekli) ──
+              cd frontend
+              npm install
               
-              echo "E" | node setup.js
+              # ── 5. Frontend Build (temiz, railway referansı olmadan) ──
+              NODE_ENV=production npm run build
               
+              echo "Frontend build tamamlandı. .next klasoru kontrol:"
+              ls -la .next/ 2>/dev/null | head -5
+              cd ..
+
+              # ── 6. PM2 restart ──
               npx pm2 restart all
+              echo "Deploy tamamlandi!"
             '

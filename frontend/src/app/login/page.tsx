@@ -3,10 +3,9 @@
 import React, { useState, useEffect } from 'react';
 import { Button, Form, Input, message } from 'antd';
 import { MailOutlined, LockOutlined, ArrowRightOutlined } from '@ant-design/icons';
-import axios from 'axios';
+import apiClient, { getImageUrl } from '@/lib/api-client';
 import { useAuth } from '../context/AuthContext';
 import { useBranding } from '../context/BrandingContext';
-import { getImageUrl } from '@/lib/api-client';
 
 const LoginPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
@@ -19,7 +18,7 @@ const LoginPage: React.FC = () => {
   const onFinish = async (values: { email: string; password: string }) => {
     try {
       setLoading(true);
-      const res = await axios.post(`${(typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' ? 'https://api.' + window.location.hostname.replace('www.', '') : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000').replace(/[\r\n]+/g, '').trim())}/api/auth/login`, values);
+      const res = await apiClient.post('/api/auth/login', values);
       const { user, token, refreshToken } = res.data.data;
       login(user, token);
       if (refreshToken) localStorage.setItem('refreshToken', refreshToken);
