@@ -3357,7 +3357,13 @@ router.post('/bookings/admin', authMiddleware, async (req, res) => {
         res.json({ success: true, data: finalBooking });
     } catch (error) {
         console.error('Create booking admin error:', error);
-        res.status(500).json({ success: false, error: 'Rezervasyon oluşturulamadı' });
+        const detail = error?.message || String(error);
+        res.status(500).json({
+            success: false,
+            error: 'Rezervasyon oluşturulamadı: ' + detail,
+            code: error?.code || undefined,
+            detail
+        });
     }
 });
 
