@@ -3,7 +3,7 @@ name: Otomatik Deploy (GoDaddy)
 on:
   push:
     branches:
-      - main # veya 'master' - Hangi branch'e kod gönderdiğinizde çalışacağını belirtir
+      - main
 
 jobs:
   deploy:
@@ -16,9 +16,8 @@ jobs:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           password: ${{ secrets.SERVER_PASSWORD }}
-          # Eğer şifre yerine SSH anahtarı kullanıyorsanız üstteki password satırını silip alttakini açın:
-          # key: ${{ secrets.SERVER_SSH_KEY }}
           port: ${{ secrets.SERVER_PORT }}
+          command_timeout: 10m
           script: |
             echo "${{ secrets.SERVER_PASSWORD }}" | sudo -S sh -c '
               export PATH=$PATH:/usr/local/bin:/www/server/nodejs/v18/bin:/www/server/nodejs/v20/bin:/www/server/pgsql/bin:/usr/pgsql-14/bin:/usr/pgsql-15/bin
@@ -38,29 +37,43 @@ jobs:
               rm -f frontend/.env.local
               rm -rf frontend/.next
               rm -rf frontend/node_modules/.cache
+              echo "STEP 1 OK: Cache temizlendi"
 
-              # ── 2. Backend bağımlılıkları ve Prisma ──
+              # ── 2. Backend bagimliliklar ve Prisma ──
               cd backend
               npm install --production 2>/dev/null || true
               npx prisma generate 2>/dev/null || true
               npx prisma db push 2>/dev/null || true
               cd ..
+              echo "STEP 2 OK: Backend hazir"
 
-              # ── 3. Frontend: env.production oluştur (setup.js yerine direkt) ──
+              # ── 3. Frontend: env.production olustur ──
               printf "NEXT_PUBLIC_API_URL=https://api.jet2home.com\nNEXT_PUBLIC_SOCKET_URL=https://api.jet2home.com\nNEXT_PUBLIC_TENANT_SLUG=Jet2Home\nNEXT_PUBLIC_HERE_API_KEY=RH04HVBUK6By3GfYWwVlCOG4Or1IzV-rRjygQRHbIvo\n" > frontend/.env.production
+              cat frontend/.env.production
+              echo "STEP 3 OK: env.production yazildi"
 
-              # ── 4. Frontend bağımlılıkları (devDependencies dahil - build için gerekli) ──
+              # ── 4. Frontend bagimliliklar (devDependencies dahil) ──
               cd frontend
-              npm install
+              npm install 2>&1 | tail -3
+              echo "STEP 4 OK: npm install tamamlandi"
               
-              # ── 5. Frontend Build (temiz, railway referansı olmadan) ──
-              NODE_ENV=production npm run build
+              # ── 5. Frontend Build ──
+              npx next build 2>&1 | tail -20
+              BUILD_EXIT=$?
+              echo "STEP 5: Build exit code = $BUILD_EXIT"
               
-              echo "Frontend build tamamlandı. .next klasoru kontrol:"
-              ls -la .next/ 2>/dev/null | head -5
+              if [ $BUILD_EXIT -ne 0 ]; then
+                echo "BUILD BASARISIZ! Cikiliyor."
+                exit 1
+              fi
+              
+              echo "STEP 5 OK: Build tamamlandi"
+              ls -la .next/BUILD_ID 2>/dev/null
+              cat .next/BUILD_ID 2>/dev/null
               cd ..
 
               # ── 6. PM2 restart ──
               npx pm2 restart all
-              echo "Deploy tamamlandi!"
+              echo "STEP 6 OK: PM2 restart tamamlandi"
+              echo "=== DEPLOY TAMAMLANDI ==="
             '
