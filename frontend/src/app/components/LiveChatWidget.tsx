@@ -34,7 +34,7 @@ const LiveChatWidget: React.FC = () => {
         }
         setSessionId(sid);
 
-        const rawApiUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000').replace(/[\r\n]+/g, '').trim();
+        const rawApiUrl = (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' ? 'https://api.' + window.location.hostname.replace('www.', '') : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000').replace(/[\r\n]+/g, '').trim());
         const SOCKET_URL = rawApiUrl.includes('_') ? rawApiUrl.replace(/_/g, '-') : rawApiUrl;
 
         const newSocket = io(SOCKET_URL, {

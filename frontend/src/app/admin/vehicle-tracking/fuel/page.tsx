@@ -21,7 +21,7 @@ import { useRouter } from 'next/navigation';
 import dayjs from 'dayjs';
 
 const { Title, Text } = Typography;
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+const API_BASE = typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' ? 'https://api.' + window.location.hostname.replace('www.', '') : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000');
 const fmtTRY = (v: number) => Number(v || 0).toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' });
 const fmtKm = (v: number) => v ? `${Number(v).toLocaleString('tr-TR')} km` : '—';
 

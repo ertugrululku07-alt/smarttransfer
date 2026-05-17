@@ -2,11 +2,22 @@
 import axios from 'axios';
 
 // ── Central API Configuration ──
-// All URLs come from environment variables. NO hardcoded domains.
-// Dev: .env.local → http://localhost:4000
-// Prod: .env.production → https://your-domain.com  (set during deployment)
-const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000').replace(/[\r\n]+/g, '').trim();
-const SOCKET_URL = (process.env.NEXT_PUBLIC_SOCKET_URL || API_URL).replace(/[\r\n]+/g, '').trim();
+// All URLs are dynamically managed to avoid baked-in build-time URLs (like Railway).
+// Dev: http://localhost:4000
+// Prod: Dynamically resolved from window.location.hostname (e.g. jet2home.com -> https://api.jet2home.com)
+let dynamicApiUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000').replace(/[\r\n]+/g, '').trim();
+
+if (typeof window !== 'undefined') {
+    const hostname = window.location.hostname;
+    if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
+        const baseDomain = hostname.replace('www.', '');
+        // If the user visits jet2home.com, API will be api.jet2home.com
+        dynamicApiUrl = `https://api.${baseDomain}`;
+    }
+}
+
+const API_URL = dynamicApiUrl;
+const SOCKET_URL = API_URL;
 const TENANT_SLUG = (process.env.NEXT_PUBLIC_TENANT_SLUG || 'smarttravel-demo').replace(/[\r\n]+/g, '').trim();
 
 export { API_URL, SOCKET_URL, TENANT_SLUG };
@@ -31,7 +42,7 @@ export const getImageUrl = (url?: string | null) => {
     }
     
     // Dynamically resolve API_URL at execution time to prevent Next.js build-time inline issues
-    const currentApiUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000').replace(/[\r\n]+/g, '').trim();
+    const currentApiUrl = API_URL;
     
     // 1. Handle localhost/127.0.0.1 legacy URLs
     if (normalizedUrl.includes('localhost') || normalizedUrl.includes('127.0.0.1')) {
@@ -43,15 +54,20 @@ export const getImageUrl = (url?: string | null) => {
     
     // 2. Handle relative paths
     if (normalizedUrl.startsWith('/uploads')) {
-        // Enforce that currentApiUrl is applied. If currentApiUrl is empty for some reason, we must prevent broken URLs.
-        const safeApiUrl = currentApiUrl === '' ? (typeof window !== 'undefined' ? window.location.origin.replace('www.', 'api.') : '') : currentApiUrl;
-        return `${safeApiUrl}${normalizedUrl}`;
+        return `${currentApiUrl}${normalizedUrl}`;
     }
     
     // 3. Handle just the filename (if somehow the prefix was lost)
     if (!normalizedUrl.startsWith('http') && !normalizedUrl.startsWith('/')) {
-        const safeApiUrl = currentApiUrl === '' ? (typeof window !== 'undefined' ? window.location.origin.replace('www.', 'api.') : '') : currentApiUrl;
-        return `${safeApiUrl}/uploads/${normalizedUrl}`;
+        return `${currentApiUrl}/uploads/${normalizedUrl}`;
+    }
+    
+    // If it's a full URL but pointing to the old railway backend, rewrite it dynamically
+    if (normalizedUrl.includes('railway.app') || normalizedUrl.includes('up.railway.app')) {
+        const uploadIndex = normalizedUrl.indexOf('/uploads');
+        if (uploadIndex !== -1) {
+            return `${currentApiUrl}${normalizedUrl.substring(uploadIndex)}`;
+        }
     }
     
     return normalizedUrl;
