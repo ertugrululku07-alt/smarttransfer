@@ -4486,9 +4486,11 @@ router.get('/airport-arrivals', authMiddleware, async (req, res) => {
             const pickup = (b.metadata?.pickup || '').toLowerCase();
             const isArrival = AIRPORT_KEYWORDS.some(kw => pickup.includes(kw));
             if (!isArrival) return false;
-            // Airport filter
+            // Airport filter — match by pickupRegionCode first, then fallback to text
             if (airport) {
                 const ap = airport.toLowerCase();
+                const regionCode = (b.metadata?.pickupRegionCode || '').toLowerCase();
+                if (regionCode && regionCode === ap) return true;
                 return pickup.includes(ap);
             }
             return true;
