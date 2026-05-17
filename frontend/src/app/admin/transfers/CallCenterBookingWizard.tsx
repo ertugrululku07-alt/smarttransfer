@@ -1371,7 +1371,14 @@ const CallCenterBookingWizard: React.FC<Props> = ({ open, onClose, onSuccess }) 
                                             </Form.Item>
                                         </Col>
                                         <Col xs={24} md={12}>
-                                            <Form.Item name="passengerEmail" label={<span style={{ fontWeight: 600, color: '#475569', fontSize: 12 }}>E-posta</span>}>
+                                            <Form.Item
+                                                name="passengerEmail"
+                                                label={<span style={{ fontWeight: 600, color: '#475569', fontSize: 12 }}>E-posta <span style={{ color: '#ef4444' }}>*</span></span>}
+                                                rules={[
+                                                    { required: true, message: 'E-posta zorunludur' },
+                                                    { type: 'email', message: 'Geçerli bir e-posta girin' },
+                                                ]}
+                                            >
                                                 <Input prefix={<MailOutlined style={{ color: '#94a3b8' }} />} placeholder="musteri@ornek.com" size="large" style={{ borderRadius: 10 }} />
                                             </Form.Item>
                                         </Col>
