@@ -114,6 +114,9 @@ router.post('/book', async (req, res) => {
                 status: 'PENDING',
                 paymentStatus: 'PENDING',
                 total: 0, // Admin will set price
+                subtotal: 0,
+                tax: 0,
+                serviceFee: 0,
                 currency: 'EUR',
                 metadata: {
                     pickup,
