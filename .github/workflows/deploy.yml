@@ -47,12 +47,7 @@ jobs:
               cd ..
 
               # ── 3. Frontend: env.production oluştur (setup.js yerine direkt) ──
-              cat > frontend/.env.production << ENVEOF
-NEXT_PUBLIC_API_URL=https://api.jet2home.com
-NEXT_PUBLIC_SOCKET_URL=https://api.jet2home.com
-NEXT_PUBLIC_TENANT_SLUG=Jet2Home
-NEXT_PUBLIC_HERE_API_KEY=RH04HVBUK6By3GfYWwVlCOG4Or1IzV-rRjygQRHbIvo
-ENVEOF
+              printf "NEXT_PUBLIC_API_URL=https://api.jet2home.com\nNEXT_PUBLIC_SOCKET_URL=https://api.jet2home.com\nNEXT_PUBLIC_TENANT_SLUG=Jet2Home\nNEXT_PUBLIC_HERE_API_KEY=RH04HVBUK6By3GfYWwVlCOG4Or1IzV-rRjygQRHbIvo\n" > frontend/.env.production
 
               # ── 4. Frontend bağımlılıkları (devDependencies dahil - build için gerekli) ──
               cd frontend
