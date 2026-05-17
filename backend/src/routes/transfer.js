@@ -4427,7 +4427,36 @@ const AIRPORT_KEYWORDS = ['havalimanı', 'havaalani', 'havalimani', 'airport', '
  */
 router.get('/airport-arrivals', authMiddleware, async (req, res) => {
     try {
-        const { airport, date } = req.query;
+        let { airport, date } = req.query;
+
+        // SECURITY: If the caller is AIRPORT_STAFF, force the airport filter
+        // to the zone they were assigned to. They must never see bookings
+        // landing at other airports.
+        if (req.user?.roleType === 'AIRPORT_STAFF' || req.user?.roleCode === 'AIRPORT_STAFF') {
+            const personnel = await prisma.personnel.findFirst({
+                where: { userId: req.user.userId, deletedAt: null },
+                select: { assignedAirportZoneId: true }
+            });
+            if (!personnel?.assignedAirportZoneId) {
+                return res.status(403).json({
+                    success: false,
+                    error: 'Karşılama personeline atanmış bir havalimanı bulunamadı. Yöneticinize başvurun.'
+                });
+            }
+            const zone = await prisma.zone.findUnique({
+                where: { id: personnel.assignedAirportZoneId },
+                select: { code: true, name: true, keywords: true, isAirport: true }
+            });
+            if (!zone || !zone.isAirport) {
+                return res.status(403).json({
+                    success: false,
+                    error: 'Atanmış havalimanı geçersiz veya artık havalimanı tipinde değil.'
+                });
+            }
+            // Override the airport query param with the staff's assigned airport code
+            airport = (zone.code || zone.name || '').toString();
+        }
+
         const targetDate = date ? new Date(date) : new Date();
         const dayStart = new Date(targetDate);
         dayStart.setHours(0, 0, 0, 0);

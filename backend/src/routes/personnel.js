@@ -73,6 +73,15 @@ router.post('/', authMiddleware, async (req, res) => {
             return res.status(400).json({ success: false, error: 'E-posta ve Şifre zorunludur' });
         }
 
+        // AIRPORT_STAFF must have an airport zone assigned so the greeter only
+        // sees the bookings landing at their airport.
+        if (data.jobTitle === 'AIRPORT_STAFF' && !data.assignedAirportZoneId) {
+            return res.status(400).json({
+                success: false,
+                error: 'Karşılama personeli için hangi havalimanında çalışacağı seçilmelidir'
+            });
+        }
+
         // Normalize email once and reuse everywhere
         data.email = String(data.email).toLowerCase().trim();
 
@@ -211,7 +220,8 @@ router.post('/', authMiddleware, async (req, res) => {
                     psychotechExpiry: data.psychotechExpiry ? new Date(data.psychotechExpiry) : undefined,
                     medicalHistory: data.medicalHistory,
                     bloodGroup: data.bloodGroup,
-                    photo: data.photo
+                    photo: data.photo,
+                    assignedAirportZoneId: data.assignedAirportZoneId || null
                 }
             });
 
@@ -334,7 +344,26 @@ router.put('/:id', authMiddleware, async (req, res) => {
         if (data.bloodGroup !== undefined) updatePayload.bloodGroup = data.bloodGroup;
         if (data.photo !== undefined) updatePayload.photo = data.photo;
         if (data.metadata !== undefined) updatePayload.metadata = data.metadata;
+        if (data.assignedAirportZoneId !== undefined) {
+            updatePayload.assignedAirportZoneId = data.assignedAirportZoneId || null;
+        }
         if (linkedUserId && !existing.userId) updatePayload.userId = linkedUserId;
+
+        // Enforce airport assignment for AIRPORT_STAFF
+        const newJobTitle = data.jobTitle !== undefined ? data.jobTitle : existing.jobTitle;
+        const newAirportId = data.assignedAirportZoneId !== undefined
+            ? data.assignedAirportZoneId
+            : existing.assignedAirportZoneId;
+        if (newJobTitle === 'AIRPORT_STAFF' && !newAirportId) {
+            return res.status(400).json({
+                success: false,
+                error: 'Karşılama personeli için hangi havalimanında çalışacağı seçilmelidir'
+            });
+        }
+        // If role changed away from AIRPORT_STAFF, clear the airport assignment
+        if (data.jobTitle !== undefined && data.jobTitle !== 'AIRPORT_STAFF' && existing.assignedAirportZoneId) {
+            updatePayload.assignedAirportZoneId = null;
+        }
 
         // When jobTitle changes, also update the linked user's role
         if (data.jobTitle !== undefined && data.jobTitle !== existing.jobTitle && (existing.userId || linkedUserId)) {

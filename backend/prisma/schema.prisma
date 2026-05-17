@@ -1351,6 +1351,10 @@ model Personnel {
   userId String? @unique
   user   User?   @relation(fields: [userId], references: [id])
 
+  // Airport Assignment — for AIRPORT_STAFF (Karşılama Personeli) only.
+  // Points to a Zone where isAirport=true. Staff sees only bookings at this airport.
+  assignedAirportZoneId String?
+
   // Metadata
   metadata  Json?
   createdAt DateTime  @default(now())
@@ -1359,6 +1363,7 @@ model Personnel {
 
   @@index([tenantId])
   @@index([tcNumber])
+  @@index([assignedAirportZoneId])
 }
 
 // ============================================================================

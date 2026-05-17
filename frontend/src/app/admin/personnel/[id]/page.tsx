@@ -89,11 +89,8 @@ const PersonnelEditPage = ({ params }: { params: Promise<{ id: string }> }) => {
     const [form] = Form.useForm();
     const { id } = React.use(params);
     const [currentStep, setCurrentStep] = useState(0);
-
-    const normFile = (e: any) => {
-        if (Array.isArray(e)) return e;
-        return e?.fileList;
-    };
+    const [airportZones, setAirportZones] = useState<Array<{ id: string; name: string; code?: string | null }>>([]);
+    const watchedJobTitle = Form.useWatch('jobTitle', form);
 
     useEffect(() => {
         const fetchPersonnel = async () => {
@@ -129,6 +126,25 @@ const PersonnelEditPage = ({ params }: { params: Promise<{ id: string }> }) => {
 
         if (id) fetchPersonnel();
     }, [id, form, router]);
+
+    useEffect(() => {
+        (async () => {
+            try {
+                const res = await apiClient.get('/api/zones');
+                if (res.data?.success) {
+                    const onlyAirports = (res.data.data || []).filter((z: any) => z.isAirport === true);
+                    setAirportZones(onlyAirports);
+                }
+            } catch (e) {
+                console.error('Airport zones fetch failed', e);
+            }
+        })();
+    }, []);
+
+    const normFile = (e: any) => {
+        if (Array.isArray(e)) return e;
+        return e?.fileList;
+    };
 
     const onFinish = async (values: any) => {
         setLoading(true);
@@ -392,6 +408,34 @@ const PersonnelEditPage = ({ params }: { params: Promise<{ id: string }> }) => {
                                             </Form.Item>
                                         </Col>
                                     </Row>
+                                    {watchedJobTitle === 'AIRPORT_STAFF' && (
+                                        <Row gutter={20}>
+                                            <Col xs={24} md={12}>
+                                                <Form.Item
+                                                    name="assignedAirportZoneId"
+                                                    label="Atanacak Havalimanı"
+                                                    rules={[{ required: true, message: 'Karşılama personeli için havalimanı seçimi zorunludur' }]}
+                                                    extra={airportZones.length === 0
+                                                        ? 'Bölge Yönetimi’nde Tip = Havalimanı olan bir bölge tanımlayın.'
+                                                        : 'Personel yalnızca bu havalimanına inecek müşterileri görecektir.'}
+                                                >
+                                                    <Select
+                                                        size="large"
+                                                        placeholder="Havalimanı seçin (AYT, GZP, DAL …)"
+                                                        showSearch
+                                                        optionFilterProp="label"
+                                                        options={airportZones.map(z => ({
+                                                            value: z.id,
+                                                            label: z.code ? `${z.code} — ${z.name}` : z.name,
+                                                        }))}
+                                                        notFoundContent={airportZones.length === 0
+                                                            ? 'Havalimanı tipinde bölge bulunamadı'
+                                                            : 'Sonuç yok'}
+                                                    />
+                                                </Form.Item>
+                                            </Col>
+                                        </Row>
+                                    )}
                                 </Section>
                             </div>
 
