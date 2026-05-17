@@ -4434,7 +4434,7 @@ router.get('/airport-arrivals', authMiddleware, async (req, res) => {
         // landing at other airports.
         if (req.user?.roleType === 'AIRPORT_STAFF' || req.user?.roleCode === 'AIRPORT_STAFF') {
             const personnel = await prisma.personnel.findFirst({
-                where: { userId: req.user.userId, deletedAt: null },
+                where: { userId: req.user.id, deletedAt: null },
                 select: { assignedAirportZoneId: true }
             });
             if (!personnel?.assignedAirportZoneId) {
