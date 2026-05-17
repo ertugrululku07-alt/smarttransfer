@@ -5642,32 +5642,54 @@ export default function OperationsPage() {
                                             </div>
                                         </div>
 
-                                        {/* Pool Transfer Button */}
-                                        <Button
-                                            block
-                                            size="large"
-                                            onClick={() => {
-                                                const totalCollected = (b.total || 0) - (b.discount || 0);
-                                                setPoolTransferModal({
-                                                    booking: b,
-                                                    price: b.metadata?.price || b.price || 0,
-                                                    currency: b.metadata?.currency || defaultCurrency,
-                                                    collectedAmount: totalCollected // Show collected amount from customer
-                                                });
-                                            }}
-                                            style={{
-                                                borderRadius: 12,
-                                                fontWeight: 800,
-                                                fontSize: 14,
-                                                height: 48,
-                                                background: 'linear-gradient(135deg, #f59e0b, #d97706)',
-                                                color: '#fff',
-                                                border: 'none',
-                                                boxShadow: '0 4px 14px rgba(245,158,11,0.3)',
-                                            }}
-                                        >
-                                            📦 Havuza Aktar
-                                        </Button>
+                                        {/* Action Buttons: Edit + Pool Transfer */}
+                                        <div style={{ display: 'flex', gap: 10 }}>
+                                            <Button
+                                                size="large"
+                                                onClick={() => {
+                                                    setShuttleDetailModal(null);
+                                                    setEditReservationModal({ booking: b });
+                                                }}
+                                                style={{
+                                                    flex: 1,
+                                                    borderRadius: 12,
+                                                    fontWeight: 800,
+                                                    fontSize: 14,
+                                                    height: 48,
+                                                    background: 'linear-gradient(135deg, #6366f1, #7c3aed)',
+                                                    color: '#fff',
+                                                    border: 'none',
+                                                    boxShadow: '0 4px 14px rgba(99,102,241,0.3)',
+                                                }}
+                                            >
+                                                ✏️ Düzenle
+                                            </Button>
+                                            <Button
+                                                size="large"
+                                                onClick={() => {
+                                                    const totalCollected = (b.total || 0) - (b.discount || 0);
+                                                    setPoolTransferModal({
+                                                        booking: b,
+                                                        price: b.metadata?.price || b.price || 0,
+                                                        currency: b.metadata?.currency || defaultCurrency,
+                                                        collectedAmount: totalCollected // Show collected amount from customer
+                                                    });
+                                                }}
+                                                style={{
+                                                    flex: 1,
+                                                    borderRadius: 12,
+                                                    fontWeight: 800,
+                                                    fontSize: 14,
+                                                    height: 48,
+                                                    background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+                                                    color: '#fff',
+                                                    border: 'none',
+                                                    boxShadow: '0 4px 14px rgba(245,158,11,0.3)',
+                                                }}
+                                            >
+                                                📦 Havuza Aktar
+                                            </Button>
+                                        </div>
                                     </div>
                                 </div>
                             );
