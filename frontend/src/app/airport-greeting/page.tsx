@@ -103,9 +103,18 @@ export default function AirportGreetingStandalonePage() {
             } else {
                 message.error('Veriler alınamadı');
             }
-        } catch (err) {
+        } catch (err: any) {
             console.error(err);
-            message.error('Bağlantı hatası');
+            const status = err?.response?.status;
+            const serverMsg = err?.response?.data?.error;
+            if (status === 403 && serverMsg) {
+                // e.g. "Karşılama personeline atanmış bir havalimanı bulunamadı..."
+                message.warning(serverMsg);
+            } else if (serverMsg) {
+                message.error(serverMsg);
+            } else {
+                message.error('Bağlantı hatası');
+            }
         } finally {
             setLoading(false);
             setLastRefresh(new Date());
