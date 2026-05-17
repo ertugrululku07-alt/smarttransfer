@@ -72,8 +72,18 @@ jobs:
               cat .next/BUILD_ID 2>/dev/null
               cd ..
 
-              # ── 6. PM2 restart ──
-              npx pm2 restart all
-              echo "STEP 6 OK: PM2 restart tamamlandi"
+              # ── 6. PM2 stop+delete+start (clean restart, in-memory cache temizlenir) ──
+              npx pm2 stop all 2>/dev/null || true
+              npx pm2 delete all 2>/dev/null || true
+              
+              # Nginx cache temizle
+              rm -rf /tmp/nginx_cache 2>/dev/null || true
+              nginx -s reload 2>/dev/null || true
+              
+              # PM2 yeniden baslat (ecosystem.config.js ile)
+              cd /www/wwwroot/jet2home.com
+              npx pm2 start ecosystem.config.js
+              npx pm2 save
+              echo "STEP 6 OK: PM2 clean start tamamlandi"
               echo "=== DEPLOY TAMAMLANDI ==="
             '
