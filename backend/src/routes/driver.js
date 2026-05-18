@@ -593,6 +593,51 @@ router.put('/bookings/:id/status', authMiddleware, ensureDriver, async (req, res
             });
         }
 
+        // ── Activity Log: kim tamamladı / başlattı / no-show yaptı ──
+        try {
+            const { logActivity } = require('../utils/logger');
+            const driverName = booking.driver?.fullName || req.user?.fullName || req.user?.email || 'Şoför';
+            const guestName = booking.contactName || booking.metadata?.passengerName || 'Misafir';
+            const pnr = booking.bookingNumber || id;
+            let logAction = 'UPDATE_BOOKING_STATUS';
+            let logMsg = '';
+            if (status === 'COMPLETED') {
+                logAction = 'COMPLETE_BOOKING';
+                logMsg = `${guestName} — ${pnr} şoför ${driverName} tarafından tamamlandı.`;
+            } else if (status === 'IN_PROGRESS') {
+                logAction = 'START_BOOKING';
+                logMsg = `${guestName} — ${pnr} şoför ${driverName} tarafından başlatıldı (yolcu alındı).`;
+            } else if (status === 'NO_SHOW') {
+                logAction = 'NO_SHOW_BOOKING';
+                logMsg = `${guestName} — ${pnr} şoför ${driverName} tarafından "gelmedi" olarak işaretlendi.`;
+            } else if (status === 'CANCELLED') {
+                logAction = 'CANCEL_BOOKING';
+                logMsg = `${guestName} — ${pnr} şoför ${driverName} tarafından iptal edildi.`;
+            } else {
+                logMsg = `${guestName} — ${pnr} durum: ${existing.status} → ${status} (şoför: ${driverName}).`;
+            }
+            await logActivity({
+                tenantId: booking.tenantId,
+                userId: req.user?.id,
+                userEmail: req.user?.email,
+                action: logAction,
+                entityType: 'Booking',
+                entityId: id,
+                details: {
+                    message: logMsg,
+                    previousStatus: existing.status,
+                    newStatus: status,
+                    bookingNumber: pnr,
+                    driverId: req.user?.id,
+                    driverName,
+                    source: 'DRIVER_APP'
+                },
+                ipAddress: req.headers['x-forwarded-for'] || req.socket?.remoteAddress
+            });
+        } catch (logErr) {
+            console.error('[DriverStatusLog] Failed:', logErr.message);
+        }
+
         // ── COMPLETED ⇒ trigger rating WhatsApp (fire-and-forget) ──
         if (status === 'COMPLETED' && booking.contactPhone) {
             try {
