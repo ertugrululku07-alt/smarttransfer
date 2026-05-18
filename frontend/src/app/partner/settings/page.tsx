@@ -4,15 +4,16 @@ import React, { useState, useEffect } from 'react';
 import PartnerLayout from '../PartnerLayout';
 import PartnerGuard from '../PartnerGuard';
 import {
-    Form, Input, Button, Table, Tag, Space, Modal,
+    Form, Input, Button, Table, Tag, Space, Modal, Popconfirm, Tooltip,
     Row, Col, Upload, message, Select, Avatar, List, Alert, Spin
 } from 'antd';
 import {
     PlusOutlined, CarOutlined, BankOutlined, UserOutlined,
-    UploadOutlined, EditOutlined,
+    UploadOutlined, EditOutlined, DeleteOutlined,
     SaveOutlined, SafetyOutlined, FileTextOutlined,
     LockOutlined, TeamOutlined, CalendarOutlined,
-    CheckCircleOutlined
+    CheckCircleOutlined, PhoneOutlined, MailOutlined,
+    StopOutlined
 } from '@ant-design/icons';
 import apiClient from '@/lib/api-client';
 import { useAuth } from '@/app/context/AuthContext';
@@ -35,6 +36,14 @@ export default function SettingsPage() {
     const [savingVehicle, setSavingVehicle] = useState(false);
     const [selectedVehicleTypeId, setSelectedVehicleTypeId] = useState<string | null>(null);
 
+    // Driver state
+    const [driversList, setDriversList] = useState<any[]>([]);
+    const [loadingDrivers, setLoadingDrivers] = useState(false);
+    const [isDriverModalVisible, setIsDriverModalVisible] = useState(false);
+    const [driverForm] = Form.useForm();
+    const [editingDriver, setEditingDriver] = useState<any>(null);
+    const [savingDriver, setSavingDriver] = useState(false);
+
     const [documents, setDocuments] = useState([
         { id: 1, name: 'Sürücü Belgesi', status: 'VERIFIED', uploadDate: '2024-01-15' },
         { id: 2, name: 'SRC Belgesi', status: 'VERIFIED', uploadDate: '2024-01-15' },
@@ -51,8 +60,20 @@ export default function SettingsPage() {
 
     useEffect(() => { fetchVehicleTypes(); }, []);
 
+    const fetchDrivers = async () => {
+        setLoadingDrivers(true);
+        try {
+            const response = await apiClient.get('/api/transfer/partner/my-drivers');
+            if (response.data.success) setDriversList(response.data.data || []);
+        } catch (error) {
+            console.error('Error fetching drivers:', error);
+            messageApi.error('Şoför listesi alınamadı');
+        } finally { setLoadingDrivers(false); }
+    };
+
     useEffect(() => {
         if (activeTab === 'vehicles') fetchVehicles();
+        if (activeTab === 'drivers') fetchDrivers();
         if (activeTab === 'account' && user) {
             profileForm.setFieldsValue({
                 firstName: user.firstName, lastName: user.lastName,
@@ -141,8 +162,64 @@ export default function SettingsPage() {
         catch (error) { messageApi.error('Hata oluştu'); }
     };
 
+    const handleAddDriver = () => { setEditingDriver(null); driverForm.resetFields(); setIsDriverModalVisible(true); };
+    const handleEditDriver = (record: any) => {
+        setEditingDriver(record);
+        driverForm.setFieldsValue({ firstName: record.firstName, lastName: record.lastName, phone: record.phone || '', email: record.email });
+        setIsDriverModalVisible(true);
+    };
+
+    const handleSaveDriver = async () => {
+        try {
+            setSavingDriver(true);
+            const values = await driverForm.validateFields();
+            if (editingDriver) {
+                const res = await apiClient.put(`/api/transfer/partner/drivers/${editingDriver.id}`, {
+                    firstName: values.firstName,
+                    lastName: values.lastName,
+                    phone: values.phone || null,
+                    ...(values.newPassword ? { password: values.newPassword } : {}),
+                });
+                if (res.data.success) { messageApi.success('Şoför güncellendi'); setIsDriverModalVisible(false); fetchDrivers(); }
+                else messageApi.error(res.data.error || 'Güncelleme başarısız');
+            } else {
+                const res = await apiClient.post('/api/transfer/partner/drivers', {
+                    firstName: values.firstName,
+                    lastName: values.lastName,
+                    email: values.email,
+                    phone: values.phone || null,
+                    password: values.password,
+                });
+                if (res.data.success) { messageApi.success('Şoför eklendi'); setIsDriverModalVisible(false); fetchDrivers(); }
+                else messageApi.error(res.data.error || 'Ekleme başarısız');
+            }
+        } catch (e: any) {
+            if (e?.errorFields) return;
+            messageApi.error(e?.response?.data?.error || 'İşlem başarısız');
+        } finally { setSavingDriver(false); }
+    };
+
+    const handleDeleteDriver = async (driverId: string) => {
+        try {
+            const res = await apiClient.delete(`/api/transfer/partner/drivers/${driverId}`);
+            if (res.data.success) { messageApi.success('Şoför silindi'); fetchDrivers(); }
+            else messageApi.error(res.data.error || 'Silme başarısız');
+        } catch (e: any) {
+            messageApi.error(e?.response?.data?.error || 'Silme başarısız');
+        }
+    };
+
+    const handleToggleDriverStatus = async (driver: any) => {
+        const newStatus = driver.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
+        try {
+            const res = await apiClient.put(`/api/transfer/partner/drivers/${driver.id}`, { status: newStatus });
+            if (res.data.success) { messageApi.success(`Şoför ${newStatus === 'ACTIVE' ? 'aktifleştirildi' : 'pasifleştirildi'}`); fetchDrivers(); }
+        } catch (e: any) { messageApi.error('Durum güncellenemedi'); }
+    };
+
     const tabs = [
         { key: 'vehicles', label: 'Araçlarım', icon: <CarOutlined /> },
+        { key: 'drivers', label: 'Şoförlerim', icon: <TeamOutlined /> },
         { key: 'bank', label: 'Hesap Bilgileri', icon: <BankOutlined /> },
         { key: 'account', label: 'Hesap & Belgeler', icon: <UserOutlined /> },
     ];
@@ -229,6 +306,101 @@ export default function SettingsPage() {
                                     <div style={{ borderRadius: 14, overflow: 'hidden', border: '1px solid #f1f5f9' }}>
                                         <Table columns={vehicleColumns} dataSource={vehicles} rowKey="id" loading={loadingVehicles} pagination={{ pageSize: 5 }} />
                                     </div>
+                                </div>
+                            )}
+
+                            {/* Drivers Tab */}
+                            {activeTab === 'drivers' && (
+                                <div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
+                                        <p style={{ fontSize: 14, color: '#64748b', margin: 0 }}>Ekibinizdeki şoförleri yönetin — şoförler partner mobil uygulamasına giriş yapabilir</p>
+                                        <button onClick={handleAddDriver} style={{
+                                            display: 'flex', alignItems: 'center', gap: 6,
+                                            padding: '10px 20px', border: 'none', borderRadius: 12,
+                                            background: 'linear-gradient(135deg, #10b981, #059669)',
+                                            color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer',
+                                            boxShadow: '0 4px 12px rgba(16,185,129,0.3)',
+                                        }}><PlusOutlined /> Yeni Şoför</button>
+                                    </div>
+                                    {loadingDrivers ? (
+                                        <div style={{ textAlign: 'center', padding: 40 }}><Spin size="large" /></div>
+                                    ) : driversList.length === 0 ? (
+                                        <div style={{ textAlign: 'center', padding: '40px 20px', color: '#94a3b8' }}>
+                                            <TeamOutlined style={{ fontSize: 40, marginBottom: 12, display: 'block' }} />
+                                            <div style={{ fontWeight: 600, color: '#64748b', marginBottom: 4 }}>Henüz şoför eklenmemiş</div>
+                                            <div style={{ fontSize: 13 }}>Yukarıdaki butona tıklayarak ekibinize şoför ekleyin.</div>
+                                        </div>
+                                    ) : (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                            {driversList.map((d: any) => (
+                                                <div key={d.id} style={{
+                                                    display: 'flex', alignItems: 'center', gap: 14,
+                                                    padding: '14px 18px', borderRadius: 14, background: '#fff',
+                                                    border: '1px solid #f1f5f9', boxShadow: '0 1px 4px rgba(0,0,0,0.03)',
+                                                    transition: 'all 0.2s',
+                                                }}>
+                                                    <div style={{
+                                                        width: 44, height: 44, borderRadius: 12, flexShrink: 0,
+                                                        background: d.isOnline ? 'linear-gradient(135deg, #10b981, #059669)' : 'linear-gradient(135deg, #94a3b8, #64748b)',
+                                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                        color: '#fff', fontSize: 16, fontWeight: 700, position: 'relative',
+                                                    }}>
+                                                        {(d.firstName?.[0] || '').toUpperCase()}{(d.lastName?.[0] || '').toUpperCase()}
+                                                        {d.isOnline && (
+                                                            <div style={{
+                                                                position: 'absolute', bottom: -2, right: -2,
+                                                                width: 14, height: 14, borderRadius: '50%',
+                                                                background: '#22c55e', border: '2px solid #fff',
+                                                            }} />
+                                                        )}
+                                                    </div>
+                                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                                            <span style={{ fontWeight: 700, fontSize: 14, color: '#0f172a' }}>{d.fullName || `${d.firstName} ${d.lastName}`}</span>
+                                                            <span style={{
+                                                                padding: '1px 8px', borderRadius: 10, fontSize: 10, fontWeight: 700,
+                                                                background: d.status === 'ACTIVE' ? '#d1fae5' : '#f1f5f9',
+                                                                color: d.status === 'ACTIVE' ? '#065f46' : '#94a3b8',
+                                                            }}>{d.status === 'ACTIVE' ? 'Aktif' : 'Pasif'}</span>
+                                                            {d.isOnline && <span style={{ padding: '1px 8px', borderRadius: 10, fontSize: 10, fontWeight: 700, background: '#dcfce7', color: '#15803d' }}>Online</span>}
+                                                            {(d.activeBookingsCount || 0) > 0 && (
+                                                                <span style={{ padding: '1px 8px', borderRadius: 10, fontSize: 10, fontWeight: 700, background: '#fef3c7', color: '#92400e' }}>{d.activeBookingsCount} aktif iş</span>
+                                                            )}
+                                                        </div>
+                                                        <div style={{ display: 'flex', gap: 14, marginTop: 4, fontSize: 12, color: '#64748b' }}>
+                                                            <span><MailOutlined style={{ marginRight: 4 }} />{d.email}</span>
+                                                            {d.phone && <span><PhoneOutlined style={{ marginRight: 4 }} />{d.phone}</span>}
+                                                        </div>
+                                                    </div>
+                                                    <div style={{ display: 'flex', gap: 6 }}>
+                                                        <Tooltip title={d.status === 'ACTIVE' ? 'Pasifleştir' : 'Aktifleştir'}>
+                                                            <button onClick={() => handleToggleDriverStatus(d)} style={{
+                                                                width: 34, height: 34, borderRadius: 8, border: '1px solid #e2e8f0',
+                                                                background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                                color: d.status === 'ACTIVE' ? '#f59e0b' : '#10b981',
+                                                            }}>{d.status === 'ACTIVE' ? <StopOutlined /> : <CheckCircleOutlined />}</button>
+                                                        </Tooltip>
+                                                        <Tooltip title="Düzenle">
+                                                            <button onClick={() => handleEditDriver(d)} style={{
+                                                                width: 34, height: 34, borderRadius: 8, border: '1px solid #e2e8f0',
+                                                                background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                                color: '#6366f1',
+                                                            }}><EditOutlined /></button>
+                                                        </Tooltip>
+                                                        <Popconfirm title="Bu şoförü silmek istediğinize emin misiniz?" onConfirm={() => handleDeleteDriver(d.id)} okText="Evet" cancelText="Hayır">
+                                                            <Tooltip title="Sil">
+                                                                <button style={{
+                                                                    width: 34, height: 34, borderRadius: 8, border: '1px solid #fecaca',
+                                                                    background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                                    color: '#ef4444',
+                                                                }}><DeleteOutlined /></button>
+                                                            </Tooltip>
+                                                        </Popconfirm>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
                             )}
 
@@ -570,6 +742,116 @@ export default function SettingsPage() {
                                         }}
                                     >
                                         {savingVehicle ? <Spin size="small" /> : <><CheckCircleOutlined /> {editingVehicle ? 'Güncelle' : 'Araç Ekle'}</>}
+                                    </button>
+                                </div>
+                            </Form>
+                        </div>
+                    </Modal>
+                    {/* Driver Modal */}
+                    <Modal
+                        open={isDriverModalVisible}
+                        title={null}
+                        footer={null}
+                        onCancel={() => setIsDriverModalVisible(false)}
+                        centered
+                        width={480}
+                        styles={{ body: { padding: 0 } }}
+                    >
+                        <div style={{ padding: '28px 28px 8px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 24 }}>
+                                <div style={{
+                                    width: 48, height: 48, borderRadius: 14,
+                                    background: editingDriver ? 'linear-gradient(135deg, #f59e0b, #d97706)' : 'linear-gradient(135deg, #10b981, #059669)',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    color: '#fff', fontSize: 22, boxShadow: `0 6px 16px ${editingDriver ? 'rgba(245,158,11,0.3)' : 'rgba(16,185,129,0.3)'}`,
+                                }}>
+                                    <TeamOutlined />
+                                </div>
+                                <div>
+                                    <div style={{ fontSize: 18, fontWeight: 800, color: '#0f172a' }}>{editingDriver ? 'Şoför Düzenle' : 'Yeni Şoför Ekle'}</div>
+                                    <div style={{ fontSize: 13, color: '#64748b' }}>{editingDriver ? 'Şoför bilgilerini güncelleyin' : 'Ekibinize yeni bir şoför ekleyin'}</div>
+                                </div>
+                            </div>
+
+                            <Form form={driverForm} layout="vertical" requiredMark={false}>
+                                <Row gutter={12}>
+                                    <Col span={12}>
+                                        <Form.Item
+                                            label={<span style={{ fontWeight: 700, fontSize: 13, color: '#334155' }}>Ad</span>}
+                                            name="firstName"
+                                            rules={[{ required: true, message: 'Ad zorunludur' }]}
+                                        >
+                                            <Input placeholder="Mehmet" size="large" style={{ borderRadius: 12 }} />
+                                        </Form.Item>
+                                    </Col>
+                                    <Col span={12}>
+                                        <Form.Item
+                                            label={<span style={{ fontWeight: 700, fontSize: 13, color: '#334155' }}>Soyad</span>}
+                                            name="lastName"
+                                            rules={[{ required: true, message: 'Soyad zorunludur' }]}
+                                        >
+                                            <Input placeholder="Demir" size="large" style={{ borderRadius: 12 }} />
+                                        </Form.Item>
+                                    </Col>
+                                </Row>
+                                <Form.Item
+                                    label={<span style={{ fontWeight: 700, fontSize: 13, color: '#334155' }}>E-posta</span>}
+                                    name="email"
+                                    rules={[
+                                        { required: !editingDriver, message: 'E-posta zorunludur' },
+                                        { type: 'email', message: 'Geçerli e-posta girin' },
+                                    ]}
+                                >
+                                    <Input placeholder="sofor@ornek.com" size="large" style={{ borderRadius: 12 }} disabled={!!editingDriver} prefix={<MailOutlined style={{ color: '#94a3b8' }} />} />
+                                </Form.Item>
+                                <Form.Item
+                                    label={<span style={{ fontWeight: 700, fontSize: 13, color: '#334155' }}>Telefon</span>}
+                                    name="phone"
+                                >
+                                    <Input placeholder="+90 555 123 45 67" size="large" style={{ borderRadius: 12 }} prefix={<PhoneOutlined style={{ color: '#94a3b8' }} />} />
+                                </Form.Item>
+                                {!editingDriver ? (
+                                    <Form.Item
+                                        label={<span style={{ fontWeight: 700, fontSize: 13, color: '#334155' }}>Giriş Şifresi</span>}
+                                        name="password"
+                                        rules={[{ required: true, message: 'Şifre zorunludur' }, { min: 6, message: 'En az 6 karakter' }]}
+                                    >
+                                        <Input.Password placeholder="Güçlü bir şifre belirleyin" size="large" style={{ borderRadius: 12 }} />
+                                    </Form.Item>
+                                ) : (
+                                    <Form.Item
+                                        label={<span style={{ fontWeight: 700, fontSize: 13, color: '#334155' }}>Yeni Şifre <span style={{ fontWeight: 400, color: '#94a3b8' }}>(opsiyonel)</span></span>}
+                                        name="newPassword"
+                                        rules={[{ min: 6, message: 'En az 6 karakter' }]}
+                                    >
+                                        <Input.Password placeholder="Değiştirmek isterseniz" size="large" style={{ borderRadius: 12 }} />
+                                    </Form.Item>
+                                )}
+
+                                <div style={{ display: 'flex', gap: 10, marginTop: 8, paddingBottom: 16 }}>
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsDriverModalVisible(false)}
+                                        style={{
+                                            flex: 1, padding: '12px', border: '1px solid #e2e8f0', borderRadius: 12,
+                                            background: '#fff', color: '#64748b', fontSize: 14, fontWeight: 600, cursor: 'pointer',
+                                        }}
+                                    >
+                                        İptal
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={handleSaveDriver}
+                                        disabled={savingDriver}
+                                        style={{
+                                            flex: 2, padding: '12px', border: 'none', borderRadius: 12,
+                                            background: savingDriver ? '#94a3b8' : 'linear-gradient(135deg, #6366f1, #4f46e5)',
+                                            color: '#fff', fontSize: 14, fontWeight: 700, cursor: savingDriver ? 'not-allowed' : 'pointer',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                                            boxShadow: '0 4px 12px rgba(99,102,241,0.3)',
+                                        }}
+                                    >
+                                        {savingDriver ? <Spin size="small" /> : <><CheckCircleOutlined /> {editingDriver ? 'Güncelle' : 'Şoför Ekle'}</>}
                                     </button>
                                 </div>
                             </Form>

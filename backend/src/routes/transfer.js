@@ -5553,6 +5553,230 @@ router.post('/partner/zone-prices', authMiddleware, async (req, res) => {
 });
 
 /**
+ * POST /api/transfer/partner/bookings
+ * Partner creates a manual booking for their own customer.
+ *
+ * Differences from the admin manual booking endpoint:
+ *   - Booking is auto-CONFIRMED (skips pool)
+ *   - confirmedBy = partner.id, metadata.creationSource = 'PARTNER_MANUAL'
+ *   - Region codes & tripType are auto-detected from coordinates
+ *   - If pickupZoneId is provided, the partner must be allowed in that zone
+ *   - Partner can pre-assign one of their own drivers and vehicles
+ *   - Currency defaults to the partner's most-recent zone-price currency
+ */
+router.post('/partner/bookings', authMiddleware, async (req, res) => {
+    try {
+        if (req.user.roleType !== 'PARTNER') {
+            return res.status(403).json({ success: false, error: 'Yalnızca partner kullanıcılar erişebilir' });
+        }
+        const tenantId = req.tenant?.id || req.user.tenantId;
+        const partnerId = req.user.id;
+
+        const {
+            passengerName, passengerPhone, passengerEmail,
+            pickup, dropoff, pickupDateTime,
+            pickupLat, pickupLng, dropoffLat, dropoffLng,
+            distance, duration,
+            flightNumber, flightTime,
+            adults, children, infants,
+            vehicleTypeId, vehicleId, driverId,
+            price, currency, paymentMethod,
+            notes,
+            extraServices, extrasTotal,
+            // Optional zone hint to apply the partner's own zone price automatically
+            partnerZoneId, baseLocation
+        } = req.body;
+
+        if (!passengerName || !pickup || !dropoff || !pickupDateTime) {
+            return res.status(400).json({ success: false, error: 'Müşteri adı, alış/bırakış ve tarih zorunludur' });
+        }
+
+        // Verify driver belongs to partner (if provided)
+        if (driverId) {
+            const drv = await prisma.user.findFirst({ where: { id: driverId, partnerId, deletedAt: null } });
+            if (!drv) return res.status(400).json({ success: false, error: 'Belirtilen şoför size ait değil' });
+        }
+
+        // Verify vehicle belongs to partner (if provided)
+        let resolvedVehicle = null;
+        if (vehicleId) {
+            resolvedVehicle = await prisma.vehicle.findFirst({
+                where: { id: vehicleId, tenantId, ownerId: partnerId, status: 'ACTIVE' },
+                include: { vehicleType: true }
+            });
+            if (!resolvedVehicle) return res.status(400).json({ success: false, error: 'Belirtilen araç size ait değil' });
+        }
+
+        // Resolve vehicle type
+        let resolvedVehicleTypeId = vehicleTypeId || resolvedVehicle?.vehicleTypeId || null;
+        let vehicleTypeName = resolvedVehicle?.vehicleType?.name || null;
+        if (!resolvedVehicleTypeId) {
+            const fallback = await prisma.vehicleType.findFirst({ where: { tenantId }, orderBy: { order: 'asc' } });
+            if (fallback) {
+                resolvedVehicleTypeId = fallback.id;
+                vehicleTypeName = fallback.name;
+            }
+        } else if (!vehicleTypeName) {
+            const vt = await prisma.vehicleType.findUnique({ where: { id: resolvedVehicleTypeId } });
+            vehicleTypeName = vt?.name || null;
+        }
+
+        // If partnerZoneId hint provided, enforce allowance
+        let resolvedPrice = price != null ? Number(price) : null;
+        let resolvedCurrency = currency || null;
+        if (partnerZoneId && resolvedVehicleTypeId) {
+            const baseLoc = baseLocation || 'AYT';
+            const allowance = await prisma.partnerAllowedZone.findUnique({
+                where: { partnerId_zoneId_baseLocation: { partnerId, zoneId: partnerZoneId, baseLocation: baseLoc } }
+            });
+            if (!allowance || !allowance.isActive) {
+                return res.status(403).json({ success: false, error: 'Bu bölgede çalışmaya yetkiniz yok' });
+            }
+            // Pull partner's own price for this combo
+            const pp = await prisma.partnerZonePrice.findUnique({
+                where: {
+                    partnerId_vehicleTypeId_zoneId_baseLocation: {
+                        partnerId, vehicleTypeId: resolvedVehicleTypeId, zoneId: partnerZoneId, baseLocation: baseLoc
+                    }
+                }
+            });
+            if (pp) {
+                if (resolvedPrice == null) {
+                    const pax = (Number(adults) || 1) + (Number(children) || 0) + (Number(infants) || 0);
+                    resolvedPrice = pp.fixedPrice != null
+                        ? Number(pp.fixedPrice)
+                        : Number(pp.price) * pax;
+                }
+                if (!resolvedCurrency) resolvedCurrency = pp.currency;
+            }
+            // Enforce cap
+            if (allowance.maxPriceCap != null && resolvedPrice != null && Number(resolvedPrice) > Number(allowance.maxPriceCap)) {
+                return res.status(400).json({
+                    success: false,
+                    error: `Fiyat üst sınırı aşıldı. Maksimum: ${allowance.maxPriceCap}`
+                });
+            }
+        }
+
+        if (resolvedPrice == null) resolvedPrice = 0;
+        if (!resolvedCurrency) resolvedCurrency = 'EUR';
+
+        // Region detection & tripType (mirrors admin manual booking flow)
+        const hubs = await loadTenantHubs(tenantId);
+        const zonesForRegion = await prisma.zone.findMany({
+            where: { tenantId, code: { not: null } },
+            select: { id: true, code: true, name: true, keywords: true, polygon: true }
+        });
+        const pickupRegionCode = detectRegionCodeByPolygon(pickupLat, pickupLng, pickup, zonesForRegion, hubs);
+        const dropoffRegionCode = detectRegionCodeByPolygon(dropoffLat, dropoffLng, dropoff, zonesForRegion, hubs);
+        const airportZones = hubs.filter(h => h.isAirport);
+        const tripType = getTripType(pickup, dropoff, airportZones);
+
+        // Booking number
+        const today = new Date();
+        const dateStr = `${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}`;
+        const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+        const bookingNumber = `TR-${dateStr}-${randomSuffix}-P`;
+
+        const totalPax = (Number(adults) || 1) + (Number(children) || 0) + (Number(infants) || 0);
+        const startDate = new Date(pickupDateTime);
+
+        const metadata = {
+            pickup,
+            dropoff,
+            pickupLat: pickupLat != null ? Number(pickupLat) : null,
+            pickupLng: pickupLng != null ? Number(pickupLng) : null,
+            dropoffLat: dropoffLat != null ? Number(dropoffLat) : null,
+            dropoffLng: dropoffLng != null ? Number(dropoffLng) : null,
+            distance, duration,
+            flightNumber, flightTime,
+            vehicleType: vehicleTypeName,
+            vehicleTypeId: resolvedVehicleTypeId,
+            assignedVehicleId: vehicleId || null,
+            partnerVehicleId: vehicleId || null,
+            partnerVehiclePlate: resolvedVehicle?.plateNumber || null,
+            partnerVehicleName: resolvedVehicle ? `${resolvedVehicle.brand} ${resolvedVehicle.model}` : null,
+            paymentMethod: paymentMethod || 'CASH',
+            specialRequests: notes || null,
+            extraServices: Array.isArray(extraServices) ? extraServices : [],
+            extrasTotal: Number(extrasTotal || 0),
+            pickupRegionCode: pickupRegionCode || null,
+            dropoffRegionCode: dropoffRegionCode || null,
+            tripType,
+            partnerZoneId: partnerZoneId || null,
+            partnerBaseLocation: baseLocation || null,
+            // Audit / source
+            creationSource: 'PARTNER_MANUAL',
+            createdByPartnerId: partnerId,
+            operationalStatus: driverId ? 'DRIVER_ASSIGNED' : 'CONFIRMED'
+        };
+
+        const booking = await prisma.booking.create({
+            data: {
+                tenantId,
+                bookingNumber,
+                productType: 'TRANSFER',
+                status: 'CONFIRMED',
+                confirmedBy: partnerId,
+                confirmedAt: new Date(),
+                ...(driverId ? { driverId } : {}),
+                contactName: passengerName,
+                contactPhone: passengerPhone || null,
+                contactEmail: passengerEmail || null,
+                startDate,
+                adults: Number(adults) || 1,
+                children: Number(children) || 0,
+                infants: Number(infants) || 0,
+                total: resolvedPrice,
+                currency: resolvedCurrency,
+                paymentStatus: 'PENDING',
+                metadata
+            }
+        });
+
+        // Optional: notify driver
+        if (driverId) {
+            try {
+                const drv = await prisma.user.findUnique({ where: { id: driverId }, select: { pushToken: true, fullName: true } });
+                if (drv?.pushToken) {
+                    const { Expo } = require('expo-server-sdk');
+                    const expo = new Expo();
+                    await expo.sendPushNotificationsAsync([{
+                        to: drv.pushToken,
+                        sound: 'default',
+                        title: '🚗 Yeni Transfer Atandı',
+                        body: `${passengerName} — ${pickup}`,
+                        data: { type: 'booking_assigned', bookingId: booking.id },
+                    }]);
+                }
+            } catch (pushErr) {
+                console.warn('Push notification failed:', pushErr.message);
+            }
+        }
+
+        // Audit log
+        try {
+            await logActivity({
+                tenantId, userId: partnerId, userEmail: req.user.email,
+                action: 'CREATE_BOOKING',
+                entityType: 'Booking', entityId: booking.id,
+                details: {
+                    message: `Partner manuel rezervasyon: ${passengerName} — ${pickup} → ${dropoff}`,
+                    source: 'PARTNER_MANUAL',
+                    bookingNumber: booking.bookingNumber
+                },
+                ipAddress: req.headers['x-forwarded-for'] || req.socket?.remoteAddress
+            });
+        } catch (logErr) { console.error('[Partner manual booking] audit log failed:', logErr.message); }
+
+        res.json({ success: true, data: booking });
+    } catch (error) {
+        console.error('Partner create manual booking error:', error);
+        res.status(500).json({ success: false, error: 'Rezervasyon oluşturulamadı: ' + error.message });
+    }
+});
+
+/**
  * DELETE /api/transfer/partner/zone-prices/:id
  */
 router.delete('/partner/zone-prices/:id', authMiddleware, async (req, res) => {
@@ -5570,6 +5794,370 @@ router.delete('/partner/zone-prices/:id', authMiddleware, async (req, res) => {
     } catch (error) {
         console.error('Delete partner zone price error:', error);
         res.status(500).json({ success: false, error: 'Fiyat silinemedi' });
+    }
+});
+
+// ============================================================================
+// UETDS INTEGRATION — Partner SOAP submission endpoints (Phase 3)
+// ============================================================================
+
+const uetdsService = require('../services/uetdsService');
+
+/**
+ * PUT /api/transfer/partner/uetds-credentials
+ * Partner saves their own UNet username + password (encrypted).
+ */
+router.put('/partner/uetds-credentials', authMiddleware, async (req, res) => {
+    try {
+        if (req.user.roleType !== 'PARTNER') {
+            return res.status(403).json({ success: false, error: 'Yalnızca partner kullanıcılar erişebilir' });
+        }
+        const userId = req.user.id;
+        const { unetUser, unetPassword } = req.body;
+
+        if (!unetUser || !unetPassword) {
+            return res.status(400).json({ success: false, error: 'Kullanıcı adı ve şifre zorunludur' });
+        }
+
+        const profile = await prisma.partnerProfile.findUnique({ where: { userId } });
+        if (!profile) {
+            return res.status(404).json({ success: false, error: 'Partner profili bulunamadı' });
+        }
+        if (!profile.uetdsEnabled) {
+            return res.status(403).json({ success: false, error: 'UETDS yönetici tarafından aktifleştirilmeli' });
+        }
+
+        const encryptedPassword = uetdsService.encrypt(unetPassword);
+
+        await prisma.partnerProfile.update({
+            where: { userId },
+            data: { uetdsUnetUser: unetUser, uetdsUnetPasswordEnc: encryptedPassword }
+        });
+
+        res.json({ success: true, message: 'UETDS kimlik bilgileri kaydedildi' });
+    } catch (error) {
+        console.error('Save UETDS credentials error:', error);
+        res.status(500).json({ success: false, error: 'Kimlik bilgileri kaydedilemedi' });
+    }
+});
+
+/**
+ * POST /api/transfer/partner/uetds-test
+ * Test UNet credentials without submitting a real sefer.
+ */
+router.post('/partner/uetds-test', authMiddleware, async (req, res) => {
+    try {
+        if (req.user.roleType !== 'PARTNER') {
+            return res.status(403).json({ success: false, error: 'Yalnızca partner kullanıcılar erişebilir' });
+        }
+        const userId = req.user.id;
+        const profile = await prisma.partnerProfile.findUnique({ where: { userId } });
+        if (!profile || !profile.uetdsEnabled) {
+            return res.status(403).json({ success: false, error: 'UETDS aktif değil' });
+        }
+        if (!profile.uetdsUnetUser || !profile.uetdsUnetPasswordEnc) {
+            return res.status(400).json({ success: false, error: 'Önce UETDS kimlik bilgilerini kaydedin' });
+        }
+
+        const password = uetdsService.decrypt(profile.uetdsUnetPasswordEnc);
+        const result = await uetdsService.testCredentials({
+            username: profile.uetdsUnetUser,
+            password,
+            yetkiBelgeNo: profile.uetdsYetkiBelgeNo || '',
+            serviceUrl: profile.uetdsServiceUrl || null,
+        });
+
+        res.json({ success: result.success, message: result.message || result.error });
+    } catch (error) {
+        console.error('Test UETDS credentials error:', error);
+        res.status(500).json({ success: false, error: 'Bağlantı testi başarısız: ' + error.message });
+    }
+});
+
+/**
+ * POST /api/transfer/partner/uetds-submit
+ * Partner submits a booking to UETDS (creates sefer + adds passenger + adds personnel).
+ * Body: { bookingId, vehiclePlate, driverTc, driverFirstName, driverLastName,
+ *          driverGender, driverPhone, passengerTc, passengerFirstName, passengerLastName,
+ *          passengerGender, passengerPhone, passengerNationality,
+ *          baslangicIl, baslangicIlce, bitisIl, bitisIlce }
+ */
+router.post('/partner/uetds-submit', authMiddleware, async (req, res) => {
+    try {
+        if (req.user.roleType !== 'PARTNER') {
+            return res.status(403).json({ success: false, error: 'Yalnızca partner kullanıcılar erişebilir' });
+        }
+        const tenantId = req.tenant?.id || req.user.tenantId;
+        const partnerId = req.user.id;
+
+        const profile = await prisma.partnerProfile.findUnique({ where: { userId: partnerId } });
+        if (!profile || !profile.uetdsEnabled) {
+            return res.status(403).json({ success: false, error: 'UETDS aktif değil' });
+        }
+        if (!profile.uetdsUnetUser || !profile.uetdsUnetPasswordEnc) {
+            return res.status(400).json({ success: false, error: 'UETDS kimlik bilgileri eksik' });
+        }
+        if (!profile.uetdsYetkiBelgeNo) {
+            return res.status(400).json({ success: false, error: 'Yetki Belge Numarası tanımlı değil — yöneticiyle iletişime geçin' });
+        }
+
+        const {
+            bookingId, vehiclePlate,
+            driverTc, driverFirstName, driverLastName, driverGender, driverPhone,
+            passengerTc, passengerFirstName, passengerLastName, passengerGender, passengerPhone, passengerNationality,
+            baslangicIl, baslangicIlce, bitisIl, bitisIlce
+        } = req.body;
+
+        if (!bookingId || !vehiclePlate) {
+            return res.status(400).json({ success: false, error: 'Rezervasyon ve araç plakası zorunludur' });
+        }
+
+        // Verify booking ownership
+        const booking = await prisma.booking.findFirst({
+            where: {
+                id: bookingId,
+                tenantId,
+                OR: [
+                    { confirmedBy: partnerId },
+                    { driverId: { in: (await prisma.user.findMany({ where: { partnerId }, select: { id: true } })).map(d => d.id) } }
+                ]
+            }
+        });
+        if (!booking) {
+            return res.status(404).json({ success: false, error: 'Rezervasyon bulunamadı veya size ait değil' });
+        }
+
+        // Check for existing active submission
+        const existing = await prisma.uetdsSubmission.findFirst({
+            where: { bookingId, partnerId, status: { in: ['SENT', 'PENDING'] } }
+        });
+        if (existing) {
+            return res.status(400).json({
+                success: false,
+                error: `Bu rezervasyon için zaten bir UETDS kaydı var (ID: ${existing.uetdsSeferId || existing.id})`
+            });
+        }
+
+        const password = uetdsService.decrypt(profile.uetdsUnetPasswordEnc);
+        const credentials = {
+            username: profile.uetdsUnetUser,
+            password,
+            yetkiBelgeNo: profile.uetdsYetkiBelgeNo,
+            serviceUrl: profile.uetdsServiceUrl || null,
+        };
+
+        const meta = booking.metadata || {};
+        const baslangicTarih = booking.startDate;
+        // Estimate end time: startDate + estimated duration or +2 hours
+        const estDurationMs = meta.durationMin ? meta.durationMin * 60 * 1000 : 2 * 60 * 60 * 1000;
+        const bitisTarih = new Date(new Date(baslangicTarih).getTime() + estDurationMs);
+
+        // Step 1: seferEkle
+        const seferResult = await uetdsService.seferEkle(credentials, {
+            aracPlaka: vehiclePlate,
+            seferAciklama: `${meta.pickup || ''} → ${meta.dropoff || ''} (${booking.bookingNumber})`,
+            baslangicTarih,
+            bitisTarih,
+            baslangicIl: baslangicIl || '',
+            baslangicIlce: baslangicIlce || '',
+            bitisIl: bitisIl || '',
+            bitisIlce: bitisIlce || '',
+        });
+
+        // Create submission record
+        const submission = await prisma.uetdsSubmission.create({
+            data: {
+                tenantId,
+                partnerId,
+                bookingId,
+                vehicleId: meta.partnerVehicleId || meta.assignedVehicleId || null,
+                driverId: booking.driverId || null,
+                uetdsSeferId: seferResult.uetdsSeferId || null,
+                uetdsRefNo: seferResult.refNo || null,
+                status: seferResult.success ? 'SENT' : 'REJECTED',
+                errorMessage: seferResult.errorMessage || null,
+                request: { sefer: seferResult.rawRequest?.substring(0, 2000) },
+                response: { sefer: seferResult.rawResponse?.substring(0, 2000) },
+                submittedAt: seferResult.success ? new Date() : null,
+            }
+        });
+
+        if (!seferResult.success) {
+            return res.status(400).json({
+                success: false,
+                error: seferResult.errorMessage || 'Sefer bildirimi başarısız',
+                data: submission,
+            });
+        }
+
+        // Step 2: yolcuEkle (if passenger info provided)
+        let yolcuResult = null;
+        if (passengerFirstName && passengerLastName) {
+            yolcuResult = await uetdsService.yolcuEkle(credentials, seferResult.uetdsSeferId, {
+                tcKimlikNo: passengerTc || '',
+                adi: passengerFirstName,
+                soyadi: passengerLastName,
+                cinsiyet: passengerGender || '1',
+                uyruk: passengerNationality || 'TC',
+                telefon: passengerPhone || '',
+            });
+            // Update submission with passenger result
+            await prisma.uetdsSubmission.update({
+                where: { id: submission.id },
+                data: {
+                    response: {
+                        sefer: seferResult.rawResponse?.substring(0, 2000),
+                        yolcu: yolcuResult.rawResponse?.substring(0, 1000),
+                    }
+                }
+            });
+        }
+
+        // Step 3: personelEkle (if driver info provided)
+        let personelResult = null;
+        if (driverTc && driverFirstName && driverLastName) {
+            personelResult = await uetdsService.personelEkle(credentials, seferResult.uetdsSeferId, {
+                tcKimlikNo: driverTc,
+                adi: driverFirstName,
+                soyadi: driverLastName,
+                cinsiyet: driverGender || '1',
+                telefonNo: driverPhone || '',
+                gorevTuru: '1', // Driver
+            });
+        }
+
+        // Audit log
+        try {
+            await logActivity({
+                tenantId, userId: partnerId, userEmail: req.user.email,
+                action: 'UETDS_SUBMIT',
+                entityType: 'UetdsSubmission', entityId: submission.id,
+                details: {
+                    message: `UETDS sefer bildirimi: ${booking.bookingNumber} → SeferId: ${seferResult.uetdsSeferId}`,
+                    bookingNumber: booking.bookingNumber,
+                    uetdsSeferId: seferResult.uetdsSeferId,
+                },
+                ipAddress: req.headers['x-forwarded-for'] || req.socket?.remoteAddress
+            });
+        } catch (logErr) { console.error('[UETDS] audit log failed:', logErr.message); }
+
+        res.json({
+            success: true,
+            data: {
+                ...submission,
+                uetdsSeferId: seferResult.uetdsSeferId,
+                yolcuSuccess: yolcuResult?.success ?? null,
+                personelSuccess: personelResult?.success ?? null,
+            }
+        });
+    } catch (error) {
+        console.error('UETDS submit error:', error);
+        res.status(500).json({ success: false, error: 'UETDS bildirimi başarısız: ' + error.message });
+    }
+});
+
+/**
+ * POST /api/transfer/partner/uetds-cancel
+ * Cancel a previously submitted UETDS sefer.
+ * Body: { submissionId }
+ */
+router.post('/partner/uetds-cancel', authMiddleware, async (req, res) => {
+    try {
+        if (req.user.roleType !== 'PARTNER') {
+            return res.status(403).json({ success: false, error: 'Yalnızca partner kullanıcılar erişebilir' });
+        }
+        const partnerId = req.user.id;
+        const { submissionId } = req.body;
+
+        const submission = await prisma.uetdsSubmission.findFirst({
+            where: { id: submissionId, partnerId, status: 'SENT' }
+        });
+        if (!submission) {
+            return res.status(404).json({ success: false, error: 'Aktif UETDS kaydı bulunamadı' });
+        }
+        if (!submission.uetdsSeferId) {
+            return res.status(400).json({ success: false, error: 'Sefer ID bulunamadı — iptal edilemiyor' });
+        }
+
+        const profile = await prisma.partnerProfile.findUnique({ where: { userId: partnerId } });
+        const password = uetdsService.decrypt(profile.uetdsUnetPasswordEnc);
+        const credentials = {
+            username: profile.uetdsUnetUser,
+            password,
+            yetkiBelgeNo: profile.uetdsYetkiBelgeNo,
+            serviceUrl: profile.uetdsServiceUrl || null,
+        };
+
+        const result = await uetdsService.seferIptal(credentials, submission.uetdsSeferId);
+
+        await prisma.uetdsSubmission.update({
+            where: { id: submissionId },
+            data: {
+                status: result.success ? 'CANCELLED' : submission.status,
+                errorMessage: result.errorMessage || null,
+                cancelledAt: result.success ? new Date() : null,
+                response: {
+                    ...(typeof submission.response === 'object' ? submission.response : {}),
+                    iptal: result.rawResponse?.substring(0, 1000),
+                }
+            }
+        });
+
+        if (!result.success) {
+            return res.status(400).json({
+                success: false,
+                error: result.errorMessage || 'Sefer iptali başarısız',
+            });
+        }
+
+        res.json({ success: true, message: 'UETDS seferi iptal edildi' });
+    } catch (error) {
+        console.error('UETDS cancel error:', error);
+        res.status(500).json({ success: false, error: 'UETDS iptal işlemi başarısız: ' + error.message });
+    }
+});
+
+/**
+ * GET /api/transfer/partner/uetds-submissions
+ * List UETDS submissions for the partner's bookings.
+ * Query: ?bookingId=xxx or all submissions
+ */
+router.get('/partner/uetds-submissions', authMiddleware, async (req, res) => {
+    try {
+        if (req.user.roleType !== 'PARTNER') {
+            return res.status(403).json({ success: false, error: 'Yalnızca partner kullanıcılar erişebilir' });
+        }
+        const partnerId = req.user.id;
+        const { bookingId } = req.query;
+
+        const where = { partnerId };
+        if (bookingId) where.bookingId = bookingId;
+
+        const submissions = await prisma.uetdsSubmission.findMany({
+            where,
+            orderBy: { createdAt: 'desc' },
+            take: 100,
+        });
+
+        // Enrich with booking info
+        const bookingIds = [...new Set(submissions.filter(s => s.bookingId).map(s => s.bookingId))];
+        const bookings = bookingIds.length > 0
+            ? await prisma.booking.findMany({
+                where: { id: { in: bookingIds } },
+                select: { id: true, bookingNumber: true, contactName: true, startDate: true, metadata: true }
+            })
+            : [];
+        const bookingMap = new Map(bookings.map(b => [b.id, b]));
+
+        const enriched = submissions.map(s => ({
+            ...s,
+            booking: s.bookingId ? bookingMap.get(s.bookingId) || null : null,
+        }));
+
+        res.json({ success: true, data: enriched });
+    } catch (error) {
+        console.error('Get UETDS submissions error:', error);
+        res.status(500).json({ success: false, error: 'UETDS kayıtları alınamadı' });
     }
 });
 

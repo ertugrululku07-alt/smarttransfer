@@ -10,6 +10,7 @@ import {
     PlusOutlined, ReloadOutlined, InfoCircleOutlined
 } from '@ant-design/icons';
 import apiClient from '@/lib/api-client';
+import { useDefinitions } from '@/app/hooks/useDefinitions';
 import PartnerLayout from '../PartnerLayout';
 import PartnerGuard from '../PartnerGuard';
 
@@ -49,6 +50,7 @@ interface VehicleType {
 }
 
 const PartnerZonesPage: React.FC = () => {
+    const { currencies: defCurrencies } = useDefinitions();
     const [loading, setLoading] = useState(true);
     const [allowedZones, setAllowedZones] = useState<AllowedZone[]>([]);
     const [zonePrices, setZonePrices] = useState<ZonePrice[]>([]);
@@ -377,10 +379,11 @@ const PartnerZonesPage: React.FC = () => {
                                 </Form.Item>
                                 <Form.Item name="currency" label="Para Birimi" initialValue="EUR">
                                     <Select>
-                                        <Select.Option value="EUR">EUR</Select.Option>
-                                        <Select.Option value="USD">USD</Select.Option>
-                                        <Select.Option value="TRY">TRY</Select.Option>
-                                        <Select.Option value="GBP">GBP</Select.Option>
+                                        {defCurrencies.map(c => (
+                                            <Select.Option key={c.code} value={c.code}>
+                                                {c.symbol} {c.code}
+                                            </Select.Option>
+                                        ))}
                                     </Select>
                                 </Form.Item>
                             </div>
