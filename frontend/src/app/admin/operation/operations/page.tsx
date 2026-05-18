@@ -767,6 +767,9 @@ export default function OperationsPage() {
         direction: 'ALL', // ALL, DEPARTURE, ARRIVAL, INTER
         transferType: 'PRIVATE', // ALL, SHUTTLE, PRIVATE — defaults to PRIVATE
         agency: 'ALL',
+        bookingType: 'ALL', // ALL, DIRECT, B2B, SYSTEM
+        pickupZone: 'ALL',
+        dropoffZone: 'ALL',
         status: 'ALL',
         driver: 'ALL',
         vehicle: 'ALL',
@@ -2176,6 +2179,8 @@ export default function OperationsPage() {
         { key: 'sort',        width: 40,  label: 'SIRA',           hidden: false },
         { key: 'index',       width: 36,  label: '#',              hidden: false },
         { key: 'customer',    width: 200, label: 'MÜŞTERİ',         hidden: false },
+        { key: 'agency',      width: 140, label: 'ACENTE',          hidden: false },
+        { key: 'bookingType', width: 90,  label: 'REZ. TİPİ',       hidden: false },
         { key: 'pickupTime',  width: 80,  label: 'ALIŞ SAATİ',      hidden: false },
         { key: 'pickup',      width: 220, label: 'ALIŞ NOKTASI',    hidden: false },
         { key: 'pickupZone',  width: 80,  label: 'ALIŞ BÖLGE',      hidden: false },
@@ -3174,10 +3179,87 @@ export default function OperationsPage() {
                                     size="small"
                                     style={{ width: '100%' }}
                                     placeholder="Acente"
+                                    showSearch
                                     allowClear
-                                >
-                                    <Option value="direct">Direkt</Option>
-                                </Select>
+                                    optionFilterProp="label"
+                                    value={filters.agency === 'ALL' ? undefined : filters.agency}
+                                    onChange={(val) => setFilters(prev => ({ ...prev, agency: val || 'ALL' }))}
+                                    options={(() => {
+                                        const src = operationsMode === 'shuttle'
+                                            ? shuttleRuns.flatMap((r: any) => r.bookings || [])
+                                            : bookings;
+                                        const names = new Set<string>();
+                                        src.forEach((b: any) => {
+                                            const n = b.agencyName || b.agency?.name || b.partnerName;
+                                            if (n) names.add(n);
+                                        });
+                                        return [
+                                            { value: 'DIRECT', label: 'Direkt (Acentesiz)' },
+                                            ...Array.from(names).sort().map(n => ({ value: n, label: n })),
+                                        ];
+                                    })()}
+                                />
+                            </Col>
+                            <Col xs={12} sm={6} md={3} lg={2}>
+                                <Select
+                                    size="small"
+                                    style={{ width: '100%' }}
+                                    placeholder="Rez. Tipi"
+                                    allowClear
+                                    value={filters.bookingType === 'ALL' ? undefined : filters.bookingType}
+                                    onChange={(val) => setFilters(prev => ({ ...prev, bookingType: val || 'ALL' }))}
+                                    options={[
+                                        { value: 'DIRECT', label: 'Direkt' },
+                                        { value: 'B2B', label: 'B2B' },
+                                        { value: 'SYSTEM', label: 'Sistem' },
+                                    ]}
+                                />
+                            </Col>
+                            <Col xs={12} sm={6} md={3} lg={2}>
+                                <Select
+                                    size="small"
+                                    style={{ width: '100%' }}
+                                    placeholder="Alış Bölge"
+                                    showSearch
+                                    allowClear
+                                    optionFilterProp="label"
+                                    value={filters.pickupZone === 'ALL' ? undefined : filters.pickupZone}
+                                    onChange={(val) => setFilters(prev => ({ ...prev, pickupZone: val || 'ALL' }))}
+                                    options={(() => {
+                                        const src = operationsMode === 'shuttle'
+                                            ? shuttleRuns.flatMap((r: any) => r.bookings || [])
+                                            : bookings;
+                                        const codes = new Set<string>();
+                                        src.forEach((b: any) => {
+                                            const c = b.pickupRegionCode || b.metadata?.pickupRegionCode;
+                                            if (c) codes.add(c);
+                                        });
+                                        return Array.from(codes).sort().map(c => ({ value: c, label: c }));
+                                    })()}
+                                />
+                            </Col>
+                            <Col xs={12} sm={6} md={3} lg={2}>
+                                <Select
+                                    size="small"
+                                    style={{ width: '100%' }}
+                                    placeholder="Bırakış Bölge"
+                                    showSearch
+                                    allowClear
+                                    optionFilterProp="label"
+                                    value={filters.dropoffZone === 'ALL' ? undefined : filters.dropoffZone}
+                                    onChange={(val) => setFilters(prev => ({ ...prev, dropoffZone: val || 'ALL' }))}
+                                    options={(() => {
+                                        const src = operationsMode === 'shuttle'
+                                            ? shuttleRuns.flatMap((r: any) => r.bookings || [])
+                                            : bookings;
+                                        const codes = new Set<string>();
+                                        src.forEach((b: any) => {
+                                            const c = b.dropoffRegionCode || b.metadata?.dropoffRegionCode;
+                                            if (c) codes.add(c);
+                                        });
+                                        return Array.from(codes).sort().map(c => ({ value: c, label: c }));
+                                    })()}
+                                />
                             </Col>
                             <Col xs={12} sm={8} md={4} lg={3}>
                                 <Select
@@ -3389,11 +3471,55 @@ export default function OperationsPage() {
                         
                         <DndContext onDragEnd={handleShuttleDragEnd}>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                                {shuttleRuns.filter((run: any) => {
+                                {shuttleRuns.map((run: any) => {
+                                    // Apply per-passenger filters (agency, bookingType, zones, pickup/dropoff text)
+                                    const filteredBookings = (run.bookings || []).filter((b: any) => {
+                                        // Agency filter
+                                        if (filters.agency !== 'ALL') {
+                                            const aName = b.agencyName || b.agency?.name || b.partnerName || '';
+                                            if (filters.agency === 'DIRECT') {
+                                                if (aName) return false;
+                                            } else if (aName !== filters.agency) {
+                                                return false;
+                                            }
+                                        }
+                                        // Booking Type filter
+                                        if (filters.bookingType !== 'ALL') {
+                                            const bt = (b.bookingType || (b.agencyId ? 'B2B' : (b.metadata?.creationSource === 'ADMIN_MANUAL' ? 'SYSTEM' : 'DIRECT'))).toUpperCase();
+                                            if (bt !== filters.bookingType) return false;
+                                        }
+                                        // Pickup Zone
+                                        if (filters.pickupZone !== 'ALL') {
+                                            const pz = b.pickupRegionCode || b.metadata?.pickupRegionCode || '';
+                                            if (pz !== filters.pickupZone) return false;
+                                        }
+                                        // Dropoff Zone
+                                        if (filters.dropoffZone !== 'ALL') {
+                                            const dz = b.dropoffRegionCode || b.metadata?.dropoffRegionCode || '';
+                                            if (dz !== filters.dropoffZone) return false;
+                                        }
+                                        // Pickup text search
+                                        if (filters.pickup) {
+                                            const p = (b.pickup || b.metadata?.pickup || '').toLowerCase();
+                                            if (!p.includes(filters.pickup.toLowerCase())) return false;
+                                        }
+                                        // Dropoff text search
+                                        if (filters.dropoff) {
+                                            const d = (b.dropoff || b.metadata?.dropoff || '').toLowerCase();
+                                            if (!d.includes(filters.dropoff.toLowerCase())) return false;
+                                        }
+                                        return true;
+                                    });
+                                    // Replace run.bookings with filtered set for downstream rendering
+                                    run = { ...run, bookings: filteredBookings };
+
                                     // Hide runs where ALL bookings are completed
-                                    if (run.bookings.length > 0 && run.bookings.every((b: any) => b.status === 'COMPLETED')) return false;
-                                    return true;
-                                }).map((run: any) => {
+                                    if (run.bookings.length > 0 && run.bookings.every((b: any) => b.status === 'COMPLETED')) return null;
+                                    // Hide runs that have no bookings after filtering (unless it's an empty manual run with no filters active)
+                                    const hasActiveFilter = filters.agency !== 'ALL' || filters.bookingType !== 'ALL' || filters.pickupZone !== 'ALL' || filters.dropoffZone !== 'ALL' || filters.pickup || filters.dropoff;
+                                    if (hasActiveFilter && run.bookings.length === 0) return null;
+                                    return run;
+                                }).filter(Boolean).map((run: any) => {
                                     const totalPax = run.bookings.reduce((s: number, b: any) => s + ((b.adults || 1) + (b.children || 0) + (b.infants || 0)), 0);
                                     const capacity = run.maxSeats || 0;
                                     const pct = capacity > 0 ? Math.round((totalPax / capacity) * 100) : 0;
@@ -3946,6 +4072,31 @@ export default function OperationsPage() {
                                                                             );
                                                                         }
                                                                         case 'phone': return <span style={{ fontSize: 12, color: '#374151' }}>{b.contactPhone}</span>;
+                                                                        case 'agency': {
+                                                                            const agencyName = b.agencyName || b.agency?.name || b.partnerName;
+                                                                            if (!agencyName) {
+                                                                                return <span style={{ fontSize: 10, fontWeight: 700, background: '#f0fdf4', color: '#15803d', padding: '2px 8px', borderRadius: 4, border: '1px solid #bbf7d0' }}>Direkt</span>;
+                                                                            }
+                                                                            return (
+                                                                                <span title={agencyName} style={{ fontSize: 11, fontWeight: 700, background: '#eff6ff', color: '#1d4ed8', padding: '2px 8px', borderRadius: 4, border: '1px solid #bfdbfe', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'inline-block', maxWidth: '100%' }}>
+                                                                                    {agencyName}
+                                                                                </span>
+                                                                            );
+                                                                        }
+                                                                        case 'bookingType': {
+                                                                            const bt = (b.bookingType || (b.agencyId ? 'B2B' : (b.metadata?.creationSource === 'ADMIN_MANUAL' ? 'SYSTEM' : 'DIRECT'))).toUpperCase();
+                                                                            const cfg: any = {
+                                                                                B2B:    { label: 'B2B',    bg: '#eef2ff', color: '#4338ca', border: '#c7d2fe' },
+                                                                                DIRECT: { label: 'Direkt', bg: '#f0fdf4', color: '#15803d', border: '#bbf7d0' },
+                                                                                SYSTEM: { label: 'Sistem', bg: '#fef3c7', color: '#92400e', border: '#fde68a' },
+                                                                            };
+                                                                            const c = cfg[bt] || { label: bt, bg: '#f3f4f6', color: '#374151', border: '#e5e7eb' };
+                                                                            return (
+                                                                                <span style={{ fontSize: 10, fontWeight: 800, background: c.bg, color: c.color, padding: '2px 8px', borderRadius: 4, border: `1px solid ${c.border}`, letterSpacing: 0.3 }}>
+                                                                                    {c.label}
+                                                                                </span>
+                                                                            );
+                                                                        }
                                                                         case 'pickupZone': {
                                                                             const pzCode = b.pickupRegionCode || b.metadata?.pickupRegionCode;
                                                                             if (!pzCode) return <span style={{ fontSize: 11, color: '#999' }}>-</span>;
