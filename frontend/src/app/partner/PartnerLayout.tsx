@@ -13,7 +13,8 @@ import {
     SettingOutlined,
     LogoutOutlined,
     MenuOutlined,
-    CloseOutlined
+    CloseOutlined,
+    EnvironmentOutlined
 } from '@ant-design/icons';
 
 interface PartnerLayoutProps {
@@ -61,6 +62,7 @@ const PartnerLayout: React.FC<PartnerLayoutProps> = ({ children }) => {
         { key: 'home', label: 'Ana Sayfa', icon: <HomeOutlined />, path: '/partner', exact: true, section: 'main' },
         { key: 'pool', label: 'Transferlerim', icon: <CarOutlined />, path: '/partner/pool', badge: activeCount > 0 ? activeCount : undefined, section: 'main' },
         { key: 'completed', label: 'Tamamlanmış', icon: <CheckCircleOutlined />, path: '/partner/completed', section: 'main' },
+        { key: 'zones', label: 'Bölgelerim & Fiyatlarım', icon: <EnvironmentOutlined />, path: '/partner/zones', section: 'main' },
         { key: 'earnings', label: 'Kazancım', icon: <DollarOutlined />, path: '/partner/earnings', section: 'finance' },
         { key: 'settings', label: 'Ayarlar', icon: <SettingOutlined />, path: '/partner/settings', section: 'system' },
     ];

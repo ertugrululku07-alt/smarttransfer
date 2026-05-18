@@ -9,12 +9,14 @@ import {
 import apiClient from '@/lib/api-client';
 import AdminLayout from '../AdminLayout';
 import AdminGuard from '../AdminGuard';
+import PartnerZonesAdminModal from './PartnerZonesAdminModal';
 import {
     CheckOutlined, CloseOutlined, UserOutlined,
     PlusOutlined, DeleteOutlined, ReloadOutlined,
     CarOutlined, PhoneOutlined, MailOutlined, KeyOutlined, PercentageOutlined,
     SearchOutlined, TeamOutlined, ClockCircleOutlined,
-    ExclamationCircleOutlined, CheckCircleOutlined, StopOutlined
+    ExclamationCircleOutlined, CheckCircleOutlined, StopOutlined,
+    EnvironmentOutlined, SettingOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import 'dayjs/locale/tr';
@@ -56,6 +58,7 @@ const PartnerApplicationsPage = () => {
     
     // Commission settings state
     const [commissionModalOpen, setCommissionModalOpen] = useState(false);
+    const [zonesModal, setZonesModal] = useState<{ id: string; fullName: string; email: string } | null>(null);
     const [commissionRate, setCommissionRate] = useState<number>(15);
     const [commissionSaving, setCommissionSaving] = useState(false);
 
@@ -317,6 +320,12 @@ const PartnerApplicationsPage = () => {
                             </Popconfirm>
                         </Tooltip>
                     )}
+                    {/* Bölge / Profil Yönetimi */}
+                    <Tooltip title="Bölge ve UETDS yönetimi">
+                        <Button size="small" type="text" icon={<EnvironmentOutlined />}
+                            onClick={() => setZonesModal({ id: r.id, fullName: r.fullName, email: r.email })}
+                            style={{ color: '#10b981', borderRadius: 6 }} />
+                    </Tooltip>
                     {/* Sil */}
                     <Tooltip title="Sil">
                         <Popconfirm title="Bu partner sürücüyü silmek istediğinize emin misiniz?"
@@ -549,6 +558,12 @@ const PartnerApplicationsPage = () => {
                         </div>
                     </div>
                 </Modal>
+
+                <PartnerZonesAdminModal
+                    open={!!zonesModal}
+                    partner={zonesModal}
+                    onClose={() => setZonesModal(null)}
+                />
 
             </AdminLayout>
         </AdminGuard>

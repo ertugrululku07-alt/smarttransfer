@@ -5351,4 +5351,226 @@ router.get('/hourly-search', optionalAuthMiddleware, async (req, res) => {
     }
 });
 
+// ============================================================================
+// PARTNER ZONES & PRICING — Partner self-service endpoints (Phase 1)
+// ============================================================================
+
+/**
+ * GET /api/transfer/partner/profile
+ * Partner reads their own profile (autocreates if missing).
+ */
+router.get('/partner/profile', authMiddleware, async (req, res) => {
+    try {
+        if (req.user.roleType !== 'PARTNER') {
+            return res.status(403).json({ success: false, error: 'Yalnızca partner kullanıcılar erişebilir' });
+        }
+        const tenantId = req.tenant?.id || req.user.tenantId;
+        const userId = req.user.id;
+
+        let profile = await prisma.partnerProfile.findUnique({ where: { userId } });
+        if (!profile) {
+            profile = await prisma.partnerProfile.create({ data: { tenantId, userId } });
+        }
+        const { uetdsUnetPasswordEnc, ...safe } = profile;
+        res.json({ success: true, data: { ...safe, uetdsHasPassword: !!uetdsUnetPasswordEnc } });
+    } catch (error) {
+        console.error('Get partner self profile error:', error);
+        res.status(500).json({ success: false, error: 'Profil alınamadı' });
+    }
+});
+
+/**
+ * PUT /api/transfer/partner/profile
+ * Partner updates their own company / contact info. Admin-only fields
+ * (commissionRate, uetdsEnabled, uetdsYetkiBelgeNo, uetdsYetkiBelgeTuru) are
+ * deliberately stripped so partners cannot escalate privileges.
+ */
+router.put('/partner/profile', authMiddleware, async (req, res) => {
+    try {
+        if (req.user.roleType !== 'PARTNER') {
+            return res.status(403).json({ success: false, error: 'Yalnızca partner kullanıcılar erişebilir' });
+        }
+        const tenantId = req.tenant?.id || req.user.tenantId;
+        const userId = req.user.id;
+        const { companyName, taxNumber, taxOffice, address, contactEmail, contactPhone } = req.body;
+
+        const profile = await prisma.partnerProfile.upsert({
+            where: { userId },
+            update: {
+                companyName: companyName ?? undefined,
+                taxNumber: taxNumber ?? undefined,
+                taxOffice: taxOffice ?? undefined,
+                address: address ?? undefined,
+                contactEmail: contactEmail ?? undefined,
+                contactPhone: contactPhone ?? undefined
+            },
+            create: { tenantId, userId, companyName, taxNumber, taxOffice, address, contactEmail, contactPhone }
+        });
+        const { uetdsUnetPasswordEnc, ...safe } = profile;
+        res.json({ success: true, data: { ...safe, uetdsHasPassword: !!uetdsUnetPasswordEnc } });
+    } catch (error) {
+        console.error('Update partner self profile error:', error);
+        res.status(500).json({ success: false, error: 'Profil güncellenemedi' });
+    }
+});
+
+/**
+ * GET /api/transfer/partner/allowed-zones
+ * Partner views the zones admin has assigned to them.
+ */
+router.get('/partner/allowed-zones', authMiddleware, async (req, res) => {
+    try {
+        if (req.user.roleType !== 'PARTNER') {
+            return res.status(403).json({ success: false, error: 'Yalnızca partner kullanıcılar erişebilir' });
+        }
+        const tenantId = req.tenant?.id || req.user.tenantId;
+        const partnerId = req.user.id;
+
+        const allowed = await prisma.partnerAllowedZone.findMany({
+            where: { tenantId, partnerId, isActive: true },
+            include: { zone: { select: { id: true, name: true, code: true, isAirport: true, color: true } } },
+            orderBy: { createdAt: 'desc' }
+        });
+        res.json({ success: true, data: allowed });
+    } catch (error) {
+        console.error('Get partner allowed zones (self) error:', error);
+        res.status(500).json({ success: false, error: 'Bölgeler alınamadı' });
+    }
+});
+
+/**
+ * GET /api/transfer/partner/zone-prices
+ * Partner lists their saved zone prices.
+ */
+router.get('/partner/zone-prices', authMiddleware, async (req, res) => {
+    try {
+        if (req.user.roleType !== 'PARTNER') {
+            return res.status(403).json({ success: false, error: 'Yalnızca partner kullanıcılar erişebilir' });
+        }
+        const tenantId = req.tenant?.id || req.user.tenantId;
+        const partnerId = req.user.id;
+
+        const prices = await prisma.partnerZonePrice.findMany({
+            where: { tenantId, partnerId },
+            include: {
+                zone: { select: { id: true, name: true, code: true } },
+                vehicleType: { select: { id: true, name: true, category: true } }
+            },
+            orderBy: [{ vehicleTypeId: 'asc' }, { zoneId: 'asc' }]
+        });
+        res.json({ success: true, data: prices });
+    } catch (error) {
+        console.error('Get partner zone prices (self) error:', error);
+        res.status(500).json({ success: false, error: 'Fiyatlar alınamadı' });
+    }
+});
+
+/**
+ * POST /api/transfer/partner/zone-prices
+ * Body: { vehicleTypeId, zoneId, baseLocation?, price, childPrice?, babyPrice?, fixedPrice?, extraKmPrice?, currency? }
+ * Upserts a price row. Enforces:
+ *   1. The (zone, baseLocation) pair must exist in PartnerAllowedZone for this partner.
+ *   2. If the assignment carries a maxPriceCap, the requested price must not exceed it.
+ */
+router.post('/partner/zone-prices', authMiddleware, async (req, res) => {
+    try {
+        if (req.user.roleType !== 'PARTNER') {
+            return res.status(403).json({ success: false, error: 'Yalnızca partner kullanıcılar erişebilir' });
+        }
+        const tenantId = req.tenant?.id || req.user.tenantId;
+        const partnerId = req.user.id;
+        const {
+            vehicleTypeId, zoneId, baseLocation,
+            price, childPrice, babyPrice, fixedPrice, extraKmPrice,
+            currency, isActive
+        } = req.body;
+
+        if (!vehicleTypeId || !zoneId) {
+            return res.status(400).json({ success: false, error: 'vehicleTypeId ve zoneId zorunludur' });
+        }
+        if (price == null && fixedPrice == null) {
+            return res.status(400).json({ success: false, error: 'Fiyat veya sabit fiyat girilmelidir' });
+        }
+
+        const baseLoc = baseLocation || 'AYT';
+
+        // 1. Verify the partner is allowed in this (zone, baseLocation)
+        const allowance = await prisma.partnerAllowedZone.findUnique({
+            where: { partnerId_zoneId_baseLocation: { partnerId, zoneId, baseLocation: baseLoc } }
+        });
+        if (!allowance || !allowance.isActive) {
+            return res.status(403).json({ success: false, error: 'Bu bölgede çalışmaya yetkiniz yok' });
+        }
+
+        // 2. Enforce admin ceiling
+        const effectivePrice = Number(fixedPrice ?? price);
+        if (allowance.maxPriceCap != null && effectivePrice > Number(allowance.maxPriceCap)) {
+            return res.status(400).json({
+                success: false,
+                error: `Fiyat üst sınırı aşıldı. Maksimum: ${allowance.maxPriceCap}`
+            });
+        }
+
+        // 3. Verify vehicle type belongs to tenant
+        const vt = await prisma.vehicleType.findFirst({ where: { id: vehicleTypeId, tenantId } });
+        if (!vt) return res.status(404).json({ success: false, error: 'Araç tipi bulunamadı' });
+
+        const saved = await prisma.partnerZonePrice.upsert({
+            where: {
+                partnerId_vehicleTypeId_zoneId_baseLocation: {
+                    partnerId, vehicleTypeId, zoneId, baseLocation: baseLoc
+                }
+            },
+            update: {
+                price: price != null ? Number(price) : undefined,
+                childPrice: childPrice != null ? Number(childPrice) : undefined,
+                babyPrice: babyPrice != null ? Number(babyPrice) : undefined,
+                fixedPrice: fixedPrice != null ? Number(fixedPrice) : null,
+                extraKmPrice: extraKmPrice != null ? Number(extraKmPrice) : null,
+                currency: currency ?? undefined,
+                isActive: isActive ?? undefined
+            },
+            create: {
+                tenantId, partnerId, vehicleTypeId, zoneId, baseLocation: baseLoc,
+                price: Number(price ?? 0),
+                childPrice: childPrice != null ? Number(childPrice) : null,
+                babyPrice: babyPrice != null ? Number(babyPrice) : null,
+                fixedPrice: fixedPrice != null ? Number(fixedPrice) : null,
+                extraKmPrice: extraKmPrice != null ? Number(extraKmPrice) : null,
+                currency: currency || 'EUR',
+                isActive: isActive !== false
+            },
+            include: {
+                zone: { select: { id: true, name: true, code: true } },
+                vehicleType: { select: { id: true, name: true, category: true } }
+            }
+        });
+        res.json({ success: true, data: saved });
+    } catch (error) {
+        console.error('Save partner zone price error:', error);
+        res.status(500).json({ success: false, error: 'Fiyat kaydedilemedi' });
+    }
+});
+
+/**
+ * DELETE /api/transfer/partner/zone-prices/:id
+ */
+router.delete('/partner/zone-prices/:id', authMiddleware, async (req, res) => {
+    try {
+        if (req.user.roleType !== 'PARTNER') {
+            return res.status(403).json({ success: false, error: 'Yalnızca partner kullanıcılar erişebilir' });
+        }
+        const tenantId = req.tenant?.id || req.user.tenantId;
+        const partnerId = req.user.id;
+        const { id } = req.params;
+        const row = await prisma.partnerZonePrice.findFirst({ where: { id, tenantId, partnerId } });
+        if (!row) return res.status(404).json({ success: false, error: 'Kayıt bulunamadı' });
+        await prisma.partnerZonePrice.delete({ where: { id } });
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Delete partner zone price error:', error);
+        res.status(500).json({ success: false, error: 'Fiyat silinemedi' });
+    }
+});
+
 module.exports = router;

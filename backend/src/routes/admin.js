@@ -202,5 +202,210 @@ router.delete('/partner-applications/:id', authMiddleware, async (req, res) => {
     }
 });
 
+// ============================================================================
+// PARTNER MANAGEMENT — Admin endpoints for partner profile, allowed zones,
+// commission overrides, and partner zone price oversight.
+// ============================================================================
+
+/**
+ * GET /api/admin/partners/:partnerId/profile
+ * Returns partner profile (creates one on first read if missing).
+ */
+router.get('/partners/:partnerId/profile', authMiddleware, async (req, res) => {
+    try {
+        const tenantId = req.tenant?.id;
+        const { partnerId } = req.params;
+
+        const partner = await prisma.user.findFirst({
+            where: { id: partnerId, tenantId, role: { type: 'PARTNER' } },
+            select: { id: true, firstName: true, lastName: true, fullName: true, email: true, phone: true, status: true }
+        });
+        if (!partner) return res.status(404).json({ success: false, error: 'Partner bulunamadı' });
+
+        let profile = await prisma.partnerProfile.findUnique({ where: { userId: partnerId } });
+        if (!profile) {
+            profile = await prisma.partnerProfile.create({
+                data: { tenantId, userId: partnerId }
+            });
+        }
+
+        // Never expose encrypted password back
+        const { uetdsUnetPasswordEnc, ...safe } = profile;
+        res.json({ success: true, data: { partner, profile: { ...safe, uetdsHasPassword: !!uetdsUnetPasswordEnc } } });
+    } catch (error) {
+        console.error('Get partner profile error:', error);
+        res.status(500).json({ success: false, error: 'Profil alınamadı' });
+    }
+});
+
+/**
+ * PUT /api/admin/partners/:partnerId/profile
+ * Admin updates partner profile (commission rate, company info, UETDS toggle).
+ */
+router.put('/partners/:partnerId/profile', authMiddleware, async (req, res) => {
+    try {
+        const tenantId = req.tenant?.id;
+        const { partnerId } = req.params;
+        const {
+            companyName, taxNumber, taxOffice, address, contactEmail, contactPhone,
+            commissionRate, uetdsEnabled, uetdsYetkiBelgeNo, uetdsYetkiBelgeTuru, uetdsServiceUrl
+        } = req.body;
+
+        const partner = await prisma.user.findFirst({
+            where: { id: partnerId, tenantId, role: { type: 'PARTNER' } },
+            select: { id: true }
+        });
+        if (!partner) return res.status(404).json({ success: false, error: 'Partner bulunamadı' });
+
+        const profile = await prisma.partnerProfile.upsert({
+            where: { userId: partnerId },
+            update: {
+                companyName: companyName ?? undefined,
+                taxNumber: taxNumber ?? undefined,
+                taxOffice: taxOffice ?? undefined,
+                address: address ?? undefined,
+                contactEmail: contactEmail ?? undefined,
+                contactPhone: contactPhone ?? undefined,
+                commissionRate: commissionRate != null ? Number(commissionRate) : undefined,
+                uetdsEnabled: uetdsEnabled ?? undefined,
+                uetdsYetkiBelgeNo: uetdsYetkiBelgeNo ?? undefined,
+                uetdsYetkiBelgeTuru: uetdsYetkiBelgeTuru ?? undefined,
+                uetdsServiceUrl: uetdsServiceUrl ?? undefined
+            },
+            create: {
+                tenantId,
+                userId: partnerId,
+                companyName, taxNumber, taxOffice, address, contactEmail, contactPhone,
+                commissionRate: commissionRate != null ? Number(commissionRate) : null,
+                uetdsEnabled: !!uetdsEnabled,
+                uetdsYetkiBelgeNo, uetdsYetkiBelgeTuru, uetdsServiceUrl
+            }
+        });
+
+        const { uetdsUnetPasswordEnc, ...safe } = profile;
+        res.json({ success: true, data: { ...safe, uetdsHasPassword: !!uetdsUnetPasswordEnc } });
+    } catch (error) {
+        console.error('Update partner profile error:', error);
+        res.status(500).json({ success: false, error: 'Profil güncellenemedi' });
+    }
+});
+
+/**
+ * GET /api/admin/partners/:partnerId/allowed-zones
+ * Returns the list of zones the partner is allowed to operate in.
+ */
+router.get('/partners/:partnerId/allowed-zones', authMiddleware, async (req, res) => {
+    try {
+        const tenantId = req.tenant?.id;
+        const { partnerId } = req.params;
+
+        const allowed = await prisma.partnerAllowedZone.findMany({
+            where: { tenantId, partnerId },
+            include: { zone: { select: { id: true, name: true, code: true, isAirport: true, color: true } } },
+            orderBy: { createdAt: 'desc' }
+        });
+
+        res.json({ success: true, data: allowed });
+    } catch (error) {
+        console.error('Get partner allowed zones error:', error);
+        res.status(500).json({ success: false, error: 'Bölgeler alınamadı' });
+    }
+});
+
+/**
+ * POST /api/admin/partners/:partnerId/allowed-zones
+ * Body: { zoneId, baseLocation?, maxPriceCap?, notes? }
+ * Assigns a zone to the partner. Upserts on (partnerId, zoneId, baseLocation).
+ */
+router.post('/partners/:partnerId/allowed-zones', authMiddleware, async (req, res) => {
+    try {
+        const tenantId = req.tenant?.id;
+        const { partnerId } = req.params;
+        const { zoneId, baseLocation, maxPriceCap, notes, isActive } = req.body;
+
+        if (!zoneId) return res.status(400).json({ success: false, error: 'zoneId zorunludur' });
+
+        // Verify zone & partner belong to tenant
+        const [zone, partner] = await Promise.all([
+            prisma.zone.findFirst({ where: { id: zoneId, tenantId }, select: { id: true } }),
+            prisma.user.findFirst({ where: { id: partnerId, tenantId, role: { type: 'PARTNER' } }, select: { id: true } })
+        ]);
+        if (!zone) return res.status(404).json({ success: false, error: 'Bölge bulunamadı' });
+        if (!partner) return res.status(404).json({ success: false, error: 'Partner bulunamadı' });
+
+        const record = await prisma.partnerAllowedZone.upsert({
+            where: {
+                partnerId_zoneId_baseLocation: {
+                    partnerId,
+                    zoneId,
+                    baseLocation: baseLocation || 'AYT'
+                }
+            },
+            update: {
+                maxPriceCap: maxPriceCap != null ? Number(maxPriceCap) : null,
+                notes: notes ?? undefined,
+                isActive: isActive ?? undefined
+            },
+            create: {
+                tenantId,
+                partnerId,
+                zoneId,
+                baseLocation: baseLocation || 'AYT',
+                maxPriceCap: maxPriceCap != null ? Number(maxPriceCap) : null,
+                notes: notes || null,
+                isActive: isActive !== false
+            },
+            include: { zone: { select: { id: true, name: true, code: true, isAirport: true, color: true } } }
+        });
+
+        res.json({ success: true, data: record });
+    } catch (error) {
+        console.error('Assign partner allowed zone error:', error);
+        res.status(500).json({ success: false, error: 'Bölge atanamadı' });
+    }
+});
+
+/**
+ * DELETE /api/admin/partners/:partnerId/allowed-zones/:id
+ */
+router.delete('/partners/:partnerId/allowed-zones/:id', authMiddleware, async (req, res) => {
+    try {
+        const tenantId = req.tenant?.id;
+        const { partnerId, id } = req.params;
+        const existing = await prisma.partnerAllowedZone.findFirst({
+            where: { id, tenantId, partnerId }
+        });
+        if (!existing) return res.status(404).json({ success: false, error: 'Kayıt bulunamadı' });
+        await prisma.partnerAllowedZone.delete({ where: { id } });
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Delete partner allowed zone error:', error);
+        res.status(500).json({ success: false, error: 'Bölge kaldırılamadı' });
+    }
+});
+
+/**
+ * GET /api/admin/partners/:partnerId/zone-prices
+ * Read-only view of the prices the partner has set in their allowed zones.
+ */
+router.get('/partners/:partnerId/zone-prices', authMiddleware, async (req, res) => {
+    try {
+        const tenantId = req.tenant?.id;
+        const { partnerId } = req.params;
+        const prices = await prisma.partnerZonePrice.findMany({
+            where: { tenantId, partnerId },
+            include: {
+                zone: { select: { id: true, name: true, code: true } },
+                vehicleType: { select: { id: true, name: true, category: true } }
+            },
+            orderBy: [{ vehicleTypeId: 'asc' }, { zoneId: 'asc' }]
+        });
+        res.json({ success: true, data: prices });
+    } catch (error) {
+        console.error('Get partner zone prices (admin) error:', error);
+        res.status(500).json({ success: false, error: 'Fiyatlar alınamadı' });
+    }
+});
+
 module.exports = router;
 

@@ -86,21 +86,21 @@ model Tenant {
   deletedAt DateTime? // Soft delete
 
   // Injected Relations
-  accounts             Account[]
-  banks                Bank[]
-  messages             Message[]
-  agencies             Agency[]
-  agencyDeposits       AgencyDeposit[]
-  extraServices        ExtraService[]
-  transactions         Transaction[]
-  zones                Zone[]
-  activityLogs         ActivityLog[]
-  speedViolations      SpeedViolation[]
-  fuelRecords          FuelRecord[]
-  campaigns            Campaign[]
-  loyaltyTransactions  LoyaltyTransaction[]
-  messageTemplates     MessageTemplate[]
-  messageCampaigns     MessageCampaign[]
+  accounts            Account[]
+  banks               Bank[]
+  messages            Message[]
+  agencies            Agency[]
+  agencyDeposits      AgencyDeposit[]
+  extraServices       ExtraService[]
+  transactions        Transaction[]
+  zones               Zone[]
+  activityLogs        ActivityLog[]
+  speedViolations     SpeedViolation[]
+  fuelRecords         FuelRecord[]
+  campaigns           Campaign[]
+  loyaltyTransactions LoyaltyTransaction[]
+  messageTemplates    MessageTemplate[]
+  messageCampaigns    MessageCampaign[]
 
   @@index([status])
   @@index([slug])
@@ -208,6 +208,11 @@ model User {
   campaignUsages         CampaignUsage[]
   loyaltyTransactions    LoyaltyTransaction[]
   messageCampaigns       MessageCampaign[]
+  // Partner-specific extensions
+  partnerProfile         PartnerProfile?
+  partnerAllowedZones    PartnerAllowedZone[]
+  partnerZonePrices      PartnerZonePrice[]
+  uetdsSubmissions       UetdsSubmission[]       @relation("PartnerUetdsSubmissions")
   // Financial Snapshot
   balance                Decimal                 @default(0) @db.Decimal(15, 2)
   debit                  Decimal                 @default(0) @db.Decimal(15, 2)
@@ -534,12 +539,13 @@ model VehicleType {
   metadata Json?
 
   // Relations
-  transfers      TransferData[]
-  vehicles       Vehicle[]
-  zonePrices     VehicleTypeZonePrice[]
-  contractPrices AgencyContractPrice[]
-  contractMeta   AgencyContractMeta[]
-  shuttleRoutes  ShuttleRoute[]
+  transfers         TransferData[]
+  vehicles          Vehicle[]
+  zonePrices        VehicleTypeZonePrice[]
+  contractPrices    AgencyContractPrice[]
+  contractMeta      AgencyContractMeta[]
+  shuttleRoutes     ShuttleRoute[]
+  partnerZonePrices PartnerZonePrice[]
 
   @@unique([tenantId, slug])
 }
@@ -892,12 +898,12 @@ model Booking {
   droppedOffAt DateTime? // When driver dropped off the customer
 
   // Booking Type & Creator
-  bookingType    String?  @default("DIRECT") // B2B, DIRECT, SYSTEM
-  bookedByUserId String?  // User ID of whoever created this booking
-  bookedByName   String?  // Display name snapshot of the creator
+  bookingType    String? @default("DIRECT") // B2B, DIRECT, SYSTEM
+  bookedByUserId String? // User ID of whoever created this booking
+  bookedByName   String? // Display name snapshot of the creator
 
   // Custom Codes (10 slots)
-  customCodes    Json?    // { code1: '', code2: '', ..., code10: '' }
+  customCodes Json? // { code1: '', code2: '', ..., code10: '' }
 
   // Metadata
   metadata  Json?
@@ -1263,9 +1269,9 @@ model ShuttleRoute {
   weeklyDays      Json? // ["MON", "FRI"]
 
   // Pricing & Capacity
-  pricePerSeat    Decimal @db.Decimal(10, 2)
+  pricePerSeat    Decimal  @db.Decimal(10, 2)
   extraKmPrice    Decimal? @db.Decimal(10, 2) // Price for route overage per km
-  currency        String  @default("EUR")
+  currency        String   @default("EUR")
   maxSeats        Int
   pickupLeadHours Decimal? @db.Decimal(4, 1) // Hours before departure to pick up passenger
 
@@ -1627,14 +1633,16 @@ model Zone {
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   name      String
-  code      String?  // Short code (e.g. AYT, ALY, GZP) — used as baseLocation in pricing
-  keywords  String?  // Comma-separated search keywords for origin detection
-  isAirport Boolean  @default(false) // True = this zone is an airport/hub (used for trip type detection)
-  color     String?  @default("#3388ff") // For map drawing
-  polygon   Json?    // Array of LatLng [{lat, lng}, ...] — optional (some zones may only be origin hubs)
+  code      String? // Short code (e.g. AYT, ALY, GZP) — used as baseLocation in pricing
+  keywords  String? // Comma-separated search keywords for origin detection
+  isAirport Boolean @default(false) // True = this zone is an airport/hub (used for trip type detection)
+  color     String? @default("#3388ff") // For map drawing
+  polygon   Json? // Array of LatLng [{lat, lng}, ...] — optional (some zones may only be origin hubs)
 
-  vehicleTypePrices VehicleTypeZonePrice[]
-  contractPrices    AgencyContractPrice[]
+  vehicleTypePrices   VehicleTypeZonePrice[]
+  contractPrices      AgencyContractPrice[]
+  partnerAllowedZones PartnerAllowedZone[]
+  partnerZonePrices   PartnerZonePrice[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1857,14 +1865,14 @@ model FuelRecord {
   tenant   Tenant @relation(fields: [tenantId], references: [id])
 
   driverId String
-  driver   User @relation("DriverFuelRecords", fields: [driverId], references: [id])
+  driver   User   @relation("DriverFuelRecords", fields: [driverId], references: [id])
 
-  vehicleId    String
-  plateNumber  String
-  odometer     Float    // KM reading
-  liters       Float    // Liters refueled
-  pricePerLiter Float?  // Optional price/liter
-  totalCost     Float?  // Optional total cost
+  vehicleId     String
+  plateNumber   String
+  odometer      Float // KM reading
+  liters        Float // Liters refueled
+  pricePerLiter Float? // Optional price/liter
+  totalCost     Float? // Optional total cost
   currency      String  @default("TRY")
   notes         String?
   fuelType      String  @default("Dizel") // Dizel, Benzin, LPG
@@ -1873,20 +1881,20 @@ model FuelRecord {
   odometerPhotoUrl String?
 
   // GPS-based validation
-  gpsDistanceKm    Float?  // GPS-calculated distance since last fuel record
-  gpsLocationLat   Float?  // GPS lat at time of fuel entry
-  gpsLocationLng   Float?  // GPS lng at time of fuel entry
+  gpsDistanceKm  Float? // GPS-calculated distance since last fuel record
+  gpsLocationLat Float? // GPS lat at time of fuel entry
+  gpsLocationLng Float? // GPS lng at time of fuel entry
 
   // OCR verification
-  ocrKm            Float?   // KM read from photo via OCR
-  ocrConfidence    Float?   // OCR confidence score 0-1
-  ocrRawText       String?  // Raw OCR text for debugging
+  ocrKm         Float? // KM read from photo via OCR
+  ocrConfidence Float? // OCR confidence score 0-1
+  ocrRawText    String? // Raw OCR text for debugging
 
   // Anomaly detection
-  anomalyFlag      String?  // null=OK, SUSPICIOUS, REJECTED
+  anomalyFlag      String? // null=OK, SUSPICIOUS, REJECTED
   anomalyReasons   String[] @default([]) // Array of reason codes
-  previousOdometer Float?   // Previous fuel record odometer for reference
-  odometerDeltaKm  Float?   // Difference between this and previous odometer
+  previousOdometer Float? // Previous fuel record odometer for reference
+  odometerDeltaKm  Float? // Difference between this and previous odometer
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1958,9 +1966,9 @@ model Campaign {
 
   // Discount
   discountType   DiscountType
-  discountValue  Decimal  @db.Decimal(10, 2) // 20 for 20% or 20 for 20 TRY
-  maxDiscount    Decimal? @db.Decimal(10, 2) // Cap for percentage discounts
-  minOrderAmount Decimal? @db.Decimal(10, 2) // Min order to apply
+  discountValue  Decimal      @db.Decimal(10, 2) // 20 for 20% or 20 for 20 TRY
+  maxDiscount    Decimal?     @db.Decimal(10, 2) // Cap for percentage discounts
+  minOrderAmount Decimal?     @db.Decimal(10, 2) // Min order to apply
 
   // Validity
   startDate DateTime
@@ -2058,14 +2066,14 @@ model MessageTemplate {
   tenant   Tenant @relation(fields: [tenantId], references: [id])
 
   name      String // e.g. "Yılbaşı Tebrik"
-  category  String @default("custom") // holiday, seasonal, promotional, notification, custom
+  category  String         @default("custom") // holiday, seasonal, promotional, notification, custom
   channel   MessageChannel // EMAIL, WHATSAPP, BOTH
   subject   String? // Email subject (supports {{variables}})
-  body      String  @db.Text // HTML for email, plain for WhatsApp (supports {{variables}})
+  body      String         @db.Text // HTML for email, plain for WhatsApp (supports {{variables}})
   thumbnail String? // Preview image URL
 
-  isSystem  Boolean @default(false) // system-defined (read-only)
-  isActive  Boolean @default(true)
+  isSystem Boolean @default(false) // system-defined (read-only)
+  isActive Boolean @default(true)
 
   campaigns MessageCampaign[]
 
@@ -2087,8 +2095,8 @@ model MessageCampaign {
   templateId String?
   template   MessageTemplate? @relation(fields: [templateId], references: [id])
 
-  subject    String? // Final subject (after variable replacement)
-  body       String  @db.Text // Final body
+  subject String? // Final subject (after variable replacement)
+  body    String  @db.Text // Final body
 
   // Audience
   recipientFilter Json? // e.g. { all: true } or { bookingAfter: "2025-01-01" }
@@ -2119,14 +2127,14 @@ model MessageCampaign {
 }
 
 model MessageLog {
-  id         String @id @default(uuid())
+  id         String          @id @default(uuid())
   campaignId String
   campaign   MessageCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
 
-  channel    MessageChannel
-  recipient  String // email address or phone number
+  channel       MessageChannel
+  recipient     String // email address or phone number
   recipientName String?
-  status     MessageLogStatus @default(PENDING)
+  status        MessageLogStatus @default(PENDING)
 
   errorMessage String?
   sentAt       DateTime?
@@ -2161,4 +2169,140 @@ enum MessageLogStatus {
   DELIVERED
   FAILED
   OPENED
+}
+
+// ============================================================================
+// PARTNER EXTENSIONS — Phase 1: Allowed Zones + Zone Pricing
+// (Also pre-declares UetdsSubmission for Phase 3 to keep relations consistent)
+// ============================================================================
+
+model PartnerProfile {
+  id       String @id @default(uuid())
+  tenantId String
+  userId   String @unique
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Company info
+  companyName  String?
+  taxNumber    String?
+  taxOffice    String?
+  address      String?
+  contactEmail String?
+  contactPhone String?
+
+  // Partner-specific override of tenant.settings.partnerCommissionRate
+  commissionRate Decimal? @db.Decimal(5, 2)
+
+  // UETDS credentials (encrypted at-rest in application layer)
+  uetdsEnabled         Boolean @default(false)
+  uetdsUnetUser        String?
+  uetdsUnetPasswordEnc String? // AES-256 encrypted
+  uetdsYetkiBelgeNo    String?
+  uetdsYetkiBelgeTuru  String? // e.g. B2, D2, D4
+  uetdsServiceUrl      String? // optional override
+
+  // Free-form additional configuration
+  metadata Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+}
+
+model PartnerAllowedZone {
+  id        String @id @default(uuid())
+  tenantId  String
+  partnerId String
+  partner   User   @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  zoneId String
+  zone   Zone   @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+
+  // Which airport / hub does this allowance apply from? (mirrors VehicleTypeZonePrice.baseLocation)
+  baseLocation String @default("AYT")
+
+  // Admin can deactivate without deleting price history
+  isActive Boolean @default(true)
+
+  // Optional ceiling — admin may cap how much partner can charge in this zone
+  maxPriceCap Decimal? @db.Decimal(10, 2)
+
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([partnerId, zoneId, baseLocation])
+  @@index([tenantId, partnerId])
+}
+
+model PartnerZonePrice {
+  id        String @id @default(uuid())
+  tenantId  String
+  partnerId String
+  partner   User   @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  vehicleTypeId String
+  vehicleType   VehicleType @relation(fields: [vehicleTypeId], references: [id], onDelete: Cascade)
+
+  zoneId String
+  zone   Zone   @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+
+  baseLocation String @default("AYT")
+
+  // Prices given by the partner for this combination
+  price        Decimal  @db.Decimal(10, 2)
+  childPrice   Decimal? @db.Decimal(10, 2)
+  babyPrice    Decimal? @db.Decimal(10, 2)
+  fixedPrice   Decimal? @db.Decimal(10, 2) // overrides per-pax
+  extraKmPrice Decimal? @db.Decimal(10, 2)
+
+  currency String  @default("EUR")
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([partnerId, vehicleTypeId, zoneId, baseLocation])
+  @@index([tenantId, partnerId])
+}
+
+// Pre-declared for Phase 3 (UETDS module). Kept here so PartnerProfile/User relations compile.
+model UetdsSubmission {
+  id        String @id @default(uuid())
+  tenantId  String
+  partnerId String
+  partner   User   @relation("PartnerUetdsSubmissions", fields: [partnerId], references: [id], onDelete: Cascade)
+
+  bookingId String?
+  vehicleId String?
+  driverId  String?
+
+  // Provider-side identifiers
+  uetdsRefNo   String? // Reference returned by UNet
+  uetdsSeferId String? // SeferId from UNet response
+
+  status       UetdsSubmissionStatus @default(PENDING)
+  errorMessage String?
+
+  // Audit
+  request  Json?
+  response Json?
+
+  submittedAt DateTime?
+  cancelledAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId, partnerId])
+  @@index([bookingId])
+}
+
+enum UetdsSubmissionStatus {
+  PENDING
+  SENT
+  REJECTED
+  CANCELLED
 }
