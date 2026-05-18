@@ -3269,6 +3269,7 @@ export default function OperationsPage() {
                                     showSearch
                                     allowClear
                                     optionFilterProp="label"
+                                    value={filters.driver === 'ALL' ? undefined : filters.driver}
                                     options={drivers.map((d: any) => ({
                                         value: d.user?.id || d.id,
                                         label: `${d.firstName || ''} ${d.lastName || ''}`.trim() || d.id
@@ -3284,19 +3285,12 @@ export default function OperationsPage() {
                                     showSearch
                                     allowClear
                                     optionFilterProp="label"
+                                    value={filters.vehicle === 'ALL' ? undefined : filters.vehicle}
                                     options={vehicles.map((v: any) => ({
                                         value: v.id,
                                         label: `${v.plateNumber} - ${v.model || v.vehicleType || ''}`
                                     }))}
                                     onChange={(val) => setFilters(prev => ({ ...prev, vehicle: val || 'ALL' }))}
-                                />
-                            </Col>
-                            <Col xs={12} sm={6} md={3} lg={2}>
-                                <Select size="small" style={{ width: '100%' }} placeholder="Durum" allowClear
-                                    options={[
-                                        { value: 'active', label: '🟢 Aktif' },
-                                        { value: 'cancelled', label: '🔴 İptal' },
-                                    ]}
                                 />
                             </Col>
                             <Col xs={12} sm={8} md={4} lg={3}>
@@ -3472,6 +3466,9 @@ export default function OperationsPage() {
                         <DndContext onDragEnd={handleShuttleDragEnd}>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                                 {shuttleRuns.map((run: any) => {
+                                    // Run-level filters: Driver / Vehicle (apply at run level since shuttle assigns at run)
+                                    if (filters.driver !== 'ALL' && run.driverId !== filters.driver) return null;
+                                    if (filters.vehicle !== 'ALL' && run.vehicleId !== filters.vehicle) return null;
                                     // Apply per-passenger filters (agency, bookingType, zones, pickup/dropoff text)
                                     const filteredBookings = (run.bookings || []).filter((b: any) => {
                                         // Agency filter

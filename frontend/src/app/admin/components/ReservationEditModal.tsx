@@ -162,6 +162,10 @@ const ReservationEditModal: React.FC<ReservationEditModalProps> = ({ open, booki
                 contactName, contactPhone, contactEmail,
                 pickupDateTime: pickupDateTime ? pickupDateTime.toISOString() : undefined,
                 pickupLocation, dropoffLocation,
+                pickupLat: pickupCoords?.lat ?? null,
+                pickupLng: pickupCoords?.lng ?? null,
+                dropoffLat: dropoffCoords?.lat ?? null,
+                dropoffLng: dropoffCoords?.lng ?? null,
                 flightNumber, notes,
                 passengerDetails: paxList.map(p => ({
                     firstName: p.firstName, lastName: p.lastName,
@@ -297,7 +301,7 @@ const ReservationEditModal: React.FC<ReservationEditModalProps> = ({ open, booki
                                         </Text>
                                         <DynamicLocationSearchInput
                                             value={pickupLocation}
-                                            onChange={(v) => setPickupLocation(v)}
+                                            onChange={(v) => { setPickupLocation(v); setPickupCoords(null); }}
                                             onSelect={(addr, lat, lng) => { setPickupLocation(addr); if (lat && lng) setPickupCoords({ lat, lng }); }}
                                             onMapClick={() => openMap('pickup')}
                                             placeholder="Alış noktasını ara veya haritada seç..."
@@ -310,7 +314,7 @@ const ReservationEditModal: React.FC<ReservationEditModalProps> = ({ open, booki
                                         </Text>
                                         <DynamicLocationSearchInput
                                             value={dropoffLocation}
-                                            onChange={(v) => setDropoffLocation(v)}
+                                            onChange={(v) => { setDropoffLocation(v); setDropoffCoords(null); }}
                                             onSelect={(addr, lat, lng) => { setDropoffLocation(addr); if (lat && lng) setDropoffCoords({ lat, lng }); }}
                                             onMapClick={() => openMap('dropoff')}
                                             placeholder="Bırakış noktasını ara veya haritada seç..."

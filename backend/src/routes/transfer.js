@@ -2704,6 +2704,7 @@ router.patch('/bookings/:id', authMiddleware, async (req, res) => {
         const { driverId, assignedVehicleId, skipConflictCheck, internalNotes, returnToReservation, returnReason,
                 // Inline cell editing fields:
                 contactName, contactEmail, contactPhone, pickupDateTime, pickupLocation, dropoffLocation,
+                pickupLat, pickupLng, dropoffLat, dropoffLng,
                 flightNumber, flightTime, adults, children, infants, price, status: newStatus, operationalStatus,
                 notes,
                 // Passenger details:
@@ -2867,6 +2868,47 @@ router.patch('/bookings/:id', authMiddleware, async (req, res) => {
         // Handle inline cell editing fields
         if (pickupLocation !== undefined) newMetadata.pickup = pickupLocation;
         if (dropoffLocation !== undefined) newMetadata.dropoff = dropoffLocation;
+        if (pickupLat !== undefined) newMetadata.pickupLat = pickupLat != null ? Number(pickupLat) : null;
+        if (pickupLng !== undefined) newMetadata.pickupLng = pickupLng != null ? Number(pickupLng) : null;
+        if (dropoffLat !== undefined) newMetadata.dropoffLat = dropoffLat != null ? Number(dropoffLat) : null;
+        if (dropoffLng !== undefined) newMetadata.dropoffLng = dropoffLng != null ? Number(dropoffLng) : null;
+
+        // ── Recompute region codes & tripType when pickup/dropoff/coords change ──
+        const pickupChanged = pickupLocation !== undefined || pickupLat !== undefined || pickupLng !== undefined;
+        const dropoffChanged = dropoffLocation !== undefined || dropoffLat !== undefined || dropoffLng !== undefined;
+        if (pickupChanged || dropoffChanged) {
+            try {
+                const tenantIdForZones = currentBooking.tenantId || req.tenant?.id;
+                const hubsForRegion = await loadTenantHubs(tenantIdForZones);
+                const zonesForRegion = await prisma.zone.findMany({
+                    where: { tenantId: tenantIdForZones, code: { not: null } },
+                    select: { id: true, code: true, name: true, keywords: true, polygon: true }
+                });
+                const airportZones = hubsForRegion.filter(h => h.isAirport);
+
+                const effPickup = newMetadata.pickup || '';
+                const effDropoff = newMetadata.dropoff || '';
+                const effPickupLat = newMetadata.pickupLat;
+                const effPickupLng = newMetadata.pickupLng;
+                const effDropoffLat = newMetadata.dropoffLat;
+                const effDropoffLng = newMetadata.dropoffLng;
+
+                if (pickupChanged) {
+                    const newPickupRegionCode = detectRegionCodeByPolygon(effPickupLat, effPickupLng, effPickup, zonesForRegion, hubsForRegion);
+                    newMetadata.pickupRegionCode = newPickupRegionCode || null;
+                }
+                if (dropoffChanged) {
+                    const newDropoffRegionCode = detectRegionCodeByPolygon(effDropoffLat, effDropoffLng, effDropoff, zonesForRegion, hubsForRegion);
+                    newMetadata.dropoffRegionCode = newDropoffRegionCode || null;
+                }
+                // Recompute tripType (DEP / ARV / ARA) based on which side is airport
+                newMetadata.tripType = getTripType(effPickup, effDropoff, airportZones);
+                console.log(`[PATCH booking] Recomputed regions: pickup=${newMetadata.pickupRegionCode} dropoff=${newMetadata.dropoffRegionCode} tripType=${newMetadata.tripType}`);
+            } catch (regionErr) {
+                console.error('[PATCH booking] Region recomputation failed:', regionErr.message);
+            }
+        }
+
         if (flightNumber !== undefined) newMetadata.flightNumber = flightNumber;
         if (flightTime !== undefined) newMetadata.flightTime = flightTime;
         if (internalNotes !== undefined) newMetadata.internalNotes = internalNotes;
