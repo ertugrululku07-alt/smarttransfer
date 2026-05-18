@@ -6161,4 +6161,364 @@ router.get('/partner/uetds-submissions', authMiddleware, async (req, res) => {
     }
 });
 
+// ============================================================================
+// PARTNER FINANCE (Isolated – never touches admin Account/Transaction/Kasa)
+// ============================================================================
+
+const PARTNER_FINANCE_CATEGORIES = {
+    INCOME: [
+        { value: 'BOOKING_INCOME', label: 'Transfer Geliri' },
+        { value: 'OTHER_INCOME', label: 'Diğer Gelir' },
+    ],
+    EXPENSE: [
+        { value: 'FUEL', label: 'Yakıt' },
+        { value: 'MAINTENANCE', label: 'Bakım-Onarım' },
+        { value: 'INSURANCE', label: 'Sigorta' },
+        { value: 'TAX', label: 'Vergi' },
+        { value: 'PENALTY', label: 'Ceza' },
+        { value: 'SALARY', label: 'Maaş' },
+        { value: 'ADVANCE', label: 'Avans' },
+        { value: 'BONUS', label: 'Prim' },
+        { value: 'TOLL', label: 'HGS/OGS' },
+        { value: 'PARKING', label: 'Otopark' },
+        { value: 'CLEANING', label: 'Yıkama/Temizlik' },
+        { value: 'SPARE_PARTS', label: 'Yedek Parça' },
+        { value: 'TIRE', label: 'Lastik' },
+        { value: 'RENT', label: 'Kira' },
+        { value: 'OTHER_EXPENSE', label: 'Diğer Gider' },
+    ],
+};
+
+/**
+ * GET /api/transfer/partner/finance/categories
+ * Returns available categories grouped by type.
+ */
+router.get('/partner/finance/categories', authMiddleware, async (req, res) => {
+    if (req.user.roleType !== 'PARTNER') {
+        return res.status(403).json({ success: false, error: 'Yalnızca partner kullanıcılar erişebilir' });
+    }
+    res.json({ success: true, data: PARTNER_FINANCE_CATEGORIES });
+});
+
+/**
+ * GET /api/transfer/partner/finance
+ * List finance entries with optional filters.
+ * Query: type, category, dateFrom, dateTo, search, page, pageSize
+ */
+router.get('/partner/finance', authMiddleware, async (req, res) => {
+    try {
+        if (req.user.roleType !== 'PARTNER') {
+            return res.status(403).json({ success: false, error: 'Yalnızca partner kullanıcılar erişebilir' });
+        }
+        const partnerId = req.user.id;
+        const tenantId = req.tenant?.id || req.user.tenantId;
+        const { type, category, dateFrom, dateTo, search, page = '1', pageSize = '50' } = req.query;
+
+        const where = { tenantId, partnerId };
+        if (type) where.type = type;
+        if (category) where.category = category;
+        if (dateFrom || dateTo) {
+            where.date = {};
+            if (dateFrom) where.date.gte = new Date(dateFrom);
+            if (dateTo) where.date.lte = new Date(new Date(dateTo).getTime() + 86400000);
+        }
+        if (search) {
+            where.OR = [
+                { description: { contains: search, mode: 'insensitive' } },
+                { receiptNo: { contains: search, mode: 'insensitive' } },
+                { notes: { contains: search, mode: 'insensitive' } },
+            ];
+        }
+
+        const skip = (parseInt(page) - 1) * parseInt(pageSize);
+        const [entries, total] = await Promise.all([
+            prisma.partnerFinanceEntry.findMany({
+                where,
+                orderBy: { date: 'desc' },
+                take: parseInt(pageSize),
+                skip,
+            }),
+            prisma.partnerFinanceEntry.count({ where }),
+        ]);
+
+        res.json({ success: true, data: entries, total, page: parseInt(page), pageSize: parseInt(pageSize) });
+    } catch (error) {
+        console.error('Partner finance list error:', error);
+        res.status(500).json({ success: false, error: 'Finans kayıtları alınamadı' });
+    }
+});
+
+/**
+ * GET /api/transfer/partner/finance/stats
+ * Dashboard stats: totals by type and category, monthly trend.
+ * Query: dateFrom, dateTo (optional, defaults to current month)
+ */
+router.get('/partner/finance/stats', authMiddleware, async (req, res) => {
+    try {
+        if (req.user.roleType !== 'PARTNER') {
+            return res.status(403).json({ success: false, error: 'Yalnızca partner kullanıcılar erişebilir' });
+        }
+        const partnerId = req.user.id;
+        const tenantId = req.tenant?.id || req.user.tenantId;
+        const now = new Date();
+        const dateFrom = req.query.dateFrom ? new Date(req.query.dateFrom) : new Date(now.getFullYear(), now.getMonth(), 1);
+        const dateTo = req.query.dateTo ? new Date(new Date(req.query.dateTo).getTime() + 86400000) : new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+
+        const where = { tenantId, partnerId, date: { gte: dateFrom, lte: dateTo } };
+
+        const entries = await prisma.partnerFinanceEntry.findMany({ where, orderBy: { date: 'asc' } });
+
+        let totalIncome = 0, totalExpense = 0;
+        const byCategory = {};
+        const byCurrency = {};
+        const monthlyTrend = {};
+        const driverExpenses = {};
+        const vehicleExpenses = {};
+
+        entries.forEach(e => {
+            const amt = Number(e.amount || 0);
+            const cur = e.currency || 'TRY';
+
+            if (e.type === 'INCOME') totalIncome += amt;
+            else totalExpense += amt;
+
+            // By category
+            if (!byCategory[e.category]) byCategory[e.category] = { income: 0, expense: 0 };
+            if (e.type === 'INCOME') byCategory[e.category].income += amt;
+            else byCategory[e.category].expense += amt;
+
+            // By currency
+            if (!byCurrency[cur]) byCurrency[cur] = { income: 0, expense: 0 };
+            if (e.type === 'INCOME') byCurrency[cur].income += amt;
+            else byCurrency[cur].expense += amt;
+
+            // Monthly trend
+            const monthKey = `${e.date.getFullYear()}-${String(e.date.getMonth() + 1).padStart(2, '0')}`;
+            if (!monthlyTrend[monthKey]) monthlyTrend[monthKey] = { income: 0, expense: 0 };
+            if (e.type === 'INCOME') monthlyTrend[monthKey].income += amt;
+            else monthlyTrend[monthKey].expense += amt;
+
+            // Driver expense breakdown
+            if (e.relatedDriverId && e.type === 'EXPENSE') {
+                if (!driverExpenses[e.relatedDriverId]) driverExpenses[e.relatedDriverId] = 0;
+                driverExpenses[e.relatedDriverId] += amt;
+            }
+
+            // Vehicle expense breakdown
+            if (e.relatedVehicleId && e.type === 'EXPENSE') {
+                if (!vehicleExpenses[e.relatedVehicleId]) vehicleExpenses[e.relatedVehicleId] = 0;
+                vehicleExpenses[e.relatedVehicleId] += amt;
+            }
+        });
+
+        res.json({
+            success: true,
+            data: {
+                totalIncome,
+                totalExpense,
+                netProfit: totalIncome - totalExpense,
+                entryCount: entries.length,
+                byCategory,
+                byCurrency,
+                monthlyTrend,
+                driverExpenses,
+                vehicleExpenses,
+            },
+        });
+    } catch (error) {
+        console.error('Partner finance stats error:', error);
+        res.status(500).json({ success: false, error: 'İstatistikler alınamadı' });
+    }
+});
+
+/**
+ * POST /api/transfer/partner/finance
+ * Create a new finance entry.
+ */
+router.post('/partner/finance', authMiddleware, async (req, res) => {
+    try {
+        if (req.user.roleType !== 'PARTNER') {
+            return res.status(403).json({ success: false, error: 'Yalnızca partner kullanıcılar erişebilir' });
+        }
+        const partnerId = req.user.id;
+        const tenantId = req.tenant?.id || req.user.tenantId;
+        const {
+            type, category, amount, currency, description, date,
+            relatedBookingId, relatedDriverId, relatedVehicleId,
+            paymentMethod, receiptNo, notes,
+        } = req.body;
+
+        if (!type || !category || !amount) {
+            return res.status(400).json({ success: false, error: 'Tür, kategori ve tutar zorunludur' });
+        }
+
+        // Validate driver belongs to this partner
+        if (relatedDriverId) {
+            const driver = await prisma.user.findFirst({ where: { id: relatedDriverId, partnerId } });
+            if (!driver) return res.status(400).json({ success: false, error: 'Geçersiz şoför' });
+        }
+
+        // Validate vehicle belongs to this partner
+        if (relatedVehicleId) {
+            const vehicle = await prisma.vehicle.findFirst({ where: { id: relatedVehicleId, userId: partnerId } });
+            if (!vehicle) return res.status(400).json({ success: false, error: 'Geçersiz araç' });
+        }
+
+        const entry = await prisma.partnerFinanceEntry.create({
+            data: {
+                tenantId,
+                partnerId,
+                type,
+                category,
+                amount: parseFloat(amount),
+                currency: currency || 'TRY',
+                description: description || null,
+                date: date ? new Date(date) : new Date(),
+                relatedBookingId: relatedBookingId || null,
+                relatedDriverId: relatedDriverId || null,
+                relatedVehicleId: relatedVehicleId || null,
+                paymentMethod: paymentMethod || null,
+                receiptNo: receiptNo || null,
+                notes: notes || null,
+            },
+        });
+
+        res.json({ success: true, data: entry, message: 'Finans kaydı oluşturuldu' });
+    } catch (error) {
+        console.error('Partner finance create error:', error);
+        res.status(500).json({ success: false, error: 'Kayıt oluşturulamadı: ' + error.message });
+    }
+});
+
+/**
+ * PUT /api/transfer/partner/finance/:id
+ * Update a finance entry.
+ */
+router.put('/partner/finance/:id', authMiddleware, async (req, res) => {
+    try {
+        if (req.user.roleType !== 'PARTNER') {
+            return res.status(403).json({ success: false, error: 'Yalnızca partner kullanıcılar erişebilir' });
+        }
+        const partnerId = req.user.id;
+        const existing = await prisma.partnerFinanceEntry.findFirst({
+            where: { id: req.params.id, partnerId },
+        });
+        if (!existing) return res.status(404).json({ success: false, error: 'Kayıt bulunamadı' });
+
+        const {
+            type, category, amount, currency, description, date,
+            relatedBookingId, relatedDriverId, relatedVehicleId,
+            paymentMethod, receiptNo, notes,
+        } = req.body;
+
+        const updateData = {};
+        if (type) updateData.type = type;
+        if (category) updateData.category = category;
+        if (amount !== undefined) updateData.amount = parseFloat(amount);
+        if (currency) updateData.currency = currency;
+        if (description !== undefined) updateData.description = description;
+        if (date) updateData.date = new Date(date);
+        if (relatedBookingId !== undefined) updateData.relatedBookingId = relatedBookingId || null;
+        if (relatedDriverId !== undefined) updateData.relatedDriverId = relatedDriverId || null;
+        if (relatedVehicleId !== undefined) updateData.relatedVehicleId = relatedVehicleId || null;
+        if (paymentMethod !== undefined) updateData.paymentMethod = paymentMethod || null;
+        if (receiptNo !== undefined) updateData.receiptNo = receiptNo || null;
+        if (notes !== undefined) updateData.notes = notes || null;
+
+        const entry = await prisma.partnerFinanceEntry.update({
+            where: { id: req.params.id },
+            data: updateData,
+        });
+
+        res.json({ success: true, data: entry, message: 'Kayıt güncellendi' });
+    } catch (error) {
+        console.error('Partner finance update error:', error);
+        res.status(500).json({ success: false, error: 'Güncelleme başarısız' });
+    }
+});
+
+/**
+ * DELETE /api/transfer/partner/finance/:id
+ * Delete a finance entry.
+ */
+router.delete('/partner/finance/:id', authMiddleware, async (req, res) => {
+    try {
+        if (req.user.roleType !== 'PARTNER') {
+            return res.status(403).json({ success: false, error: 'Yalnızca partner kullanıcılar erişebilir' });
+        }
+        const partnerId = req.user.id;
+        const existing = await prisma.partnerFinanceEntry.findFirst({
+            where: { id: req.params.id, partnerId },
+        });
+        if (!existing) return res.status(404).json({ success: false, error: 'Kayıt bulunamadı' });
+
+        await prisma.partnerFinanceEntry.delete({ where: { id: req.params.id } });
+        res.json({ success: true, message: 'Kayıt silindi' });
+    } catch (error) {
+        console.error('Partner finance delete error:', error);
+        res.status(500).json({ success: false, error: 'Silme başarısız' });
+    }
+});
+
+/**
+ * POST /api/transfer/partner/finance/sync-bookings
+ * Auto-creates BOOKING_INCOME entries for completed bookings that don't have one yet.
+ */
+router.post('/partner/finance/sync-bookings', authMiddleware, async (req, res) => {
+    try {
+        if (req.user.roleType !== 'PARTNER') {
+            return res.status(403).json({ success: false, error: 'Yalnızca partner kullanıcılar erişebilir' });
+        }
+        const partnerId = req.user.id;
+        const tenantId = req.tenant?.id || req.user.tenantId;
+
+        // Find completed bookings for this partner
+        const completedBookings = await prisma.booking.findMany({
+            where: {
+                tenantId,
+                status: { in: ['COMPLETED', 'completed'] },
+                OR: [
+                    { driverId: partnerId },
+                    { metadata: { path: ['partnerId'], equals: partnerId } },
+                ],
+            },
+            select: { id: true, bookingNumber: true, totalPrice: true, currency: true, startDate: true, contactName: true },
+        });
+
+        if (completedBookings.length === 0) {
+            return res.json({ success: true, data: { synced: 0 }, message: 'Senkronize edilecek rezervasyon yok' });
+        }
+
+        // Check which already have entries
+        const existingEntries = await prisma.partnerFinanceEntry.findMany({
+            where: { partnerId, category: 'BOOKING_INCOME', relatedBookingId: { in: completedBookings.map(b => b.id) } },
+            select: { relatedBookingId: true },
+        });
+        const existingIds = new Set(existingEntries.map(e => e.relatedBookingId));
+
+        const toCreate = completedBookings.filter(b => !existingIds.has(b.id));
+
+        if (toCreate.length > 0) {
+            await prisma.partnerFinanceEntry.createMany({
+                data: toCreate.map(b => ({
+                    tenantId,
+                    partnerId,
+                    type: 'INCOME',
+                    category: 'BOOKING_INCOME',
+                    amount: Number(b.totalPrice || 0),
+                    currency: b.currency || 'TRY',
+                    description: `${b.bookingNumber} - ${b.contactName || 'Müşteri'}`,
+                    date: b.startDate || new Date(),
+                    relatedBookingId: b.id,
+                })),
+            });
+        }
+
+        res.json({ success: true, data: { synced: toCreate.length }, message: `${toCreate.length} rezervasyon geliri senkronize edildi` });
+    } catch (error) {
+        console.error('Partner finance sync error:', error);
+        res.status(500).json({ success: false, error: 'Senkronizasyon başarısız' });
+    }
+});
+
 module.exports = router;

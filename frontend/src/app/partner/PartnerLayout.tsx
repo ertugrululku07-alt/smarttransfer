@@ -16,7 +16,8 @@ import {
     CloseOutlined,
     EnvironmentOutlined,
     PlusCircleOutlined,
-    SafetyCertificateOutlined
+    SafetyCertificateOutlined,
+    WalletOutlined
 } from '@ant-design/icons';
 
 interface PartnerLayoutProps {
@@ -67,6 +68,7 @@ const PartnerLayout: React.FC<PartnerLayoutProps> = ({ children }) => {
         { key: 'completed', label: 'Tamamlanmış', icon: <CheckCircleOutlined />, path: '/partner/completed', section: 'main' },
         { key: 'zones', label: 'Bölgelerim & Fiyatlarım', icon: <EnvironmentOutlined />, path: '/partner/zones', section: 'main' },
         { key: 'uetds', label: 'UETDS', icon: <SafetyCertificateOutlined />, path: '/partner/uetds', section: 'main' },
+        { key: 'finance', label: 'Muhasebe', icon: <WalletOutlined />, path: '/partner/finance', section: 'finance' },
         { key: 'earnings', label: 'Kazancım', icon: <DollarOutlined />, path: '/partner/earnings', section: 'finance' },
         { key: 'settings', label: 'Ayarlar', icon: <SettingOutlined />, path: '/partner/settings', section: 'system' },
     ];

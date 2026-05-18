@@ -213,6 +213,7 @@ model User {
   partnerAllowedZones    PartnerAllowedZone[]
   partnerZonePrices      PartnerZonePrice[]
   uetdsSubmissions       UetdsSubmission[]       @relation("PartnerUetdsSubmissions")
+  partnerFinanceEntries  PartnerFinanceEntry[]   @relation("PartnerFinanceEntries")
   // Financial Snapshot
   balance                Decimal                 @default(0) @db.Decimal(15, 2)
   debit                  Decimal                 @default(0) @db.Decimal(15, 2)
@@ -2305,4 +2306,72 @@ enum UetdsSubmissionStatus {
   SENT
   REJECTED
   CANCELLED
+}
+
+// ============================================================================
+// MODULE: PARTNER FINANCE (Isolated per partner – does NOT affect admin accounting)
+// ============================================================================
+
+model PartnerFinanceEntry {
+  id        String @id @default(uuid())
+  tenantId  String
+  partnerId String
+  partner   User   @relation("PartnerFinanceEntries", fields: [partnerId], references: [id], onDelete: Cascade)
+
+  type      PartnerFinanceType            // INCOME or EXPENSE
+  category  PartnerFinanceCategory
+
+  amount    Decimal  @db.Decimal(12, 2)
+  currency  String   @default("TRY")
+
+  description String?
+  date        DateTime @default(now())
+
+  // Optional links
+  relatedBookingId String?  // Booking reference (income from a job)
+  relatedDriverId  String?  // Driver reference (salary/advance payment)
+  relatedVehicleId String?  // Vehicle reference (fuel, maintenance)
+
+  // Payment info
+  paymentMethod String?  // CASH, BANK_TRANSFER, CREDIT_CARD
+  receiptNo     String?  // Receipt or invoice number
+
+  notes     String?
+  metadata  Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId, partnerId])
+  @@index([partnerId, type])
+  @@index([partnerId, category])
+  @@index([partnerId, date])
+}
+
+enum PartnerFinanceType {
+  INCOME
+  EXPENSE
+}
+
+enum PartnerFinanceCategory {
+  // Income categories
+  BOOKING_INCOME      // Transfer geliri
+  OTHER_INCOME        // Diğer gelir
+
+  // Expense categories
+  FUEL                // Yakıt
+  MAINTENANCE         // Bakım-Onarım
+  INSURANCE           // Sigorta
+  TAX                 // Vergi
+  PENALTY             // Ceza
+  SALARY              // Maaş
+  ADVANCE             // Avans
+  BONUS               // Prim
+  TOLL                // HGS/OGS
+  PARKING             // Otopark
+  CLEANING            // Yıkama/Temizlik
+  SPARE_PARTS         // Yedek Parça
+  TIRE                // Lastik
+  RENT                // Kira
+  OTHER_EXPENSE       // Diğer gider
 }
