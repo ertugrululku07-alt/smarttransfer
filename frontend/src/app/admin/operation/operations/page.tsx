@@ -3426,7 +3426,54 @@ export default function OperationsPage() {
                     {operationsMode === 'private' && (
                     <div style={{ flex: 1, overflow: 'auto', padding: '16px 20px' }}>
                         <OperationsTable
-                            bookings={bookings.filter((b: any) => b.status !== 'COMPLETED')}
+                            bookings={bookings.filter((b: any) => {
+                                if (b.status === 'COMPLETED') return false;
+                                // Driver filter
+                                if (filters.driver !== 'ALL') {
+                                    const did = b.driverId || b.driver?.id || b.driver?.user?.id;
+                                    if (did !== filters.driver) return false;
+                                }
+                                // Vehicle filter
+                                if (filters.vehicle !== 'ALL') {
+                                    const vid = b.assignedVehicleId || b.vehicleId || b.metadata?.assignedVehicleId || b.metadata?.vehicleId;
+                                    if (vid !== filters.vehicle) return false;
+                                }
+                                // Agency filter
+                                if (filters.agency !== 'ALL') {
+                                    const aName = b.agencyName || b.agency?.name || b.partnerName || '';
+                                    if (filters.agency === 'DIRECT') {
+                                        if (aName) return false;
+                                    } else if (aName !== filters.agency) {
+                                        return false;
+                                    }
+                                }
+                                // Booking type filter
+                                if (filters.bookingType !== 'ALL') {
+                                    const bt = (b.bookingType || (b.agencyId ? 'B2B' : (b.metadata?.creationSource === 'ADMIN_MANUAL' ? 'SYSTEM' : 'DIRECT'))).toUpperCase();
+                                    if (bt !== filters.bookingType) return false;
+                                }
+                                // Pickup zone filter
+                                if (filters.pickupZone !== 'ALL') {
+                                    const pz = b.pickupRegionCode || b.metadata?.pickupRegionCode || '';
+                                    if (pz !== filters.pickupZone) return false;
+                                }
+                                // Dropoff zone filter
+                                if (filters.dropoffZone !== 'ALL') {
+                                    const dz = b.dropoffRegionCode || b.metadata?.dropoffRegionCode || '';
+                                    if (dz !== filters.dropoffZone) return false;
+                                }
+                                // Pickup text search
+                                if (filters.pickup) {
+                                    const p = (b.pickup || b.metadata?.pickup || '').toLowerCase();
+                                    if (!p.includes(filters.pickup.toLowerCase())) return false;
+                                }
+                                // Dropoff text search
+                                if (filters.dropoff) {
+                                    const d = (b.dropoff || b.metadata?.dropoff || '').toLowerCase();
+                                    if (!d.includes(filters.dropoff.toLowerCase())) return false;
+                                }
+                                return true;
+                            })}
                             loading={loading}
                             drivers={drivers}
                             vehicles={vehicles}
