@@ -29,8 +29,8 @@ import {
 } from '@ant-design/icons';
 import { useRouter } from 'next/navigation';
 import apiClient from '@/lib/api-client';
-import PartnerGuard from '../../../PartnerGuard';
-import PartnerLayout from '../../../PartnerLayout';
+import PartnerGuard from '../../PartnerGuard';
+import PartnerLayout from '../../PartnerLayout';
 import dayjs from 'dayjs';
 
 const { Title, Text } = Typography;

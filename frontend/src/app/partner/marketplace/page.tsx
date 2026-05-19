@@ -28,8 +28,8 @@ import {
     SwapRightOutlined
 } from '@ant-design/icons';
 import apiClient from '@/lib/api-client';
-import PartnerGuard from '../../../PartnerGuard';
-import PartnerLayout from '../../../PartnerLayout';
+import PartnerGuard from '../PartnerGuard';
+import PartnerLayout from '../PartnerLayout';
 import dayjs from 'dayjs';
 import 'dayjs/locale/tr';
 

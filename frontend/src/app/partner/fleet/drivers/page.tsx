@@ -27,8 +27,8 @@ import {
 } from '@ant-design/icons';
 import { Avatar } from 'antd';
 import apiClient from '@/lib/api-client';
-import PartnerGuard from '../../../PartnerGuard';
-import PartnerLayout from '../../../PartnerLayout';
+import PartnerGuard from '../../PartnerGuard';
+import PartnerLayout from '../../PartnerLayout';
 
 const { Title, Text } = Typography;
 const { Option } = Select;

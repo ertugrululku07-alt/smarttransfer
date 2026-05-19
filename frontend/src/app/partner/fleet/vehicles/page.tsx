@@ -32,8 +32,8 @@ import {
 } from '@ant-design/icons';
 import { Avatar, Tooltip } from 'antd';
 import apiClient, { getImageUrl } from '@/lib/api-client';
-import PartnerGuard from '../../../PartnerGuard';
-import PartnerLayout from '../../../PartnerLayout';
+import PartnerGuard from '../../PartnerGuard';
+import PartnerLayout from '../../PartnerLayout';
 
 const { Title, Text } = Typography;
 const { Option } = Select;

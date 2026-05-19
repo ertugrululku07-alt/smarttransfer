@@ -3,8 +3,8 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useSocket } from '@/app/context/SocketContext';
 import apiClient from '@/lib/api-client';
-import PartnerGuard from '../../PartnerGuard';
-import PartnerLayout from '../../PartnerLayout';
+import PartnerGuard from '../PartnerGuard';
+import PartnerLayout from '../PartnerLayout';
 import { Badge, Spin, Input, Typography, Empty, Tooltip } from 'antd';
 import {
     DashboardOutlined, EnvironmentOutlined, ClockCircleOutlined,
