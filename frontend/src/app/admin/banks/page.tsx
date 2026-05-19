@@ -30,7 +30,6 @@ interface Bank {
     status: boolean;
     accounts: BankAccount[];
 }
-
 interface BankAccount {
     id: string;
     bankId: string;

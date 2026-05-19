@@ -873,75 +873,81 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
             }
             console.log(`[ShuttlePickupPass] "${route.fromName}→${route.toName}" pickup matched`);
 
-            // 2. DROPOFF Location Check (to → user's dropoff)
+            // 2. DROPOFF Location Check (to → user's dropoff) — STRICT POLYGON MODE
+            // When dropoff coordinates are present, the ONLY way to match is for the
+            // dropoff point to be inside the route's destination zone polygon (or the
+            // route's own dropoffPolygon if defined). Hub-code / text equality is used
+            // ONLY as a hint to locate the destination zone; it never grants a match
+            // by itself. This mirrors the strict pickup logic and prevents adjacent
+            // sub-zones / loose airport hub matches from sneaking through.
             let isDropoffMatch = false;
-
             const routeMeta = route.metadata || {};
             const routeToHubCode = routeMeta.toHubCode;
-            // 2a. Try hub code match first
-            if (routeToHubCode && originalDropoffHubCode && originalDropoffHubCode === routeToHubCode) {
-                isDropoffMatch = true;
-            }
-            // 2b. Fallback: text matching + hub keyword matching (STRICT — primary token equality only).
-            //     Loose `.includes()` previously made generic "Alanya" match every sub-zone route
-            //     ("OBA ALANYA", "TOSMUR ALANYA", ...). We now require an exact match of the
-            //     primary token (first comma/slash segment, normalized).
-            if (!isDropoffMatch) {
-                const routeTo = normalizeLocation(route.toName);
-                const routeToPrimary = routeTo.split(/[\/,]/)[0].trim();
-                isDropoffMatch = (routeToPrimary === dropoffPrimaryToken);
-                if (!isDropoffMatch && originalDropoffHubCode) {
-                    const dropoffHub = hubs.find(h => h.code === originalDropoffHubCode);
-                    if (dropoffHub) {
-                        // Compare each keyword against route's primary token using equality only.
-                        const hubKeys = dropoffHub.keywords ? dropoffHub.keywords.split(',').map(k => k.trim().toLowerCase()).filter(k => k) : [];
-                        hubKeys.push(dropoffHub.code.toLowerCase());
-                        if (dropoffHub.name) hubKeys.push(dropoffHub.name.toLowerCase());
-                        isDropoffMatch = hubKeys.some(k => k && (k === routeToPrimary || k === routeTo));
-                    }
-                }
-            }
 
-            if (isDropoffMatch) {
-                console.log(`[ShuttleMatch] Dropoff MATCHED for route "${route.fromName}→${route.toName}" via ${routeToHubCode ? `hubCode(route=${routeToHubCode},dropoff=${originalDropoffHubCode})` : 'text/hub-keyword'}`);
-            }
-            // 2b. Zone Polygon matching for Dropoff (ADDITIVE only — never rejects)
-            // Zone polygons define pricing boundaries, NOT shuttle service areas.
-            if (!isDropoffMatch && dropoffLat && dropoffLng) {
-                let dZone = null;
-                const dHubCode = routeToHubCode;
-                if (dHubCode) {
-                    dZone = zones.find(z => z.code && z.code.toUpperCase() === dHubCode.toUpperCase());
-                } else {
-                    const rn = route.toName.toLowerCase();
-                    dZone = zones.find(z => z.name.toLowerCase() === rn || (z.keywords && z.keywords.toLowerCase().includes(rn)));
-                }
+            if (dropoffLat && dropoffLng) {
+                const dropPt = turf.point([Number(dropoffLng), Number(dropoffLat)]);
 
-                if (dZone && dZone.polygon && dZone.polygon.length >= 3) {
+                // 2a. Route's own dropoffPolygon (highest priority, if configured)
+                if (route.dropoffPolygon) {
                     try {
-                        const dPoly = typeof dZone.polygon === 'string' ? JSON.parse(dZone.polygon) : dZone.polygon;
-                        let dPolyCoords = dPoly.map(p => [p.lng, p.lat]);
-                        if (dPolyCoords[0][0] !== dPolyCoords[dPolyCoords.length - 1][0] ||
-                            dPolyCoords[0][1] !== dPolyCoords[dPolyCoords.length - 1][1]) {
-                            dPolyCoords.push([...dPolyCoords[0]]);
-                        }
-                        const zonePoly = turf.polygon([dPolyCoords]);
-                        const dropPt = turf.point([Number(dropoffLng), Number(dropoffLat)]);
-
-                        if (turf.booleanPointInPolygon(dropPt, zonePoly)) {
-                            isDropoffMatch = true;
-                            console.log(`[ShuttleDropoff] Inside zone "${dZone.name}" polygon`);
-                        } else {
-                            // Tightened: previously a 3 km proximity allowance turned every adjacent
-                            // sub-zone into a match (Oba/Tosmur/Cikcilli all sit within 3 km of central
-                            // Alanya). Strict inside-polygon only — adjacency is no longer a match.
-                            const boundary = turf.polygonToLine(zonePoly);
-                            const distKm = turf.pointToLineDistance(dropPt, boundary, { units: 'kilometers' });
-                            console.log(`[ShuttleDropoffNoMatch] Dropoff ${distKm.toFixed(1)}km from zone "${dZone.name}" polygon → outside (strict)`);
+                        const polygon = typeof route.dropoffPolygon === 'string'
+                            ? JSON.parse(route.dropoffPolygon) : route.dropoffPolygon;
+                        if (Array.isArray(polygon) && polygon.length > 2) {
+                            let polyCoords = polygon.map(p => [p.lng, p.lat]);
+                            if (polyCoords[0][0] !== polyCoords[polyCoords.length - 1][0] ||
+                                polyCoords[0][1] !== polyCoords[polyCoords.length - 1][1]) {
+                                polyCoords.push([...polyCoords[0]]);
+                            }
+                            const poly = turf.polygon([polyCoords]);
+                            if (turf.booleanPointInPolygon(dropPt, poly)) {
+                                isDropoffMatch = true;
+                                console.log(`[ShuttleDropoff] Inside route's own dropoffPolygon`);
+                            }
                         }
                     } catch (err) {
-                        console.error('Shuttle dropoff zone polygon check error:', err.message);
+                        console.error('[ShuttlePolygonError] Route dropoffPolygon:', err.message);
                     }
+                }
+
+                // 2b. Route's destination zone polygon (located via toHubCode or toName)
+                if (!isDropoffMatch) {
+                    let dZone = null;
+                    if (routeToHubCode) {
+                        dZone = zones.find(z => z.code && z.code.toUpperCase() === routeToHubCode.toUpperCase());
+                    }
+                    if (!dZone) {
+                        const rn = (route.toName || '').toLowerCase().trim();
+                        if (rn) {
+                            dZone = zones.find(z => (z.name || '').toLowerCase().trim() === rn);
+                        }
+                    }
+                    if (dZone && Array.isArray(dZone.polygon) && dZone.polygon.length >= 3) {
+                        try {
+                            let dPolyCoords = dZone.polygon.map(p => [p.lng, p.lat]);
+                            if (dPolyCoords[0][0] !== dPolyCoords[dPolyCoords.length - 1][0] ||
+                                dPolyCoords[0][1] !== dPolyCoords[dPolyCoords.length - 1][1]) {
+                                dPolyCoords.push([...dPolyCoords[0]]);
+                            }
+                            const zonePoly = turf.polygon([dPolyCoords]);
+                            if (turf.booleanPointInPolygon(dropPt, zonePoly)) {
+                                isDropoffMatch = true;
+                                console.log(`[ShuttleDropoff] Inside destination zone "${dZone.name}" polygon`);
+                            }
+                        } catch (err) {
+                            console.error('[ShuttlePolygonError] Destination zone:', err.message);
+                        }
+                    }
+                }
+            } else {
+                // No dropoff coordinates — fall back to legacy hub-code / text equality
+                // (kept only for backwards compatibility with old clients that don't send coords).
+                if (routeToHubCode && originalDropoffHubCode && originalDropoffHubCode === routeToHubCode) {
+                    isDropoffMatch = true;
+                }
+                if (!isDropoffMatch) {
+                    const routeTo = normalizeLocation(route.toName);
+                    const routeToPrimary = routeTo.split(/[\/,]/)[0].trim();
+                    isDropoffMatch = (routeToPrimary === dropoffPrimaryToken);
                 }
             }
 
@@ -1171,139 +1177,30 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                     }
                 }
 
-                // ── KEYWORD FALLBACK: When polygon matching fails, try text-based zone matching ──
-                // This handles zones without polygons or when pickup is outside all zone polygons
-                if (!zonePriceConfig && (detectedBaseLocation || detectedDropoffBase)) {
-                    const basesToCheck = [detectedDropoffBase, detectedBaseLocation].filter(Boolean);
-                    const relevantPrices = (vt.zonePrices || []).filter(zp => basesToCheck.includes(zp.baseLocation));
-                    
-                    let bestKwScore = 0;
-                    let bestKwPos = Infinity; // Earlier position = more specific
-                    let bestKwConfig = null;
-                    let bestKwZoneId = null;
-                    
-                    for (const zp of relevantPrices) {
-                        const cfgFix = Number(zp.fixedPrice) || 0;
-                        const cfgPrice = Number(zp.price) || 0;
-                        if (cfgFix <= 0 && cfgPrice <= 0) continue;
-                        
-                        const zone = zones.find(z => z.id === zp.zoneId);
-                        if (!zone) continue;
-                        
-                        const zName = (zone.name || '').toLowerCase().trim();
-                        const zKeywords = (zone.keywords || '').split(',').map(k => k.trim().toLowerCase()).filter(k => k);
-                        const allKeys = [...zKeywords, zName].filter(k => k && k.length >= 3);
-                        
-                        // Check if pickup or dropoff text contains zone keywords
-                        let matchScore = 0;
-                        let matchPos = Infinity;
-                        for (const kw of allKeys) {
-                            const posInPickup = pickupTextRaw.indexOf(kw);
-                            const posInDropoff = dropoffTextRaw.indexOf(kw);
-                            if (posInPickup >= 0 || posInDropoff >= 0) {
-                                if (kw.length > matchScore) {
-                                    matchScore = kw.length;
-                                    matchPos = posInPickup >= 0 ? posInPickup : posInDropoff;
-                                } else if (kw.length === matchScore) {
-                                    const pos = posInPickup >= 0 ? posInPickup : posInDropoff;
-                                    if (pos < matchPos) matchPos = pos;
-                                }
-                            }
-                        }
-                        
-                        // Prefer: 1) highest score (longest keyword), 2) earliest position (more specific)
-                        if (matchScore > bestKwScore || (matchScore === bestKwScore && matchPos < bestKwPos)) {
-                            bestKwScore = matchScore;
-                            bestKwPos = matchPos;
-                            bestKwConfig = zp;
-                            bestKwZoneId = zp.zoneId;
-                        }
-                    }
-                    
-                    if (bestKwConfig) {
-                        zonePriceConfig = bestKwConfig;
-                        finalMatchedZoneId = bestKwZoneId;
-                        usedOverageDistanceKm = 0;
-                        console.log(`[ZoneKeywordFallback] vt=${vt.name}: Matched zone "${zones.find(z=>z.id===bestKwZoneId)?.name}" via keyword (score=${bestKwScore}, pos=${bestKwPos}, base=${bestKwConfig.baseLocation})`);
-                    }
-                }
 
                 console.log(`[ZoneSelect] vt=${vt.name}, finalMatchedZoneId=${finalMatchedZoneId}, usedOverageDistanceKm=${usedOverageDistanceKm}, extraKmPrice=${zonePriceConfig?.extraKmPrice}`);
 
+                // ── STRICT POLYGON GATE ──
+                // Zone-based pricing applies ONLY when BOTH pickup and dropoff coordinates
+                // fall inside zone polygons. There is NO proximity tolerance, NO text-based
+                // fallback, NO route-polyline crossing acceptance. Even 10 m outside a
+                // polygon counts as "outside" and forces a fall-through to the vehicle's
+                // km-based formula. If the vehicle has no km formula configured, pricing
+                // returns null and the vehicle is hidden from results.
+                //
+                // Rationale (per business rule): zone polygons sit very close to each other,
+                // so any leniency caused the system to pick the wrong zone and produce
+                // misleading prices.
                 if (zonePriceConfig && finalMatchedZoneId) {
-                    // ── ZONE RELEVANCE CHECK ──
-                    // Verify the matched zone name is semantically related to the actual pickup or dropoff.
-                    // E.g., zone "Alanya" should NOT apply pricing to a "Kemer" pickup.
-                    const zoneData = req.zoneOverages[finalMatchedZoneId];
-                    const zoneName = (zoneData?.zoneName || '').toLowerCase();
-                    const zoneCode = (zoneData?.zoneCode || '').toLowerCase();
-                    if (zoneName) {
-                        const tokenize = (s) => s.split(/[\s\/,()]+/).filter(t => t.length > 2);
-                        const zoneTokens = tokenize(zoneName);
-                        
-                        let isRelevant = false;
+                    const pickupInsideAnyZone = req.pickupZoneIds && req.pickupZoneIds.size > 0;
+                    const dropoffInsideAnyZone = Object.values(req.zoneOverages || {})
+                        .some(zd => zd && zd.distFromEnd === 0);
 
-                        // RULE 1: If the zone code matches a detected hub, always relevant
-                        const pickupHubLower = (originalPickupHubCode || '').toLowerCase();
-                        const dropoffHubLower = (originalDropoffHubCode || '').toLowerCase();
-                        if (zoneCode && (zoneCode === pickupHubLower || zoneCode === dropoffHubLower)) {
-                            isRelevant = true;
-                        }
-
-                        // RULE 2: If the pickup or dropoff point is INSIDE the zone polygon,
-                        // the zone is always relevant — no text matching needed.
-                        // NOTE: We intentionally DO NOT trust `hitStart`/`hitEnd` here. Those flags
-                        // mean only that the route polyline crosses the zone at some point — for a
-                        // long trip like Alanya → Hatay the polyline passes through many transit
-                        // zones (e.g. Gazipaşa) which must NOT inherit the destination's pricing.
-                        // Pickup-inside is tracked in req.pickupZoneIds; dropoff-inside is signalled
-                        // by distFromEnd === 0 (set explicitly by the dropoff point-in-polygon check).
-                        if (!isRelevant) {
-                            const pickupInsideZone = req.pickupZoneIds && req.pickupZoneIds.has(finalMatchedZoneId);
-                            const dropoffInsideZone = zoneData?.distFromEnd === 0;
-                            if (pickupInsideZone || dropoffInsideZone) {
-                                isRelevant = true;
-                            }
-                        }
-
-                        // RULE 3: If within close proximity (< 20km overage), treat as relevant
-                        // This prevents rejecting nearby bookings like "Mahmutlar" which is just outside "Alanya" polygon
-                        if (!isRelevant && usedOverageDistanceKm <= 20) {
-                            isRelevant = true;
-                            console.log(`[ZoneRelevance] vt=${vt.name}: Within 20km proximity (${usedOverageDistanceKm.toFixed(1)}km), marking as relevant`);
-                        }
-
-                        // RULE 4: Text-based matching as last resort for more distant zones (> 20km)
-                        if (!isRelevant) {
-                            // Check against both primaryToken AND full address text
-                            const pTokens = tokenize(pickupPrimaryToken || '');
-                            const dTokens = tokenize(dropoffPrimaryToken || '');
-                            const pFullTokens = tokenize(pickupTextRaw || '');
-                            const dFullTokens = tokenize(dropoffTextRaw || '');
-                            const allPickup = [...new Set([...pTokens, ...pFullTokens])];
-                            const allDropoff = [...new Set([...dTokens, ...dFullTokens])];
-                            // Zone is relevant if ANY of its tokens match pickup or dropoff
-                            isRelevant = zoneTokens.some(zt => 
-                                allPickup.some(pt => pt === zt || pt.startsWith(zt) || zt.startsWith(pt)) || 
-                                allDropoff.some(dt => dt === zt || dt.startsWith(zt) || zt.startsWith(dt))
-                            );
-                        }
-
-                        // EXCEPTION: If dropoff is an airport hub and the matched zone is a broad
-                        // parent region (e.g., "Alanya" for GZP destination), reject UNLESS
-                        // there is an explicit price for that airport base configured.
-                        if (isRelevant && originalDropoffHubCode) {
-                            const dropoffIsAirport = hubs.some(h => h.code === originalDropoffHubCode && h.isAirport === true);
-                            if (dropoffIsAirport && zonePriceConfig && zonePriceConfig.baseLocation !== originalDropoffHubCode) {
-                                isRelevant = false;
-                                console.log(`[ZoneRelevance] vt=${vt.name}: Zone "${zoneName}" rejected — price base (${zonePriceConfig.baseLocation}) != airport dropoff (${originalDropoffHubCode})`);
-                            }
-                        }
-                        if (!isRelevant) {
-                            console.log(`[ZoneRelevance] vt=${vt.name}: Zone "${zoneName}" rejected as irrelevant for pickup="${pickupPrimaryToken}" dropoff="${dropoffPrimaryToken}"`);
-                            zonePriceConfig = null;
-                            finalMatchedZoneId = null;
-                        }
+                    if (!pickupInsideAnyZone || !dropoffInsideAnyZone) {
+                        console.log(`[ZoneGate] vt=${vt.name}: STRICT REJECT — pickupInside=${pickupInsideAnyZone}, dropoffInside=${dropoffInsideAnyZone}. Falling through to km formula.`);
+                        zonePriceConfig = null;
+                        finalMatchedZoneId = null;
+                        usedOverageDistanceKm = 0;
                     }
                 }
 
@@ -1365,26 +1262,12 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                         console.log(`[PriceDecision] ZONE price: ${calculatedPrice} (fixP=${fixP}, base=${baseRouteCost}, overage=${usedOverageDistanceKm.toFixed(1)}km × ${extraKmRate}TL = ${overageCost.toFixed(0)})`);
                     }
                 } else {
-                    // Fallback to distance-based pricing:
-                    // Check if pickup or dropoff is inside any zone polygon (even if no zone price matched).
-                    // This covers cases like Alanya→Konya where Alanya is a known zone but Konya has no hub/zone.
-                    const pickupInZone = req.pickupZoneIds && req.pickupZoneIds.size > 0;
-                    const dropoffInZone = req.zoneOverages && Object.keys(req.zoneOverages).length > 0;
-                    const hasZoneContact = pickupInZone || dropoffInZone;
-
-                    // STRICT ZONE RULE: If zones are defined but NEITHER pickup nor dropoff
-                    // touched any zone polygon, block km-based pricing (unserviced region).
-                    if (hasAnyZones && !zonePriceConfig && !hasZoneContact) {
-                        return null; // Completely outside all zones -> No service
-                    }
-
-                    // If no hub was detected at all and no zone contact, skip
-                    if (!detectedBaseLocation && !detectedDropoffBase && !hasZoneContact) {
-                        return null;
-                    }
-
-                    // 1. Check agency-specific meta (contract fallback)
-                    // 2. Then fall back to global vehicle type metadata
+                    // ── KM-BASED FALLBACK (strict polygon mode) ──
+                    // Reached when zone pricing was NOT applied — i.e. either pickup or
+                    // dropoff (or both) is outside all zone polygons. Per business rule:
+                    // outside polygon → use the vehicle's km formula. If the vehicle has
+                    // NO km formula configured, return null so the vehicle is hidden.
+                    // No "outside-all-zones" hard block here; the km formula itself is the gate.
                     const meta = agencyContractMeta[vt.id];
                     const openingFee = meta?.openingFee ?? vt.metadata?.openingFee;
                     const pricePerKmField = meta?.basePricePerKm ?? vt.metadata?.basePricePerKm;
@@ -1392,16 +1275,22 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                     const hasValidFallback = (openingFee != null && Number(openingFee) > 0) ||
                                              (pricePerKmField != null && Number(pricePerKmField) > 0);
 
-                    // If agency has a meta fixedPrice (hizmet başı sabit), use that
-                    if (!hasValidFallback && meta?.fixedPrice) {
-                        calculatedPrice = Math.round(Number(meta.fixedPrice) * typeMult);
-                    } else if (!hasValidFallback) {
-                        return null;
+                    if (!hasValidFallback) {
+                        // Honour agency contract fixedPrice override if present.
+                        if (meta?.fixedPrice && Number(meta.fixedPrice) > 0) {
+                            calculatedPrice = Math.round(Number(meta.fixedPrice) * typeMult);
+                            calculationMethod = 'AGENCY_FIXED';
+                        } else {
+                            console.log(`[PriceDecision] vt=${vt.name}: outside polygon and NO km formula → hide vehicle`);
+                            return null;
+                        }
                     } else {
                         const basePrice = openingFee ? Number(openingFee) : 0;
                         const pricePerKm = pricePerKmField ? Number(pricePerKmField) : 0;
                         const dist = distance ? Number(distance) : 50;
                         calculatedPrice = Math.round((basePrice + (dist * pricePerKm)) * typeMult);
+                        calculationMethod = 'DISTANCE_BASE';
+                        console.log(`[PriceDecision] vt=${vt.name}: km formula → ${calculatedPrice} (${basePrice} + ${dist}km × ${pricePerKm})`);
                     }
                 }
 
