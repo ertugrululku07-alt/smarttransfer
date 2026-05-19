@@ -5584,7 +5584,9 @@ router.post('/partner/bookings', authMiddleware, async (req, res) => {
             notes,
             extraServices, extrasTotal,
             // Optional zone hint to apply the partner's own zone price automatically
-            partnerZoneId, baseLocation
+            partnerZoneId, baseLocation,
+            // Marketplace
+            marketplaceStatus, b2bPriceType, b2bPrice
         } = req.body;
 
         if (!passengerName || !pickup || !dropoff || !pickupDateTime) {
@@ -5730,6 +5732,11 @@ router.post('/partner/bookings', authMiddleware, async (req, res) => {
                 total: resolvedPrice,
                 currency: resolvedCurrency,
                 paymentStatus: 'PENDING',
+                bookingType: 'PARTNER_DIRECT',
+                ownerPartnerId: partnerId,
+                marketplaceStatus: marketplaceStatus || null,
+                b2bPriceType: b2bPriceType || null,
+                b2bPrice: b2bPrice != null ? Number(b2bPrice) : null,
                 metadata
             }
         });
@@ -6478,11 +6485,18 @@ router.post('/partner/finance/sync-bookings', authMiddleware, async (req, res) =
                 tenantId,
                 status: { in: ['COMPLETED', 'completed'] },
                 OR: [
+                    { ownerPartnerId: partnerId },
+                    { assignedPartnerId: partnerId },
+                    // Legacy support
                     { driverId: partnerId },
                     { metadata: { path: ['partnerId'], equals: partnerId } },
                 ],
             },
-            select: { id: true, bookingNumber: true, totalPrice: true, currency: true, startDate: true, contactName: true },
+            select: { 
+                id: true, bookingNumber: true, total: true, currency: true, 
+                startDate: true, contactName: true,
+                ownerPartnerId: true, assignedPartnerId: true, b2bPrice: true
+            },
         });
 
         if (completedBookings.length === 0) {
@@ -6491,26 +6505,74 @@ router.post('/partner/finance/sync-bookings', authMiddleware, async (req, res) =
 
         // Check which already have entries
         const existingEntries = await prisma.partnerFinanceEntry.findMany({
-            where: { partnerId, category: 'BOOKING_INCOME', relatedBookingId: { in: completedBookings.map(b => b.id) } },
-            select: { relatedBookingId: true },
+            where: { partnerId, relatedBookingId: { in: completedBookings.map(b => b.id) } },
+            select: { relatedBookingId: true, type: true },
         });
-        const existingIds = new Set(existingEntries.map(e => e.relatedBookingId));
+        
+        // Group by bookingId -> Set of types (INCOME, EXPENSE)
+        const existingMap = new Map();
+        existingEntries.forEach(e => {
+            if (!existingMap.has(e.relatedBookingId)) existingMap.set(e.relatedBookingId, new Set());
+            existingMap.get(e.relatedBookingId).add(e.type);
+        });
 
-        const toCreate = completedBookings.filter(b => !existingIds.has(b.id));
+        const toCreate = [];
 
-        if (toCreate.length > 0) {
-            await prisma.partnerFinanceEntry.createMany({
-                data: toCreate.map(b => ({
+        for (const b of completedBookings) {
+            const hasIncome = existingMap.get(b.id)?.has('INCOME');
+            const hasExpense = existingMap.get(b.id)?.has('EXPENSE');
+
+            const isOwner = b.ownerPartnerId === partnerId;
+            const isAssigned = b.assignedPartnerId === partnerId;
+            const isLegacy = !b.ownerPartnerId && !b.assignedPartnerId; // treated as owner
+
+            let incomeAmount = 0;
+            let expenseAmount = 0;
+
+            if (isAssigned && !isOwner) {
+                // Partner did the job from pool
+                incomeAmount = Number(b.b2bPrice || 0);
+            } else if (isOwner && b.assignedPartnerId && b.assignedPartnerId !== partnerId) {
+                // Partner created the job but someone else did it
+                incomeAmount = Number(b.total || 0);
+                expenseAmount = Number(b.b2bPrice || 0);
+            } else {
+                // Partner created and did the job themselves (or legacy)
+                incomeAmount = Number(b.total || 0);
+            }
+
+            if (incomeAmount > 0 && !hasIncome) {
+                toCreate.push({
                     tenantId,
                     partnerId,
                     type: 'INCOME',
                     category: 'BOOKING_INCOME',
-                    amount: Number(b.totalPrice || 0),
+                    amount: incomeAmount,
                     currency: b.currency || 'TRY',
-                    description: `${b.bookingNumber} - ${b.contactName || 'Müşteri'}`,
+                    description: `${b.bookingNumber} - ${b.contactName || 'Müşteri'} (Müşteri Geliri)`,
                     date: b.startDate || new Date(),
                     relatedBookingId: b.id,
-                })),
+                });
+            }
+
+            if (expenseAmount > 0 && !hasExpense) {
+                toCreate.push({
+                    tenantId,
+                    partnerId,
+                    type: 'EXPENSE',
+                    category: 'OTHER_EXPENSE',
+                    amount: expenseAmount,
+                    currency: b.currency || 'TRY',
+                    description: `${b.bookingNumber} - ${b.contactName || 'Müşteri'} (B2B Ödemesi)`,
+                    date: b.startDate || new Date(),
+                    relatedBookingId: b.id,
+                });
+            }
+        }
+
+        if (toCreate.length > 0) {
+            await prisma.partnerFinanceEntry.createMany({
+                data: toCreate,
             });
         }
 
@@ -6518,6 +6580,231 @@ router.post('/partner/finance/sync-bookings', authMiddleware, async (req, res) =
     } catch (error) {
         console.error('Partner finance sync error:', error);
         res.status(500).json({ success: false, error: 'Senkronizasyon başarısız' });
+    }
+});
+
+router.get('/partner/marketplace', authMiddleware, async (req, res) => {
+    try {
+        if (req.user.roleType !== 'PARTNER') {
+            return res.status(403).json({ success: false, error: 'Yalnızca partner kullanıcılar erişebilir' });
+        }
+        const tenantId = req.tenant?.id || req.user.tenantId;
+
+        // PUBLISHED means currently active in the marketplace
+        const bookings = await prisma.booking.findMany({
+            where: {
+                tenantId,
+                marketplaceStatus: 'PUBLISHED',
+                status: 'CONFIRMED'
+            },
+            include: {
+                marketplaceOffers: {
+                    include: {
+                        partner: {
+                            select: { id: true, companyName: true, email: true }
+                        }
+                    }
+                },
+                ownerPartner: {
+                    select: { id: true, companyName: true }
+                }
+            },
+            orderBy: { startDate: 'asc' }
+        });
+
+        res.json({ success: true, data: bookings });
+    } catch (error) {
+        console.error('Marketplace listing error:', error);
+        res.status(500).json({ success: false, error: 'İlanlar listelenemedi' });
+    }
+});
+
+router.post('/partner/marketplace/:id/bid', authMiddleware, async (req, res) => {
+    try {
+        if (req.user.roleType !== 'PARTNER') {
+            return res.status(403).json({ success: false, error: 'Yalnızca partner kullanıcılar erişebilir' });
+        }
+        const tenantId = req.tenant?.id || req.user.tenantId;
+        const partnerId = req.user.id;
+        const { id } = req.params;
+        const { amount, currency, notes } = req.body;
+
+        const booking = await prisma.booking.findFirst({
+            where: { id, tenantId, marketplaceStatus: 'PUBLISHED' }
+        });
+
+        if (!booking) {
+            return res.status(404).json({ success: false, error: 'İlan bulunamadı veya artık aktif değil' });
+        }
+        
+        if (booking.ownerPartnerId === partnerId) {
+            return res.status(400).json({ success: false, error: 'Kendi ilanınıza teklif veremezsiniz' });
+        }
+
+        const offer = await prisma.marketplaceOffer.create({
+            data: {
+                bookingId: id,
+                partnerId: partnerId,
+                amount: Number(amount),
+                currency: currency || 'EUR',
+                notes: notes,
+                status: 'PENDING'
+            }
+        });
+
+        res.json({ success: true, data: offer });
+    } catch (error) {
+        console.error('Marketplace bid error:', error);
+        res.status(500).json({ success: false, error: 'Teklif gönderilemedi' });
+    }
+});
+
+router.post('/partner/marketplace/:id/accept', authMiddleware, async (req, res) => {
+    try {
+        if (req.user.roleType !== 'PARTNER') {
+            return res.status(403).json({ success: false, error: 'Yalnızca partner kullanıcılar erişebilir' });
+        }
+        const tenantId = req.tenant?.id || req.user.tenantId;
+        const partnerId = req.user.id;
+        const { id } = req.params;
+
+        const booking = await prisma.booking.findFirst({
+            where: { id, tenantId, marketplaceStatus: 'PUBLISHED', b2bPriceType: 'FIXED_PRICE' }
+        });
+
+        if (!booking) {
+            return res.status(404).json({ success: false, error: 'İlan bulunamadı veya sabit fiyatlı değil' });
+        }
+
+        if (booking.ownerPartnerId === partnerId) {
+            return res.status(400).json({ success: false, error: 'Kendi ilanınızı kabul edemezsiniz' });
+        }
+
+        // Accept the job
+        const updatedBooking = await prisma.booking.update({
+            where: { id },
+            data: {
+                assignedPartnerId: partnerId,
+                marketplaceStatus: 'ASSIGNED',
+            },
+            include: {
+                ownerPartner: { select: { id: true, companyName: true } }
+            }
+        });
+
+        // Try to get partner's name who accepted
+        const acceptingPartner = await prisma.user.findUnique({
+            where: { id: partnerId },
+            select: { companyName: true, fullName: true }
+        });
+        const acceptingName = acceptingPartner?.companyName || acceptingPartner?.fullName || 'Bir Partner';
+
+        // Notify admins and owner partner
+        const io = req.app.get('io');
+        if (io) {
+            io.to('admin_monitoring').emit('booking_marketplace_update', { 
+                bookingId: id, 
+                status: 'ASSIGNED',
+                partnerId: partnerId,
+                partnerName: acceptingName,
+                bookingNumber: booking.bookingNumber
+            });
+            
+            if (booking.ownerPartnerId) {
+                // Emit to the owner partner room
+                io.to(`user_${booking.ownerPartnerId}`).emit('booking_marketplace_update', {
+                    bookingId: id,
+                    status: 'ASSIGNED',
+                    partnerId: partnerId,
+                    partnerName: acceptingName,
+                    bookingNumber: booking.bookingNumber,
+                    message: `İlanınız ${acceptingName} tarafından kabul edildi.`
+                });
+            }
+        }
+
+        res.json({ success: true, message: 'İş başarıyla üzerinize alındı' });
+    } catch (error) {
+        console.error('Marketplace accept error:', error);
+        res.status(500).json({ success: false, error: 'İşlem başarısız' });
+    }
+});
+
+router.get('/partner/live-drivers', authMiddleware, async (req, res) => {
+    try {
+        if (req.user.roleType !== 'PARTNER') {
+            return res.status(403).json({ success: false, error: 'Yalnızca partner kullanıcılar erişebilir' });
+        }
+        const tenantId = req.tenant?.id || req.user.tenantId;
+        const partnerId = req.user.id;
+
+        const onlineDrivers = req.app.get('onlineDrivers') || {};
+
+        // 1. Get all drivers for this partner
+        const drivers = await prisma.user.findMany({
+            where: { tenantId, partnerId, roleType: 'DRIVER', deletedAt: null },
+            select: { id: true, fullName: true, phone: true, avatar: true, lastSeenAt: true, lastLocationLat: true, lastLocationLng: true, lastLocationSpeed: true }
+        });
+
+        // 2. Fetch today's active bookings for these drivers
+        const userIds = drivers.map(d => d.id);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+
+        const activeBookings = await prisma.booking.findMany({
+            where: {
+                driverId: { in: userIds },
+                status: { notIn: ['CANCELLED', 'COMPLETED', 'NO_SHOW'] },
+                startDate: { gte: today, lt: tomorrow }
+            },
+            select: { id: true, driverId: true, contactName: true, startDate: true, pickup: true, dropoff: true, status: true, metadata: true }
+        });
+
+        // 3. Map to driver stats
+        const result = drivers.map(d => {
+            const drvBookings = activeBookings.filter(b => b.driverId === d.id);
+            // Current booking is IN_PROGRESS, or the earliest today
+            let currentBooking = drvBookings.find(b => b.status === 'IN_PROGRESS');
+            if (!currentBooking && drvBookings.length > 0) {
+                currentBooking = drvBookings.sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime())[0];
+            }
+
+            const liveSocket = onlineDrivers[d.id];
+            
+            // Vehicles (Partner drivers may not have a dedicated vehicle relationship, but we'll try)
+            // if we need to show vehicle, we can look up if there is a vehicle mapped. For now, null.
+
+            return {
+                id: d.id,
+                fullName: d.fullName,
+                phone: d.phone,
+                avatar: d.avatar,
+                lastSeenAt: liveSocket ? liveSocket.lastSeenAt : d.lastSeenAt,
+                location: {
+                    lat: liveSocket?.lat ?? d.lastLocationLat,
+                    lng: liveSocket?.lng ?? d.lastLocationLng,
+                    speed: liveSocket?.speed ?? d.lastLocationSpeed,
+                    ts: liveSocket?.lastSeenAt ?? d.lastSeenAt
+                },
+                socketId: liveSocket ? liveSocket.socketId : null,
+                activeBookings: drvBookings,
+                currentBooking: currentBooking ? {
+                    pickup: currentBooking.pickup || currentBooking.metadata?.pickup,
+                    dropoff: currentBooking.dropoff || currentBooking.metadata?.dropoff,
+                    contactName: currentBooking.contactName,
+                    startDate: currentBooking.startDate
+                } : null,
+                todayJobCount: drvBookings.length,
+                vehicle: null
+            };
+        });
+
+        res.json({ success: true, data: result });
+    } catch (error) {
+        console.error('Partner live drivers error:', error);
+        res.status(500).json({ success: false, error: 'Sürücüler listelenemedi' });
     }
 });
 

@@ -17,7 +17,10 @@ import {
     EnvironmentOutlined,
     PlusCircleOutlined,
     SafetyCertificateOutlined,
-    WalletOutlined
+    WalletOutlined,
+    UserOutlined,
+    GlobalOutlined,
+    CompassOutlined
 } from '@ant-design/icons';
 
 interface PartnerLayoutProps {
@@ -64,10 +67,16 @@ const PartnerLayout: React.FC<PartnerLayoutProps> = ({ children }) => {
     const navItems = [
         { key: 'home', label: 'Ana Sayfa', icon: <HomeOutlined />, path: '/partner', exact: true, section: 'main' },
         { key: 'pool', label: 'Transferlerim', icon: <CarOutlined />, path: '/partner/pool', badge: activeCount > 0 ? activeCount : undefined, section: 'main' },
+        { key: 'dispatch', label: 'Canlı Takip', icon: <CompassOutlined />, path: '/partner/dispatch', section: 'main' },
         { key: 'new-booking', label: 'Yeni İş Ekle', icon: <PlusCircleOutlined />, path: '/partner/bookings/new', section: 'main' },
+        { key: 'marketplace', label: 'Pazar Yeri İlanları', icon: <GlobalOutlined />, path: '/partner/marketplace', section: 'main' },
         { key: 'completed', label: 'Tamamlanmış', icon: <CheckCircleOutlined />, path: '/partner/completed', section: 'main' },
-        { key: 'zones', label: 'Bölgelerim & Fiyatlarım', icon: <EnvironmentOutlined />, path: '/partner/zones', section: 'main' },
-        { key: 'uetds', label: 'UETDS', icon: <SafetyCertificateOutlined />, path: '/partner/uetds', section: 'main' },
+        
+        { key: 'fleet-vehicles', label: 'Araçlarım', icon: <CarOutlined />, path: '/partner/fleet/vehicles', section: 'fleet' },
+        { key: 'fleet-drivers', label: 'Sürücülerim', icon: <UserOutlined />, path: '/partner/fleet/drivers', section: 'fleet' },
+        { key: 'zones', label: 'Bölgelerim & Fiyatlarım', icon: <EnvironmentOutlined />, path: '/partner/zones', section: 'fleet' },
+        { key: 'uetds', label: 'UETDS', icon: <SafetyCertificateOutlined />, path: '/partner/uetds', section: 'fleet' },
+
         { key: 'finance', label: 'Muhasebe', icon: <WalletOutlined />, path: '/partner/finance', section: 'finance' },
         { key: 'earnings', label: 'Kazancım', icon: <DollarOutlined />, path: '/partner/earnings', section: 'finance' },
         { key: 'settings', label: 'Ayarlar', icon: <SettingOutlined />, path: '/partner/settings', section: 'system' },
@@ -237,6 +246,9 @@ const PartnerLayout: React.FC<PartnerLayoutProps> = ({ children }) => {
                 <nav style={{ flex: 1, padding: '8px 16px', overflowY: 'auto' }}>
                     <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1.5, padding: '8px 16px 6px', marginTop: 4 }}>Menü</div>
                     {navItems.filter(i => i.section === 'main').map(renderNavItem)}
+
+                    <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1.5, padding: '16px 16px 6px' }}>Filom & İşletme</div>
+                    {navItems.filter(i => i.section === 'fleet').map(renderNavItem)}
 
                     <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1.5, padding: '16px 16px 6px' }}>Finans</div>
                     {navItems.filter(i => i.section === 'finance').map(renderNavItem)}

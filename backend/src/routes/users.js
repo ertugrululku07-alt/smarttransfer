@@ -17,11 +17,18 @@ router.get('/', authMiddleware, async (req, res) => {
             return res.status(400).json({ success: false, error: 'Tenant context missing' });
         }
 
+        const whereClause = {
+            tenantId,
+            deletedAt: null
+        };
+
+        if (req.user?.roleType === 'PARTNER') {
+            whereClause.partnerId = req.user.id;
+            whereClause.role = { type: 'DRIVER' };
+        }
+
         const users = await prisma.user.findMany({
-            where: {
-                tenantId,
-                deletedAt: null
-            },
+            where: whereClause,
             select: {
                 id: true,
                 email: true,
@@ -114,9 +121,15 @@ router.post('/', authMiddleware, async (req, res) => {
             return res.status(400).json({ success: false, error: `Role ${role} not found for this tenant` });
         }
 
+        if (req.user?.roleType === 'PARTNER' && dbRole.type !== 'DRIVER') {
+            return res.status(403).json({ success: false, error: 'Partnerler sadece sürücü (DRIVER) ekleyebilir.' });
+        }
+
         const passwordHash = await bcrypt.hash(password, 10);
         const [firstName, ...lastNameParts] = (name || '').split(' ');
         const lastName = lastNameParts.join(' ') || '-';
+        
+        const partnerId = req.user?.roleType === 'PARTNER' ? req.user.id : (req.body.partnerId || null);
 
         const user = await prisma.user.create({
             data: {
@@ -127,6 +140,7 @@ router.post('/', authMiddleware, async (req, res) => {
                 lastName,
                 fullName: name || 'User',
                 roleId: dbRole.id,
+                partnerId,
                 status: isActive === false ? 'INACTIVE' : 'ACTIVE'
             },
             include: {
@@ -172,16 +186,27 @@ router.put('/:id', authMiddleware, async (req, res) => {
         }
 
         // Capture previous state for audit trail
-        const prevUser = await prisma.user.findUnique({ where: { id }, include: { role: true } });
-        if (prevUser) {
-            req._auditPreviousState = {
-                name: prevUser.fullName,
-                email: prevUser.email,
-                role: prevUser.role?.type,
-                roleId: prevUser.role?.id,
-                isActive: prevUser.status === 'ACTIVE'
-            };
+        const prevUser = await prisma.user.findFirst({ where: { id, tenantId }, include: { role: true } });
+        if (!prevUser) {
+            return res.status(404).json({ success: false, error: 'User not found' });
         }
+        
+        if (req.user?.roleType === 'PARTNER') {
+            if (prevUser.partnerId !== req.user.id) {
+                return res.status(403).json({ success: false, error: 'Sadece kendi sürücülerinizi düzenleyebilirsiniz.' });
+            }
+            if (role && role !== 'DRIVER') {
+                 return res.status(403).json({ success: false, error: 'Partnerler sadece sürücü (DRIVER) rolünü kullanabilir.' });
+            }
+        }
+
+        req._auditPreviousState = {
+            name: prevUser.fullName,
+            email: prevUser.email,
+            role: prevUser.role?.type,
+            roleId: prevUser.role?.id,
+            isActive: prevUser.status === 'ACTIVE'
+        };
 
         const updateData = {};
         if (name) {
@@ -409,6 +434,10 @@ router.delete('/:id', authMiddleware, async (req, res) => {
         });
         if (!user) {
             return res.status(404).json({ success: false, error: 'Kullanıcı bulunamadı' });
+        }
+
+        if (req.user?.roleType === 'PARTNER' && user.partnerId !== req.user.id) {
+            return res.status(403).json({ success: false, error: 'Sadece kendi sürücülerinizi silebilirsiniz.' });
         }
 
         const now = new Date();

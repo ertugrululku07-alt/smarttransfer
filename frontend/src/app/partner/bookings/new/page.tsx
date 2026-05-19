@@ -1,837 +1,332 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
-    Card, Form, Input, InputNumber, DatePicker, Button, Select, message,
-    Spin, Row, Col, Alert, Tag, Divider, Typography, Space, Tooltip
+    Form,
+    Input,
+    DatePicker,
+    InputNumber,
+    Select,
+    Button,
+    Card,
+    Row,
+    Col,
+    Typography,
+    Divider,
+    message,
+    Radio,
+    Space,
+    Alert
 } from 'antd';
 import {
-    EnvironmentOutlined, CarOutlined, UserOutlined, PhoneOutlined, MailOutlined,
-    DollarOutlined, ClockCircleOutlined, TeamOutlined,
-    CheckCircleOutlined, SwapOutlined,
-    CalendarOutlined, InfoCircleOutlined, SendOutlined,
-    PlusCircleOutlined, FileTextOutlined
+    CarOutlined,
+    UserOutlined,
+    CalendarOutlined,
+    EnvironmentOutlined,
+    DollarOutlined,
+    GlobalOutlined,
+    AppstoreAddOutlined
 } from '@ant-design/icons';
-import dayjs from 'dayjs';
-import DynamicLocationSearchInput from '@/app/components/DynamicLocationSearchInput';
-import MapPickerModal from '@/app/components/MapPickerModal';
+import { useRouter } from 'next/navigation';
 import apiClient from '@/lib/api-client';
-import { getRouteDetails } from '@/lib/routing';
-import { useDefinitions } from '@/app/hooks/useDefinitions';
-import PartnerLayout from '../../PartnerLayout';
-import PartnerGuard from '../../PartnerGuard';
+import PartnerGuard from '../../../PartnerGuard';
+import PartnerLayout from '../../../PartnerLayout';
+import dayjs from 'dayjs';
 
-const { Text, Title } = Typography;
+const { Title, Text } = Typography;
+const { Option } = Select;
 
-interface Driver {
-    id: string;
-    firstName: string;
-    lastName: string;
-    fullName: string;
-    phone: string;
-    status: string;
-    isOnline: boolean;
-    activeBookingsCount: number;
-}
-
-interface Vehicle {
-    id: string;
-    plateNumber: string;
-    brand: string;
-    model: string;
-    year: number;
-    isBusy: boolean;
-    vehicleType?: { id: string; name: string; capacity: number };
-}
-
-interface AllowedZone {
-    id: string;
-    zoneId: string;
-    baseLocation: string;
-    isActive: boolean;
-    maxPriceCap: string | number | null;
-    zone: { id: string; name: string; code: string | null };
-}
-
-interface VehicleType {
-    id: string;
-    name: string;
-    category: string;
-    capacity: number;
-}
-
-interface ZonePrice {
-    id: string;
-    vehicleTypeId: string;
-    zoneId: string;
-    baseLocation: string;
-    price: string | number;
-    fixedPrice: string | number | null;
-    currency: string;
-}
-
-const PartnerNewBookingPage: React.FC = () => {
+const NewPartnerBookingPage = () => {
     const [form] = Form.useForm();
-    const { currencies } = useDefinitions();
+    const router = useRouter();
+    const [loading, setLoading] = useState(false);
+    
+    const [vehicleTypes, setVehicleTypes] = useState<any[]>([]);
+    const [myVehicles, setMyVehicles] = useState<any[]>([]);
+    const [myDrivers, setMyDrivers] = useState<any[]>([]);
+    const [currencies] = useState(['TRY', 'EUR', 'USD', 'GBP']);
 
-    // Data
-    const [drivers, setDrivers] = useState<Driver[]>([]);
-    const [vehicles, setVehicles] = useState<Vehicle[]>([]);
-    const [vehicleTypes, setVehicleTypes] = useState<VehicleType[]>([]);
-    const [allowedZones, setAllowedZones] = useState<AllowedZone[]>([]);
-    const [zonePrices, setZonePrices] = useState<ZonePrice[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [submitting, setSubmitting] = useState(false);
-    const [success, setSuccess] = useState<any>(null);
+    // Watch values to dynamically show/hide sections
+    const actionType = Form.useWatch('actionType', form);
+    const b2bPriceType = Form.useWatch('b2bPriceType', form);
 
-    // Location state
-    const [pickup, setPickup] = useState('');
-    const [dropoff, setDropoff] = useState('');
-    const [pickupCoords, setPickupCoords] = useState<{ lat?: number; lng?: number }>({});
-    const [dropoffCoords, setDropoffCoords] = useState<{ lat?: number; lng?: number }>({});
-    const [routeInfo, setRouteInfo] = useState<{ distance?: string; duration?: string; distanceKm?: number; durationMin?: number } | null>(null);
-    const [routeLoading, setRouteLoading] = useState(false);
-
-    // Map picker
-    const [mapOpen, setMapOpen] = useState<'pickup' | 'dropoff' | null>(null);
-
-    // Passenger counts
-    const [adults, setAdults] = useState(1);
-    const [childrenCount, setChildrenCount] = useState(0);
-    const [infants, setInfants] = useState(0);
-
-    const totalPax = adults + childrenCount + infants;
-
-    // Price auto-fill state
-    const [autoPrice, setAutoPrice] = useState<number | null>(null);
-    const [autoCurrency, setAutoCurrency] = useState<string | null>(null);
-
-    const defCurrencies = useMemo(() => currencies || [], [currencies]);
-
-    // Load data on mount
     useEffect(() => {
-        const load = async () => {
-            setLoading(true);
-            try {
-                const [driversRes, vehiclesRes, vtRes, zonesRes, pricesRes] = await Promise.all([
-                    apiClient.get('/api/transfer/partner/my-drivers').catch(() => ({ data: { success: false } })),
-                    apiClient.get('/api/transfer/partner/my-vehicles').catch(() => ({ data: { success: false } })),
-                    apiClient.get('/api/vehicle-types').catch(() => ({ data: { success: false } })),
-                    apiClient.get('/api/transfer/partner/allowed-zones').catch(() => ({ data: { success: false } })),
-                    apiClient.get('/api/transfer/partner/zone-prices').catch(() => ({ data: { success: false } })),
-                ]);
-                if (driversRes.data?.success) setDrivers(driversRes.data.data || []);
-                if (vehiclesRes.data?.success) setVehicles(vehiclesRes.data.data?.vehicles || vehiclesRes.data.data || []);
-                if (vtRes.data?.success) setVehicleTypes(vtRes.data.data || []);
-                if (zonesRes.data?.success) setAllowedZones((zonesRes.data.data || []).filter((z: AllowedZone) => z.isActive));
-                if (pricesRes.data?.success) setZonePrices(pricesRes.data.data || []);
-            } catch (e) {
-                console.error('Load error', e);
-            } finally {
-                setLoading(false);
-            }
-        };
-        load();
+        fetchData();
     }, []);
 
-    // Route calculation when both locations have coords
-    useEffect(() => {
-        if (!pickup || !dropoff) return;
-        const calc = async () => {
-            setRouteLoading(true);
-            try {
-                const r = await getRouteDetails(pickup, dropoff);
-                if (r) {
-                    const hrs = Math.floor(r.durationMin / 60);
-                    const mins = r.durationMin % 60;
-                    setRouteInfo({
-                        distanceKm: r.distanceKm,
-                        durationMin: r.durationMin,
-                        distance: `${r.distanceKm.toFixed(1)} km`,
-                        duration: hrs > 0 ? `${hrs} sa ${mins} dk` : `${mins} dk`,
-                    });
-                }
-            } catch (e) {
-                console.warn('Route calc failed', e);
-            } finally {
-                setRouteLoading(false);
-            }
-        };
-        const timer = setTimeout(calc, 800);
-        return () => clearTimeout(timer);
-    }, [pickup, dropoff]);
-
-    // Auto-fill price when zone + vehicle type changes
-    const handleAutoPrice = (zoneId?: string, vehicleTypeId?: string) => {
-        if (!zoneId || !vehicleTypeId) {
-            setAutoPrice(null);
-            setAutoCurrency(null);
-            return;
-        }
-        const zone = allowedZones.find(z => z.zoneId === zoneId);
-        if (!zone) return;
-        const pp = zonePrices.find(
-            p => p.zoneId === zoneId && p.vehicleTypeId === vehicleTypeId && p.baseLocation === zone.baseLocation
-        );
-        if (pp) {
-            const pax = adults + childrenCount + infants;
-            const price = pp.fixedPrice != null ? Number(pp.fixedPrice) : Number(pp.price) * pax;
-            setAutoPrice(price);
-            setAutoCurrency(pp.currency);
-            form.setFieldsValue({ price, currency: pp.currency });
-        } else {
-            setAutoPrice(null);
-            setAutoCurrency(null);
-        }
-    };
-
-    // When vehicle is selected, auto-set vehicleTypeId
-    const handleVehicleChange = (vehicleId: string) => {
-        const v = vehicles.find(x => x.id === vehicleId);
-        if (v?.vehicleType) {
-            form.setFieldsValue({ vehicleTypeId: v.vehicleType.id });
-            const zoneId = form.getFieldValue('partnerZoneId');
-            handleAutoPrice(zoneId, v.vehicleType.id);
-        }
-    };
-
-    const handleSubmit = async () => {
+    const fetchData = async () => {
         try {
-            const values = await form.validateFields();
-            if (!pickup || !dropoff) {
-                message.warning('Alış ve bırakış yeri zorunludur');
-                return;
-            }
+            const [vtRes, vRes, dRes] = await Promise.all([
+                apiClient.get('/api/vehicle-types'),
+                apiClient.get('/api/vehicles'), // automatically scoped to partner
+                apiClient.get('/api/users')     // automatically scoped to partner's drivers
+            ]);
+            
+            if (vtRes.data?.success) setVehicleTypes(vtRes.data.data);
+            if (vRes.data?.success) setMyVehicles(vRes.data.data.filter((v: any) => v.isActive));
+            if (dRes.data?.success) setMyDrivers(dRes.data.data.filter((d: any) => d.isActive));
+        } catch (error) {
+            console.error('Error fetching form data:', error);
+            message.error('Gerekli veriler yüklenirken hata oluştu');
+        }
+    };
 
-            setSubmitting(true);
+    const onFinish = async (values: any) => {
+        try {
+            setLoading(true);
 
-            const zone = allowedZones.find(z => z.zoneId === values.partnerZoneId);
-
-            const payload = {
+            // Construct payload based on Action Type
+            const payload: any = {
                 passengerName: values.passengerName,
-                passengerPhone: values.passengerPhone || null,
-                passengerEmail: values.passengerEmail || null,
-                pickup,
-                dropoff,
+                passengerPhone: values.passengerPhone,
+                passengerEmail: values.passengerEmail,
+                pickup: values.pickup,
+                dropoff: values.dropoff,
                 pickupDateTime: values.pickupDateTime.toISOString(),
-                pickupLat: pickupCoords.lat,
-                pickupLng: pickupCoords.lng,
-                dropoffLat: dropoffCoords.lat,
-                dropoffLng: dropoffCoords.lng,
-                distance: routeInfo?.distanceKm ? `${routeInfo.distanceKm.toFixed(1)} km` : null,
-                duration: routeInfo?.durationMin ? `${routeInfo.durationMin} min` : null,
-                flightNumber: values.flightNumber || null,
-                flightTime: values.flightTime ? values.flightTime.toISOString() : null,
-                adults,
-                children: childrenCount,
-                infants,
-                vehicleTypeId: values.vehicleTypeId || null,
-                vehicleId: values.vehicleId || null,
-                driverId: values.driverId || null,
-                price: values.price != null ? Number(values.price) : null,
-                currency: values.currency || null,
-                paymentMethod: values.paymentMethod || 'CASH',
-                notes: values.notes || null,
-                partnerZoneId: values.partnerZoneId || null,
-                baseLocation: zone?.baseLocation || null,
+                flightNumber: values.flightNumber,
+                flightTime: values.flightTime ? values.flightTime.format('HH:mm') : null,
+                adults: values.adults || 1,
+                children: values.children || 0,
+                infants: values.infants || 0,
+                vehicleTypeId: values.vehicleTypeId,
+                price: values.price,
+                currency: values.currency || 'EUR',
+                notes: values.notes
             };
 
-            const res = await apiClient.post('/api/transfer/partner/bookings', payload);
-            if (res.data.success) {
-                message.success('Rezervasyon başarıyla oluşturuldu!');
-                setSuccess(res.data.data);
-                form.resetFields();
-                setPickup('');
-                setDropoff('');
-                setPickupCoords({});
-                setDropoffCoords({});
-                setRouteInfo(null);
-                setAdults(1);
-                setChildrenCount(0);
-                setInfants(0);
-                setAutoPrice(null);
-                setAutoCurrency(null);
+            if (values.actionType === 'SELF') {
+                payload.vehicleId = values.vehicleId;
+                payload.driverId = values.driverId;
+            } else if (values.actionType === 'MARKETPLACE') {
+                payload.marketplaceStatus = 'PUBLISHED';
+                payload.b2bPriceType = values.b2bPriceType; // 'FIXED_PRICE' or 'OPEN_BID'
+                if (values.b2bPriceType === 'FIXED_PRICE') {
+                    payload.b2bPrice = values.b2bPrice;
+                }
             }
-        } catch (e: any) {
-            if (e?.errorFields) return;
-            message.error(e?.response?.data?.error || 'Rezervasyon oluşturulamadı');
+
+            const response = await apiClient.post('/api/transfer/partner/bookings', payload);
+
+            if (response.data.success) {
+                message.success('Rezervasyon başarıyla oluşturuldu');
+                if (values.actionType === 'MARKETPLACE') {
+                    // router.push('/partner/marketplace'); // TODO: Create marketplace route
+                    router.push('/partner');
+                } else {
+                    router.push('/partner/pool'); // Or active bookings
+                }
+            } else {
+                message.error(response.data.error || 'Bilinmeyen bir hata oluştu');
+            }
+        } catch (error: any) {
+            console.error('Booking submission error:', error);
+            message.error(error.response?.data?.error || 'Kayıt sırasında hata oluştu');
         } finally {
-            setSubmitting(false);
+            setLoading(false);
         }
     };
-
-    const swapLocations = () => {
-        const tmpPickup = pickup;
-        const tmpDropoff = dropoff;
-        const tmpPC = { ...pickupCoords };
-        const tmpDC = { ...dropoffCoords };
-        setPickup(tmpDropoff);
-        setDropoff(tmpPickup);
-        setPickupCoords(tmpDC);
-        setDropoffCoords(tmpPC);
-    };
-
-    if (loading) {
-        return (
-            <PartnerGuard>
-                <PartnerLayout>
-                    <div style={{ textAlign: 'center', padding: 100 }}>
-                        <Spin size="large" />
-                        <div style={{ marginTop: 16, color: '#64748b' }}>Veriler yükleniyor...</div>
-                    </div>
-                </PartnerLayout>
-            </PartnerGuard>
-        );
-    }
-
-    if (success) {
-        return (
-            <PartnerGuard>
-                <PartnerLayout>
-                    <div style={{ maxWidth: 600, margin: '40px auto', textAlign: 'center' }}>
-                        <Card style={{ borderRadius: 16, boxShadow: '0 4px 24px rgba(0,0,0,0.06)' }}>
-                            <div style={{
-                                width: 80, height: 80, borderRadius: '50%',
-                                background: 'linear-gradient(135deg, #10b981, #059669)',
-                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                margin: '0 auto 20px', boxShadow: '0 8px 30px rgba(16,185,129,0.3)',
-                            }}>
-                                <CheckCircleOutlined style={{ fontSize: 40, color: '#fff' }} />
-                            </div>
-                            <Title level={3} style={{ color: '#0f172a', marginBottom: 8 }}>Rezervasyon Oluşturuldu!</Title>
-                            <Text type="secondary" style={{ fontSize: 14 }}>
-                                Rezervasyon numarası: <strong style={{ color: '#10b981' }}>{success.bookingNumber}</strong>
-                            </Text>
-                            <Divider />
-                            <div style={{ textAlign: 'left', padding: '0 20px' }}>
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                                    <div>
-                                        <Text type="secondary" style={{ fontSize: 11 }}>Müşteri</Text>
-                                        <div style={{ fontWeight: 600 }}>{success.contactName}</div>
-                                    </div>
-                                    <div>
-                                        <Text type="secondary" style={{ fontSize: 11 }}>Tarih</Text>
-                                        <div style={{ fontWeight: 600 }}>{dayjs(success.startDate).format('DD.MM.YYYY HH:mm')}</div>
-                                    </div>
-                                    <div>
-                                        <Text type="secondary" style={{ fontSize: 11 }}>Fiyat</Text>
-                                        <div style={{ fontWeight: 600 }}>{success.total} {success.currency}</div>
-                                    </div>
-                                    <div>
-                                        <Text type="secondary" style={{ fontSize: 11 }}>Durum</Text>
-                                        <Tag color="green">ONAYLANDI</Tag>
-                                    </div>
-                                </div>
-                            </div>
-                            <Divider />
-                            <Space>
-                                <Button
-                                    type="primary"
-                                    icon={<PlusCircleOutlined />}
-                                    size="large"
-                                    onClick={() => setSuccess(null)}
-                                    style={{ borderRadius: 10, background: '#10b981', borderColor: '#10b981' }}
-                                >
-                                    Yeni Rezervasyon
-                                </Button>
-                                <Button
-                                    size="large"
-                                    onClick={() => window.location.href = '/partner/pool'}
-                                    style={{ borderRadius: 10 }}
-                                >
-                                    Transferlerime Git
-                                </Button>
-                            </Space>
-                        </Card>
-                    </div>
-                </PartnerLayout>
-            </PartnerGuard>
-        );
-    }
 
     return (
         <PartnerGuard>
             <PartnerLayout>
-                <div style={{ maxWidth: 900, margin: '0 auto', padding: '8px 4px' }}>
-                    {/* Header */}
-                    <div style={{ marginBottom: 20 }}>
-                        <h1 style={{ fontSize: 22, fontWeight: 800, color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
-                            <PlusCircleOutlined style={{ color: '#10b981' }} /> Yeni İş Ekle
-                        </h1>
-                        <Text type="secondary" style={{ fontSize: 13 }}>
-                            Manuel transfer rezervasyonu oluşturun. Oluşturulan rezervasyonlar otomatik onaylanır.
+                <div style={{ maxWidth: 1000, margin: '0 auto', paddingBottom: 40 }}>
+                    <div style={{ marginBottom: 24 }}>
+                        <Title level={2} style={{ margin: 0, fontWeight: 700 }}>
+                            <AppstoreAddOutlined /> Yeni İş Ekle
+                        </Title>
+                        <Text type="secondary">
+                            Kendi müşterilerinizden aldığınız işleri sisteme girin. İşi kendiniz yapabilir veya diğer partnerlerin yapması için "Pazar Yeri"ne gönderebilirsiniz.
                         </Text>
                     </div>
 
-                    <Form form={form} layout="vertical" onFinish={handleSubmit}>
-                        {/* ── Location Card ── */}
-                        <Card
-                            size="small"
-                            style={{ marginBottom: 16, borderRadius: 14, border: '1px solid #e8ecf1', boxShadow: '0 1px 4px rgba(0,0,0,0.03)' }}
-                            title={
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                    <div style={{ width: 28, height: 28, borderRadius: 8, background: '#ecfdf5', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                        <EnvironmentOutlined style={{ fontSize: 14, color: '#10b981' }} />
-                                    </div>
-                                    <span style={{ fontWeight: 700, fontSize: 14 }}>Güzergah</span>
-                                    {routeInfo && (
-                                        <Tag color="blue" style={{ marginLeft: 'auto', fontSize: 11 }}>
-                                            {routeInfo.distance} · {routeInfo.duration}
-                                        </Tag>
-                                    )}
-                                    {routeLoading && <Spin size="small" style={{ marginLeft: 'auto' }} />}
-                                </div>
-                            }
-                        >
-                            <Row gutter={12} align="middle">
-                                <Col xs={24} md={11}>
-                                    <Form.Item label={<span style={{ fontWeight: 600, fontSize: 12 }}>Alış Yeri</span>} required style={{ marginBottom: 8 }}>
-                                        <DynamicLocationSearchInput
-                                            placeholder="Havaalanı, Otel, Adres..."
-                                            value={pickup}
-                                            onChange={(val) => { setPickup(val); setPickupCoords({}); }}
-                                            onSelect={(addr, lat, lng) => { setPickup(addr); setPickupCoords({ lat, lng }); }}
-                                            onMapClick={() => setMapOpen('pickup')}
-                                            size="large"
-                                            prefix={<EnvironmentOutlined style={{ color: '#10b981' }} />}
-                                            style={{ borderRadius: 10 }}
-                                        />
+                    <Form
+                        form={form}
+                        layout="vertical"
+                        onFinish={onFinish}
+                        initialValues={{
+                            actionType: 'SELF',
+                            adults: 1,
+                            children: 0,
+                            infants: 0,
+                            currency: 'EUR',
+                            b2bPriceType: 'OPEN_BID'
+                        }}
+                    >
+                        {/* 1. Müşteri Bilgileri */}
+                        <Card title={<><UserOutlined /> Müşteri Bilgileri</>} bordered={false} style={{ marginBottom: 20, borderRadius: 12, boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+                            <Row gutter={16}>
+                                <Col xs={24} md={8}>
+                                    <Form.Item name="passengerName" label="Müşteri Adı Soyadı" rules={[{ required: true, message: 'Ad soyad zorunludur' }]}>
+                                        <Input placeholder="Örn: Ahmet Yılmaz" size="large" />
                                     </Form.Item>
                                 </Col>
-                                <Col xs={24} md={2} style={{ textAlign: 'center' }}>
-                                    <Button
-                                        icon={<SwapOutlined />}
-                                        shape="circle"
-                                        size="small"
-                                        onClick={swapLocations}
-                                        style={{ marginTop: 8, background: '#f1f5f9', border: '1px solid #e2e8f0' }}
-                                        title="Yerleri değiştir"
-                                    />
+                                <Col xs={24} md={8}>
+                                    <Form.Item name="passengerPhone" label="Telefon Numarası">
+                                        <Input placeholder="+90 5XX XXX XX XX" size="large" />
+                                    </Form.Item>
                                 </Col>
-                                <Col xs={24} md={11}>
-                                    <Form.Item label={<span style={{ fontWeight: 600, fontSize: 12 }}>Bırakış Yeri</span>} required style={{ marginBottom: 8 }}>
-                                        <DynamicLocationSearchInput
-                                            placeholder="Havaalanı, Otel, Adres..."
-                                            value={dropoff}
-                                            onChange={(val) => { setDropoff(val); setDropoffCoords({}); }}
-                                            onSelect={(addr, lat, lng) => { setDropoff(addr); setDropoffCoords({ lat, lng }); }}
-                                            onMapClick={() => setMapOpen('dropoff')}
-                                            size="large"
-                                            prefix={<EnvironmentOutlined style={{ color: '#ef4444' }} />}
-                                            style={{ borderRadius: 10 }}
-                                        />
+                                <Col xs={24} md={8}>
+                                    <Form.Item name="passengerEmail" label="E-Posta Adresi" rules={[{ type: 'email', message: 'Geçerli bir e-posta girin' }]}>
+                                        <Input placeholder="E-Posta" size="large" />
                                     </Form.Item>
                                 </Col>
                             </Row>
                         </Card>
 
-                        {/* ── Date & Passengers Card ── */}
-                        <Card
-                            size="small"
-                            style={{ marginBottom: 16, borderRadius: 14, border: '1px solid #e8ecf1', boxShadow: '0 1px 4px rgba(0,0,0,0.03)' }}
-                            title={
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                    <div style={{ width: 28, height: 28, borderRadius: 8, background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                        <CalendarOutlined style={{ fontSize: 14, color: '#3b82f6' }} />
-                                    </div>
-                                    <span style={{ fontWeight: 700, fontSize: 14 }}>Tarih & Yolcular</span>
-                                </div>
-                            }
-                        >
+                        {/* 2. Transfer Rotası & Tarihi */}
+                        <Card title={<><EnvironmentOutlined /> Transfer Rotası ve Zamanı</>} bordered={false} style={{ marginBottom: 20, borderRadius: 12, boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
                             <Row gutter={16}>
                                 <Col xs={24} md={12}>
-                                    <Form.Item
-                                        name="pickupDateTime"
-                                        label={<span style={{ fontWeight: 600, fontSize: 12 }}>Alış Tarihi & Saati</span>}
-                                        rules={[{ required: true, message: 'Tarih zorunludur' }]}
-                                        initialValue={dayjs().add(2, 'hour')}
-                                    >
-                                        <DatePicker
-                                            showTime={{ format: 'HH:mm' }}
-                                            format="DD.MM.YYYY HH:mm"
-                                            disabledDate={(current) => current && current.isBefore(dayjs().startOf('day'))}
-                                            style={{ width: '100%', borderRadius: 10 }}
-                                            size="large"
-                                            placeholder="Tarih ve saat seçin"
-                                        />
+                                    <Form.Item name="pickup" label="Alış Noktası (Otel / Havalimanı / Adres)" rules={[{ required: true, message: 'Alış noktası zorunludur' }]}>
+                                        <Input placeholder="Alış adresi yazın..." size="large" />
                                     </Form.Item>
                                 </Col>
                                 <Col xs={24} md={12}>
-                                    <Form.Item label={<span style={{ fontWeight: 600, fontSize: 12 }}>Yolcu Sayısı</span>}>
-                                        <div style={{ display: 'flex', gap: 8 }}>
-                                            {[
-                                                { label: 'Yetişkin', value: adults, set: setAdults, min: 1 },
-                                                { label: 'Çocuk', value: childrenCount, set: setChildrenCount, min: 0 },
-                                                { label: 'Bebek', value: infants, set: setInfants, min: 0 },
-                                            ].map(p => (
-                                                <div key={p.label} style={{
-                                                    flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
-                                                    padding: '8px 6px', background: '#f9fafb', borderRadius: 10, border: '1px solid #e5e7eb',
-                                                }}>
-                                                    <span style={{ fontSize: 10, fontWeight: 600, color: '#64748b', marginBottom: 4 }}>{p.label}</span>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => p.set(Math.max(p.min, p.value - 1))}
-                                                            disabled={p.value <= p.min}
-                                                            style={{
-                                                                width: 26, height: 26, borderRadius: 6, background: '#fff',
-                                                                border: '1px solid #e5e7eb', cursor: p.value <= p.min ? 'not-allowed' : 'pointer',
-                                                                opacity: p.value <= p.min ? 0.4 : 1, fontSize: 14, fontWeight: 700,
-                                                                display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#374151',
-                                                            }}
-                                                        >−</button>
-                                                        <span style={{ fontWeight: 700, fontSize: 15, minWidth: 18, textAlign: 'center' }}>{p.value}</span>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => p.set(Math.min(20, p.value + 1))}
-                                                            style={{
-                                                                width: 26, height: 26, borderRadius: 6, background: '#fff',
-                                                                border: '1px solid #e5e7eb', cursor: 'pointer', fontSize: 14, fontWeight: 700,
-                                                                display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#374151',
-                                                            }}
-                                                        >+</button>
-                                                    </div>
-                                                </div>
+                                    <Form.Item name="dropoff" label="Bırakış Noktası" rules={[{ required: true, message: 'Bırakış noktası zorunludur' }]}>
+                                        <Input placeholder="Bırakış adresi yazın..." size="large" />
+                                    </Form.Item>
+                                </Col>
+                                <Col xs={24} md={8}>
+                                    <Form.Item name="pickupDateTime" label="Tarih & Saat" rules={[{ required: true, message: 'Tarih zorunludur' }]}>
+                                        <DatePicker showTime format="YYYY-MM-DD HH:mm" style={{ width: '100%' }} size="large" />
+                                    </Form.Item>
+                                </Col>
+                                <Col xs={24} md={8}>
+                                    <Form.Item name="flightNumber" label="Uçuş Numarası (Opsiyonel)">
+                                        <Input placeholder="Örn: TK2434" size="large" />
+                                    </Form.Item>
+                                </Col>
+                            </Row>
+                        </Card>
+
+                        {/* 3. Araç Tipi & Yolcular */}
+                        <Card title={<><CarOutlined /> Araç ve Yolcu</>} bordered={false} style={{ marginBottom: 20, borderRadius: 12, boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+                            <Row gutter={16}>
+                                <Col xs={24} md={12}>
+                                    <Form.Item name="vehicleTypeId" label="İstenen Araç Sınıfı" rules={[{ required: true, message: 'Araç tipi seçmelisiniz' }]}>
+                                        <Select placeholder="Araç sınıfı seçiniz" size="large">
+                                            {vehicleTypes.map(vt => (
+                                                <Option key={vt.id} value={vt.id}>{vt.name} (Max {vt.capacity} Kişi)</Option>
                                             ))}
-                                        </div>
-                                        <div style={{ textAlign: 'center', marginTop: 6 }}>
-                                            <Tag color="purple" style={{ fontSize: 11 }}>
-                                                <TeamOutlined /> Toplam: {totalPax} kişi
-                                            </Tag>
-                                        </div>
+                                        </Select>
+                                    </Form.Item>
+                                </Col>
+                                <Col xs={24} md={4}>
+                                    <Form.Item name="adults" label="Yetişkin">
+                                        <InputNumber min={1} style={{ width: '100%' }} size="large" />
+                                    </Form.Item>
+                                </Col>
+                                <Col xs={24} md={4}>
+                                    <Form.Item name="children" label="Çocuk">
+                                        <InputNumber min={0} style={{ width: '100%' }} size="large" />
+                                    </Form.Item>
+                                </Col>
+                                <Col xs={24} md={4}>
+                                    <Form.Item name="infants" label="Bebek">
+                                        <InputNumber min={0} style={{ width: '100%' }} size="large" />
                                     </Form.Item>
                                 </Col>
                             </Row>
                         </Card>
 
-                        {/* ── Customer Info Card ── */}
-                        <Card
-                            size="small"
-                            style={{ marginBottom: 16, borderRadius: 14, border: '1px solid #e8ecf1', boxShadow: '0 1px 4px rgba(0,0,0,0.03)' }}
-                            title={
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                    <div style={{ width: 28, height: 28, borderRadius: 8, background: '#faf5ff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                        <UserOutlined style={{ fontSize: 14, color: '#8b5cf6' }} />
-                                    </div>
-                                    <span style={{ fontWeight: 700, fontSize: 14 }}>Müşteri Bilgileri</span>
-                                </div>
-                            }
-                        >
-                            <Row gutter={12}>
-                                <Col xs={24} md={8}>
-                                    <Form.Item
-                                        name="passengerName"
-                                        label={<span style={{ fontWeight: 600, fontSize: 12 }}>Ad Soyad</span>}
-                                        rules={[{ required: true, message: 'Müşteri adı zorunludur' }]}
-                                    >
-                                        <Input prefix={<UserOutlined style={{ color: '#94a3b8' }} />} placeholder="Ali Yılmaz" size="large" style={{ borderRadius: 10 }} />
-                                    </Form.Item>
-                                </Col>
-                                <Col xs={24} md={8}>
-                                    <Form.Item name="passengerPhone" label={<span style={{ fontWeight: 600, fontSize: 12 }}>Telefon</span>}>
-                                        <Input prefix={<PhoneOutlined style={{ color: '#94a3b8' }} />} placeholder="+90 555 123 45 67" size="large" style={{ borderRadius: 10 }} />
-                                    </Form.Item>
-                                </Col>
-                                <Col xs={24} md={8}>
-                                    <Form.Item name="passengerEmail" label={<span style={{ fontWeight: 600, fontSize: 12 }}>E-posta</span>}>
-                                        <Input prefix={<MailOutlined style={{ color: '#94a3b8' }} />} placeholder="musteri@ornek.com" size="large" style={{ borderRadius: 10 }} />
-                                    </Form.Item>
-                                </Col>
-                            </Row>
-                            <Row gutter={12}>
-                                <Col xs={24} md={8}>
-                                    <Form.Item name="flightNumber" label={<span style={{ fontWeight: 600, fontSize: 12 }}>Uçuş No / PNR</span>}>
-                                        <Input placeholder="TK1234" size="large" style={{ borderRadius: 10 }} />
-                                    </Form.Item>
-                                </Col>
-                                <Col xs={24} md={8}>
-                                    <Form.Item name="flightTime" label={<span style={{ fontWeight: 600, fontSize: 12 }}>Uçuş Saati</span>}>
-                                        <DatePicker
-                                            showTime={{ format: 'HH:mm' }}
-                                            format="DD.MM.YYYY HH:mm"
-                                            style={{ width: '100%', borderRadius: 10 }}
-                                            size="large"
-                                            placeholder="Uçuş varış/kalkış saati"
-                                        />
-                                    </Form.Item>
-                                </Col>
-                            </Row>
-                        </Card>
+                        {/* 4. İşlem Seçimi (Kendim Yapacağım / Pazar Yeri) */}
+                        <Card title={<><GlobalOutlined /> Operasyon</>} bordered={false} style={{ marginBottom: 20, borderRadius: 12, boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+                            <Form.Item name="actionType" label="Bu İşi Ne Yapacaksınız?" rules={[{ required: true }]}>
+                                <Radio.Group optionType="button" buttonStyle="solid" size="large">
+                                    <Radio value="SELF">Kendim Yapacağım</Radio>
+                                    <Radio value="MARKETPLACE">Pazar Yerine (Havuza) Gönder</Radio>
+                                </Radio.Group>
+                            </Form.Item>
 
-                        {/* ── Vehicle & Driver Card ── */}
-                        <Card
-                            size="small"
-                            style={{ marginBottom: 16, borderRadius: 14, border: '1px solid #e8ecf1', boxShadow: '0 1px 4px rgba(0,0,0,0.03)' }}
-                            title={
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                    <div style={{ width: 28, height: 28, borderRadius: 8, background: '#fff7ed', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                        <CarOutlined style={{ fontSize: 14, color: '#f59e0b' }} />
-                                    </div>
-                                    <span style={{ fontWeight: 700, fontSize: 14 }}>Araç & Şoför</span>
-                                    <Text type="secondary" style={{ fontSize: 11, marginLeft: 4 }}>(Opsiyonel)</Text>
-                                </div>
-                            }
-                        >
-                            <Row gutter={12}>
-                                <Col xs={24} md={8}>
-                                    <Form.Item name="vehicleTypeId" label={<span style={{ fontWeight: 600, fontSize: 12 }}>Araç Tipi</span>}>
-                                        <Select
-                                            allowClear
-                                            placeholder="Araç tipi seçin"
-                                            size="large"
-                                            style={{ borderRadius: 10 }}
-                                            onChange={(val) => {
-                                                const zoneId = form.getFieldValue('partnerZoneId');
-                                                handleAutoPrice(zoneId, val);
-                                            }}
-                                            options={vehicleTypes.map(vt => ({
-                                                value: vt.id,
-                                                label: `${vt.name} — ${vt.capacity} kişi`,
-                                            }))}
-                                        />
-                                    </Form.Item>
-                                </Col>
-                                <Col xs={24} md={8}>
-                                    <Form.Item name="vehicleId" label={<span style={{ fontWeight: 600, fontSize: 12 }}>Araç</span>}>
-                                        <Select
-                                            allowClear
-                                            placeholder="Araç seçin"
-                                            size="large"
-                                            style={{ borderRadius: 10 }}
-                                            onChange={handleVehicleChange}
-                                            options={vehicles.map(v => ({
-                                                value: v.id,
-                                                label: `${v.plateNumber} — ${v.brand} ${v.model}`,
-                                                disabled: v.isBusy,
-                                            }))}
-                                            optionRender={(option) => {
-                                                const v = vehicles.find(x => x.id === option.value);
-                                                return (
-                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                        <span>{option.label}</span>
-                                                        {v?.isBusy && <Tag color="red" style={{ fontSize: 10 }}>Meşgul</Tag>}
-                                                    </div>
-                                                );
-                                            }}
-                                        />
-                                    </Form.Item>
-                                </Col>
-                                <Col xs={24} md={8}>
-                                    <Form.Item name="driverId" label={<span style={{ fontWeight: 600, fontSize: 12 }}>Şoför</span>}>
-                                        <Select
-                                            allowClear
-                                            placeholder="Şoför seçin"
-                                            size="large"
-                                            style={{ borderRadius: 10 }}
-                                            options={drivers.map(d => ({
-                                                value: d.id,
-                                                label: d.fullName || `${d.firstName} ${d.lastName}`,
-                                            }))}
-                                            optionRender={(option) => {
-                                                const d = drivers.find(x => x.id === option.value);
-                                                return (
-                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                        <span>{option.label}</span>
-                                                        <div style={{ display: 'flex', gap: 4 }}>
-                                                            {d?.isOnline && <Tag color="green" style={{ fontSize: 10, margin: 0 }}>Online</Tag>}
-                                                            {(d?.activeBookingsCount || 0) > 0 && (
-                                                                <Tag color="orange" style={{ fontSize: 10, margin: 0 }}>{d?.activeBookingsCount} aktif</Tag>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                );
-                                            }}
-                                        />
-                                    </Form.Item>
-                                </Col>
-                            </Row>
-                            {drivers.length === 0 && vehicles.length === 0 && (
+                            {actionType === 'SELF' && (
                                 <Alert
+                                    message="İş doğrudan operasyon panelinize düşecek."
+                                    description="Dilerseniz şimdiden aracınızı ve şoförünüzü seçebilirsiniz."
                                     type="info"
                                     showIcon
-                                    message="Henüz kayıtlı araç veya şoförünüz yok. Ayarlar sayfasından ekleyebilirsiniz."
-                                    style={{ borderRadius: 10 }}
+                                    style={{ marginBottom: 20 }}
                                 />
+                            )}
+
+                            {actionType === 'SELF' && (
+                                <Row gutter={16}>
+                                    <Col xs={24} md={12}>
+                                        <Form.Item name="vehicleId" label="Kendi Aracımı Ata (Opsiyonel)">
+                                            <Select placeholder="Araç Seçiniz" allowClear size="large">
+                                                {myVehicles.map(v => (
+                                                    <Option key={v.id} value={v.id}>{v.plateNumber} ({v.brand} {v.model})</Option>
+                                                ))}
+                                            </Select>
+                                        </Form.Item>
+                                    </Col>
+                                    <Col xs={24} md={12}>
+                                        <Form.Item name="driverId" label="Kendi Şoförümü Ata (Opsiyonel)">
+                                            <Select placeholder="Şoför Seçiniz" allowClear size="large">
+                                                {myDrivers.map(d => (
+                                                    <Option key={d.id} value={d.id}>{d.name}</Option>
+                                                ))}
+                                            </Select>
+                                        </Form.Item>
+                                    </Col>
+                                </Row>
+                            )}
+
+                            {actionType === 'MARKETPLACE' && (
+                                <div style={{ background: '#fdf4ff', padding: 20, borderRadius: 8, border: '1px solid #f5d0fe' }}>
+                                    <Title level={5} style={{ color: '#86198f', marginTop: 0 }}>Pazar Yeri Ayarları</Title>
+                                    <Form.Item name="b2bPriceType" label="Pazar Yeri Teklif Türü">
+                                        <Radio.Group>
+                                            <Space direction="vertical">
+                                                <Radio value="OPEN_BID">Tekliflere Açık Olsun (Diğer partnerler fiyat teklifi versin)</Radio>
+                                                <Radio value="FIXED_PRICE">Sabit Fiyat (İlk kabul eden işi alır)</Radio>
+                                            </Space>
+                                        </Radio.Group>
+                                    </Form.Item>
+
+                                    {b2bPriceType === 'FIXED_PRICE' && (
+                                        <Form.Item name="b2bPrice" label="Diğer Partnere Ödenecek Fiyat (B2B)" rules={[{ required: true, message: 'Lütfen tutar giriniz' }]}>
+                                            <InputNumber min={0} style={{ width: '100%', maxWidth: 200 }} size="large" addonAfter="Para Birimi" />
+                                        </Form.Item>
+                                    )}
+                                </div>
                             )}
                         </Card>
 
-                        {/* ── Pricing Card ── */}
-                        <Card
-                            size="small"
-                            style={{ marginBottom: 16, borderRadius: 14, border: '1px solid #e8ecf1', boxShadow: '0 1px 4px rgba(0,0,0,0.03)' }}
-                            title={
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                    <div style={{ width: 28, height: 28, borderRadius: 8, background: '#f0fdf4', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                        <DollarOutlined style={{ fontSize: 14, color: '#10b981' }} />
-                                    </div>
-                                    <span style={{ fontWeight: 700, fontSize: 14 }}>Fiyatlandırma</span>
-                                    {autoPrice != null && (
-                                        <Tag color="green" style={{ marginLeft: 'auto', fontSize: 11 }}>
-                                            <CheckCircleOutlined /> Otomatik: {autoPrice} {autoCurrency}
-                                        </Tag>
-                                    )}
-                                </div>
-                            }
-                        >
-                            <Row gutter={12}>
+                        {/* 5. Müşteri Fiyatı ve Notlar */}
+                        <Card title={<><DollarOutlined /> Fiyat ve Ek Notlar</>} bordered={false} style={{ marginBottom: 20, borderRadius: 12, boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+                            <Row gutter={16}>
                                 <Col xs={24} md={8}>
-                                    <Form.Item
-                                        name="partnerZoneId"
-                                        label={
-                                            <span style={{ fontWeight: 600, fontSize: 12 }}>
-                                                Bölge{' '}
-                                                <Tooltip title="Bölge seçerseniz tanımlı fiyatınız otomatik doldurulur">
-                                                    <InfoCircleOutlined style={{ color: '#94a3b8' }} />
-                                                </Tooltip>
-                                            </span>
-                                        }
-                                    >
-                                        <Select
-                                            allowClear
-                                            placeholder="Bölge seçin (opsiyonel)"
-                                            size="large"
-                                            style={{ borderRadius: 10 }}
-                                            onChange={(val) => {
-                                                const vtId = form.getFieldValue('vehicleTypeId');
-                                                handleAutoPrice(val, vtId);
-                                            }}
-                                            options={allowedZones.map(az => ({
-                                                value: az.zoneId,
-                                                label: `${az.zone.name} ${az.zone.code ? `(${az.zone.code})` : ''} @ ${az.baseLocation}`,
-                                            }))}
-                                        />
+                                    <Form.Item name="price" label="Müşteriden Alınan Fiyat">
+                                        <InputNumber min={0} style={{ width: '100%' }} size="large" />
                                     </Form.Item>
                                 </Col>
-                                <Col xs={24} md={6}>
-                                    <Form.Item
-                                        name="price"
-                                        label={<span style={{ fontWeight: 600, fontSize: 12 }}>Fiyat</span>}
-                                    >
-                                        <InputNumber
-                                            min={0}
-                                            style={{ width: '100%', borderRadius: 10 }}
-                                            size="large"
-                                            placeholder="0.00"
-                                            prefix={<DollarOutlined style={{ color: '#94a3b8' }} />}
-                                        />
-                                    </Form.Item>
-                                </Col>
-                                <Col xs={24} md={5}>
-                                    <Form.Item name="currency" label={<span style={{ fontWeight: 600, fontSize: 12 }}>Para Birimi</span>}>
-                                        <Select size="large" style={{ borderRadius: 10 }} placeholder="Seçin">
-                                            {defCurrencies.map(c => (
-                                                <Select.Option key={c.code} value={c.code}>
-                                                    {c.symbol} {c.code}
-                                                </Select.Option>
-                                            ))}
-                                        </Select>
-                                    </Form.Item>
-                                </Col>
-                                <Col xs={24} md={5}>
-                                    <Form.Item name="paymentMethod" label={<span style={{ fontWeight: 600, fontSize: 12 }}>Ödeme</span>} initialValue="CASH">
-                                        <Select size="large" style={{ borderRadius: 10 }}>
-                                            <Select.Option value="CASH">Nakit</Select.Option>
-                                            <Select.Option value="CREDIT_CARD">Kredi Kartı</Select.Option>
-                                            <Select.Option value="BANK_TRANSFER">Havale/EFT</Select.Option>
+                                <Col xs={24} md={8}>
+                                    <Form.Item name="currency" label="Para Birimi">
+                                        <Select size="large">
+                                            {currencies.map(c => <Option key={c} value={c}>{c}</Option>)}
                                         </Select>
                                     </Form.Item>
                                 </Col>
                             </Row>
-                        </Card>
 
-                        {/* ── Notes Card ── */}
-                        <Card
-                            size="small"
-                            style={{ marginBottom: 24, borderRadius: 14, border: '1px solid #e8ecf1', boxShadow: '0 1px 4px rgba(0,0,0,0.03)' }}
-                            title={
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                    <div style={{ width: 28, height: 28, borderRadius: 8, background: '#fef3c7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                        <FileTextOutlined style={{ fontSize: 14, color: '#d97706' }} />
-                                    </div>
-                                    <span style={{ fontWeight: 700, fontSize: 14 }}>Notlar</span>
-                                    <Text type="secondary" style={{ fontSize: 11, marginLeft: 4 }}>(Opsiyonel)</Text>
-                                </div>
-                            }
-                        >
-                            <Form.Item name="notes" style={{ marginBottom: 0 }}>
-                                <Input.TextArea
-                                    rows={3}
-                                    placeholder="Özel istekler, ek bilgiler..."
-                                    style={{ borderRadius: 10 }}
-                                />
+                            <Form.Item name="notes" label="Ek Notlar / Özel İstekler">
+                                <Input.TextArea rows={4} placeholder="Bebek koltuğu, engelli yolcu, vd..." />
                             </Form.Item>
                         </Card>
 
-                        {/* ── Submit ── */}
-                        <div style={{
-                            position: 'sticky', bottom: 0, zIndex: 10,
-                            background: 'linear-gradient(to top, #f0f2f5 60%, transparent)',
-                            padding: '16px 0 8px',
-                        }}>
-                            <Card
-                                size="small"
-                                style={{
-                                    borderRadius: 14, border: '1px solid #d1fae5',
-                                    background: 'linear-gradient(135deg, #ecfdf5, #f0fdf4)',
-                                    boxShadow: '0 4px 20px rgba(16,185,129,0.1)',
-                                }}
-                            >
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
-                                    <div>
-                                        <div style={{ fontSize: 13, fontWeight: 600, color: '#064e3b' }}>
-                                            {pickup && dropoff ? (
-                                                <span>{pickup.substring(0, 30)}... → {dropoff.substring(0, 30)}...</span>
-                                            ) : (
-                                                <span style={{ color: '#94a3b8' }}>Güzergah seçilmedi</span>
-                                            )}
-                                        </div>
-                                        <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
-                                            {totalPax} yolcu
-                                            {routeInfo && ` · ${routeInfo.distance}`}
-                                            {form.getFieldValue('price') != null && ` · ${form.getFieldValue('price')} ${form.getFieldValue('currency') || ''}`}
-                                        </div>
-                                    </div>
-                                    <Button
-                                        type="primary"
-                                        size="large"
-                                        icon={<SendOutlined />}
-                                        loading={submitting}
-                                        htmlType="submit"
-                                        style={{
-                                            borderRadius: 12, height: 48, paddingInline: 32,
-                                            background: 'linear-gradient(135deg, #10b981, #059669)',
-                                            border: 'none', fontWeight: 700, fontSize: 15,
-                                            boxShadow: '0 4px 15px rgba(16,185,129,0.35)',
-                                        }}
-                                    >
-                                        Rezervasyon Oluştur
-                                    </Button>
-                                </div>
-                            </Card>
+                        <div style={{ textAlign: 'right', marginTop: 20 }}>
+                            <Space>
+                                <Button size="large" onClick={() => router.back()}>İptal</Button>
+                                <Button type="primary" htmlType="submit" size="large" loading={loading} style={{ background: '#6366f1' }}>
+                                    {actionType === 'MARKETPLACE' ? 'Pazar Yerine Gönder' : 'İşi Kaydet'}
+                                </Button>
+                            </Space>
                         </div>
                     </Form>
-
-                    {/* Map Picker Modal */}
-                    <MapPickerModal
-                        visible={!!mapOpen}
-                        onCancel={() => setMapOpen(null)}
-                        onConfirm={(address: string, lat: number, lng: number) => {
-                            if (mapOpen === 'pickup') {
-                                setPickup(address);
-                                setPickupCoords({ lat, lng });
-                            } else {
-                                setDropoff(address);
-                                setDropoffCoords({ lat, lng });
-                            }
-                            setMapOpen(null);
-                        }}
-                        title={mapOpen === 'pickup' ? 'Alış Noktası Seçin' : 'Bırakış Noktası Seçin'}
-                    />
                 </div>
             </PartnerLayout>
         </PartnerGuard>
     );
 };
 
-export default PartnerNewBookingPage;
+export default NewPartnerBookingPage;

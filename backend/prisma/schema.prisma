@@ -214,6 +214,8 @@ model User {
   partnerZonePrices      PartnerZonePrice[]
   uetdsSubmissions       UetdsSubmission[]       @relation("PartnerUetdsSubmissions")
   partnerFinanceEntries  PartnerFinanceEntry[]   @relation("PartnerFinanceEntries")
+  partnerOffers          MarketplaceOffer[]      @relation("PartnerOffers")
+  partnerOwnedBookings   Booking[]               @relation("PartnerOwnedBookings")
   // Financial Snapshot
   balance                Decimal                 @default(0) @db.Decimal(15, 2)
   debit                  Decimal                 @default(0) @db.Decimal(15, 2)
@@ -898,8 +900,17 @@ model Booking {
   pickedUpAt   DateTime? // When driver picked up the customer
   droppedOffAt DateTime? // When driver dropped off the customer
 
+  // Marketplace & B2B
+  marketplaceStatus String?  // NULL, "PUBLISHED", "OFFER_ACCEPTED", "COMPLETED"
+  b2bPriceType      String?  // "FIXED_PRICE" (Sabit Fiyat) veya "OPEN_BID" (Açık Teklif)
+  b2bPrice          Decimal? @db.Decimal(10, 2) // Sabit fiyat girildiyse tutar
+  assignedPartnerId String?  // İşi alan (teklifi kabul edilen) partner
+  ownerPartnerId    String?  // İşi pazar yerine koyan partner
+  ownerPartner      User?    @relation("PartnerOwnedBookings", fields: [ownerPartnerId], references: [id])
+  marketplaceOffers MarketplaceOffer[]
+
   // Booking Type & Creator
-  bookingType    String? @default("DIRECT") // B2B, DIRECT, SYSTEM
+  bookingType    String? @default("DIRECT") // B2B, DIRECT, SYSTEM, PARTNER_DIRECT
   bookedByUserId String? // User ID of whoever created this booking
   bookedByName   String? // Display name snapshot of the creator
 
@@ -954,6 +965,46 @@ model BookingItem {
   metadata Json? // Room details, tour options, etc.
 
   @@index([bookingId])
+}
+
+// ============================================================================
+// MARKETPLACE (B2B PARTNER POOL)
+// ============================================================================
+
+model MarketplaceOffer {
+  id          String   @id @default(uuid())
+  tenantId    String
+  
+  bookingId   String
+  booking     Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  
+  // Teklifi veren Partner
+  partnerId   String
+  partner     User     @relation("PartnerOffers", fields: [partnerId], references: [id])
+  
+  amount      Decimal  @db.Decimal(10, 2) // Teklif edilen tutar
+  currency    String   @default("TRY")
+  
+  // Eğer teklif verirken kendi aracını/şoförünü de seçmek isterse
+  vehicleId   String?
+  driverId    String?
+  
+  notes       String?  // Partnerin teklif notu ("Temiz VIP araç", vb.)
+  
+  status      OfferStatus @default(PENDING) // PENDING, ACCEPTED, REJECTED, WITHDRAWN
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([tenantId, bookingId])
+  @@index([partnerId])
+}
+
+enum OfferStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  WITHDRAWN
 }
 
 // ============================================================================
