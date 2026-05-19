@@ -145,7 +145,7 @@ const GoogleLocationSearchInput: React.FC<GoogleLocationSearchInputProps> = ({
                     size={size}
                     placeholder={placeholder || "Adres veya mekan arayın..."}
                     prefix={prefix || <SearchOutlined style={{ color: '#bfbfbf' }} />}
-                    suffix={!ready && isLoaded ? <Spin size="small" /> : <img src="https://developers.google.com/maps/documentation/images/powered_by_google_on_white.png" alt="Powered by Google" style={{ height: 14, opacity: 0.6 }} />}
+                    suffix={!ready && isLoaded ? <Spin size="small" /> : <img src="https://maps.gstatic.com/mapfiles/api-3/images/powered-by-google-on-white3.png" alt="Powered by Google" style={{ height: 14, opacity: 0.6 }} />}
                     style={{ borderRadius: 'var(--radius-md)' }}
                 />
             </AutoComplete>
