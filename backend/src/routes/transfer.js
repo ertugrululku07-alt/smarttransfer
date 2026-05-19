@@ -679,8 +679,14 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
             // Find the zone the dropoff is inside (overage=0 and distFromEnd=0)
             for (const [zoneId, zd] of Object.entries(req.zoneOverages)) {
                 if (!zd.zoneCode) continue;
-                // Dropoff is inside this zone if it was added with overage=0 via dropoff point check
-                const isDropoffInside = (zd.distFromEnd === 0 || zd.hitEnd) && !req.pickupZoneIds?.has(zoneId);
+                // Dropoff is inside this zone ONLY if the actual dropoff point is inside its polygon
+                // (distFromEnd === 0 is set explicitly by the dropoff point-in-polygon check).
+                // We must NOT trust `hitEnd` here — that flag merely means the route polyline
+                // re-enters the zone while scanning backwards from the route's end. A long route
+                // (e.g. Alanya → Hatay) can pass *through* an unrelated zone (e.g. Gazipaşa),
+                // which would otherwise be misdetected as the dropoff zone and apply the wrong
+                // pricing / shuttle match.
+                const isDropoffInside = zd.distFromEnd === 0 && !req.pickupZoneIds?.has(zoneId);
                 if (isDropoffInside && zd.area < smallestDropoffArea) {
                     smallestDropoffArea = zd.area;
                     detectedDropoffBase = zd.zoneCode;
@@ -1244,14 +1250,18 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                             isRelevant = true;
                         }
 
-                        // RULE 2: If the pickup or dropoff point is INSIDE the zone polygon (overage=0),
-                        // or the route polyline directly enters the zone (hitStart/hitEnd),
+                        // RULE 2: If the pickup or dropoff point is INSIDE the zone polygon,
                         // the zone is always relevant — no text matching needed.
+                        // NOTE: We intentionally DO NOT trust `hitStart`/`hitEnd` here. Those flags
+                        // mean only that the route polyline crosses the zone at some point — for a
+                        // long trip like Alanya → Hatay the polyline passes through many transit
+                        // zones (e.g. Gazipaşa) which must NOT inherit the destination's pricing.
+                        // Pickup-inside is tracked in req.pickupZoneIds; dropoff-inside is signalled
+                        // by distFromEnd === 0 (set explicitly by the dropoff point-in-polygon check).
                         if (!isRelevant) {
                             const pickupInsideZone = req.pickupZoneIds && req.pickupZoneIds.has(finalMatchedZoneId);
-                            const routeEntersZone = zoneData?.hitStart || zoneData?.hitEnd;
-                            const dropoffInsideZone = zoneData?.overage === 0 || zoneData?.distFromEnd === 0;
-                            if (pickupInsideZone || routeEntersZone || dropoffInsideZone) {
+                            const dropoffInsideZone = zoneData?.distFromEnd === 0;
+                            if (pickupInsideZone || dropoffInsideZone) {
                                 isRelevant = true;
                             }
                         }

@@ -15,8 +15,11 @@ const turf = require('@turf/turf');
  * @returns {string|null} - Zone code
  */
 function detectRegionCodeByPolygon(lat, lng, locationText, zones, hubs) {
-    // Try polygon-based detection first
-    if (lat && lng && zones && zones.length > 0) {
+    const hasCoords = lat && lng;
+    const hasZones = zones && zones.length > 0;
+
+    // Try polygon-based detection first (the only authoritative source)
+    if (hasCoords && hasZones) {
         let bestCode = null;
         let smallestArea = Infinity;
         const point = turf.point([Number(lng), Number(lat)]);
@@ -41,9 +44,18 @@ function detectRegionCodeByPolygon(lat, lng, locationText, zones, hubs) {
                 }
             } catch (e) { /* skip invalid polygon */ }
         }
-        if (bestCode) return bestCode;
+        // Coordinates + zones available → trust polygon result. If the point is
+        // not inside any zone polygon, the region is genuinely undefined and
+        // we MUST return null (do NOT fall back to substring keyword matching,
+        // which historically produced false positives like stamping "AIDA PORT"
+        // on Bursa / Nevşehir bookings).
+        return bestCode || null;
     }
-    // Fallback: keyword-based detection
+
+    // Only when we lack the precise inputs (no coordinates, or tenant has no
+    // zone polygons configured) do we fall back to keyword/text detection —
+    // this preserves backwards compatibility for legacy bookings without
+    // stored coordinates.
     return detectRegionCodeByKeyword(locationText, hubs);
 }
 
