@@ -1,8 +1,6 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import PartnerLayout from '../PartnerLayout';
-import PartnerGuard from '../PartnerGuard';
 import {
     Form, Input, Button, Table, Tag, Space, Modal, Popconfirm, Tooltip,
     Row, Col, Upload, message, Select, Avatar, List, Alert, Spin
@@ -244,9 +242,8 @@ export default function SettingsPage() {
     ];
 
     return (
-        <PartnerGuard>
-            <PartnerLayout>
-                {contextHolder}
+        <>
+        {contextHolder}
                 <style jsx global>{`
                     .settings-container { max-width: 1200px; margin: 0 auto; }
                     .settings-content { display: grid; grid-template-columns: 220px 1fr; gap: 24px; }
@@ -858,7 +855,6 @@ export default function SettingsPage() {
                         </div>
                     </Modal>
                 </div>
-            </PartnerLayout>
-        </PartnerGuard>
+    </>
     );
 }

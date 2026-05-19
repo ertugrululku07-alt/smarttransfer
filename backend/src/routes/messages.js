@@ -3,16 +3,19 @@ const router = express.Router();
 
 const prisma = require('../lib/prisma');
 const { authMiddleware } = require('../middleware/auth');
+const { requireTenantId, findMessageForTenant, isAdminUser } = require('../utils/tenantScope');
 
-// GET /api/messages
-// Get conversation with another user or generic list
 router.get('/', authMiddleware, async (req, res) => {
     try {
+        const tenantId = requireTenantId(req, res);
+        if (!tenantId) return;
+
         const userId = req.user.id;
         const { contactId, bookingId } = req.query;
 
         if (contactId) {
             let whereClause = {
+                tenantId,
                 OR: [
                     { senderId: userId, receiverId: contactId },
                     { senderId: contactId, receiverId: userId }
@@ -20,31 +23,33 @@ router.get('/', authMiddleware, async (req, res) => {
                 ...(bookingId ? { bookingId } : {})
             };
 
-            // If the user is a driver/partner, they are talking to the "Operations Center" as a whole.
-            // Ignore the specific admin contactId and fetch ALL their messages.
             if (req.user.roleCode === 'DRIVER' || req.user.roleType === 'DRIVER' || req.user.roleType === 'PARTNER') {
                 whereClause = {
+                    tenantId,
                     OR: [
                         { senderId: userId },
                         { receiverId: userId }
                     ],
                     ...(bookingId ? { bookingId } : {})
                 };
-            } else {
-                // If it's an admin/dispatcher checking a driver's messages, they should see ALL of the driver's messages
-                // because drivers send messages to the system generally, not strict point-to-point.
-                const isAdmin = ['ADMIN', 'AGENCY_ADMIN', 'DISPATCHER', 'TENANT_ADMIN', 'SUPER_ADMIN', 'PLATFORM_OPS'].includes(req.user.roleType) ||
-                    ['ADMIN', 'OPERATION', 'SUPER_ADMIN'].includes(req.user.roleCode);
-
-                if (isAdmin) {
-                    whereClause.OR = [
+            } else if (isAdminUser(req.user)) {
+                const contact = await prisma.user.findFirst({
+                    where: { id: contactId, tenantId },
+                    select: { id: true }
+                });
+                if (!contact) {
+                    return res.status(404).json({ success: false, error: 'Contact not found' });
+                }
+                whereClause = {
+                    tenantId,
+                    OR: [
                         { senderId: contactId },
                         { receiverId: contactId }
-                    ];
-                }
+                    ],
+                    ...(bookingId ? { bookingId } : {})
+                };
             }
 
-            // Fetch conversation with specific user (or all admins for drivers)
             const messages = await prisma.message.findMany({
                 where: whereClause,
                 orderBy: { createdAt: 'asc' },
@@ -56,9 +61,9 @@ router.get('/', authMiddleware, async (req, res) => {
             return res.json({ success: true, data: messages });
         }
 
-        // List all messages for inbox (ordered asc for display)
         const messages = await prisma.message.findMany({
             where: {
+                tenantId,
                 OR: [
                     { senderId: userId },
                     { receiverId: userId }
@@ -72,17 +77,17 @@ router.get('/', authMiddleware, async (req, res) => {
         });
 
         res.json({ success: true, data: messages });
-
     } catch (error) {
         console.error('Messages list error:', error);
         res.status(500).json({ success: false, error: 'Server error' });
     }
 });
 
-// POST /api/messages
-// Send a message
 router.post('/', authMiddleware, async (req, res) => {
     try {
+        const tenantId = requireTenantId(req, res);
+        if (!tenantId) return;
+
         const senderId = req.user.id;
         const { receiverId, bookingId, content, format } = req.body;
 
@@ -90,15 +95,16 @@ router.post('/', authMiddleware, async (req, res) => {
             return res.status(400).json({ success: false, error: 'receiverId and content are required' });
         }
 
-        // Validate receiver exists
-        const receiver = await prisma.user.findUnique({ where: { id: receiverId } });
+        const receiver = await prisma.user.findFirst({
+            where: { id: receiverId, tenantId },
+        });
         if (!receiver) {
             return res.status(404).json({ success: false, error: 'Receiver not found' });
         }
 
         const message = await prisma.message.create({
             data: {
-                tenantId: req.user.tenantId || receiver.tenantId,
+                tenantId,
                 senderId,
                 receiverId,
                 bookingId: bookingId || null,
@@ -111,23 +117,19 @@ router.post('/', authMiddleware, async (req, res) => {
             }
         });
 
-        // Emit socket event only to the RECEIVER
-        // (sender gets message from HTTP response, emitting to sender causes race conditions)
         const io = req.app.get('io');
         if (io) {
             io.to(`user_${receiverId}`).emit('new_message', message);
 
-            // If sender is a driver/partner, also broadcast to all admins so they see the live message
             if (req.user.roleCode === 'DRIVER' || req.user.roleType === 'DRIVER' || req.user.roleType === 'PARTNER') {
-                io.to('admin_monitoring').emit('new_message', message);
+                io.to(`admin_monitoring_${tenantId}`).emit('new_message', message);
             }
         }
 
-        // Try to send an Expo remote Push Notification to the receiver
         try {
             let receiverMeta = receiver?.metadata || {};
             if (typeof receiverMeta === 'string') {
-                try { receiverMeta = JSON.parse(receiverMeta); } catch (e) { receiverMeta = {}; }
+                try { receiverMeta = JSON.parse(receiverMeta); } catch { receiverMeta = {}; }
             }
 
             const pushToken = receiver?.pushToken || receiverMeta?.expoPushToken;
@@ -148,7 +150,6 @@ router.post('/', authMiddleware, async (req, res) => {
                     }
                 };
 
-                // Fire and forget — don't await to avoid delaying HTTP response
                 fetch('https://exp.host/--/api/v2/push/send', {
                     method: 'POST',
                     headers: {
@@ -157,9 +158,7 @@ router.post('/', authMiddleware, async (req, res) => {
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify(pushPayload),
-                }).then(() => console.log(`Push sent to ${pushToken}`))
-                  .catch(e => console.error('Push error:', e.message));
-                console.log(`Push notification queued for ${pushToken}`);
+                }).catch(e => console.error('Push error:', e.message));
             }
         } catch (pushErr) {
             console.error('Message push notification error (non-fatal):', pushErr.message);
@@ -172,10 +171,21 @@ router.post('/', authMiddleware, async (req, res) => {
     }
 });
 
-// PUT /api/messages/:id/read
 router.put('/:id/read', authMiddleware, async (req, res) => {
     try {
+        const tenantId = requireTenantId(req, res);
+        if (!tenantId) return;
+
         const { id } = req.params;
+        const existing = await findMessageForTenant(id, tenantId);
+        if (!existing) {
+            return res.status(404).json({ success: false, error: 'Message not found' });
+        }
+
+        if (existing.receiverId !== req.user.id && !isAdminUser(req.user)) {
+            return res.status(403).json({ success: false, error: 'Not authorized to mark this message as read' });
+        }
+
         const message = await prisma.message.update({
             where: { id },
             data: { isRead: true, readAt: new Date() }

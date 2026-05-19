@@ -5,8 +5,7 @@ import { AppState, AppStateStatus, Alert } from 'react-native';
 import Toast from 'react-native-toast-message';
 import { Audio } from 'expo-av';
 import * as Notifications from 'expo-notifications';
-
-const SOCKET_URL = 'https://api.jet2home.com';
+import { SOCKET_URL } from '../config';
 const SOCKET_DISABLED = true;
 
 interface SocketContextType {
@@ -116,9 +115,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             console.log('[Socket] Received fresh token from server');
             try {
                 const SecureStore = require('expo-secure-store');
-                const AsyncStorage = require('@react-native-async-storage/async-storage').default;
                 await SecureStore.setItemAsync('token', data.token);
-                await AsyncStorage.setItem('token', data.token);
                 tokenRef.current = data.token;
             } catch (e) {
                 console.warn('[Socket] Failed to persist refreshed token:', e);

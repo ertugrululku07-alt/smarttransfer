@@ -3,10 +3,15 @@
 // Version: 2.0.0 Enterprise
 
 require('dotenv').config();
+
+// Validate environment before starting server
+require('./src/config/env');
+
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
+const env = require('./src/config/env');
 
 // Middleware
 const tenantMiddleware = require('./src/middleware/tenant');
@@ -33,9 +38,11 @@ let lastServerError = {
 // MIDDLEWARE SETUP
 // ============================================================================
 
-// CORS - Allow frontend and mobile apps
+// CORS - configurable via CORS_ORIGINS env (comma-separated)
 app.use(cors({
-  origin: true, // Allow all origins (frontend + mobile app)
+  origin: env.cors.origins.length > 0
+    ? env.cors.origins
+    : (origin, callback) => callback(null, true),
   credentials: true
 }));
 
@@ -87,6 +94,9 @@ app.get('/health', (req, res) => {
 // Removed duplicate ping for v2.3.2 diagnostics
 
 app.get('/api/debug/error-log', (req, res) => {
+  if (env.isProduction) {
+    return res.status(404).json({ success: false, error: 'Not found' });
+  }
   res.json({
     success: true,
     lastError: lastServerError
@@ -445,14 +455,18 @@ wss.on('connection', async (ws, req) => {
 
   if (!wsToken) { ws.close(4001, 'No token'); return; }
 
-  let userId, userName;
+  let userId, userName, userTenantId;
   try {
     const decoded = jwt.verify(wsToken, JWT_SECRET);
     userId = decoded.userId;
     const prisma = require('./src/lib/prisma');
-    const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, fullName: true } });
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, fullName: true, tenantId: true }
+    });
     if (!user) { ws.close(4002, 'User not found'); return; }
     userName = user.fullName;
+    userTenantId = user.tenantId;
   } catch (e) { ws.close(4003, 'Invalid token'); return; }
 
   console.log(`[WS/driver] ${userName} connected`);
@@ -475,7 +489,8 @@ wss.on('connection', async (ws, req) => {
         };
       }
 
-      io.to('admin_monitoring').emit('driver_location', {
+      const { adminMonitoringRoom } = require('./src/utils/tenantScope');
+      io.to(adminMonitoringRoom(userTenantId)).emit('driver_location', {
         driverId: userId,
         driverName: userName,
         lat: loc.lat,

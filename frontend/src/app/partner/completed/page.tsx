@@ -3,8 +3,6 @@ import { API_URL } from '@/lib/api-client';
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import PartnerLayout from '../PartnerLayout';
-import PartnerGuard from '../PartnerGuard';
 import {
     CheckCircleOutlined,
     ClockCircleOutlined,
@@ -73,9 +71,8 @@ export default function CompletedReservationsPage() {
     const filtered = getFilteredBookings();
 
     return (
-        <PartnerGuard>
-            <PartnerLayout>
-                <style jsx global>{`
+        <>
+        <style jsx global>{`
                     .completed-container { max-width: 1200px; margin: 0 auto; }
                     .completed-list { display: flex; flex-direction: column; gap: 12px; }
                     @media (max-width: 768px) {
@@ -201,7 +198,6 @@ export default function CompletedReservationsPage() {
                         </div>
                     )}
                 </div>
-            </PartnerLayout>
-        </PartnerGuard>
+    </>
     );
 }

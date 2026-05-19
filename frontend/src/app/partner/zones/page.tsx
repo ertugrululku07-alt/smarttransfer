@@ -11,8 +11,6 @@ import {
 } from '@ant-design/icons';
 import apiClient from '@/lib/api-client';
 import { useDefinitions } from '@/app/hooks/useDefinitions';
-import PartnerLayout from '../PartnerLayout';
-import PartnerGuard from '../PartnerGuard';
 
 const { Text } = Typography;
 
@@ -232,9 +230,7 @@ const PartnerZonesPage: React.FC = () => {
     }, [vehicleTypes, priceMap]);
 
     return (
-        <PartnerGuard>
-            <PartnerLayout>
-                <div style={{ padding: '8px 4px' }}>
+        <div style={{ padding: '8px 4px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
                         <div>
                             <h1 style={{ fontSize: 22, fontWeight: 800, color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -397,8 +393,6 @@ const PartnerZonesPage: React.FC = () => {
                         </Form>
                     </Modal>
                 </div>
-            </PartnerLayout>
-        </PartnerGuard>
     );
 };
 

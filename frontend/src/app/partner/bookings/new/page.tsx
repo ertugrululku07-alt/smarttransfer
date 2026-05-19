@@ -29,8 +29,6 @@ import {
 } from '@ant-design/icons';
 import { useRouter } from 'next/navigation';
 import apiClient from '@/lib/api-client';
-import PartnerGuard from '../../PartnerGuard';
-import PartnerLayout from '../../PartnerLayout';
 import dayjs from 'dayjs';
 
 const { Title, Text } = Typography;
@@ -127,9 +125,7 @@ const NewPartnerBookingPage = () => {
     };
 
     return (
-        <PartnerGuard>
-            <PartnerLayout>
-                <div style={{ maxWidth: 1000, margin: '0 auto', paddingBottom: 40 }}>
+        <div style={{ maxWidth: 1000, margin: '0 auto', paddingBottom: 40 }}>
                     <div style={{ marginBottom: 24 }}>
                         <Title level={2} style={{ margin: 0, fontWeight: 700 }}>
                             <AppstoreAddOutlined /> Yeni İş Ekle
@@ -324,8 +320,6 @@ const NewPartnerBookingPage = () => {
                         </div>
                     </Form>
                 </div>
-            </PartnerLayout>
-        </PartnerGuard>
     );
 };
 

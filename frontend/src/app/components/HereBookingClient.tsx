@@ -6,6 +6,7 @@ import L from 'leaflet';
 import flexpolyline from '@here/flexpolyline';
 import 'leaflet/dist/leaflet.css';
 import { Spin } from 'antd';
+import { HERE_API_KEY } from '@/lib/config';
 
 // Fix Leaflet's default icon paths for Next.js
 const icon = L.icon({
@@ -43,12 +44,12 @@ const HereBookingClient: React.FC<HereBookingClientProps> = ({ pickup, dropoff, 
   const [markers, setMarkers] = useState<{lat: number, lng: number}[]>([]);
   const [mapBounds, setMapBounds] = useState<L.LatLngBounds | null>(null);
 
-  const apiKey = process.env.NEXT_PUBLIC_HERE_API_KEY || 'RH04HVBUK6By3GfYWwVlCOG4Or1IzV-rRjygQRHbIvo';
+  const apiKey = HERE_API_KEY;
   const tileUrl = `https://maps.hereapi.com/v3/base/mc/{z}/{x}/{y}/png8?apiKey=${apiKey}&size=256&style=explore.day`;
   const attribution = '&copy; <a href="https://here.com">HERE</a>';
 
   useEffect(() => {
-    if (!pickup || !dropoff) return;
+    if (!apiKey || !pickup || !dropoff) return;
     
     let isMounted = true;
     
@@ -124,6 +125,17 @@ const HereBookingClient: React.FC<HereBookingClientProps> = ({ pickup, dropoff, 
     
     return () => { isMounted = false; };
   }, [pickup, dropoff, apiKey]); // removed onDistanceCalculated to prevent infinite re-render loops
+
+  if (!apiKey) {
+    return (
+      <div style={{
+        width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: '#f5f5f5', borderRadius: 8, color: '#64748b', textAlign: 'center', padding: 24,
+      }}>
+        Harita kullanılamıyor. NEXT_PUBLIC_HERE_API_KEY ortam değişkenini ayarlayın.
+      </div>
+    );
+  }
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>

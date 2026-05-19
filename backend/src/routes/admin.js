@@ -2,20 +2,21 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 
 const { authMiddleware } = require('../middleware/auth');
+const { requireTenantId, adminMiddleware } = require('../utils/tenantScope');
 
 const router = express.Router();
 const prisma = require('../lib/prisma');
+
+router.use(authMiddleware, adminMiddleware);
 
 /**
  * GET /api/admin/partner-applications
  * List all users with PARTNER role (applicants)
  */
-router.get('/partner-applications', authMiddleware, async (req, res) => {
+router.get('/partner-applications', async (req, res) => {
     try {
-        const tenantId = req.tenant?.id;
-        if (!tenantId) {
-            return res.status(400).json({ success: false, error: 'Tenant context missing' });
-        }
+        const tenantId = requireTenantId(req, res);
+        if (!tenantId) return;
 
         const applications = await prisma.user.findMany({
             where: {
@@ -72,12 +73,10 @@ router.get('/partner-applications', authMiddleware, async (req, res) => {
  * POST /api/admin/partner-applications
  * Manually create a new partner driver
  */
-router.post('/partner-applications', authMiddleware, async (req, res) => {
+router.post('/partner-applications', async (req, res) => {
     try {
-        const tenantId = req.tenant?.id;
-        if (!tenantId) {
-            return res.status(400).json({ success: false, error: 'Tenant context missing' });
-        }
+        const tenantId = requireTenantId(req, res);
+        if (!tenantId) return;
 
         const { firstName, lastName, email, phone, password } = req.body;
 
@@ -150,9 +149,13 @@ router.post('/partner-applications', authMiddleware, async (req, res) => {
  * PATCH /api/admin/partner-applications/:id/approve
  * Approve a partner driver application
  */
-router.patch('/partner-applications/:id/approve', authMiddleware, async (req, res) => {
+router.patch('/partner-applications/:id/approve', async (req, res) => {
     try {
+        const tenantId = requireTenantId(req, res);
+        if (!tenantId) return;
         const { id } = req.params;
+        const existing = await prisma.user.findFirst({ where: { id, tenantId } });
+        if (!existing) return res.status(404).json({ success: false, error: 'Partner bulunamadı' });
         const user = await prisma.user.update({
             where: { id },
             data: { status: 'ACTIVE' },
@@ -169,9 +172,13 @@ router.patch('/partner-applications/:id/approve', authMiddleware, async (req, re
  * PATCH /api/admin/partner-applications/:id/reject
  * Reject a partner driver application
  */
-router.patch('/partner-applications/:id/reject', authMiddleware, async (req, res) => {
+router.patch('/partner-applications/:id/reject', async (req, res) => {
     try {
+        const tenantId = requireTenantId(req, res);
+        if (!tenantId) return;
         const { id } = req.params;
+        const existing = await prisma.user.findFirst({ where: { id, tenantId } });
+        if (!existing) return res.status(404).json({ success: false, error: 'Partner bulunamadı' });
         const user = await prisma.user.update({
             where: { id },
             data: { status: 'SUSPENDED' },
@@ -188,9 +195,13 @@ router.patch('/partner-applications/:id/reject', authMiddleware, async (req, res
  * DELETE /api/admin/partner-applications/:id
  * Soft-delete a partner driver
  */
-router.delete('/partner-applications/:id', authMiddleware, async (req, res) => {
+router.delete('/partner-applications/:id', async (req, res) => {
     try {
+        const tenantId = requireTenantId(req, res);
+        if (!tenantId) return;
         const { id } = req.params;
+        const existing = await prisma.user.findFirst({ where: { id, tenantId } });
+        if (!existing) return res.status(404).json({ success: false, error: 'Partner bulunamadı' });
         await prisma.user.update({
             where: { id },
             data: { deletedAt: new Date(), status: 'DELETED' }
@@ -211,9 +222,10 @@ router.delete('/partner-applications/:id', authMiddleware, async (req, res) => {
  * GET /api/admin/partners/:partnerId/profile
  * Returns partner profile (creates one on first read if missing).
  */
-router.get('/partners/:partnerId/profile', authMiddleware, async (req, res) => {
+router.get('/partners/:partnerId/profile', async (req, res) => {
     try {
-        const tenantId = req.tenant?.id;
+        const tenantId = requireTenantId(req, res);
+        if (!tenantId) return;
         const { partnerId } = req.params;
 
         const partner = await prisma.user.findFirst({
@@ -242,9 +254,10 @@ router.get('/partners/:partnerId/profile', authMiddleware, async (req, res) => {
  * PUT /api/admin/partners/:partnerId/profile
  * Admin updates partner profile (commission rate, company info, UETDS toggle).
  */
-router.put('/partners/:partnerId/profile', authMiddleware, async (req, res) => {
+router.put('/partners/:partnerId/profile', async (req, res) => {
     try {
-        const tenantId = req.tenant?.id;
+        const tenantId = requireTenantId(req, res);
+        if (!tenantId) return;
         const { partnerId } = req.params;
         const {
             companyName, taxNumber, taxOffice, address, contactEmail, contactPhone,
@@ -294,9 +307,10 @@ router.put('/partners/:partnerId/profile', authMiddleware, async (req, res) => {
  * GET /api/admin/partners/:partnerId/allowed-zones
  * Returns the list of zones the partner is allowed to operate in.
  */
-router.get('/partners/:partnerId/allowed-zones', authMiddleware, async (req, res) => {
+router.get('/partners/:partnerId/allowed-zones', async (req, res) => {
     try {
-        const tenantId = req.tenant?.id;
+        const tenantId = requireTenantId(req, res);
+        if (!tenantId) return;
         const { partnerId } = req.params;
 
         const allowed = await prisma.partnerAllowedZone.findMany({
@@ -317,9 +331,10 @@ router.get('/partners/:partnerId/allowed-zones', authMiddleware, async (req, res
  * Body: { zoneId, baseLocation?, maxPriceCap?, notes? }
  * Assigns a zone to the partner. Upserts on (partnerId, zoneId, baseLocation).
  */
-router.post('/partners/:partnerId/allowed-zones', authMiddleware, async (req, res) => {
+router.post('/partners/:partnerId/allowed-zones', async (req, res) => {
     try {
-        const tenantId = req.tenant?.id;
+        const tenantId = requireTenantId(req, res);
+        if (!tenantId) return;
         const { partnerId } = req.params;
         const { zoneId, baseLocation, maxPriceCap, notes, isActive } = req.body;
 
@@ -368,9 +383,10 @@ router.post('/partners/:partnerId/allowed-zones', authMiddleware, async (req, re
 /**
  * DELETE /api/admin/partners/:partnerId/allowed-zones/:id
  */
-router.delete('/partners/:partnerId/allowed-zones/:id', authMiddleware, async (req, res) => {
+router.delete('/partners/:partnerId/allowed-zones/:id', async (req, res) => {
     try {
-        const tenantId = req.tenant?.id;
+        const tenantId = requireTenantId(req, res);
+        if (!tenantId) return;
         const { partnerId, id } = req.params;
         const existing = await prisma.partnerAllowedZone.findFirst({
             where: { id, tenantId, partnerId }
@@ -388,9 +404,10 @@ router.delete('/partners/:partnerId/allowed-zones/:id', authMiddleware, async (r
  * GET /api/admin/partners/:partnerId/zone-prices
  * Read-only view of the prices the partner has set in their allowed zones.
  */
-router.get('/partners/:partnerId/zone-prices', authMiddleware, async (req, res) => {
+router.get('/partners/:partnerId/zone-prices', async (req, res) => {
     try {
-        const tenantId = req.tenant?.id;
+        const tenantId = requireTenantId(req, res);
+        if (!tenantId) return;
         const { partnerId } = req.params;
         const prices = await prisma.partnerZonePrice.findMany({
             where: { tenantId, partnerId },

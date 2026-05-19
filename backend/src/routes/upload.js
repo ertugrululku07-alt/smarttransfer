@@ -54,9 +54,9 @@ const upload = multer({
 
 /**
  * POST /api/upload/driver-docs
- * Upload a single file for driver registration (Public)
+ * Upload a single file for driver registration (authenticated)
  */
-router.post('/driver-docs', upload.single('file'), (req, res) => {
+router.post('/driver-docs', authMiddleware, upload.single('file'), (req, res) => {
     try {
         if (!req.file) {
             return res.status(400).json({

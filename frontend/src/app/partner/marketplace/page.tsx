@@ -25,11 +25,11 @@ import {
     CarOutlined,
     DollarOutlined,
     CheckCircleOutlined,
-    SwapRightOutlined
+    SwapRightOutlined,
+    UserOutlined
 } from '@ant-design/icons';
 import apiClient from '@/lib/api-client';
-import PartnerGuard from '../PartnerGuard';
-import PartnerLayout from '../PartnerLayout';
+import { PartnerPageHeader, PartnerEmptyState } from '../components';
 import dayjs from 'dayjs';
 import 'dayjs/locale/tr';
 
@@ -139,19 +139,11 @@ const MarketplacePage = () => {
     };
 
     return (
-        <PartnerGuard>
-            <PartnerLayout>
-                <div style={{ maxWidth: 1200, margin: '0 auto', paddingBottom: 40 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 24 }}>
-                        <div>
-                            <Title level={2} style={{ margin: 0, fontWeight: 700 }}>
-                                <GlobalOutlined /> B2B Pazar Yeri
-                            </Title>
-                            <Text type="secondary">
-                                Diğer partnerlerin pasladığı işleri görüntüleyin, teklif verin veya doğrudan işi alın.
-                            </Text>
-                        </div>
-                    </div>
+        <div className="partner-page">
+            <PartnerPageHeader
+                title="B2B Pazar Yeri"
+                subtitle="Diğer partnerlerin pasladığı işleri görüntüleyin, teklif verin veya doğrudan işi alın."
+            />
 
                     {loading ? (
                         <div style={{ textAlign: 'center', padding: 100 }}>
@@ -274,7 +266,6 @@ const MarketplacePage = () => {
                             })}
                         </Row>
                     )}
-                </div>
 
                 <Modal
                     title="İlan İçin Fiyat Teklifi Ver"
@@ -310,8 +301,7 @@ const MarketplacePage = () => {
                         </Form.Item>
                     </Form>
                 </Modal>
-            </PartnerLayout>
-        </PartnerGuard>
+        </div>
     );
 };
 

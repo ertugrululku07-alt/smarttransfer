@@ -4,7 +4,6 @@ import { ExpoRoot } from 'expo-router';
 import * as TaskManager from 'expo-task-manager';
 import * as BackgroundFetch from 'expo-background-fetch';
 import * as SecureStore from 'expo-secure-store';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
 import NetInfo from '@react-native-community/netinfo';
@@ -17,7 +16,9 @@ const LOCATION_TASK_NAME = 'background-location-task';
 const BG_FETCH_TASK_NAME = 'background-sync-task';
 const BACKGROUND_NOTIFICATION_TASK = 'background-notification-task';
 
-const API_URL = 'https://api.jet2home.com/api';
+const API_URL = (process.env.EXPO_PUBLIC_API_URL || '').replace(/\/$/, '');
+const API_BASE = API_URL.endsWith('/api') ? API_URL : `${API_URL}/api`;
+const TENANT_SLUG = process.env.EXPO_PUBLIC_TENANT_SLUG || '';
 
 // Throttle & debounce tracking
 let lastForegroundSyncMs = 0;
@@ -46,11 +47,9 @@ const ensureLocationTaskRunning = async (reason) => {
   return true;
 };
 
-// Read tokens safely from secure storage (fallback to AsyncStorage)
+// Read tokens from secure storage only
 const readToken = async (key) => {
-  let v = await SecureStore.getItemAsync(key);
-  if (!v) v = await AsyncStorage.getItem(key);
-  return v;
+  return SecureStore.getItemAsync(key);
 };
 
 // Refresh access token using stored refreshToken
@@ -58,7 +57,7 @@ const refreshAccessToken = async () => {
   try {
     const refreshToken = await readToken('refreshToken');
     if (!refreshToken) return null;
-    const res = await fetch(`${API_URL}/auth/refresh`, {
+    const res = await fetch(`${API_BASE}/auth/refresh`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ refreshToken })
@@ -68,7 +67,6 @@ const refreshAccessToken = async () => {
     const newToken = json?.data?.token;
     if (newToken) {
       await SecureStore.setItemAsync('token', newToken);
-      await AsyncStorage.setItem('token', newToken);
       return newToken;
     }
     return null;
@@ -85,7 +83,6 @@ const syncLocationWithBackend = async (lat, lng, speed, heading, timestamp, sour
     if (!token) return;
     
     let lastSyncTime = await SecureStore.getItemAsync('lastSyncTime');
-    if (!lastSyncTime) lastSyncTime = await AsyncStorage.getItem('lastSyncTime');
     lastSyncTime = lastSyncTime || new Date(Date.now() - 60000).toISOString();
     
     // If coordinates weren't provided directly, try to fetch last known location reliably
@@ -123,12 +120,12 @@ const syncLocationWithBackend = async (lat, lng, speed, heading, timestamp, sour
       }
     }
 
-    let res = await fetch(`${API_URL}/driver/sync`, {
+    let res = await fetch(`${API_BASE}/driver/sync`, {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json', 
         'Authorization': `Bearer ${token}`, 
-        'X-Tenant-Slug': 'Jet2Home' 
+        ...(TENANT_SLUG ? { 'X-Tenant-Slug': TENANT_SLUG } : {}),
       },
       body: JSON.stringify({ 
         lat, lng, speed, heading, timestamp, source, 
@@ -141,12 +138,12 @@ const syncLocationWithBackend = async (lat, lng, speed, heading, timestamp, sour
       const newToken = await refreshAccessToken();
       if (newToken) {
         token = newToken;
-        res = await fetch(`${API_URL}/driver/sync`, {
+        res = await fetch(`${API_BASE}/driver/sync`, {
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json', 
             'Authorization': `Bearer ${token}`, 
-            'X-Tenant-Slug': 'Jet2Home' 
+            ...(TENANT_SLUG ? { 'X-Tenant-Slug': TENANT_SLUG } : {}),
           },
           body: JSON.stringify({ 
             lat, lng, speed, heading, timestamp, source: source + '_retry_after_refresh', 
@@ -162,13 +159,11 @@ const syncLocationWithBackend = async (lat, lng, speed, heading, timestamp, sour
     if (newTokenHeader) {
       console.log('[Headless] Received auto-renewed token from server');
       await SecureStore.setItemAsync('token', newTokenHeader);
-      await AsyncStorage.setItem('token', newTokenHeader);
     }
 
     const json = await res.json();
     if (json?.data?.serverTime) {
       await SecureStore.setItemAsync('lastSyncTime', json.data.serverTime);
-      await AsyncStorage.setItem('lastSyncTime', json.data.serverTime);
     }
     console.log(`[Headless] Sync success (${source})`);
   } catch (e) {

@@ -12,8 +12,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { isMessagesScreenOpen } from './_layout';
-
-const API_URL = 'https://api.jet2home.com/api';
+import { API_URL, BASE_URL, apiHeaders } from '../config';
 
 function AudioPlayer({ url, isMe, time }: { url: string; isMe: boolean; time: string }) {
     const [sound, setSound] = useState<Audio.Sound | null>(null);
@@ -66,12 +65,11 @@ export default function MessagesScreen() {
 
     const getImageUrl = (url: string | undefined | null) => {
         if (!url) return '';
-        const baseApi = API_URL.replace('/api', '');
         if (url.startsWith('/uploads')) {
-            return `${baseApi}${url}`;
+            return `${BASE_URL}${url}`;
         }
         if (url.includes('localhost')) {
-            return url.replace(/https?:\/\/localhost(:\d+)?/, baseApi);
+            return url.replace(/https?:\/\/localhost(:\d+)?/, BASE_URL);
         }
         return url;
     };

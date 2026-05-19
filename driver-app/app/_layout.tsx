@@ -23,11 +23,11 @@ import Constants from 'expo-constants';
 import { router, useSegments } from 'expo-router';
 import Toast from 'react-native-toast-message';
 import { Platform, Alert, Linking, AppState, BackHandler } from 'react-native';
+import { API_URL, apiHeaders } from '../config';
 
 const LOCATION_TASK_NAME = 'background-location-task';
 const BG_FETCH_TASK_NAME = 'background-sync-task';
 const BACKGROUND_NOTIFICATION_TASK = 'background-notification-task';
-const API_URL = 'https://api.jet2home.com/api';
 
 // Global flag: suppress chat notifications when messages screen is open
 export const isMessagesScreenOpen = { current: false };
@@ -350,11 +350,7 @@ async function registerPushToken(token: string) {
     // Send token to backend
     const fRes = await fetch(`${API_URL}/driver/push-token`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-        'X-Tenant-Slug': 'Jet2Home'
-      },
+      headers: apiHeaders(token),
       body: JSON.stringify({ token: pushToken })
     });
 

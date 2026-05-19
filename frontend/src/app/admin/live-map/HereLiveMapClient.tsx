@@ -4,6 +4,7 @@ import React, { useEffect, useMemo } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap, CircleMarker, Tooltip as LTooltip, Polyline } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { HERE_API_KEY } from '@/lib/config';
 
 export interface DriverMapData {
     driverId: string;
@@ -143,7 +144,7 @@ const MapController: React.FC<{ selectedDriver: DriverMapData | null; drivers: D
 };
 
 const HereLiveMapClient: React.FC<HereLiveMapClientProps> = ({ drivers, selectedDriver, onSelectDriver, routePoints, routeStops }) => {
-    const apiKey = process.env.NEXT_PUBLIC_HERE_API_KEY || 'RH04HVBUK6By3GfYWwVlCOG4Or1IzV-rRjygQRHbIvo';
+    const apiKey = HERE_API_KEY;
     const tileUrl = `https://maps.hereapi.com/v3/base/mc/{z}/{x}/{y}/png8?apiKey=${apiKey}&size=256&style=explore.day`;
 
     const driversWithLocation = useMemo(() => drivers.filter(d => d.lat !== 0 && d.lng !== 0), [drivers]);
@@ -163,6 +164,17 @@ const HereLiveMapClient: React.FC<HereLiveMapClientProps> = ({ drivers, selected
     }, [routePoints]);
 
     const hasRoute = allValidPoints.length > 0;
+
+    if (!apiKey) {
+        return (
+            <div style={{
+                width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: '#f1f5f9', borderRadius: 16, color: '#64748b', textAlign: 'center', padding: 24,
+            }}>
+                Harita kullanılamıyor. NEXT_PUBLIC_HERE_API_KEY ortam değişkenini ayarlayın.
+            </div>
+        );
+    }
 
     // Deduplicate speed violations — keep one per ~200m cluster
     const violationMarkers = useMemo(() => {

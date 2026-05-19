@@ -12,6 +12,7 @@ import {
 } from '@ant-design/icons';
 import apiClient from '@/lib/api-client';
 import AdminLayout from '../../AdminLayout';
+import AdminGuard from '../../AdminGuard';
 
 const { Title, Text } = Typography;
 
@@ -182,6 +183,7 @@ export default function AdminAgencyDepositsPage() {
     ];
 
     return (
+        <AdminGuard>
         <AdminLayout selectedKey="agency-deposits">
             <div style={{ maxWidth: 1200, margin: '0 auto' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
@@ -266,5 +268,6 @@ export default function AdminAgencyDepositsPage() {
                 </Modal>
             </div>
         </AdminLayout>
+        </AdminGuard>
     );
 }

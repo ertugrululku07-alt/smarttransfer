@@ -2,9 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import PartnerLayout from '../PartnerLayout';
-import PartnerGuard from '../PartnerGuard';
 import { Spin } from 'antd';
+import { PartnerPageHeader, PartnerEmptyState, TransferJobCard } from '../components';
 import {
     CarOutlined,
     UserOutlined,
@@ -36,8 +35,7 @@ export default function MyTransfersPage() {
     useEffect(() => { fetchTransfers(); }, []);
 
     return (
-        <PartnerGuard>
-            <PartnerLayout>
+        <div className="partner-page">
                 <style jsx global>{`
                     .pool-container { max-width: 1200px; margin: 0 auto; }
                     .pool-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 20px; }
@@ -172,7 +170,6 @@ export default function MyTransfersPage() {
                         </div>
                     )}
                 </div>
-            </PartnerLayout>
-        </PartnerGuard>
+        </div>
     );
 }

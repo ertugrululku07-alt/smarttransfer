@@ -5,6 +5,7 @@ import { Modal, Button, Spin, Input } from 'antd';
 import { EnvironmentOutlined, CheckOutlined } from '@ant-design/icons';
 import DynamicLocationSearchInput from './DynamicLocationSearchInput';
 import dynamic from 'next/dynamic';
+import { HERE_API_KEY } from '@/lib/config';
 
 const HereMapPicker = dynamic(() => import('./HereMapPicker'), {
     ssr: false,
@@ -45,7 +46,7 @@ const MapPickerModal: React.FC<MapPickerModalProps> = ({
     const [address, setAddress] = useState(initialAddress || '');
     const [loadingAddress, setLoadingAddress] = useState(false);
 
-    const apiKey = process.env.NEXT_PUBLIC_HERE_API_KEY || 'RH04HVBUK6By3GfYWwVlCOG4Or1IzV-rRjygQRHbIvo';
+    const apiKey = HERE_API_KEY;
 
     // Sync address when prop changes
     useEffect(() => {

@@ -17,8 +17,6 @@ import dayjs from 'dayjs';
 import 'dayjs/locale/tr';
 import apiClient from '@/lib/api-client';
 import { useDefinitions } from '@/app/hooks/useDefinitions';
-import PartnerLayout from '../PartnerLayout';
-import PartnerGuard from '../PartnerGuard';
 
 dayjs.locale('tr');
 
@@ -335,16 +333,12 @@ const PartnerFinancePage: React.FC = () => {
 
     if (loading && !entries.length) {
         return (
-            <PartnerGuard><PartnerLayout>
-                <div style={{ textAlign: 'center', padding: 100 }}><Spin size="large" /><div style={{ marginTop: 16, color: '#64748b' }}>Veriler yukleniyor...</div></div>
-            </PartnerLayout></PartnerGuard>
+            <div style={{ textAlign: 'center', padding: 100 }}><Spin size="large" /><div style={{ marginTop: 16, color: '#64748b' }}>Veriler yukleniyor...</div></div>
         );
     }
 
     return (
-        <PartnerGuard>
-            <PartnerLayout>
-                <div style={{ padding: '8px 4px' }}>
+        <div style={{ padding: '8px 4px' }}>
                     {/* Header */}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
                         <div>
@@ -696,8 +690,6 @@ const PartnerFinancePage: React.FC = () => {
                         </Form>
                     </Modal>
                 </div>
-            </PartnerLayout>
-        </PartnerGuard>
     );
 };
 

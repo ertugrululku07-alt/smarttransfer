@@ -1,6 +1,5 @@
-import { API_URL } from '@/lib/api-client';
 import type { Metadata, ResolvingMetadata } from "next";
-import { Inter } from "next/font/google";
+import { Outfit } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "./context/AuthContext";
 import { SocketProvider } from "./context/SocketContext";
@@ -10,11 +9,18 @@ import { BrandingProvider } from "./context/BrandingContext";
 import { LanguageProvider } from "./context/LanguageContext";
 import LiveChatWidget from "./components/LiveChatWidget";
 
-const inter = Inter({
-  variable: "--font-inter",
+const outfit = Outfit({
+  variable: "--font-outfit",
   subsets: ["latin"],
   display: "swap",
 });
+
+function resolveServerApiUrl(): string {
+  const fromEnv = process.env.NEXT_PUBLIC_API_URL?.trim();
+  if (fromEnv) return fromEnv.replace(/\/$/, '');
+  if (process.env.NODE_ENV === 'development') return 'http://localhost:4000';
+  throw new Error('NEXT_PUBLIC_API_URL must be set for SSR');
+}
 
 async function getTenantBranding() {
   let branding = {
@@ -31,7 +37,7 @@ async function getTenantBranding() {
     
     const TENANT_SLUG = (process.env.NEXT_PUBLIC_TENANT_SLUG || 'smarttravel-demo').replace(/[\r\n]+/g, '').trim();
     
-    const res = await fetch(`${API_URL}/api/tenant/info`, {
+    const res = await fetch(`${resolveServerApiUrl()}/api/tenant/info`, {
       headers: { 'X-Tenant-Slug': TENANT_SLUG },
       next: { revalidate: 60 } // Cache for 60 seconds
     });
@@ -141,7 +147,7 @@ export default async function RootLayout({
           }}
         />
       </head>
-      <body className={`${inter.variable} antialiased`}>
+      <body className={`${outfit.variable} antialiased`}>
         <AuthProvider>
           <SocketProvider>
             <CurrencyProvider>

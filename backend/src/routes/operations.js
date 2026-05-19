@@ -4,9 +4,27 @@
 const express = require('express');
 const prisma = require('../lib/prisma');
 const { authMiddleware } = require('../middleware/auth');
+const { requireTenantId, findBookingForTenant } = require('../utils/tenantScope');
 const { detectRegionCodeByPolygon } = require('../utils/zoneDetection');
 
 const router = express.Router();
+
+/** Load booking scoped to authenticated tenant; sends 404 if missing */
+async function requireBooking(req, res, bookingId) {
+    const tenantId = requireTenantId(req, res);
+    if (!tenantId) return null;
+    const booking = await findBookingForTenant(bookingId, tenantId);
+    if (!booking) {
+        res.status(404).json({ success: false, error: 'Rezervasyon bulunamadı' });
+        return null;
+    }
+    return booking;
+}
+
+/** Same as requireBooking but when tenantId is already resolved */
+async function loadBookingForTenant(tenantId, bookingId) {
+    return findBookingForTenant(bookingId, tenantId);
+}
 
 // Lazy-load services to avoid startup errors when env vars missing
 let RouteService = null;
@@ -454,12 +472,11 @@ router.post('/ai-suggest', authMiddleware, async (req, res) => {
             return res.status(400).json({ success: false, error: 'bookingId zorunlu' });
         }
 
-        const booking = await prisma.booking.findUnique({ where: { id: bookingId } });
-        if (!booking) {
-            return res.status(404).json({ success: false, error: 'Rezervasyon bulunamadı' });
-        }
+        const booking = await requireBooking(req, res, bookingId);
+        if (!booking) return;
 
-        const tenantId = req.tenant?.id;
+        const tenantId = requireTenantId(req, res);
+        if (!tenantId) return;
 
         // Fetch all active vehicles
         const vehicles = await prisma.vehicle.findMany({
@@ -518,7 +535,8 @@ router.post('/ai-suggest', authMiddleware, async (req, res) => {
 // ---------------------------------------------------------------------------
 router.post('/auto-assign', authMiddleware, async (req, res) => {
     try {
-        const tenantId = req.tenant?.id;
+        const tenantId = requireTenantId(req, res);
+        if (!tenantId) return;
         const targetDate = req.body.date || new Date().toISOString().split('T')[0];
         const applyNow = req.body.applyNow === true;
         const startDateStr = req.body.startDate;
@@ -753,7 +771,8 @@ router.post('/auto-assign', authMiddleware, async (req, res) => {
         // 7. If applyNow, save all proposals
         if (applyNow && proposals.length > 0) {
             for (const p of proposals) {
-                const currentBooking = await prisma.booking.findUnique({ where: { id: p.bookingId } });
+                const currentBooking = await loadBookingForTenant(tenantId, p.bookingId);
+                if (!currentBooking) continue;
                 if (!currentBooking) continue;
 
                 await prisma.booking.update({
@@ -1254,9 +1273,12 @@ router.patch('/shuttle-runs/assign', authMiddleware, async (req, res) => {
             return res.status(400).json({ success: false, error: 'driverId veya vehicleId gerekli' });
         }
 
+        const tenantId = requireTenantId(req, res);
+        if (!tenantId) return;
+
         const updates = [];
         for (const bookingId of bookingIds) {
-            const booking = await prisma.booking.findUnique({ where: { id: bookingId } });
+            const booking = await loadBookingForTenant(tenantId, bookingId);
             if (!booking) continue;
 
             const updateData = { metadata: { ...(booking.metadata || {}) } };
@@ -1362,11 +1384,12 @@ router.post('/shuttle-runs/move', authMiddleware, async (req, res) => {
         }
 
         // Load airport zones for trip type detection
-        const tenantId = req.user?.tenantId;
-        const moveAirportZones = tenantId ? await prisma.zone.findMany({
+        const tenantId = requireTenantId(req, res);
+        if (!tenantId) return;
+        const moveAirportZones = await prisma.zone.findMany({
             where: { tenantId, isAirport: true, code: { not: null } },
             select: { code: true }
-        }) : [];
+        });
 
         // ── Trip Type Compatibility Check (STRICT) ──
         // Determine target trip type from (in priority order):
@@ -1378,7 +1401,7 @@ router.post('/shuttle-runs/move', authMiddleware, async (req, res) => {
             targetTripType = targetRun.tripType;
         }
         if (!targetTripType && sampleBookingId) {
-            const sample = await prisma.booking.findUnique({ where: { id: sampleBookingId } });
+            const sample = await loadBookingForTenant(tenantId, sampleBookingId);
             if (sample) {
                 targetTripType = sample.metadata?.tripType
                     || getTripType(sample.metadata?.pickup, sample.metadata?.dropoff, moveAirportZones);
@@ -1387,7 +1410,7 @@ router.post('/shuttle-runs/move', authMiddleware, async (req, res) => {
 
         if (targetTripType && targetTripType !== 'ARA') {
             for (const bookingId of bookingIds) {
-                const booking = await prisma.booking.findUnique({ where: { id: bookingId } });
+                const booking = await loadBookingForTenant(tenantId, bookingId);
                 if (!booking) continue;
 
                 // Always compute from pickup/dropoff (don't trust stale metadata.tripType)
@@ -1414,7 +1437,7 @@ router.post('/shuttle-runs/move', authMiddleware, async (req, res) => {
         };
 
         if (sampleBookingId) {
-            const sample = await prisma.booking.findUnique({ where: { id: sampleBookingId } });
+            const sample = await loadBookingForTenant(tenantId, sampleBookingId);
             if (sample && sample.metadata) {
                 const m = sample.metadata;
                 // If the target is an ADHOC run (no standard metadata grouping keys), upgrade it to a manual run
@@ -1427,7 +1450,7 @@ router.post('/shuttle-runs/move', authMiddleware, async (req, res) => {
                     // Upgrade all existing bookings in the target run to the same new manual run ID
                     if (targetBookingIds && targetBookingIds.length > 0) {
                         for (const tbId of targetBookingIds) {
-                            const tb = await prisma.booking.findUnique({ where: { id: tbId } });
+                            const tb = await loadBookingForTenant(tenantId, tbId);
                             if (tb) {
                                 await prisma.booking.update({
                                     where: { id: tbId },
@@ -1453,7 +1476,7 @@ router.post('/shuttle-runs/move', authMiddleware, async (req, res) => {
 
         const updates = [];
         for (const bookingId of bookingIds) {
-            const booking = await prisma.booking.findUnique({ where: { id: bookingId } });
+            const booking = await loadBookingForTenant(tenantId, bookingId);
             if (!booking) continue;
 
             let driverIdToSet = booking.driverId;
@@ -1461,7 +1484,7 @@ router.post('/shuttle-runs/move', authMiddleware, async (req, res) => {
 
             if (sampleBookingId) {
                 // If joining an existing run with passengers, adopt the target run's explicit vehicle/driver mappings
-                const sample = await prisma.booking.findUnique({ where: { id: sampleBookingId } });
+                const sample = await loadBookingForTenant(tenantId, sampleBookingId);
                 driverIdToSet = sample ? sample.driverId : null;
                 vehicleIdToSet = sample?.metadata?.assignedVehicleId || null;
             } else if (targetRun) {
@@ -1508,9 +1531,12 @@ router.post('/shuttle-runs/sort', authMiddleware, async (req, res) => {
             return res.status(400).json({ success: false, error: 'items dizisi zorunlu' });
         }
 
+        const tenantId = requireTenantId(req, res);
+        if (!tenantId) return;
+
         let updatedCount = 0;
         for (const item of items) {
-            const booking = await prisma.booking.findUnique({ where: { id: item.bookingId } });
+            const booking = await loadBookingForTenant(tenantId, item.bookingId);
             if (booking) {
                 await prisma.booking.update({
                     where: { id: item.bookingId },
@@ -1549,9 +1575,12 @@ router.post('/shuttle-runs/lock', authMiddleware, async (req, res) => {
             return res.status(400).json({ success: false, error: 'bookingIds dizisi zorunlu' });
         }
 
+        const tenantId = requireTenantId(req, res);
+        if (!tenantId) return;
+
         let updatedCount = 0;
         for (const bookingId of bookingIds) {
-            const booking = await prisma.booking.findUnique({ where: { id: bookingId } });
+            const booking = await loadBookingForTenant(tenantId, bookingId);
             if (booking) {
                 await prisma.booking.update({
                     where: { id: bookingId },
@@ -1589,9 +1618,12 @@ router.patch('/shuttle-runs/update', authMiddleware, async (req, res) => {
             return res.status(400).json({ success: false, error: 'bookingIds dizisi zorunlu' });
         }
 
+        const tenantId = requireTenantId(req, res);
+        if (!tenantId) return;
+
         let updatedCount = 0;
         for (const bookingId of bookingIds) {
-            const booking = await prisma.booking.findUnique({ where: { id: bookingId } });
+            const booking = await loadBookingForTenant(tenantId, bookingId);
             if (!booking) continue;
 
             const meta = booking.metadata || {};
@@ -1644,6 +1676,9 @@ router.post('/shuttle-runs/optimize-route', authMiddleware, async (req, res) => 
         if (!bookingIds || !Array.isArray(bookingIds) || bookingIds.length === 0) {
             return res.status(400).json({ success: false, error: 'bookingIds dizisi zorunlu' });
         }
+
+        const tenantId = requireTenantId(req, res);
+        if (!tenantId) return;
 
         // ── Known zone coordinates (approximate, along the Turkish Riviera coast) ──
         const ZONE_COORDS = {
@@ -1741,7 +1776,7 @@ router.post('/shuttle-runs/optimize-route', authMiddleware, async (req, res) => 
         }
 
         // Detect airport IATA code from text (DB-driven)
-        const tenantIdOpt = req.tenant?.id || req.user?.tenantId;
+        const tenantIdOpt = tenantId;
         const optAirportZones = tenantIdOpt ? await prisma.zone.findMany({
             where: { tenantId: tenantIdOpt, isAirport: true, code: { not: null } },
             select: { code: true, keywords: true, name: true }
@@ -1779,7 +1814,7 @@ router.post('/shuttle-runs/optimize-route', authMiddleware, async (req, res) => 
 
         // 1. Get bookings
         const bookings = await prisma.booking.findMany({
-            where: { id: { in: bookingIds } },
+            where: { id: { in: bookingIds }, tenantId },
             select: { id: true, metadata: true, startDate: true }
         });
 
@@ -1881,7 +1916,7 @@ router.post('/shuttle-runs/optimize-route', authMiddleware, async (req, res) => 
         // 5. Update sort order in metadata
         let sortOrder = 1;
         for (const item of results) {
-            const booking = await prisma.booking.findUnique({ where: { id: item.bookingId } });
+            const booking = await loadBookingForTenant(tenantId, item.bookingId);
             if (booking) {
                 await prisma.booking.update({
                     where: { id: item.bookingId },

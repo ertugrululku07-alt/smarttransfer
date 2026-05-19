@@ -612,11 +612,7 @@ const SiteSettingsPage: React.FC = () => {
                                 }}>
                                     {brandingData.logoUrl ? (
                                         <img
-                                            src={(() => {
-                                                const url = getImageUrl(brandingData.logoVariants?.header || brandingData.logoUrl);
-                                                if (url && url.startsWith('/uploads')) return `https://api.jet2home.com${url}`;
-                                                return url;
-                                            })()}
+                                            src={getImageUrl(brandingData.logoVariants?.header || brandingData.logoUrl)}
                                             alt="Logo"
                                             style={{ height: 60, maxWidth: 280, objectFit: 'contain' }}
                                             onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
@@ -640,11 +636,7 @@ const SiteSettingsPage: React.FC = () => {
                                 }}>
                                     {brandingData.logoUrl ? (
                                         <img
-                                            src={(() => {
-                                                const url = getImageUrl(brandingData.logoVariants?.header || brandingData.logoUrl);
-                                                if (url && url.startsWith('/uploads')) return `https://api.jet2home.com${url}`;
-                                                return url;
-                                            })()}
+                                            src={getImageUrl(brandingData.logoVariants?.header || brandingData.logoUrl)}
                                             alt="Logo"
                                             style={{ height: 60, maxWidth: 280, objectFit: 'contain' }}
                                             onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}

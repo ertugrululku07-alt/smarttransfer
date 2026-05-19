@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import AdminLayout from '@/app/admin/AdminLayout';
+import AdminGuard from '@/app/admin/AdminGuard';
 import {
     Typography, Card, Tabs, Table, Button, Space, Modal, Form,
     Input, InputNumber, Switch, message, Spin, Tag, Popconfirm, Tooltip, Select
@@ -1404,6 +1405,7 @@ export default function DefinitionsPage() {
     ];
 
     return (
+        <AdminGuard>
         <AdminLayout selectedKey="definitions">
             <div style={{ padding: '0 24px 24px 24px', maxWidth: 1200 }}>
                 {/* Header */}
@@ -1524,5 +1526,6 @@ export default function DefinitionsPage() {
                 />
             </Modal>
         </AdminLayout>
+        </AdminGuard>
     );
 }

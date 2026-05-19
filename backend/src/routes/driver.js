@@ -3,6 +3,7 @@ const router = express.Router();
 
 const prisma = require('../lib/prisma');
 const { authMiddleware } = require('../middleware/auth');
+const { requireTenantId, isAdminUser, findUserForTenant } = require('../utils/tenantScope');
 
 // Middleware to ensure user is a driver
 const ensureDriver = (req, res, next) => {
@@ -104,6 +105,7 @@ router.get('/bookings', authMiddleware, ensureDriver, async (req, res) => {
 
         const bookings = await prisma.booking.findMany({
             where: {
+                tenantId: req.user.tenantId,
                 driverId: driverId,
                 status: { notIn: ['CANCELLED', 'COMPLETED', 'NO_SHOW'] },
                 ...dateFilter
@@ -1008,13 +1010,27 @@ router.post('/push-token', authMiddleware, async (req, res) => {
 // Sends a silent push to wake up the driver app so it syncs location
 router.post('/:id/wake', authMiddleware, async (req, res) => {
     try {
-        const { id } = req.params;
-        const driver = await prisma.user.findUnique({ where: { id } });
-        if (!driver) {
-            const personnel = await prisma.personnel.findFirst({ where: { id }, include: { user: true } });
-            if (!personnel?.user) return res.status(404).json({ success: false, error: 'Şöför bulunamadı' });
+        const tenantId = requireTenantId(req, res);
+        if (!tenantId) return;
+        if (!isAdminUser(req.user)) {
+            return res.status(403).json({ success: false, error: 'Admin access required' });
         }
-        const target = driver || (await prisma.personnel.findFirst({ where: { id }, include: { user: true } }))?.user;
+
+        const { id } = req.params;
+        const driver = await findUserForTenant(id, tenantId);
+        if (!driver) {
+            const personnel = await prisma.personnel.findFirst({
+                where: { id, tenantId },
+                include: { user: true }
+            });
+            if (!personnel?.user || personnel.user.tenantId !== tenantId) {
+                return res.status(404).json({ success: false, error: 'Şöför bulunamadı' });
+            }
+        }
+        const target = driver || (await prisma.personnel.findFirst({
+            where: { id, tenantId },
+            include: { user: true }
+        }))?.user;
         const pushToken = target?.pushToken;
         if (!pushToken || !pushToken.startsWith('ExponentPushToken')) {
             return res.status(400).json({ success: false, error: 'Push token yok' });
@@ -1928,7 +1944,20 @@ router.post('/collections/:id/handover', authMiddleware, ensureDriver, async (re
 router.get('/:id/route', authMiddleware, async (req, res) => {
     try {
         const { id } = req.params;
-        const { date } = req.query; // YYYY-MM-DD
+        const { date } = req.query;
+
+        const tenantId = requireTenantId(req, res);
+        if (!tenantId) return;
+
+        const isSelf = req.user.id === id;
+        if (!isSelf && !isAdminUser(req.user)) {
+            return res.status(403).json({ success: false, error: 'Access denied' });
+        }
+
+        const driver = await findUserForTenant(id, tenantId);
+        if (!driver) {
+            return res.status(404).json({ success: false, error: 'Driver not found' });
+        }
         
         if (!date) {
             return res.status(400).json({ success: false, error: 'Date is required (YYYY-MM-DD)' });

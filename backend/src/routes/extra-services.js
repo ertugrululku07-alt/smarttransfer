@@ -3,14 +3,14 @@ const router = express.Router();
 
 const prisma = require('../lib/prisma');
 const { authMiddleware, optionalAuthMiddleware } = require('../middleware/auth');
+const { getEffectiveTenantId, requireTenantId, findExtraServiceForTenant } = require('../utils/tenantScope');
 
-/**
- * GET /api/extra-services
- * Get all extra services ordered by 'order'
- */
 router.get('/', optionalAuthMiddleware, async (req, res) => {
     try {
-        const tenantId = req.tenant?.id;
+        const tenantId = getEffectiveTenantId(req);
+        if (!tenantId) {
+            return res.status(400).json({ success: false, error: 'Tenant context is required' });
+        }
 
         const services = await prisma.extraService.findMany({
             where: { tenantId },
@@ -24,20 +24,17 @@ router.get('/', optionalAuthMiddleware, async (req, res) => {
     }
 });
 
-/**
- * POST /api/extra-services
- * Create a new extra service
- */
 router.post('/', authMiddleware, async (req, res) => {
     try {
-        const tenantId = req.tenant?.id;
+        const tenantId = requireTenantId(req, res);
+        if (!tenantId) return;
+
         const { name, price, currency, isPerPerson, image, excludeFromShuttle } = req.body;
 
         if (!name) {
             return res.status(400).json({ success: false, error: 'Hizmet adı zorunludur' });
         }
 
-        // Get max order to append to end
         const maxOrder = await prisma.extraService.aggregate({
             where: { tenantId },
             _max: { order: true }
@@ -64,19 +61,26 @@ router.post('/', authMiddleware, async (req, res) => {
     }
 });
 
-/**
- * PUT /api/extra-services/reorder
- * Reorder extra services
- */
 router.put('/reorder', authMiddleware, async (req, res) => {
     try {
-        const { items } = req.body; // Array of { id, order }
+        const tenantId = requireTenantId(req, res);
+        if (!tenantId) return;
+
+        const { items } = req.body;
 
         if (!Array.isArray(items)) {
             return res.status(400).json({ success: false, error: 'items array gereklidir' });
         }
 
-        // Execute as transaction
+        const ids = items.map((item) => item.id);
+        const owned = await prisma.extraService.findMany({
+            where: { id: { in: ids }, tenantId },
+            select: { id: true }
+        });
+        if (owned.length !== ids.length) {
+            return res.status(403).json({ success: false, error: 'Unauthorized service reorder' });
+        }
+
         await prisma.$transaction(
             items.map(item =>
                 prisma.extraService.update({
@@ -93,18 +97,21 @@ router.put('/reorder', authMiddleware, async (req, res) => {
     }
 });
 
-/**
- * PUT /api/extra-services/:id
- * Update an extra service
- */
 router.put('/:id', authMiddleware, async (req, res) => {
     try {
-        const tenantId = req.tenant?.id;
+        const tenantId = requireTenantId(req, res);
+        if (!tenantId) return;
+
         const { id } = req.params;
         const { name, price, currency, isPerPerson, image, excludeFromShuttle } = req.body;
 
         if (!name) {
             return res.status(400).json({ success: false, error: 'Hizmet adı zorunludur' });
+        }
+
+        const existing = await findExtraServiceForTenant(id, tenantId);
+        if (!existing) {
+            return res.status(404).json({ success: false, error: 'Ekstra hizmet bulunamadı' });
         }
 
         const service = await prisma.extraService.update({
@@ -126,17 +133,18 @@ router.put('/:id', authMiddleware, async (req, res) => {
     }
 });
 
-/**
- * DELETE /api/extra-services/:id
- * Delete an extra service
- */
 router.delete('/:id', authMiddleware, async (req, res) => {
     try {
-        const { id } = req.params;
+        const tenantId = requireTenantId(req, res);
+        if (!tenantId) return;
 
-        await prisma.extraService.delete({
-            where: { id }
-        });
+        const { id } = req.params;
+        const existing = await findExtraServiceForTenant(id, tenantId);
+        if (!existing) {
+            return res.status(404).json({ success: false, error: 'Ekstra hizmet bulunamadı' });
+        }
+
+        await prisma.extraService.delete({ where: { id } });
 
         res.json({ success: true, message: 'Ekstra hizmet silindi' });
     } catch (error) {

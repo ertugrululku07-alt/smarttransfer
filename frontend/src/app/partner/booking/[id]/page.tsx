@@ -3,8 +3,6 @@ import { API_URL } from '@/lib/api-client';
 
 import React, { useState, useEffect, use } from 'react';
 import { useRouter } from 'next/navigation';
-import PartnerLayout from '../../PartnerLayout';
-import PartnerGuard from '../../PartnerGuard';
 import {
     CarOutlined,
     UserOutlined,
@@ -87,15 +85,13 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
 
     if (!booking) {
         return (
-            <PartnerGuard><PartnerLayout>
-                <div style={{ textAlign: 'center', padding: 60 }}>
+            <div style={{ textAlign: 'center', padding: 60 }}>
                     <h3 style={{ color: '#475569', fontWeight: 600 }}>Rezervasyon Bulunamadı</h3>
                     <button onClick={() => router.push('/partner')} style={{
                         padding: '10px 24px', border: 'none', borderRadius: 12,
                         background: '#6366f1', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', marginTop: 12,
                     }}>Geri Dön</button>
                 </div>
-            </PartnerLayout></PartnerGuard>
         );
     }
 
@@ -105,9 +101,8 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
     const isOperating = (booking.status === 'CONFIRMED' && (booking.operationalStatus === 'IN_OPERATION' || booking.operationalStatus === 'PARTNER_ACCEPTED')) || booking.status === 'ACCEPTED';
 
     return (
-        <PartnerGuard>
-            <PartnerLayout>
-                <style jsx global>{`
+        <>
+        <style jsx global>{`
                     .booking-detail-container { max-width: 1000px; margin: 0 auto; }
                     @media (max-width: 768px) {
                         .booking-detail-container { padding-top: 68px; }
@@ -333,7 +328,6 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                         </Col>
                     </Row>
                 </div>
-            </PartnerLayout>
-        </PartnerGuard>
+    </>
     );
 }

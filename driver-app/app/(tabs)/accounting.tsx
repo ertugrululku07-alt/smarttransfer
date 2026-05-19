@@ -9,8 +9,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useSocket } from '../../context/SocketContext';
 import { Ionicons } from '@expo/vector-icons';
 import { Brand } from '../../constants/theme';
-
-const API_URL = 'https://api.jet2home.com/api';
+import { API_URL } from '../../config';
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 interface Collection {

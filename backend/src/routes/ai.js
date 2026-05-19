@@ -1,13 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const prisma = require('../lib/prisma');
+const env = require('../config/env');
+const { requireTenantId, findBookingForTenant } = require('../utils/tenantScope');
 
-// Security middleware for AI tools
 const aiAuthMiddleware = (req, res, next) => {
     const aiToken = req.headers['x-ai-token'];
-    const secret = process.env.AI_SECRET_TOKEN || 'smart_ai_2026_x';
-    
-    if (!aiToken || aiToken !== secret) {
+    if (!aiToken || aiToken !== env.security.aiSecretToken) {
         return res.status(401).json({ success: false, error: 'Unauthorized: Invalid AI Token' });
     }
     next();
@@ -15,17 +14,15 @@ const aiAuthMiddleware = (req, res, next) => {
 
 router.use(aiAuthMiddleware);
 
-/**
- * GET /api/ai/status
- * Check booking status
- */
 router.get('/status', async (req, res) => {
     try {
-        const { ref, contact } = req.query;
+        const { ref, contact, tenantId: queryTenantId } = req.query;
         if (!ref) return res.status(400).json({ success: false, error: 'Reference number is required' });
+        if (!queryTenantId) return res.status(400).json({ success: false, error: 'tenantId is required' });
 
         const booking = await prisma.booking.findFirst({
             where: {
+                tenantId: String(queryTenantId),
                 bookingNumber: ref,
                 OR: [
                     { contactEmail: contact },
@@ -57,31 +54,20 @@ router.get('/status', async (req, res) => {
     }
 });
 
-/**
- * GET /api/ai/quotes
- * Get pricing quotes for a route
- * Note: Simplified version for AI (text-based matching)
- */
 router.get('/quotes', async (req, res) => {
     try {
-        const { pickup, dropoff, pax, date } = req.query;
-        
-        // Fetch all vehicle types to provide generic pricing
+        const { pax, tenantId: queryTenantId } = req.query;
+        if (!queryTenantId) return res.status(400).json({ success: false, error: 'tenantId is required' });
+
         const vehicleTypes = await prisma.vehicleType.findMany({
-            where: { capacity: { gte: Number(pax || 1) } },
-            include: { vehicles: { where: { status: 'ACTIVE' } } }
+            where: { tenantId: String(queryTenantId), capacity: { gte: Number(pax || 1) } },
+            include: { vehicles: { where: { status: 'ACTIVE', tenantId: String(queryTenantId) } } }
         });
 
-        // Simplified Pricing Logic for AI:
-        // We'll return a few standard options. In a real scenario, this would call 
-        // the same complex logic as transfer.js but with text detection.
         const quotes = vehicleTypes.map(vt => ({
             vehicleType: vt.name,
             capacity: vt.capacity,
-            // Mock price if we can't calculate exactly, or we could implement a 
-            // basic distance-based estimate here. 
-            // For now, let's return a range or a fixed base + estimate.
-            estimatedPrice: 50, // Default base
+            estimatedPrice: 50,
             currency: 'EUR'
         }));
 
@@ -91,19 +77,19 @@ router.get('/quotes', async (req, res) => {
     }
 });
 
-/**
- * POST /api/ai/book
- * Create a PENDING booking
- */
 router.post('/book', async (req, res) => {
     try {
-        const { pickup, dropoff, date, pax, vehicleType, contactName, contactPhone, contactEmail } = req.body;
-        
+        const { pickup, dropoff, date, pax, vehicleType, contactName, contactPhone, contactEmail, tenantId } = req.body;
+        if (!tenantId) return res.status(400).json({ success: false, error: 'tenantId is required' });
+
+        const tenant = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { id: true } });
+        if (!tenant) return res.status(404).json({ success: false, error: 'Tenant not found' });
+
         const bookingNumber = `AI${Date.now().toString().slice(-6)}`;
-        
+
         const booking = await prisma.booking.create({
             data: {
-                tenantId: (await prisma.tenant.findFirst()).id,
+                tenantId: tenant.id,
                 bookingNumber,
                 productType: 'TRANSFER',
                 startDate: new Date(date),
@@ -113,17 +99,12 @@ router.post('/book', async (req, res) => {
                 contactEmail,
                 status: 'PENDING',
                 paymentStatus: 'PENDING',
-                total: 0, // Admin will set price
+                total: 0,
                 subtotal: 0,
                 tax: 0,
                 serviceFee: 0,
                 currency: 'EUR',
-                metadata: {
-                    pickup,
-                    dropoff,
-                    vehicleType,
-                    isAiBooking: true
-                }
+                metadata: { pickup, dropoff, vehicleType, source: 'AI' }
             }
         });
 

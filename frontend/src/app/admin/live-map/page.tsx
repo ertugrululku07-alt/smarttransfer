@@ -4,6 +4,7 @@ import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useSocket } from '@/app/context/SocketContext';
 import apiClient from '@/lib/api-client';
 import AdminLayout from '../AdminLayout';
+import AdminGuard from '../AdminGuard';
 import { Badge, Spin, Input, Tooltip, Typography, Empty, Drawer, Timeline, Tag, DatePicker } from 'antd';
 import {
     CarOutlined, DashboardOutlined, EnvironmentOutlined, PhoneOutlined,
@@ -306,6 +307,7 @@ const LiveMapPage = () => {
     }, []);
 
     return (
+        <AdminGuard>
         <AdminLayout selectedKey="driver-tracking">
             <div style={{ height: 'calc(100vh - 64px)', display: 'flex', flexDirection: 'column', background: '#f1f5f9', overflow: 'hidden' }}>
                 {/* ── TOP STATS BAR ── */}
@@ -800,6 +802,7 @@ const LiveMapPage = () => {
                 @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.7; } }
             `}</style>
         </AdminLayout>
+        </AdminGuard>
     );
 };
 

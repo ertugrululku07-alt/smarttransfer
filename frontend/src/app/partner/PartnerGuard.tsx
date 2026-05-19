@@ -9,50 +9,45 @@ interface PartnerGuardProps {
     children: React.ReactNode;
 }
 
+function isPartnerUser(user: { role?: { type?: string; code?: string } }): boolean {
+    return (
+        user.role?.type === 'PARTNER' ||
+        user.role?.code === 'PARTNER'
+    );
+}
+
 const PartnerGuard: React.FC<PartnerGuardProps> = ({ children }) => {
     const { user, loading } = useAuth();
     const router = useRouter();
 
     useEffect(() => {
-        if (!loading) {
-            if (!user) {
-                router.push('/login');
-                return;
+        if (loading) return;
+
+        if (!user) {
+            router.push('/login');
+            return;
+        }
+
+        if (!isPartnerUser(user)) {
+            if (user.role?.type === 'SUPER_ADMIN' || user.role?.type === 'TENANT_ADMIN') {
+                router.push('/admin');
+            } else {
+                router.push('/');
             }
-
-            // Check if user has PARTNER role
-            // Supports both old and new role structures just in case
-            const isPartner =
-                user.role?.type === 'PARTNER' ||
-                user.role?.code === 'PARTNER' ||
-                (user.role as any) === 'PARTNER'; // Fail-safe for string role
-
-            if (!isPartner) {
-                console.log('❌ PartnerGuard: User is not partner, redirecting');
-                // Redirect to appropriate panel based on role
-                if (user.role?.type === 'SUPER_ADMIN' || user.role?.type === 'TENANT_ADMIN') {
-                    router.push('/admin');
-                } else {
-                    router.push('/');
-                }
-                return;
-            }
-
-            console.log('✅ PartnerGuard: User is partner, allowing access');
         }
     }, [user, loading, router]);
 
-    if (loading || !user) {
+    if (loading) {
         return (
-            <div
-                style={{
-                    minHeight: '100vh',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    background: '#f5f7fa'
-                }}
-            >
+            <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f5f7fa' }}>
+                <Spin size="large" />
+            </div>
+        );
+    }
+
+    if (!user || !isPartnerUser(user)) {
+        return (
+            <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f5f7fa' }}>
                 <Spin size="large" />
             </div>
         );

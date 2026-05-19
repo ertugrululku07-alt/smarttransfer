@@ -4,12 +4,9 @@ const nextConfig: NextConfig = {
   output: 'standalone',
   reactCompiler: true,
   typescript: {
-    ignoreBuildErrors: true,
+    ignoreBuildErrors: false,
   },
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
-  // Prevent nginx/CDN from caching HTML pages (stale-while-revalidate was serving old builds)
+  // Prevent nginx/CDN from caching HTML pages
   async headers() {
     return [
       {

@@ -1086,12 +1086,7 @@ const HomePage: React.FC = () => {
               <div style={{ marginBottom: 14 }}>
                 {branding.logoUrl ? (
                   <img
-                    src={(() => {
-                      const url = getImageUrl(branding.logoUrl);
-                      console.log('Logo URL:', url);
-                      if (url && url.startsWith('/uploads')) return `https://api.jet2home.com${url}`;
-                      return url;
-                    })()}
+                    src={getImageUrl(branding.logoUrl)}
                     alt={fullName}
                     style={{ maxHeight: 36, maxWidth: 160, objectFit: 'contain', filter: 'brightness(0) invert(1)', opacity: 0.9 }}
                   />

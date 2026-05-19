@@ -3,8 +3,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useSocket } from '@/app/context/SocketContext';
 import apiClient from '@/lib/api-client';
-import PartnerGuard from '../PartnerGuard';
-import PartnerLayout from '../PartnerLayout';
 import { Badge, Spin, Input, Typography, Empty, Tooltip } from 'antd';
 import {
     DashboardOutlined, EnvironmentOutlined, ClockCircleOutlined,
@@ -156,9 +154,7 @@ const PartnerDispatchPage = () => {
     }, [rawDrivers, search]);
 
     return (
-        <PartnerGuard>
-            <PartnerLayout>
-                <div style={{ height: 'calc(100vh - 64px)', display: 'flex', flexDirection: 'column', background: '#f1f5f9', overflow: 'hidden', margin: '-24px', padding: 0 }}>
+        <div style={{ height: 'calc(100vh - 64px)', display: 'flex', flexDirection: 'column', background: '#f1f5f9', overflow: 'hidden', margin: '-24px', padding: 0 }}>
                     {/* ── TOP BAR ── */}
                     <div style={{
                         display: 'flex', alignItems: 'center', gap: 6, padding: '10px 16px',
@@ -338,8 +334,6 @@ const PartnerDispatchPage = () => {
                         )}
                     </div>
                 </div>
-            </PartnerLayout>
-        </PartnerGuard>
     );
 };
 

@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { AutoComplete, Input, Spin, Button } from 'antd';
 import { EnvironmentOutlined, SearchOutlined } from '@ant-design/icons';
+import { HERE_API_KEY } from '@/lib/config';
 
 // Fallback locations when API fails or is not ready
 const FALLBACK_LOCATIONS = [
@@ -48,7 +49,7 @@ const HereLocationSearchInput: React.FC<HereLocationSearchInputProps> = ({
     
     const debounceTimeout = useRef<NodeJS.Timeout | null>(null);
 
-    const apiKey = process.env.NEXT_PUBLIC_HERE_API_KEY || 'RH04HVBUK6By3GfYWwVlCOG4Or1IzV-rRjygQRHbIvo';
+    const apiKey = HERE_API_KEY;
 
     useEffect(() => {
         if (value !== undefined && value !== searchValue) {
@@ -59,6 +60,11 @@ const HereLocationSearchInput: React.FC<HereLocationSearchInputProps> = ({
     const fetchSuggestions = async (query: string) => {
         if (!query || query.length < 3) {
             setOptions([]);
+            return;
+        }
+
+        if (!apiKey) {
+            setOptions(getFallbackOptions(query));
             return;
         }
 

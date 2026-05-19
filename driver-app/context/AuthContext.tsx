@@ -1,15 +1,14 @@
 import React, { createContext, useState, useContext, useEffect, useRef, useCallback } from 'react';
 import * as SecureStore from 'expo-secure-store';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
 import { router } from 'expo-router';
 import { Platform, BackHandler, AppState, AppStateStatus, NativeModules } from 'react-native';
+import { API_URL, apiHeaders } from '../config';
 
 const { NativeLocation } = NativeModules;
 
 const LOCATION_TASK_NAME = 'background-location-task';
-const API_URL = 'https://api.jet2home.com/api';
 const TOKEN_REFRESH_INTERVAL = 10 * 60 * 1000; // Refresh token every 10 minutes proactively
 
 interface AuthContextType {
@@ -43,150 +42,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     // Keep tokenRef in sync
     useEffect(() => { tokenRef.current = token; }, [token]);
 
-    // Core refresh function — called proactively before expiry
-    const refreshTokenNow = useCallback(async (): Promise<string | null> => {
-        try {
-            let refreshTkn = await SecureStore.getItemAsync('refreshToken');
-            if (!refreshTkn) refreshTkn = await AsyncStorage.getItem('refreshToken');
-            if (!refreshTkn) {
-                console.log('[Auth] No refresh token available');
-                return null;
-            }
-
-            const res = await fetch(`${API_URL}/auth/refresh`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ refreshToken: refreshTkn })
-            });
-
-            if (!res.ok) {
-                console.log('[Auth] Refresh failed:', res.status);
-                return null;
-            }
-
-            const json = await res.json();
-            const newToken = json?.data?.token;
-            if (newToken) {
-                // Persist everywhere so headless tasks also get the new token
-                await SecureStore.setItemAsync('token', newToken);
-                await AsyncStorage.setItem('token', newToken);
-                // Only update React state if token actually changed — avoids unnecessary re-renders
-                const changed = newToken !== tokenRef.current;
-                tokenRef.current = newToken;
-                if (changed) {
-                    setToken(newToken);
-                }
-                console.log('[Auth] Token refreshed successfully (changed:', changed, ')');
-                return newToken;
-            }
-            return null;
-        } catch (e) {
-            console.warn('[Auth] Token refresh error:', e);
-            return null;
-        }
-    }, []);
-
-    // Proactive refresh interval — keeps token alive even in background
-    useEffect(() => {
-        if (!token) {
-            if (refreshTimerRef.current) clearInterval(refreshTimerRef.current);
-            return;
-        }
-
-        // Refresh immediately on mount, then every 10 minutes
-        refreshTimerRef.current = setInterval(() => {
-            console.log('[Auth] Proactive token refresh tick');
-            refreshTokenNow();
-        }, TOKEN_REFRESH_INTERVAL);
-
-        return () => {
-            if (refreshTimerRef.current) clearInterval(refreshTimerRef.current);
-        };
-    }, [token, refreshTokenNow]);
-
-    // When app comes to foreground, refresh token immediately
-    useEffect(() => {
-        const sub = AppState.addEventListener('change', (nextState: AppStateStatus) => {
-            if (appStateRef.current.match(/inactive|background/) && nextState === 'active' && tokenRef.current) {
-                console.log('[Auth] App foregrounded — refreshing token');
-                refreshTokenNow();
-            }
-            appStateRef.current = nextState;
-        });
-        return () => sub.remove();
-    }, [refreshTokenNow]);
-
-    // Listen for headless token updates (when index.js refreshes token in background)
-    useEffect(() => {
-        if (!token) return;
-        const syncInterval = setInterval(async () => {
-            try {
-                let storedToken = await SecureStore.getItemAsync('token');
-                if (!storedToken) storedToken = await AsyncStorage.getItem('token');
-                if (storedToken && storedToken !== tokenRef.current) {
-                    console.log('[Auth] Detected headless token update — syncing to React state');
-                    setToken(storedToken);
-                    tokenRef.current = storedToken;
-                }
-            } catch {}
-        }, 30000); // Check every 30 seconds
-        return () => clearInterval(syncInterval);
-    }, [token]);
-
-    useEffect(() => {
-        const loadSession = async () => {
-            try {
-                let storedToken = await SecureStore.getItemAsync('token');
-                let storedUser = await SecureStore.getItemAsync('user');
-                
-                if (!storedToken) {
-                    storedToken = await AsyncStorage.getItem('token');
-                    storedUser = await AsyncStorage.getItem('user');
-                }
-
-                if (storedToken && storedUser) {
-                    setToken(storedToken);
-                    tokenRef.current = storedToken;
-                    setUser(JSON.parse(storedUser));
-                    // Start native GPS service with saved token (survives reboot)
-                    try { NativeLocation?.startTracking(storedToken); } catch (e) {}
-                }
-            } catch (e) {
-                console.error('Failed to load session', e);
-            } finally {
-                setIsLoading(false);
-            }
-        };
-
-        loadSession();
-    }, []);
-
-    const signIn = async (newToken: string, newUser: any, newRefreshToken?: string) => {
-        setToken(newToken);
-        tokenRef.current = newToken;
-        setUser(newUser);
-        await SecureStore.setItemAsync('token', newToken);
-        await AsyncStorage.setItem('token', newToken);
-        await SecureStore.setItemAsync('user', JSON.stringify(newUser));
-        await AsyncStorage.setItem('user', JSON.stringify(newUser));
-        if (newRefreshToken) {
-            await SecureStore.setItemAsync('refreshToken', newRefreshToken);
-            await AsyncStorage.setItem('refreshToken', newRefreshToken);
-        }
-        // Start native GPS service (survives app close + phone reboot)
-        try { NativeLocation?.startTracking(newToken); } catch (e) {}
-    };
-
-    const signOut = async () => {
+    const signOut = useCallback(async () => {
         // 1. Clear push token on backend
         try {
             if (tokenRef.current) {
                 await fetch(`${API_URL}/driver/push-token`, {
                     method: 'DELETE',
-                    headers: {
-                        'Authorization': `Bearer ${tokenRef.current}`,
-                        'Content-Type': 'application/json'
-                    }
+                    headers: apiHeaders(tokenRef.current),
                 });
             }
         } catch (e) {
@@ -222,8 +84,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         await SecureStore.deleteItemAsync('user');
         await SecureStore.deleteItemAsync('refreshToken');
         await SecureStore.deleteItemAsync('lastSyncTime');
-        await AsyncStorage.removeItem('token');
-        await AsyncStorage.removeItem('refreshToken');
 
         // 5. Clear in-memory state
         setToken(null);
@@ -241,6 +101,114 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                 BackHandler.exitApp();
             }, 500);
         }
+    }, []);
+
+    // Core refresh function — called proactively before expiry
+    const refreshTokenNow = useCallback(async (): Promise<string | null> => {
+        try {
+            const refreshTkn = await SecureStore.getItemAsync('refreshToken');
+            if (!refreshTkn) {
+                console.log('[Auth] No refresh token available');
+                return null;
+            }
+
+            const res = await fetch(`${API_URL}/auth/refresh`, {
+                method: 'POST',
+                headers: apiHeaders(),
+                body: JSON.stringify({ refreshToken: refreshTkn })
+            });
+
+            if (!res.ok) {
+                console.log('[Auth] Refresh failed:', res.status);
+                if (res.status === 401) {
+                    await signOut();
+                }
+                return null;
+            }
+
+            const json = await res.json();
+            const newToken = json?.data?.token;
+            if (newToken) {
+                await SecureStore.setItemAsync('token', newToken);
+                const changed = newToken !== tokenRef.current;
+                tokenRef.current = newToken;
+                if (changed) {
+                    setToken(newToken);
+                }
+                console.log('[Auth] Token refreshed successfully (changed:', changed, ')');
+                return newToken;
+            }
+            return null;
+        } catch (e) {
+            console.warn('[Auth] Token refresh error:', e);
+            return null;
+        }
+    }, [signOut]);
+
+    // Proactive refresh interval — keeps token alive even in background
+    useEffect(() => {
+        if (!token) {
+            if (refreshTimerRef.current) clearInterval(refreshTimerRef.current);
+            return;
+        }
+
+        // Refresh immediately on mount, then every 10 minutes
+        refreshTimerRef.current = setInterval(() => {
+            console.log('[Auth] Proactive token refresh tick');
+            refreshTokenNow();
+        }, TOKEN_REFRESH_INTERVAL);
+
+        return () => {
+            if (refreshTimerRef.current) clearInterval(refreshTimerRef.current);
+        };
+    }, [token, refreshTokenNow]);
+
+    // When app comes to foreground, refresh token immediately
+    useEffect(() => {
+        const sub = AppState.addEventListener('change', (nextState: AppStateStatus) => {
+            if (appStateRef.current.match(/inactive|background/) && nextState === 'active' && tokenRef.current) {
+                console.log('[Auth] App foregrounded — refreshing token');
+                refreshTokenNow();
+            }
+            appStateRef.current = nextState;
+        });
+        return () => sub.remove();
+    }, [refreshTokenNow]);
+
+    useEffect(() => {
+        const loadSession = async () => {
+            try {
+                const storedToken = await SecureStore.getItemAsync('token');
+                const storedUser = await SecureStore.getItemAsync('user');
+
+                if (storedToken && storedUser) {
+                    setToken(storedToken);
+                    tokenRef.current = storedToken;
+                    setUser(JSON.parse(storedUser));
+                    // Start native GPS service with saved token (survives reboot)
+                    try { NativeLocation?.startTracking(storedToken); } catch (e) {}
+                }
+            } catch (e) {
+                console.error('Failed to load session', e);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        loadSession();
+    }, []);
+
+    const signIn = async (newToken: string, newUser: any, newRefreshToken?: string) => {
+        setToken(newToken);
+        tokenRef.current = newToken;
+        setUser(newUser);
+        await SecureStore.setItemAsync('token', newToken);
+        await SecureStore.setItemAsync('user', JSON.stringify(newUser));
+        if (newRefreshToken) {
+            await SecureStore.setItemAsync('refreshToken', newRefreshToken);
+        }
+        // Start native GPS service (survives app close + phone reboot)
+        try { NativeLocation?.startTracking(newToken); } catch (e) {}
     };
 
     return (

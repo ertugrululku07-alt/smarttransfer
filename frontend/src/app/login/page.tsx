@@ -171,12 +171,7 @@ const LoginPage: React.FC = () => {
               {branding.logoUrl ? (
                 <div style={{ marginBottom: 16 }}>
                   <img
-                    src={(() => {
-                      const url = getImageUrl(branding.logoUrl);
-                      console.log('Logo URL processing:', url);
-                      if (url && url.startsWith('/uploads')) return `https://api.jet2home.com${url}`;
-                      return url;
-                    })()}
+                    src={getImageUrl(branding.logoUrl)}
                     alt="Logo"
                     style={{ maxHeight: 80, maxWidth: 300, objectFit: 'contain' }}
                   />

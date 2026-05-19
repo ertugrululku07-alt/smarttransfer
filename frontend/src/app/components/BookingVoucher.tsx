@@ -66,11 +66,7 @@ export default function BookingVoucher({ booking, tenant, agency, pickup: pickup
                         <>
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img
-                              src={(() => {
-                                const url = agencyLogo;
-                                if (url && url.startsWith('/uploads')) return `https://api.jet2home.com${url}`;
-                                return url;
-                              })()}
+                              src={agencyLogo}
                               alt="Firma Logosu" 
                                 style={{ height: 70, maxWidth: 220, objectFit: 'contain', display: 'block' }} 
                                 onError={(e) => {
@@ -101,11 +97,7 @@ export default function BookingVoucher({ booking, tenant, agency, pickup: pickup
                     {(branding.logoVariants?.voucher || branding.logoUrl) && (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
-                            src={(() => {
-                                const url = getImageUrl(branding.logoVariants?.voucher || branding.logoUrl);
-                                if (url && url.startsWith('/uploads')) return `https://api.jet2home.com${url}`;
-                                return url;
-                            })()}
+                            src={getImageUrl(branding.logoVariants?.voucher || branding.logoUrl)}
                             alt={branding.companyName || 'Firma Logosu'}
                             style={{ height: 50, maxWidth: 180, objectFit: 'contain', display: 'block', marginLeft: 'auto', marginBottom: 8 }}
                             onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}

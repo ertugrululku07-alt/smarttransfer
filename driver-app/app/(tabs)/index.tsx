@@ -14,11 +14,9 @@ import { useSocket } from '../../context/SocketContext';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Brand } from '../../constants/theme';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { API_URL, BASE_URL, apiHeaders } from '../../config';
 
 const { NativeLocation } = NativeModules;
-
-const API_URL = 'https://api.jet2home.com/api';
 const LOCATION_TASK_NAME = 'background-location-task';
 
 
@@ -29,12 +27,11 @@ export default function DashboardScreen() {
 
   const getImageUrl = (url: string | undefined | null) => {
     if (!url) return '';
-    const baseApi = API_URL.replace('/api', '');
     if (url.startsWith('/uploads')) {
-      return `${baseApi}${url}`;
+      return `${BASE_URL}${url}`;
     }
     if (url.includes('localhost')) {
-      return url.replace(/https?:\/\/localhost(:\d+)?/, baseApi);
+      return url.replace(/https?:\/\/localhost(:\d+)?/, BASE_URL);
     }
     return url;
   };
@@ -214,11 +211,7 @@ export default function DashboardScreen() {
           if (loc && token) {
             await fetch(`${API_URL}/driver/sync`, {
               method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`,
-                'X-Tenant-Slug': 'Jet2Home'
-              },
+              headers: apiHeaders(token),
               body: JSON.stringify({
                 lat: loc.coords.latitude,
                 lng: loc.coords.longitude,

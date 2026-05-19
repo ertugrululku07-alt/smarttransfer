@@ -16,9 +16,9 @@
 
 const crypto = require('crypto');
 const axios = require('axios');
+const env = require('../config/env');
 
-// ── Encryption helpers for UNet password ──────────────────────────────────────
-const ENCRYPTION_KEY = process.env.UETDS_ENCRYPTION_KEY || 'SmartTransfer-UETDS-Key-32chars!'; // Must be exactly 32 bytes
+const ENCRYPTION_KEY = env.security.uetdsEncryptionKey;
 const IV_LENGTH = 16;
 
 function encrypt(text) {

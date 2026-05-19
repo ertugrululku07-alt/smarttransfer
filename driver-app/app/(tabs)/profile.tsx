@@ -8,8 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
 import { useRouter } from 'expo-router';
 import { Brand } from '../../constants/theme';
-
-const API_URL = 'https://api.jet2home.com/api';
+import { API_URL, BASE_URL } from '../../config';
 
 export default function ProfileScreen() {
     const { user, token, signOut } = useAuth();
@@ -24,12 +23,11 @@ export default function ProfileScreen() {
 
     const getImageUrl = (url: string | undefined | null) => {
         if (!url) return '';
-        const baseApi = API_URL.replace('/api', '');
         if (url.startsWith('/uploads')) {
-            return `${baseApi}${url}`;
+            return `${BASE_URL}${url}`;
         }
         if (url.includes('localhost')) {
-            return url.replace(/https?:\/\/localhost(:\d+)?/, baseApi);
+            return url.replace(/https?:\/\/localhost(:\d+)?/, BASE_URL);
         }
         return url;
     };

@@ -1,5 +1,6 @@
 import axios from 'axios';
 import flexpolyline from '@here/flexpolyline';
+import { HERE_API_KEY } from './config';
 
 // Interfaces
 export interface RouteDetails {
@@ -15,12 +16,15 @@ export interface GeocodeResult {
     displayName: string;
 }
 
-const HERE_API_KEY = process.env.NEXT_PUBLIC_HERE_API_KEY || 'RH04HVBUK6By3GfYWwVlCOG4Or1IzV-rRjygQRHbIvo';
-
 /**
  * Geocode an address string using HERE Geocoding API
  */
 export const geocodeAddress = async (address: string): Promise<GeocodeResult | null> => {
+    if (!HERE_API_KEY) {
+        console.warn('[routing] HERE API key not configured');
+        return null;
+    }
+
     try {
         const cleanAddress = address.trim();
         

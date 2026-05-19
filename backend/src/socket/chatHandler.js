@@ -1,159 +1,157 @@
 const prisma = require('../lib/prisma');
 const axios = require('axios');
+const env = require('../config/env');
+const { authenticateSocketToken, joinUserRooms, isAdminUser } = require('./socketAuth');
 
-// n8n Webhook URL
-const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL || 'http://localhost:5678/webhook/live-chat';
+const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL;
 
 module.exports = (io, app) => {
     io.on('connection', (socket) => {
+        let currentUser = null;
 
-        // === MÜŞTERİ YÜZÜ ===
-
-        // Müşteri bir sohbet odasına katılır
-        socket.on('chat:join', async (data) => {
-            const { sessionId, tenantId } = data;
-            if (sessionId) {
-                socket.join(sessionId);
-                
-                // Send chat history back to user
-                try {
-                    const history = await prisma.chatMessage.findMany({
-                        where: { sessionId },
-                        orderBy: { createdAt: 'asc' }
-                    });
-                    socket.emit('chat:history', history);
-                    
-                    const session = await prisma.chatSession.findUnique({
-                        where: { id: sessionId }
-                    });
-                    if (session) {
-                        socket.emit('chat:status', session.status);
-                    }
-                } catch (err) {
-                    console.error("Chat history fetch error:", err);
-                }
+        socket.on('authenticate', async (rawToken) => {
+            try {
+                const user = await authenticateSocketToken(rawToken);
+                currentUser = user;
+                joinUserRooms(socket, user);
+                socket.emit('authenticated', { success: true });
+            } catch (err) {
+                socket.emit('error', { message: 'Authentication failed' });
             }
         });
 
-        // Müşteri mesaj gönderdiğinde
+        socket.on('chat:join', async (data) => {
+            const { sessionId, tenantId } = data || {};
+            if (!sessionId) return;
+
+            const session = await prisma.chatSession.findUnique({ where: { id: sessionId } });
+            if (!session) return;
+
+            if (tenantId && session.tenantId && session.tenantId !== tenantId) return;
+
+            socket.join(sessionId);
+
+            try {
+                const history = await prisma.chatMessage.findMany({
+                    where: { sessionId },
+                    orderBy: { createdAt: 'asc' }
+                });
+                socket.emit('chat:history', history);
+                socket.emit('chat:status', session.status);
+            } catch (err) {
+                console.error('Chat history fetch error:', err);
+            }
+        });
+
         socket.on('chat:send_message', async (data) => {
-            const { sessionId, tenantId, content } = data;
+            const { sessionId, tenantId, content } = data || {};
             if (!sessionId || !content) return;
 
             try {
-                // Check session status
                 let session = await prisma.chatSession.findUnique({ where: { id: sessionId } });
-                
-                // Create session if it doesn't exist
+
                 if (!session) {
+                    if (!tenantId) return;
                     session = await prisma.chatSession.create({
-                        data: {
-                            id: sessionId,
-                            tenantId: tenantId || 'default',
-                            status: 'BOT'
-                        }
+                        data: { id: sessionId, tenantId, status: 'BOT' }
                     });
                 }
 
-                // Save message to DB
                 const savedMsg = await prisma.chatMessage.create({
-                    data: {
-                        sessionId,
-                        sender: 'USER',
-                        content
-                    }
+                    data: { sessionId, sender: 'USER', content }
                 });
 
-                // Echo back to room so other tabs of the user see it
                 io.to(sessionId).emit('chat:receive', savedMsg);
 
-                if (session.status === 'BOT') {
-                    // Forward via HTTP to n8n webhook
-                    try {
-                        axios.post(N8N_WEBHOOK_URL, {
-                            sessionId,
-                            tenantId,
-                            message: content
-                        }).catch(err => {
-                            console.error('Failed to trigger n8n, maybe it is down:', err.message);
-                        });
-                    } catch (e) {
-                        console.error('n8n webhook error', e);
-                    }
+                if (session.status === 'BOT' && N8N_WEBHOOK_URL) {
+                    axios.post(N8N_WEBHOOK_URL, { sessionId, tenantId: session.tenantId, message: content })
+                        .catch(err => console.error('n8n webhook error:', err.message));
                 } else if (session.status === 'HUMAN') {
-                    // Forward directly to connected admins
-                    io.to('admin_live_support').emit('chat:admin_receive', savedMsg);
+                    io.to(`admin_live_support_${session.tenantId}`).emit('chat:admin_receive', savedMsg);
                 }
-
             } catch (err) {
                 console.error('chat:send_message error', err);
             }
         });
 
-        // Müşteri veya AI canlı temsilci isterse
         socket.on('chat:request_human', async (data) => {
-            const { sessionId } = data;
+            const { sessionId } = data || {};
             try {
-                await prisma.chatSession.update({
-                    where: { id: sessionId },
-                    data: { status: 'HUMAN' }
-                });
+                const session = await prisma.chatSession.findUnique({ where: { id: sessionId } });
+                if (!session) return;
+
+                await prisma.chatSession.update({ where: { id: sessionId }, data: { status: 'HUMAN' } });
                 io.to(sessionId).emit('chat:status', 'HUMAN');
-                io.to('admin_live_support').emit('chat:request_human', { sessionId, message: "Müşteri canlı desteğe bağlanmak istiyor." });
+                io.to(`admin_live_support_${session.tenantId}`).emit('chat:request_human', {
+                    sessionId,
+                    message: 'Müşteri canlı desteğe bağlanmak istiyor.'
+                });
             } catch (err) {
                 console.error(err);
             }
         });
 
-        // === YÖNETİM PANELİ YÜZÜ ===
-
-        // Admin sayfaya girince live support odasına katılır
-        socket.on('admin:join_live_support', () => {
-            socket.join('admin_live_support');
-        });
-
-        // Admin bir spesifik chat'e yanıt yazmak için odaya katılır
-        socket.on('admin:join_chat', (data) => {
-            const { sessionId } = data;
-            if (sessionId) {
-                socket.join(sessionId);
+        socket.on('admin:join_live_support', async (rawToken) => {
+            try {
+                const user = rawToken ? await authenticateSocketToken(rawToken) : currentUser;
+                if (!user || !isAdminUser({ roleType: user.role?.type, roleCode: user.role?.code })) {
+                    socket.emit('error', { message: 'Admin authentication required' });
+                    return;
+                }
+                currentUser = user;
+                joinUserRooms(socket, user);
+            } catch {
+                socket.emit('error', { message: 'Admin authentication required' });
             }
         });
 
-        // Admin mesaj gönderdiğinde
+        socket.on('admin:join_chat', async (data) => {
+            if (!currentUser || !isAdminUser({ roleType: currentUser.role?.type, roleCode: currentUser.role?.code })) {
+                socket.emit('error', { message: 'Admin authentication required' });
+                return;
+            }
+            const { sessionId } = data || {};
+            if (sessionId) socket.join(sessionId);
+        });
+
         socket.on('admin:send_message', async (data) => {
-            const { sessionId, content } = data;
+            if (!currentUser || !isAdminUser({ roleType: currentUser.role?.type, roleCode: currentUser.role?.code })) {
+                socket.emit('error', { message: 'Admin authentication required' });
+                return;
+            }
+
+            const { sessionId, content } = data || {};
             try {
+                const session = await prisma.chatSession.findUnique({ where: { id: sessionId } });
+                if (!session || session.tenantId !== currentUser.tenantId) return;
+
                 const savedMsg = await prisma.chatMessage.create({
-                    data: {
-                        sessionId,
-                        sender: 'ADMIN',
-                        content
-                    }
+                    data: { sessionId, sender: 'ADMIN', content }
                 });
-                // Send to user
                 io.to(sessionId).emit('chat:receive', savedMsg);
-                // Send back to all admins observing this chat
-                io.to('admin_live_support').emit('chat:admin_receive', savedMsg);
+                io.to(`admin_live_support_${session.tenantId}`).emit('chat:admin_receive', savedMsg);
             } catch (err) {
                 console.error(err);
             }
         });
 
-        // Admin chat'i kapatır
         socket.on('admin:close_chat', async (data) => {
-            const { sessionId } = data;
+            if (!currentUser || !isAdminUser({ roleType: currentUser.role?.type, roleCode: currentUser.role?.code })) {
+                socket.emit('error', { message: 'Admin authentication required' });
+                return;
+            }
+
+            const { sessionId } = data || {};
             try {
-                await prisma.chatSession.update({
-                    where: { id: sessionId },
-                    data: { status: 'CLOSED' }
-                });
+                const session = await prisma.chatSession.findUnique({ where: { id: sessionId } });
+                if (!session || session.tenantId !== currentUser.tenantId) return;
+
+                await prisma.chatSession.update({ where: { id: sessionId }, data: { status: 'CLOSED' } });
                 io.to(sessionId).emit('chat:status', 'CLOSED');
-                io.to('admin_live_support').emit('chat:admin_close', { sessionId });
+                io.to(`admin_live_support_${session.tenantId}`).emit('chat:admin_close', { sessionId });
             } catch (err) {
                 console.error(err);
             }
         });
-
     });
 };

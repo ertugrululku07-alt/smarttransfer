@@ -11,6 +11,12 @@ const bcrypt = require('bcryptjs');
 const router = express.Router();
 const prisma = require('../lib/prisma');
 const { detectRegionCodeByPolygon: detectRegionCodeByPolygonShared } = require('../utils/zoneDetection');
+const {
+    getEffectiveTenantId,
+    requireTenantId,
+    findBookingForTenant,
+    requireAdmin,
+} = require('../utils/tenantScope');
 
 /**
  * Detect region code from a location text using tenant hubs
@@ -2036,8 +2042,13 @@ router.post('/book', optionalAuthMiddleware, async (req, res) => {
  */
 router.get('/bookings', authMiddleware, async (req, res) => {
     try {
+        const tenantId = requireTenantId(req, res);
+        if (!tenantId) return;
+        if (!requireAdmin(req, res)) return;
+
         const bookings = await prisma.booking.findMany({
             where: {
+                tenantId,
                 productType: 'TRANSFER' // Only fetch transfers
             },
             include: {
@@ -2217,8 +2228,12 @@ router.get('/bookings', authMiddleware, async (req, res) => {
 // Get bookings in the pool (for Partners)
 router.get('/pool-bookings', authMiddleware, async (req, res) => {
     try {
+        const tenantId = requireTenantId(req, res);
+        if (!tenantId) return;
+
         const bookings = await prisma.booking.findMany({
             where: {
+                tenantId,
                 productType: 'TRANSFER',
                 status: 'CONFIRMED'
             },
@@ -2330,9 +2345,10 @@ router.get('/pool-bookings', authMiddleware, async (req, res) => {
 router.get('/bookings/:id', authMiddleware, async (req, res) => {
     try {
         const { id } = req.params;
-        const booking = await prisma.booking.findUnique({
-            where: { id: id }
-        });
+        const tenantId = requireTenantId(req, res);
+        if (!tenantId) return;
+
+        const booking = await findBookingForTenant(id, tenantId);
 
         if (!booking) {
             return res.status(404).json({ success: false, error: 'Rezervasyon bulunamadı' });
@@ -2741,7 +2757,10 @@ router.patch('/bookings/:id', authMiddleware, async (req, res) => {
             }
         }
 
-        const currentBooking = await prisma.booking.findUnique({ where: { id } });
+        const patchTenantId = requireTenantId(req, res);
+        if (!patchTenantId) return;
+
+        const currentBooking = await findBookingForTenant(id, patchTenantId);
         if (!currentBooking) {
             return res.status(404).json({ success: false, error: 'Rezervasyon bulunamadı' });
         }
@@ -3422,7 +3441,11 @@ router.put('/bookings/admin/:id', authMiddleware, async (req, res) => {
         const { id } = req.params;
         const { passengerName, passengerPhone, pickup, dropoff, pickupDateTime, vehicleType, flightNumber, price, notes, adults, children, infants } = req.body;
 
-        const currentBooking = await prisma.booking.findUnique({ where: { id: id } });
+        const adminTenantId = requireTenantId(req, res);
+        if (!adminTenantId) return;
+        if (!requireAdmin(req, res)) return;
+
+        const currentBooking = await findBookingForTenant(id, adminTenantId);
         if (!currentBooking) {
             return res.status(404).json({ success: false, error: 'Rezervasyon bulunamadı' });
         }
@@ -3491,10 +3514,10 @@ router.put('/bookings/:id/status', authMiddleware, async (req, res) => {
         const { id } = req.params;
         const { status, subStatus, collectedAmount, poolPrice, partnerVehicleId } = req.body;
 
-        // Fetch current booking first to preserve metadata
-        const currentBooking = await prisma.booking.findUnique({
-            where: { id: id }
-        });
+        const tenantId = requireTenantId(req, res);
+        if (!tenantId) return;
+
+        const currentBooking = await findBookingForTenant(id, tenantId);
 
         if (!currentBooking) {
             return res.status(404).json({
@@ -3505,7 +3528,6 @@ router.put('/bookings/:id/status', authMiddleware, async (req, res) => {
 
         // ── Partner vehicle capacity validation ──
         if (status === 'CONFIRMED' && req.user?.roleType === 'PARTNER') {
-            const tenantId = req.tenant?.id;
             const userId = req.user.id;
 
             // Get partner's vehicles (with type for capacity)
@@ -3866,8 +3888,8 @@ router.put('/bookings/:id/status', authMiddleware, async (req, res) => {
             try {
                 const { sendRatingRequestWhatsApp } = require('../lib/whatsappService');
                 // Reload with driver info
-                const fullBooking = await prisma.booking.findUnique({
-                    where: { id },
+                const fullBooking = await prisma.booking.findFirst({
+                    where: { id, tenantId: req.user.tenantId },
                     include: { driver: { select: { fullName: true } } }
                 });
                 sendRatingRequestWhatsApp(req.tenant.id, fullBooking).catch(err => {
@@ -4206,8 +4228,11 @@ router.post('/partner/assign', authMiddleware, async (req, res) => {
             }
         }
 
+        const assignTenantId = requireTenantId(req, res);
+        if (!assignTenantId) return;
+
         // Get booking
-        const booking = await prisma.booking.findUnique({ where: { id: bookingId } });
+        const booking = await findBookingForTenant(bookingId, assignTenantId);
         if (!booking) {
             return res.status(404).json({ success: false, error: 'Rezervasyon bulunamadı' });
         }
@@ -4671,7 +4696,10 @@ router.patch('/greeting-status', authMiddleware, async (req, res) => {
             return res.status(400).json({ success: false, error: `Geçersiz durum: ${status}` });
         }
 
-        const booking = await prisma.booking.findUnique({ where: { id: bookingId } });
+        const tenantId = requireTenantId(req, res);
+        if (!tenantId) return;
+
+        const booking = await findBookingForTenant(bookingId, tenantId);
         if (!booking) {
             return res.status(404).json({ success: false, error: 'Rezervasyon bulunamadı' });
         }
@@ -4950,7 +4978,10 @@ router.post('/greeting-note', authMiddleware, async (req, res) => {
             return res.status(400).json({ success: false, error: 'bookingId ve text gereklidir' });
         }
 
-        const booking = await prisma.booking.findUnique({ where: { id: bookingId } });
+        const tenantId = requireTenantId(req, res);
+        if (!tenantId) return;
+
+        const booking = await findBookingForTenant(bookingId, tenantId);
         if (!booking) {
             return res.status(404).json({ success: false, error: 'Rezervasyon bulunamadı' });
         }
@@ -5054,7 +5085,10 @@ router.post('/airport-greeting/reveal-phone', authMiddleware, async (req, res) =
             return res.status(400).json({ success: false, error: 'bookingId gereklidir' });
         }
 
-        const booking = await prisma.booking.findUnique({ where: { id: bookingId } });
+        const tenantId = requireTenantId(req, res);
+        if (!tenantId) return;
+
+        const booking = await findBookingForTenant(bookingId, tenantId);
         if (!booking) return res.status(404).json({ success: false, error: 'Rezervasyon bulunamadı' });
 
         const meta = booking.metadata || {};

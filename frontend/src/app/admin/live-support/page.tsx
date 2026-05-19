@@ -1,13 +1,13 @@
 'use client';
-import { API_URL } from '@/lib/api-client';
 
 import React, { useEffect, useState, useRef } from 'react';
 import { Card, Layout, List, Input, Button, Typography, Tag, notification, Space, Empty, Spin } from 'antd';
 import { SendOutlined, UserOutlined, RobotOutlined, CheckCircleOutlined } from '@ant-design/icons';
 import { useSocket } from '../../context/SocketContext';
-import { useAuth } from '../../context/AuthContext';
-import axios from 'axios';
+import apiClient from '@/lib/api-client';
 import dayjs from 'dayjs';
+import AdminLayout from '../AdminLayout';
+import AdminGuard from '../AdminGuard';
 
 const { Sider, Content } = Layout;
 const { Text } = Typography;
@@ -29,7 +29,6 @@ interface ChatMessage {
 
 export default function AdminLiveSupportPage() {
     const { socket, isConnected } = useSocket();
-    const { token } = useAuth();
     
     const [sessions, setSessions] = useState<ChatSession[]>([]);
     const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
@@ -41,10 +40,7 @@ export default function AdminLiveSupportPage() {
 
     const fetchSessions = async () => {
         try {
-            const URL = typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' ? 'https://api.' + window.location.hostname.replace('www.', '') : (API_URL);
-            const { data } = await axios.get(`${URL}/api/live-chat/sessions`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const { data } = await apiClient.get('/api/live-chat/sessions');
             if (data.success) {
                 setSessions(data.sessions);
             }
@@ -56,10 +52,7 @@ export default function AdminLiveSupportPage() {
     const fetchMessages = async (sid: string) => {
         setLoading(true);
         try {
-            const URL = typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' ? 'https://api.' + window.location.hostname.replace('www.', '') : (API_URL);
-            const { data } = await axios.get(`${URL}/api/live-chat/sessions/${sid}/messages`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const { data } = await apiClient.get(`/api/live-chat/sessions/${sid}/messages`);
             if (data.success) {
                 setMessages(data.messages);
             }
@@ -80,18 +73,15 @@ export default function AdminLiveSupportPage() {
     };
 
     useEffect(() => {
-        if (!token) return;
         fetchSessions();
-        // Refresh every 30s
         const interval = setInterval(fetchSessions, 30000);
         return () => clearInterval(interval);
-    }, [token]);
+    }, []);
 
     useEffect(() => {
         if (!socket || !isConnected) return;
 
-        // Listen for new connections / human requests
-        socket.on('chat:request_human', (data) => {
+        socket.on('chat:request_human', () => {
             notification.warning({
                 message: 'Canlı Destek Talebi',
                 title: 'Canlı Destek Talebi',
@@ -102,16 +92,13 @@ export default function AdminLiveSupportPage() {
         });
 
         socket.on('chat:admin_receive', (msg: ChatMessage) => {
-            // Update active chat if matches
             if (msg.sessionId === activeSessionId) {
                 setMessages(prev => [...prev, msg]);
                 scrollToBottom();
             }
-            // Move session to top / update last message
             fetchSessions();
         });
 
-        // Cleanup
         return () => {
             socket.off('chat:request_human');
             socket.off('chat:admin_receive');
@@ -147,110 +134,114 @@ export default function AdminLiveSupportPage() {
     };
 
     return (
-        <Card title="Canlı Destek Yönetimi" bodyStyle={{ padding: 0 }}>
-            <Layout style={{ height: '70vh', background: '#fff' }}>
-                <Sider width={300} style={{ background: '#fff', borderRight: '1px solid #f0f0f0', overflowY: 'auto' }}>
-                    <List
-                        dataSource={sessions}
-                        renderItem={(item) => (
-                            <List.Item 
-                                style={{ 
-                                    padding: '16px', 
-                                    cursor: 'pointer', 
-                                    background: item.id === activeSessionId ? '#e6f7ff' : '#fff',
-                                    borderBottom: '1px solid #f0f0f0'
-                                }}
-                                onClick={() => handleSelectSession(item.id)}
-                            >
-                                <List.Item.Meta
-                                    avatar={<UserOutlined style={{ fontSize: 24, color: item.status === 'HUMAN' ? '#faad14' : '#1890ff' }} />}
-                                    title={
-                                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                            <span>Müşteri {item.id.substring(0,6)}</span>
-                                            <Tag color={item.status === 'HUMAN' ? 'orange' : item.status === 'BOT' ? 'blue' : 'default'} style={{ margin: 0 }}>
-                                                {item.status}
-                                            </Tag>
-                                        </div>
-                                    }
-                                    description={
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
-                                            <Text ellipsis style={{ width: 180, fontSize: 12 }}>
-                                                {item.messages?.[0]?.content || 'Henüz mesaj yok'}
-                                            </Text>
-                                            <Text type="secondary" style={{ fontSize: 10 }}>
-                                                {dayjs(item.updatedAt).format('HH:mm')}
-                                            </Text>
-                                        </div>
-                                    }
-                                />
-                            </List.Item>
-                        )}
-                    />
-                </Sider>
-                <Content style={{ display: 'flex', flexDirection: 'column', background: '#fafafa' }}>
-                    {activeSessionId ? (
-                        <>
-                            <div style={{ padding: '16px 24px', background: '#fff', borderBottom: '1px solid #f0f0f0', display: 'flex', justifyContent: 'space-between' }}>
-                                <h3>Oturum: {activeSessionId}</h3>
-                                <Button danger icon={<CheckCircleOutlined />} onClick={handleCloseChat}>
-                                    Sohbeti Sonlandır
-                                </Button>
-                            </div>
-                            
-                            <div style={{ flex: 1, padding: 24, overflowY: 'auto' }}>
-                                {loading ? <div style={{ textAlign: 'center' }}><Spin /></div> : (
-                                    messages.map((msg, i) => {
-                                        const isAdmin = msg.sender === 'ADMIN';
-                                        const isBot = msg.sender === 'BOT';
-                                        
-                                        return (
-                                            <div key={msg.id || i} style={{
-                                                display: 'flex',
-                                                justifyContent: isAdmin ? 'flex-end' : 'flex-start',
-                                                marginBottom: 16
-                                            }}>
-                                                <div style={{
-                                                    maxWidth: '70%',
-                                                    padding: '12px 16px',
-                                                    borderRadius: 8,
-                                                    background: isAdmin ? '#1890ff' : isBot ? '#f0f5ff' : '#fff',
-                                                    color: isAdmin ? '#fff' : '#333',
-                                                    boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
-                                                    border: isBot ? '1px solid #adc6ff' : '1px solid #f0f0f0'
-                                                }}>
-                                                    {isBot && <div style={{ fontSize: 10, color: '#1890ff', marginBottom: 4 }}><RobotOutlined /> Akıllı Asistan</div>}
-                                                    {msg.content}
-                                                    <div style={{ fontSize: 10, textAlign: 'right', marginTop: 4, opacity: 0.7 }}>
-                                                        {dayjs(msg.createdAt).format('HH:mm')}
-                                                    </div>
+        <AdminGuard>
+            <AdminLayout selectedKey="live-support">
+                <Card title="Canlı Destek Yönetimi" styles={{ body: { padding: 0 } }}>
+                    <Layout style={{ height: '70vh', background: '#fff' }}>
+                        <Sider width={300} style={{ background: '#fff', borderRight: '1px solid #f0f0f0', overflowY: 'auto' }}>
+                            <List
+                                dataSource={sessions}
+                                renderItem={(item) => (
+                                    <List.Item 
+                                        style={{ 
+                                            padding: '16px', 
+                                            cursor: 'pointer', 
+                                            background: item.id === activeSessionId ? '#e6f7ff' : '#fff',
+                                            borderBottom: '1px solid #f0f0f0'
+                                        }}
+                                        onClick={() => handleSelectSession(item.id)}
+                                    >
+                                        <List.Item.Meta
+                                            avatar={<UserOutlined style={{ fontSize: 24, color: item.status === 'HUMAN' ? '#faad14' : '#1890ff' }} />}
+                                            title={
+                                                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                                    <span>Müşteri {item.id.substring(0,6)}</span>
+                                                    <Tag color={item.status === 'HUMAN' ? 'orange' : item.status === 'BOT' ? 'blue' : 'default'} style={{ margin: 0 }}>
+                                                        {item.status}
+                                                    </Tag>
                                                 </div>
-                                            </div>
-                                        )
-                                    })
+                                            }
+                                            description={
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
+                                                    <Text ellipsis style={{ width: 180, fontSize: 12 }}>
+                                                        {item.messages?.[0]?.content || 'Henüz mesaj yok'}
+                                                    </Text>
+                                                    <Text type="secondary" style={{ fontSize: 10 }}>
+                                                        {dayjs(item.updatedAt).format('HH:mm')}
+                                                    </Text>
+                                                </div>
+                                            }
+                                        />
+                                    </List.Item>
                                 )}
-                                <div ref={messagesEndRef} />
-                            </div>
+                            />
+                        </Sider>
+                        <Content style={{ display: 'flex', flexDirection: 'column', background: '#fafafa' }}>
+                            {activeSessionId ? (
+                                <>
+                                    <div style={{ padding: '16px 24px', background: '#fff', borderBottom: '1px solid #f0f0f0', display: 'flex', justifyContent: 'space-between' }}>
+                                        <h3>Oturum: {activeSessionId}</h3>
+                                        <Button danger icon={<CheckCircleOutlined />} onClick={handleCloseChat}>
+                                            Sohbeti Sonlandır
+                                        </Button>
+                                    </div>
+                                    
+                                    <div style={{ flex: 1, padding: 24, overflowY: 'auto' }}>
+                                        {loading ? <div style={{ textAlign: 'center' }}><Spin /></div> : (
+                                            messages.map((msg, i) => {
+                                                const isAdmin = msg.sender === 'ADMIN';
+                                                const isBot = msg.sender === 'BOT';
+                                                
+                                                return (
+                                                    <div key={msg.id || i} style={{
+                                                        display: 'flex',
+                                                        justifyContent: isAdmin ? 'flex-end' : 'flex-start',
+                                                        marginBottom: 16
+                                                    }}>
+                                                        <div style={{
+                                                            maxWidth: '70%',
+                                                            padding: '12px 16px',
+                                                            borderRadius: 8,
+                                                            background: isAdmin ? '#1890ff' : isBot ? '#f0f5ff' : '#fff',
+                                                            color: isAdmin ? '#fff' : '#333',
+                                                            boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
+                                                            border: isBot ? '1px solid #adc6ff' : '1px solid #f0f0f0'
+                                                        }}>
+                                                            {isBot && <div style={{ fontSize: 10, color: '#1890ff', marginBottom: 4 }}><RobotOutlined /> Akıllı Asistan</div>}
+                                                            {msg.content}
+                                                            <div style={{ fontSize: 10, textAlign: 'right', marginTop: 4, opacity: 0.7 }}>
+                                                                {dayjs(msg.createdAt).format('HH:mm')}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )
+                                            })
+                                        )}
+                                        <div ref={messagesEndRef} />
+                                    </div>
 
-                            <div style={{ padding: 16, background: '#fff', borderTop: '1px solid #f0f0f0' }}>
-                                <Space.Compact style={{ width: '100%' }}>
-                                    <Input 
-                                        size="large"
-                                        placeholder="Müşteriye yanıtınızı yazın..." 
-                                        value={draft}
-                                        onChange={e => setDraft(e.target.value)}
-                                        onPressEnter={handleSend}
-                                    />
-                                    <Button size="large" type="primary" onClick={handleSend} icon={<SendOutlined />} />
-                                </Space.Compact>
-                            </div>
-                        </>
-                    ) : (
-                        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <Empty description="Yazışma başlatmak için soldan bir oturum seçin" />
-                        </div>
-                    )}
-                </Content>
-            </Layout>
-        </Card>
+                                    <div style={{ padding: 16, background: '#fff', borderTop: '1px solid #f0f0f0' }}>
+                                        <Space.Compact style={{ width: '100%' }}>
+                                            <Input 
+                                                size="large"
+                                                placeholder="Müşteriye yanıtınızı yazın..." 
+                                                value={draft}
+                                                onChange={e => setDraft(e.target.value)}
+                                                onPressEnter={handleSend}
+                                            />
+                                            <Button size="large" type="primary" onClick={handleSend} icon={<SendOutlined />} />
+                                        </Space.Compact>
+                                    </div>
+                                </>
+                            ) : (
+                                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <Empty description="Yazışma başlatmak için soldan bir oturum seçin" />
+                                </div>
+                            )}
+                        </Content>
+                    </Layout>
+                </Card>
+            </AdminLayout>
+        </AdminGuard>
     );
 }

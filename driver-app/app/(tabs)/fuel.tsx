@@ -10,8 +10,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Brand } from '../../constants/theme';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
-
-const API_URL = 'https://api.jet2home.com/api';
+import { API_URL } from '../../config';
 
 interface VehicleInfo {
   id: string;

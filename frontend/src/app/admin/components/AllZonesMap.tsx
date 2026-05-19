@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { MapContainer, TileLayer, Polygon, Tooltip, Marker, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { HERE_API_KEY } from '@/lib/config';
 
 interface Zone {
     id: string;
@@ -326,7 +327,7 @@ const DraggableZoneLayer: React.FC<{
 };
 
 const AllZonesMap: React.FC<AllZonesMapProps> = ({ zones, height = 600, onEditZone, onNewZone, onMoveZone }) => {
-    const apiKey = process.env.NEXT_PUBLIC_HERE_API_KEY || 'RH04HVBUK6By3GfYWwVlCOG4Or1IzV-rRjygQRHbIvo';
+    const apiKey = HERE_API_KEY;
     const tileUrl = `https://maps.hereapi.com/v3/base/mc/{z}/{x}/{y}/png8?apiKey=${apiKey}&size=256&style=explore.day`;
     const attribution = '&copy; <a href="https://here.com">HERE</a>';
 
@@ -346,6 +347,20 @@ const AllZonesMap: React.FC<AllZonesMapProps> = ({ zones, height = 600, onEditZo
 
     // Default center: Antalya
     const defaultCenter: [number, number] = [36.89, 30.69];
+
+    if (!apiKey) {
+        return (
+            <div style={{
+                width: '100%',
+                height: typeof height === 'number' ? `${height}px` : height,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: '#f5f5f5', borderRadius: 16, color: '#64748b', textAlign: 'center', padding: 24,
+                border: '1px solid #e2e8f0',
+            }}>
+                Harita kullanılamıyor. NEXT_PUBLIC_HERE_API_KEY ortam değişkenini ayarlayın.
+            </div>
+        );
+    }
 
     return (
         <div style={{ position: 'relative' }}>

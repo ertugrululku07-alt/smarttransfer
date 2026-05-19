@@ -2,8 +2,6 @@
 
 import React, { useState, useEffect } from 'react';
 import { useDefinitions } from '@/app/hooks/useDefinitions';
-import PartnerLayout from '../PartnerLayout';
-import PartnerGuard from '../PartnerGuard';
 import { Spin, message } from 'antd';
 import {
     DollarOutlined,
@@ -59,9 +57,8 @@ export default function EarningsPage() {
     const cur = defCurrency?.code || 'TRY';
 
     return (
-        <PartnerGuard>
-            <PartnerLayout>
-                <style jsx global>{`
+        <>
+        <style jsx global>{`
                     .earnings-container { max-width: 1200px; margin: 0 auto; }
                     .earnings-stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 28px; }
                     .earnings-list { display: flex; flex-direction: column; gap: 10px; }
@@ -208,7 +205,6 @@ export default function EarningsPage() {
                         </div>
                     )}
                 </div>
-            </PartnerLayout>
-        </PartnerGuard>
+    </>
     );
 }

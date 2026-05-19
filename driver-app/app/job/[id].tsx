@@ -6,8 +6,7 @@ import { useAuth } from '../../context/AuthContext';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { Brand, StatusColors } from '../../constants/theme';
-
-const API_URL = 'https://api.jet2home.com/api';
+import { API_URL } from '../../config';
 
 const NO_SHOW_REASON_LABELS: Record<string, string> = {
     CUSTOMER_NOT_FOUND: 'Müşteri buluşma noktasında değildi',

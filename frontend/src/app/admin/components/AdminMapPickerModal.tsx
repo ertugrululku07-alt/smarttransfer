@@ -5,6 +5,7 @@ import { Modal, Button, Slider, InputNumber, Row, Col, Spin, Typography, Input }
 import { EnvironmentOutlined, CheckOutlined } from '@ant-design/icons';
 import DynamicLocationSearchInput from '../../components/DynamicLocationSearchInput'; // Adjusted path
 import dynamic from 'next/dynamic';
+import { HERE_API_KEY } from '@/lib/config';
 
 const HereAdminMapPicker = dynamic(() => import('./HereAdminMapPicker'), {
     ssr: false,
@@ -76,7 +77,7 @@ const AdminMapPickerModal: React.FC<AdminMapPickerModalProps> = ({
         setFreehandDrawEnabled(false); // start in pan mode — user explicitly starts drawing
     };
 
-    const apiKey = process.env.NEXT_PUBLIC_HERE_API_KEY || 'RH04HVBUK6By3GfYWwVlCOG4Or1IzV-rRjygQRHbIvo';
+    const apiKey = HERE_API_KEY;
 
     const clearPolygon = () => {
         setPolygonPath([]);

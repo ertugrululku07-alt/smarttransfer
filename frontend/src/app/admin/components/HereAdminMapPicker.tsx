@@ -4,6 +4,7 @@ import React, { useEffect, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Circle, Polygon, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { HERE_API_KEY } from '@/lib/config';
 
 // Fix Leaflet's default icon paths for Next.js
 const icon = L.icon({
@@ -156,11 +157,22 @@ const HereAdminMapPicker: React.FC<HereAdminMapPickerProps> = ({
     onPolygonClick,
     onFreehandAppend
 }) => {
-    const apiKey = process.env.NEXT_PUBLIC_HERE_API_KEY || 'RH04HVBUK6By3GfYWwVlCOG4Or1IzV-rRjygQRHbIvo';
+    const apiKey = HERE_API_KEY;
     const tileUrl = `https://maps.hereapi.com/v3/base/mc/{z}/{x}/{y}/png8?apiKey=${apiKey}&size=256&style=explore.day`;
     const attribution = '&copy; <a href="https://here.com">HERE</a>';
 
     const markerRef = useRef<L.Marker>(null);
+
+    if (!apiKey) {
+        return (
+            <div style={{
+                width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: '#f5f5f5', borderRadius: 12, color: '#64748b', textAlign: 'center', padding: 24,
+            }}>
+                Harita kullanılamıyor. NEXT_PUBLIC_HERE_API_KEY ortam değişkenini ayarlayın.
+            </div>
+        );
+    }
 
     const handleDragEnd = () => {
         const marker = markerRef.current;

@@ -1,17 +1,18 @@
-
 const prisma = require('../lib/prisma');
-const jwt = require('jsonwebtoken');
+const {
+    authenticateSocketToken,
+    joinUserRooms,
+    isAdminUser,
+    adminMonitoringRoom,
+} = require('./socketAuth');
+const { findBookingForTenant } = require('../utils/tenantScope');
 
-const { JWT_SECRET } = require('../middleware/auth');
-
-const OFFLINE_TIMEOUT_MS = 3 * 60 * 1000; // 3 minutes - balanced for mobile background
-const OFFLINE_CHECK_THRESHOLD_MS = 2 * 60 * 1000; // 2 minutes - if lastSeen is within this, they're still online
+const OFFLINE_TIMEOUT_MS = 3 * 60 * 1000;
+const OFFLINE_CHECK_THRESHOLD_MS = 2 * 60 * 1000;
 
 module.exports = (io, app) => {
-    // Online drivers map: { userId: { socketId, connectedAt, lastSeen (timestamp ms), location, name } }
     const onlineDrivers = {};
-    const disconnectTimers = {}; // Track timeout IDs for delayed disconnection
-    // Connection event log buffer: { driverId: [ { event, detail, ts, ... } ] }  — max 50 per driver
+    const disconnectTimers = {};
     const driverConnectionLogs = {};
     const MAX_LOG_PER_DRIVER = 50;
 
@@ -22,55 +23,48 @@ module.exports = (io, app) => {
         if (driverConnectionLogs[driverId].length > MAX_LOG_PER_DRIVER) {
             driverConnectionLogs[driverId].shift();
         }
-        // Also emit to admin panel for real-time debugging
-        io.to('admin_monitoring').emit('driver_connection_event', { driverId, driverName, ...log });
+        const tenantId = detail.tenantId;
+        if (tenantId) {
+            io.to(adminMonitoringRoom(tenantId)).emit('driver_connection_event', { driverId, driverName, ...log });
+        }
     };
 
     if (app) app.set('onlineDrivers', onlineDrivers);
     if (app) app.set('driverConnectionLogs', driverConnectionLogs);
     if (app) app.set('logDriverEvent', logDriverEvent);
 
-    const markDriverOffline = (driverId, fullName) => {
+    const markDriverOffline = (driverId, fullName, tenantId) => {
         const driverData = onlineDrivers[driverId];
         const lastSeenAgo = driverData ? Math.round((Date.now() - driverData.lastSeen) / 1000) : null;
-        logDriverEvent(driverId, fullName, 'OFFLINE', { 
-            reason: 'timeout_expired', 
+        logDriverEvent(driverId, fullName, 'OFFLINE', {
+            reason: 'timeout_expired',
             lastSeenAgoSec: lastSeenAgo,
-            hadSocket: !!driverData?.socketId
+            hadSocket: !!driverData?.socketId,
+            tenantId,
         });
         delete onlineDrivers[driverId];
         delete disconnectTimers[driverId];
-        io.to('admin_monitoring').emit('driver_offline', {
-            driverId,
-            driverName: fullName
-        });
+        if (tenantId) {
+            io.to(adminMonitoringRoom(tenantId)).emit('driver_offline', { driverId, driverName: fullName });
+        }
         console.log(`[DriverHandler] Driver ${fullName} is now OFFLINE`);
     };
 
-    // Called both from socket disconnect and from REST /api/driver/sync
-    // Clears existing timer, sets a new 20-min timer
-    // When it fires, checks IF the lastSeen is stale before actually marking offline
-    const resetDriverTimeout = (driverId, fullName) => {
+    const resetDriverTimeout = (driverId, fullName, tenantId) => {
         if (disconnectTimers[driverId]) {
             clearTimeout(disconnectTimers[driverId]);
         }
 
         disconnectTimers[driverId] = setTimeout(() => {
             const driverData = onlineDrivers[driverId];
-            if (!driverData) return; // Already removed
+            if (!driverData) return;
 
-            const lastSeenMs = driverData.lastSeen; // Numeric timestamp
-            const msSinceSeen = Date.now() - lastSeenMs;
-
-            console.log(`[DriverHandler] Timer fired for ${fullName}. Last seen ${Math.round(msSinceSeen / 1000)}s ago. Threshold: ${OFFLINE_CHECK_THRESHOLD_MS / 1000}s`);
+            const msSinceSeen = Date.now() - driverData.lastSeen;
 
             if (msSinceSeen > OFFLINE_CHECK_THRESHOLD_MS) {
-                // Truly offline - no ping for >= 19 minutes
-                markDriverOffline(driverId, fullName);
+                markDriverOffline(driverId, fullName, tenantId);
             } else {
-                // They pinged recently! Reset the timer again for another 20 mins
-                console.log(`[DriverHandler] ${fullName} pinged recently, resetting timer`);
-                resetDriverTimeout(driverId, fullName);
+                resetDriverTimeout(driverId, fullName, tenantId);
             }
         }, OFFLINE_TIMEOUT_MS);
     };
@@ -81,95 +75,59 @@ module.exports = (io, app) => {
         let currentUser = null;
 
         socket.on('authenticate', async (rawToken) => {
-            // Accept both plain string token and object { token: '...' }
-            const token = (rawToken && typeof rawToken === 'object') ? rawToken.token : rawToken;
             try {
-                let decoded;
-                try {
-                    decoded = jwt.verify(token, JWT_SECRET);
-                } catch (jwtErr) {
-                    // If token is expired, try to decode without verification to get userId
-                    // then issue a fresh token silently (mobile apps need this)
-                    if (jwtErr.name === 'TokenExpiredError') {
-                        decoded = jwt.decode(token);
-                        if (decoded && decoded.userId) {
-                            // Issue a new token and send it back to client
-                            const freshToken = jwt.sign(
-                                { userId: decoded.userId, email: decoded.email, tenantId: decoded.tenantId, roleCode: decoded.roleCode },
-                                JWT_SECRET,
-                                { expiresIn: '30d' }
-                            );
-                            socket.emit('token_refreshed', { token: freshToken });
-                            logDriverEvent(decoded.userId, decoded.email || 'unknown', 'TOKEN_AUTO_REFRESH', { via: 'socket_auth' });
-                            console.log(`[DriverHandler] Auto-refreshed expired token for userId ${decoded.userId}`);
-                        } else {
-                            throw jwtErr;
-                        }
-                    } else {
-                        throw jwtErr;
-                    }
+                const user = await authenticateSocketToken(rawToken);
+                currentUser = user;
+                joinUserRooms(socket, user);
+
+                const isAdmin = isAdminUser({ roleType: user.role?.type, roleCode: user.role?.code });
+                if (isAdmin) {
+                    console.log(`[Socket] Admin ${user.email} joined tenant monitoring room`);
                 }
-                const user = await prisma.user.findUnique({
-                    where: { id: decoded.userId },
-                    include: { role: true }
-                });
 
-                if (user) {
-                    currentUser = user;
-                    socket.join(`user_${user.id}`);
-
-                    const isAdmin = ['ADMIN', 'AGENCY_ADMIN', 'DISPATCHER', 'TENANT_ADMIN', 'SUPER_ADMIN'].includes(user.role?.type) ||
-                        ['ADMIN', 'OPERATION', 'SUPER_ADMIN'].includes(user.role?.code);
-
-                    if (isAdmin) {
-                        socket.join('admin_monitoring');
-                        console.log(`[Socket] Admin ${user.email} (ID: ${user.id}, Role: ${user.role?.code}) has joined 'admin_monitoring' room`);
+                const isDriver = user.role?.type === 'DRIVER' || user.role?.type === 'PARTNER' || user.role?.code === 'DRIVER';
+                if (isDriver) {
+                    if (disconnectTimers[user.id]) {
+                        clearTimeout(disconnectTimers[user.id]);
+                        delete disconnectTimers[user.id];
                     }
 
-                    const isDriver = user.role?.type === 'DRIVER' || user.role?.type === 'PARTNER' || user.role?.code === 'DRIVER';
-                    if (isDriver) {
-                        socket.join('drivers');
-                        console.log(`[Socket] Driver ${user.email} joined 'drivers' room`);
+                    onlineDrivers[user.id] = {
+                        socketId: socket.id,
+                        connectedAt: new Date(),
+                        lastSeen: Date.now(),
+                        location: null,
+                        name: user.fullName,
+                        tenantId: user.tenantId,
+                    };
 
-                        // Clear any pending offline timer - driver is back online
-                        if (disconnectTimers[user.id]) {
-                            clearTimeout(disconnectTimers[user.id]);
-                            delete disconnectTimers[user.id];
-                        }
+                    prisma.user.update({
+                        where: { id: user.id },
+                        data: { lastSeenAt: new Date() }
+                    }).catch(err => console.error('[DriverHandler] Connect DB update failed', err));
 
-                        onlineDrivers[user.id] = {
-                            socketId: socket.id,
-                            connectedAt: new Date(),
-                            lastSeen: Date.now(), // *** Store as numeric ms timestamp ***
-                            location: null,
-                            name: user.fullName
-                        };
+                    logDriverEvent(user.id, user.fullName, 'SOCKET_CONNECT', {
+                        socketId: socket.id,
+                        tenantId: user.tenantId,
+                    });
 
-                        // Update database on connect for durability
-                        prisma.user.update({
-                            where: { id: user.id },
-                            data: { lastSeenAt: new Date() }
-                        }).catch(err => console.error('[DriverHandler] Connect DB update failed', err));
-
-                        logDriverEvent(user.id, user.fullName, 'SOCKET_CONNECT', { socketId: socket.id });
-                        io.to('admin_monitoring').emit('driver_online', {
-                            driverId: user.id,
-                            driverName: user.fullName,
-                            socketId: socket.id,
-                            avatar: user.avatar
-                        });
-                        console.log(`[DriverHandler] Driver ${user.email} connected via socket`);
-                    }
-
-                    socket.emit('authenticated', { success: true, user: { id: user.id, name: user.fullName } });
-                } else {
-                    socket.emit('error', { message: 'User not found' });
+                    io.to(adminMonitoringRoom(user.tenantId)).emit('driver_online', {
+                        driverId: user.id,
+                        driverName: user.fullName,
+                        socketId: socket.id,
+                        avatar: user.avatar
+                    });
                 }
+
+                socket.emit('authenticated', { success: true, user: { id: user.id, name: user.fullName } });
             } catch (err) {
-                const failedId = currentUser?.id || 'unknown';
-                logDriverEvent(failedId, currentUser?.fullName || 'unknown', 'AUTH_FAILED', { error: err.message });
                 console.error('[DriverHandler] Socket auth error:', err.message);
-                socket.emit('error', { message: 'Authentication failed: ' + err.message });
+                socket.emit('error', {
+                    message: err.name === 'TokenExpiredError'
+                        ? 'Token expired — please refresh via /auth/refresh'
+                        : 'Authentication failed: ' + err.message,
+                    code: err.name === 'TokenExpiredError' ? 'TOKEN_EXPIRED' : 'AUTH_FAILED',
+                });
             }
         });
 
@@ -184,33 +142,52 @@ module.exports = (io, app) => {
                     heading: data.heading,
                     ts: new Date()
                 };
-                onlineDrivers[currentUser.id].lastSeen = Date.now(); // *** Numeric ms ***
+                onlineDrivers[currentUser.id].lastSeen = Date.now();
             }
 
-            io.to('admin_monitoring').emit('driver_location', {
+            io.to(adminMonitoringRoom(currentUser.tenantId)).emit('driver_location', {
                 driverId: currentUser.id,
                 driverName: currentUser.fullName,
+                tenantId: currentUser.tenantId,
                 ...data,
                 timestamp: new Date()
             });
         });
 
-        // Keep-alive ping from driver app — respond with pong + refresh lastSeen
-        socket.on('ping_keepalive', (data) => {
+        socket.on('ping_keepalive', () => {
             if (currentUser && onlineDrivers[currentUser.id]) {
                 onlineDrivers[currentUser.id].lastSeen = Date.now();
                 onlineDrivers[currentUser.id].socketId = socket.id;
-                // Reset the offline timer since driver is clearly alive
                 if (disconnectTimers[currentUser.id]) {
                     clearTimeout(disconnectTimers[currentUser.id]);
                     delete disconnectTimers[currentUser.id];
                 }
             }
-            // Reply so client knows connection is truly alive (not zombie)
             socket.emit('pong_keepalive', { ts: Date.now() });
         });
 
-        socket.on('join_booking', (bookingId) => {
+        socket.on('join_booking', async (bookingId) => {
+            if (!currentUser) {
+                socket.emit('error', { message: 'Authentication required to join booking room' });
+                return;
+            }
+
+            const booking = await findBookingForTenant(bookingId, currentUser.tenantId);
+            if (!booking) {
+                socket.emit('error', { message: 'Booking not found or access denied' });
+                return;
+            }
+
+            const canJoin =
+                isAdminUser({ roleType: currentUser.role?.type, roleCode: currentUser.role?.code }) ||
+                booking.driverId === currentUser.id ||
+                booking.customerId === currentUser.id;
+
+            if (!canJoin) {
+                socket.emit('error', { message: 'Not authorized for this booking' });
+                return;
+            }
+
             socket.join(`booking_${bookingId}`);
         });
 
@@ -218,24 +195,23 @@ module.exports = (io, app) => {
             if (currentUser && onlineDrivers[currentUser.id]) {
                 const driverId = currentUser.id;
                 const fullName = currentUser.fullName;
+                const tenantId = currentUser.tenantId;
 
-                logDriverEvent(driverId, fullName, 'SOCKET_DISCONNECT', { 
+                logDriverEvent(driverId, fullName, 'SOCKET_DISCONNECT', {
                     reason: reason || 'unknown',
-                    socketId: socket.id
+                    socketId: socket.id,
+                    tenantId,
                 });
 
-                // Keep them "online" but mark socket as gone
                 onlineDrivers[driverId].socketId = null;
-                onlineDrivers[driverId].lastSeen = Date.now(); // *** Numeric ms ***
+                onlineDrivers[driverId].lastSeen = Date.now();
 
-                // Update database on disconnect to ensure durability if server restarts
                 prisma.user.update({
                     where: { id: driverId },
                     data: { lastSeenAt: new Date() }
                 }).catch(err => console.error('[DriverHandler] Disconnect DB update failed', err));
 
-                console.log(`[DriverHandler] Driver ${fullName} socket disconnected. Starting 20-min background timer...`);
-                resetDriverTimeout(driverId, fullName);
+                resetDriverTimeout(driverId, fullName, tenantId);
             }
         });
     });

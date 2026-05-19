@@ -32,8 +32,6 @@ import {
 } from '@ant-design/icons';
 import { Avatar, Tooltip } from 'antd';
 import apiClient, { getImageUrl } from '@/lib/api-client';
-import PartnerGuard from '../../PartnerGuard';
-import PartnerLayout from '../../PartnerLayout';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -189,9 +187,8 @@ const PartnerVehiclesPage: React.FC = () => {
   };
 
   return (
-    <PartnerGuard>
-      <PartnerLayout>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 24 }}>
+    <div className="partner-page">
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 24 }}>
           <div>
             <Title level={2} style={{ margin: 0, fontWeight: 700 }}>Filom - Araçlarım</Title>
             <Text type="secondary">
@@ -362,9 +359,7 @@ const PartnerVehiclesPage: React.FC = () => {
             </Row>
           </Form>
         </Modal>
-
-      </PartnerLayout>
-    </PartnerGuard>
+    </div>
   );
 };
 

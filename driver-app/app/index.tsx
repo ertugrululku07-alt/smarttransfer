@@ -11,8 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as SecureStore from 'expo-secure-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Brand } from '../constants/theme';
-
-const API_URL = 'https://api.jet2home.com/api';
+import { API_URL } from '../config';
 const { width, height } = Dimensions.get('window');
 const LOGIN_TIMEOUT_MS = 12000;
 

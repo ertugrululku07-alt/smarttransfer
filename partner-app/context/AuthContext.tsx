@@ -1,9 +1,8 @@
 import React, { createContext, useState, useContext, useEffect, useRef, useCallback } from 'react';
 import * as SecureStore from 'expo-secure-store';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { AppState, AppStateStatus } from 'react-native';
-import { API_URL } from '../constants/theme';
+import { API_URL, apiHeaders } from '../config';
 
 const TOKEN_REFRESH_INTERVAL = 10 * 60 * 1000;
 
@@ -37,10 +36,19 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     useEffect(() => { tokenRef.current = token; }, [token]);
 
+    const signOut = useCallback(async () => {
+        await SecureStore.deleteItemAsync('partner_token');
+        await SecureStore.deleteItemAsync('partner_user');
+        await SecureStore.deleteItemAsync('partner_refreshToken');
+        setToken(null);
+        tokenRef.current = null;
+        setUser(null);
+        try { router.replace('/'); } catch {}
+    }, []);
+
     const refreshTokenNow = useCallback(async (): Promise<string | null> => {
         try {
-            let refreshTkn = await SecureStore.getItemAsync('partner_refreshToken');
-            if (!refreshTkn) refreshTkn = await AsyncStorage.getItem('partner_refreshToken');
+            const refreshTkn = await SecureStore.getItemAsync('partner_refreshToken');
             if (!refreshTkn) return null;
 
             const res = await fetch(`${API_URL}/auth/refresh`, {
@@ -49,13 +57,22 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                 body: JSON.stringify({ refreshToken: refreshTkn }),
             });
 
+            if (res.status === 401) {
+                await signOut();
+                return null;
+            }
+
             if (!res.ok) return null;
 
             const json = await res.json();
             const newToken = json?.data?.token;
+            const newRefreshToken = json?.data?.refreshToken;
+
             if (newToken) {
                 await SecureStore.setItemAsync('partner_token', newToken);
-                await AsyncStorage.setItem('partner_token', newToken);
+                if (newRefreshToken) {
+                    await SecureStore.setItemAsync('partner_refreshToken', newRefreshToken);
+                }
                 const changed = newToken !== tokenRef.current;
                 tokenRef.current = newToken;
                 if (changed) setToken(newToken);
@@ -66,7 +83,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             console.warn('[Auth] Token refresh error:', e);
             return null;
         }
-    }, []);
+    }, [signOut]);
 
     useEffect(() => {
         if (!token) {
@@ -90,12 +107,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     useEffect(() => {
         const loadSession = async () => {
             try {
-                let storedToken = await SecureStore.getItemAsync('partner_token');
-                let storedUser = await SecureStore.getItemAsync('partner_user');
-                if (!storedToken) {
-                    storedToken = await AsyncStorage.getItem('partner_token');
-                    storedUser = await AsyncStorage.getItem('partner_user');
-                }
+                const storedToken = await SecureStore.getItemAsync('partner_token');
+                const storedUser = await SecureStore.getItemAsync('partner_user');
                 if (storedToken && storedUser) {
                     setToken(storedToken);
                     tokenRef.current = storedToken;
@@ -115,28 +128,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         tokenRef.current = newToken;
         setUser(newUser);
         await SecureStore.setItemAsync('partner_token', newToken);
-        await AsyncStorage.setItem('partner_token', newToken);
         await SecureStore.setItemAsync('partner_user', JSON.stringify(newUser));
-        await AsyncStorage.setItem('partner_user', JSON.stringify(newUser));
         if (newRefreshToken) {
             await SecureStore.setItemAsync('partner_refreshToken', newRefreshToken);
-            await AsyncStorage.setItem('partner_refreshToken', newRefreshToken);
         }
-    };
-
-    const signOut = async () => {
-        await SecureStore.deleteItemAsync('partner_token');
-        await SecureStore.deleteItemAsync('partner_user');
-        await SecureStore.deleteItemAsync('partner_refreshToken');
-        await AsyncStorage.removeItem('partner_token');
-        await AsyncStorage.removeItem('partner_user');
-        await AsyncStorage.removeItem('partner_refreshToken');
-
-        setToken(null);
-        tokenRef.current = null;
-        setUser(null);
-
-        try { router.replace('/'); } catch {}
     };
 
     return (
@@ -145,3 +140,5 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         </AuthContext.Provider>
     );
 };
+
+export { apiHeaders };

@@ -7,8 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useAuth } from '../context/AuthContext';
 import { Brand } from '../constants/theme';
-
-const API_URL = 'https://api.jet2home.com/api';
+import { API_URL } from '../config';
 
 interface RatingItem {
     bookingId: string;

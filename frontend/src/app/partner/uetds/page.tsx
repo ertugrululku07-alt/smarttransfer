@@ -13,8 +13,6 @@ import {
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import apiClient from '@/lib/api-client';
-import PartnerLayout from '../PartnerLayout';
-import PartnerGuard from '../PartnerGuard';
 
 const { Text, Title } = Typography;
 
@@ -318,22 +316,16 @@ const PartnerUetdsPage: React.FC = () => {
 
     if (loading) {
         return (
-            <PartnerGuard>
-                <PartnerLayout>
-                    <div style={{ textAlign: 'center', padding: 100 }}>
+            <div style={{ textAlign: 'center', padding: 100 }}>
                         <Spin size="large" />
                         <div style={{ marginTop: 16, color: '#64748b' }}>Veriler yükleniyor...</div>
                     </div>
-                </PartnerLayout>
-            </PartnerGuard>
         );
     }
 
     if (!profile?.uetdsEnabled) {
         return (
-            <PartnerGuard>
-                <PartnerLayout>
-                    <div style={{ maxWidth: 600, margin: '60px auto' }}>
+            <div style={{ maxWidth: 600, margin: '60px auto' }}>
                         <Card style={{ borderRadius: 16, textAlign: 'center' }}>
                             <div style={{
                                 width: 80, height: 80, borderRadius: '50%',
@@ -349,8 +341,6 @@ const PartnerUetdsPage: React.FC = () => {
                             </Text>
                         </Card>
                     </div>
-                </PartnerLayout>
-            </PartnerGuard>
         );
     }
 
@@ -358,9 +348,7 @@ const PartnerUetdsPage: React.FC = () => {
     const rejectedCount = submissions.filter(s => s.status === 'REJECTED').length;
 
     return (
-        <PartnerGuard>
-            <PartnerLayout>
-                <div style={{ padding: '8px 4px' }}>
+        <div style={{ padding: '8px 4px' }}>
                     {/* Header */}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
                         <div>
@@ -698,8 +686,6 @@ const PartnerUetdsPage: React.FC = () => {
                         )}
                     </Modal>
                 </div>
-            </PartnerLayout>
-        </PartnerGuard>
     );
 };
 
