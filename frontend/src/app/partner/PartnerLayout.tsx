@@ -4,8 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '../context/AuthContext';
 import { useBranding } from '../context/BrandingContext';
-import apiClient from '@/lib/api-client';
 import { getImageUrl } from '@/lib/api-client';
+import apiClient from '@/lib/api-client';
 import {
   HomeOutlined,
   CarOutlined,
@@ -22,13 +22,10 @@ import {
   UserOutlined,
   GlobalOutlined,
   CompassOutlined,
+  AppstoreOutlined,
 } from '@ant-design/icons';
 
-interface PartnerLayoutProps {
-  children: React.ReactNode;
-}
-
-type NavItem = {
+interface NavItem {
   key: string;
   label: string;
   icon: React.ReactNode;
@@ -36,191 +33,171 @@ type NavItem = {
   exact?: boolean;
   section: 'main' | 'fleet' | 'finance' | 'system';
   badge?: number;
+}
+
+const NAV_ITEMS: Omit<NavItem, 'badge'>[] = [
+  { key: 'home',         label: 'Dashboard',        icon: <HomeOutlined />,            path: '/partner',               exact: true, section: 'main'    },
+  { key: 'pool',         label: 'Transferlerim',     icon: <AppstoreOutlined />,        path: '/partner/pool',                       section: 'main'    },
+  { key: 'dispatch',     label: 'Canlı Takip',       icon: <CompassOutlined />,         path: '/partner/dispatch',                   section: 'main'    },
+  { key: 'new-booking',  label: 'Yeni İş Ekle',      icon: <PlusCircleOutlined />,      path: '/partner/bookings/new',               section: 'main'    },
+  { key: 'marketplace',  label: 'Pazar Yeri',        icon: <GlobalOutlined />,          path: '/partner/marketplace',                section: 'main'    },
+  { key: 'completed',    label: 'Tamamlanmış',       icon: <CheckCircleOutlined />,     path: '/partner/completed',                  section: 'main'    },
+  { key: 'vehicles',     label: 'Araçlarım',         icon: <CarOutlined />,             path: '/partner/fleet/vehicles',             section: 'fleet'   },
+  { key: 'drivers',      label: 'Sürücülerim',       icon: <UserOutlined />,            path: '/partner/fleet/drivers',              section: 'fleet'   },
+  { key: 'zones',        label: 'Bölgeler & Fiyat',  icon: <EnvironmentOutlined />,     path: '/partner/zones',                      section: 'fleet'   },
+  { key: 'uetds',        label: 'UETDS',             icon: <SafetyCertificateOutlined />,path: '/partner/uetds',                     section: 'fleet'   },
+  { key: 'finance',      label: 'Muhasebe',          icon: <WalletOutlined />,          path: '/partner/finance',                    section: 'finance' },
+  { key: 'earnings',     label: 'Kazancım',          icon: <DollarOutlined />,          path: '/partner/earnings',                   section: 'finance' },
+  { key: 'settings',     label: 'Ayarlar',           icon: <SettingOutlined />,         path: '/partner/settings',                   section: 'system'  },
+];
+
+const BOTTOM_NAV_KEYS = ['home', 'pool', 'drivers', 'finance', 'settings'];
+
+const SECTION_LABELS: Record<string, string> = {
+  main:    'Operasyon',
+  fleet:   'Filom & İşletme',
+  finance: 'Finans',
+  system:  'Sistem',
 };
 
-const PartnerLayout: React.FC<PartnerLayoutProps> = ({ children }) => {
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+export default function PartnerLayout({ children }: { children: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  const [activeCount, setActiveCount] = useState(0);
   const router = useRouter();
   const pathname = usePathname();
-  const { branding } = useBranding();
   const { user, logout } = useAuth();
-  const [activeCount, setActiveCount] = useState(0);
+  const { branding } = useBranding();
 
   useEffect(() => {
-    const fetchCount = async () => {
-      try {
-        const res = await apiClient.get('/api/transfer/partner/active-bookings');
-        if (res.data?.success) setActiveCount(res.data.data?.length ?? 0);
-      } catch {
-        /* ignore */
-      }
-    };
-    fetchCount();
+    apiClient.get('/api/transfer/partner/active-bookings')
+      .then(r => { if (r.data?.success) setActiveCount(r.data.data?.length ?? 0); })
+      .catch(() => {});
   }, [pathname]);
 
-  const toggleSidebar = () => setIsSidebarOpen((o) => !o);
-  const closeSidebar = () => setIsSidebarOpen(false);
+  const navItems: NavItem[] = NAV_ITEMS.map(item =>
+    item.key === 'pool' ? { ...item, badge: activeCount || undefined } : item
+  );
 
-  const handleLogout = () => {
-    logout();
-    router.push('/login');
-  };
+  const isActive = (path: string, exact?: boolean) =>
+    exact ? pathname === path : Boolean(pathname?.startsWith(path));
 
-  const navItems: NavItem[] = [
-    { key: 'home', label: 'Ana Sayfa', icon: <HomeOutlined />, path: '/partner', exact: true, section: 'main' },
-    {
-      key: 'pool',
-      label: 'Transferlerim',
-      icon: <CarOutlined />,
-      path: '/partner/pool',
-      badge: activeCount > 0 ? activeCount : undefined,
-      section: 'main',
-    },
-    { key: 'dispatch', label: 'Canlı Takip', icon: <CompassOutlined />, path: '/partner/dispatch', section: 'main' },
-    { key: 'new-booking', label: 'Yeni İş Ekle', icon: <PlusCircleOutlined />, path: '/partner/bookings/new', section: 'main' },
-    { key: 'marketplace', label: 'Pazar Yeri', icon: <GlobalOutlined />, path: '/partner/marketplace', section: 'main' },
-    { key: 'completed', label: 'Tamamlanmış', icon: <CheckCircleOutlined />, path: '/partner/completed', section: 'main' },
-    { key: 'fleet-vehicles', label: 'Araçlarım', icon: <CarOutlined />, path: '/partner/fleet/vehicles', section: 'fleet' },
-    { key: 'fleet-drivers', label: 'Sürücülerim', icon: <UserOutlined />, path: '/partner/fleet/drivers', section: 'fleet' },
-    { key: 'zones', label: 'Bölgeler & Fiyat', icon: <EnvironmentOutlined />, path: '/partner/zones', section: 'fleet' },
-    { key: 'uetds', label: 'UETDS', icon: <SafetyCertificateOutlined />, path: '/partner/uetds', section: 'fleet' },
-    { key: 'finance', label: 'Muhasebe', icon: <WalletOutlined />, path: '/partner/finance', section: 'finance' },
-    { key: 'earnings', label: 'Kazancım', icon: <DollarOutlined />, path: '/partner/earnings', section: 'finance' },
-    { key: 'settings', label: 'Ayarlar', icon: <SettingOutlined />, path: '/partner/settings', section: 'system' },
-  ];
+  const go = (path: string) => { router.push(path); setOpen(false); };
 
-  const isActive = (path: string, exact?: boolean) => {
-    if (exact) return pathname === path;
-    return Boolean(pathname?.startsWith(path));
-  };
+  const handleLogout = () => { logout(); router.push('/login'); };
 
-  const navigateTo = (path: string) => {
-    router.push(path);
-    closeSidebar();
-  };
-
-  const userInitials = user
-    ? `${(user.firstName || '')[0] || ''}${(user.lastName || '')[0] || ''}`.toUpperCase() || 'P'
+  const initials = user
+    ? (`${(user.firstName || '')[0] || ''}${(user.lastName || '')[0] || ''}`).toUpperCase() || 'P'
     : 'P';
 
-  const logoSrc =
-    getImageUrl(branding.logoVariants?.header) ||
-    getImageUrl(branding.logoUrl) ||
-    getImageUrl(branding.faviconUrl);
+  const logoSrc = getImageUrl(branding.logoVariants?.header) || getImageUrl(branding.logoUrl);
+  const companyName = branding.companyName || branding.siteName || 'Partner';
+  const companyInitial = companyName[0]?.toUpperCase() || 'P';
 
-  const companyInitial = (branding.companyName || branding.siteName || 'P')[0]?.toUpperCase() || 'P';
-
-  const renderNavItem = (item: NavItem) => {
-    const active = isActive(item.path, item.exact);
-    return (
-      <div
-        key={item.key}
-        role="button"
-        tabIndex={0}
-        onClick={() => navigateTo(item.path)}
-        onKeyDown={(e) => e.key === 'Enter' && navigateTo(item.path)}
-        className={`partner-nav-item${active ? ' partner-nav-item--active' : ''}`}
-      >
-        <span className="partner-nav-icon">{item.icon}</span>
-        <span style={{ flex: 1 }}>{item.label}</span>
-        {item.badge != null && item.badge > 0 && <span className="partner-nav-badge">{item.badge}</span>}
-      </div>
-    );
-  };
-
-  const mobileNavKeys = ['home', 'pool', 'earnings', 'settings'];
+  const sections = ['main', 'fleet', 'finance', 'system'] as const;
 
   return (
-    <div className="partner-shell">
-      <header className="partner-mobile-bar">
-        <button type="button" className="partner-mobile-toggle" onClick={toggleSidebar} aria-label="Menü">
-          {isSidebarOpen ? <CloseOutlined /> : <MenuOutlined />}
+    <div className="partner-root">
+      {/* ── Mobile header ────────────────────────────────── */}
+      <header className="ps-mobile-header">
+        <button type="button" className="ps-mobile-header__btn" onClick={() => setOpen(o => !o)} aria-label="Menü">
+          {open ? <CloseOutlined /> : <MenuOutlined />}
         </button>
-        <div className="partner-brand-row">
-          {logoSrc ? (
-            <img src={logoSrc} alt="" className="partner-brand-logo" style={{ width: 32, height: 32 }} />
-          ) : (
-            <span className="partner-brand-fallback" style={{ width: 32, height: 32, fontSize: 14 }}>
-              {companyInitial}
-            </span>
-          )}
-          <span className="partner-brand-title" style={{ fontSize: 15 }}>
-            {branding.companyName || 'Partner'}
-          </span>
-        </div>
-        <span className="partner-user-avatar" style={{ width: 36, height: 36, fontSize: 12 }}>
-          {userInitials}
-        </span>
+        <span className="ps-mobile-header__title">{companyName}</span>
+        <div className="ps-user__avatar" style={{ fontSize: 11 }}>{initials}</div>
       </header>
 
-      <div
-        className={`partner-overlay${isSidebarOpen ? ' open' : ''}`}
-        onClick={closeSidebar}
-        aria-hidden={!isSidebarOpen}
-      />
+      {/* ── Overlay ──────────────────────────────────────── */}
+      <div className={`ps-overlay${open ? ' open' : ''}`} onClick={() => setOpen(false)} aria-hidden />
 
-      <aside className={`partner-sidebar${isSidebarOpen ? ' open' : ''}`}>
-        <div className="partner-brand">
-          <div className="partner-brand-row">
-            {logoSrc ? (
-              <img src={logoSrc} alt={branding.companyName} className="partner-brand-logo" />
-            ) : (
-              <span className="partner-brand-fallback">{companyInitial}</span>
-            )}
-            <div>
-              <div className="partner-brand-title">{branding.companyName || 'Partner Panel'}</div>
-              <div className="partner-brand-sub">Operasyon merkezi</div>
+      {/* ── Sidebar ──────────────────────────────────────── */}
+      <aside className={`ps-sidebar${open ? ' open' : ''}`}>
+        <div className="ps-sidebar__inner">
+          {/* Brand */}
+          <div className="ps-brand">
+            <div className="ps-brand__row">
+              {logoSrc
+                ? <img src={logoSrc} alt="" className="ps-brand__logo" />
+                : <div className="ps-brand__monogram">{companyInitial}</div>
+              }
+              <div>
+                <div className="ps-brand__name">{companyName}</div>
+                <div className="ps-brand__tag">Partner Paneli</div>
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="partner-user-card">
-          <span className="partner-user-avatar">{userInitials}</span>
-          <div style={{ minWidth: 0 }}>
-            <div className="partner-user-name">
-              {user?.firstName} {user?.lastName}
+          {/* User */}
+          <div className="ps-user">
+            <div className="ps-user__avatar">{initials}</div>
+            <div style={{ minWidth: 0 }}>
+              <div className="ps-user__name">{user?.firstName} {user?.lastName}</div>
+              <div className="ps-user__role">Partner</div>
             </div>
-            <div className="partner-user-role">Partner</div>
           </div>
+
+          {/* Navigation */}
+          <nav className="ps-nav">
+            {sections.map(section => {
+              const items = navItems.filter(i => i.section === section);
+              if (!items.length) return null;
+              return (
+                <div key={section}>
+                  <div className="ps-nav__group-label">{SECTION_LABELS[section]}</div>
+                  {items.map(item => {
+                    const active = isActive(item.path, item.exact);
+                    return (
+                      <div
+                        key={item.key}
+                        role="button"
+                        tabIndex={0}
+                        className={`ps-nav__item${active ? ' ps-nav__item--active' : ''}`}
+                        onClick={() => go(item.path)}
+                        onKeyDown={e => e.key === 'Enter' && go(item.path)}
+                      >
+                        <span className="ps-nav__icon">{item.icon}</span>
+                        <span style={{ flex: 1 }}>{item.label}</span>
+                        {item.badge != null && item.badge > 0 && (
+                          <span className="ps-nav__badge">{item.badge}</span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </nav>
+
+          {/* Logout */}
+          <button type="button" className="ps-logout" onClick={handleLogout}>
+            <LogoutOutlined style={{ fontSize: 16 }} />
+            Çıkış Yap
+          </button>
         </div>
-
-        <nav className="partner-nav">
-          <div className="partner-nav-label">Menü</div>
-          {navItems.filter((i) => i.section === 'main').map(renderNavItem)}
-
-          <div className="partner-nav-label">Filom & İşletme</div>
-          {navItems.filter((i) => i.section === 'fleet').map(renderNavItem)}
-
-          <div className="partner-nav-label">Finans</div>
-          {navItems.filter((i) => i.section === 'finance').map(renderNavItem)}
-
-          <div className="partner-nav-label">Sistem</div>
-          {navItems.filter((i) => i.section === 'system').map(renderNavItem)}
-        </nav>
-
-        <button type="button" className="partner-logout" onClick={handleLogout}>
-          <LogoutOutlined />
-          Çıkış Yap
-        </button>
       </aside>
 
-      <main className="partner-main">{children}</main>
+      {/* ── Main content ─────────────────────────────────── */}
+      <div className="ps-content">
+        <main className="ps-page">
+          {children}
+        </main>
+      </div>
 
-      <nav className="partner-mobile-bottom" aria-label="Hızlı menü">
+      {/* ── Bottom navigation ─────────────────────────────── */}
+      <nav className="ps-bottom-nav" aria-label="Hızlı menü">
         {navItems
-          .filter((i) => mobileNavKeys.includes(i.key))
-          .map((item) => {
+          .filter(i => BOTTOM_NAV_KEYS.includes(i.key))
+          .map(item => {
             const active = isActive(item.path, item.exact);
             return (
               <div
                 key={item.key}
                 role="button"
                 tabIndex={0}
-                className={`partner-mobile-nav-item${active ? ' partner-mobile-nav-item--active' : ''}`}
-                onClick={() => navigateTo(item.path)}
-                onKeyDown={(e) => e.key === 'Enter' && navigateTo(item.path)}
+                className={`ps-bottom-nav__item${active ? ' ps-bottom-nav__item--active' : ''}`}
+                onClick={() => go(item.path)}
+                onKeyDown={e => e.key === 'Enter' && go(item.path)}
               >
-                <span style={{ fontSize: 20 }}>{item.icon}</span>
+                <span className="ps-bottom-nav__icon">{item.icon}</span>
                 <span>{item.label.split(' ')[0]}</span>
               </div>
             );
@@ -228,6 +205,4 @@ const PartnerLayout: React.FC<PartnerLayoutProps> = ({ children }) => {
       </nav>
     </div>
   );
-};
-
-export default PartnerLayout;
+}

@@ -1,210 +1,169 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useDefinitions } from '@/app/hooks/useDefinitions';
-import { Spin, message } from 'antd';
+import { Spin, Progress, Select } from 'antd';
 import {
-    DollarOutlined,
-    RiseOutlined,
-    ClockCircleOutlined,
-    CheckCircleOutlined,
-    InboxOutlined
+  DollarOutlined, CarOutlined,
+  CalendarOutlined, ArrowUpOutlined, CheckCircleOutlined,
 } from '@ant-design/icons';
 import apiClient from '@/lib/api-client';
 
+const { Option } = Select;
+
 export default function EarningsPage() {
-    const { defaultCurrency: defCurrency } = useDefinitions();
-    const [loading, setLoading] = useState(true);
-    const [earnings, setEarnings] = useState<any[]>([]);
-    const [stats, setStats] = useState({ totalNet: 0, pending: 0, paid: 0 });
+  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<any>(null);
+  const [period, setPeriod] = useState('month');
 
-    useEffect(() => { fetchStats(); fetchEarnings(); }, []);
+  const fetchEarnings = async () => {
+    setLoading(true);
+    try {
+      const res = await apiClient.get(`/api/transfer/partner/earnings?period=${period}`);
+      if (res.data?.success) setData(res.data.data);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    const fetchStats = async () => {
-        try {
-            const res = await apiClient.get('/api/transfer/partner/stats');
-            if (res.data.success && res.data.data.financials) {
-                const fin = res.data.data.financials;
-                setStats({ totalNet: fin.credit, pending: fin.balance, paid: fin.debit });
-            }
-        } catch (error) { console.error('Error fetching stats:', error); }
-    };
+  useEffect(() => { fetchEarnings(); }, [period]);
 
-    const fetchEarnings = async () => {
-        try {
-            const response = await apiClient.get('/api/transfer/partner/completed-bookings');
-            if (response.data.success) {
-                const processedEarnings = response.data.data.map((booking: any) => ({
-                    key: booking.id, id: booking.id, bookingNumber: booking.bookingNumber,
-                    date: booking.pickup.time,
-                    route: { from: booking.pickup.location, to: booking.dropoff.location },
-                    amount: Number(booking.price.amount),
-                    deduction: Number(booking.price.commissionAmount || 0),
-                    net: Number(booking.price.netEarning || booking.price.amount),
-                    commissionRate: booking.price.commissionRate,
-                    currency: booking.price.currency,
-                    status: booking.paymentStatus || 'PENDING',
-                    customer: booking.customer.name
-                }));
-                setEarnings(processedEarnings);
-            }
-        } catch (error) {
-            console.error('Error fetching earnings:', error);
-            message.error('Kazanç bilgileri alınamadı');
-        } finally { setLoading(false); }
-    };
+  const currency = data?.currency || 'EUR';
+  const fmt = (n: number) => Number(n || 0).toLocaleString('tr-TR');
+  const fmtCur = (n: number) => `${fmt(n)} ${currency}`;
 
-    const cur = defCurrency?.code || 'TRY';
+  return (
+    <div>
+      <div className="ps-page-header">
+        <div>
+          <h1 className="ps-page-header__title">Kazanç Raporu</h1>
+          <p className="ps-page-header__subtitle">Gelir ve performans özeti</p>
+        </div>
+        <Select value={period} onChange={setPeriod} style={{ width: 160 }} size="large">
+          <Option value="week">Bu Hafta</Option>
+          <Option value="month">Bu Ay</Option>
+          <Option value="quarter">Bu Çeyrek</Option>
+          <Option value="year">Bu Yıl</Option>
+        </Select>
+      </div>
 
-    return (
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: 80 }}><Spin size="large" /></div>
+      ) : (
         <>
-        <style jsx global>{`
-                    .earnings-container { max-width: 1200px; margin: 0 auto; }
-                    .earnings-stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 28px; }
-                    .earnings-list { display: flex; flex-direction: column; gap: 10px; }
-                    @media (max-width: 768px) {
-                        .earnings-container { padding-top: 68px; }
-                        .earnings-stat-grid { grid-template-columns: 1fr !important; gap: 12px; }
-                    }
-                `}</style>
+          {/* KPIs */}
+          <div className="ps-kpi-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))' }}>
+            <div className="ps-kpi">
+              <div className="ps-kpi__accent" style={{ background: 'linear-gradient(90deg,#10b981,#059669)' }} />
+              <div className="ps-kpi__header">
+                <span className="ps-kpi__label">Toplam Gelir</span>
+                <span className="ps-kpi__icon" style={{ background: '#ecfdf5', color: '#10b981' }}><DollarOutlined /></span>
+              </div>
+              <div className="ps-kpi__value" style={{ fontSize: '1.5rem' }}>{fmtCur(data?.totalRevenue)}</div>
+              {data?.revenueGrowth != null && (
+                <span className={`ps-kpi__trend ${data.revenueGrowth >= 0 ? 'ps-kpi__trend--up' : 'ps-kpi__trend--down'}`}>
+                  <ArrowUpOutlined style={{ fontSize: 10, transform: data.revenueGrowth < 0 ? 'rotate(180deg)' : 'none' }} />
+                  %{Math.abs(data.revenueGrowth)} önceki döneme göre
+                </span>
+              )}
+            </div>
+            <div className="ps-kpi">
+              <div className="ps-kpi__accent" style={{ background: 'linear-gradient(90deg,#6366f1,#8b5cf6)' }} />
+              <div className="ps-kpi__header">
+                <span className="ps-kpi__label">Net Kazanç</span>
+                <span className="ps-kpi__icon" style={{ background: '#eef2ff', color: '#6366f1' }}><DollarOutlined /></span>
+              </div>
+              <div className="ps-kpi__value" style={{ fontSize: '1.5rem' }}>{fmtCur(data?.netEarnings)}</div>
+              <div className="ps-kpi__sub">Komisyon sonrası</div>
+            </div>
+            <div className="ps-kpi">
+              <div className="ps-kpi__accent" style={{ background: 'linear-gradient(90deg,#3b82f6,#6366f1)' }} />
+              <div className="ps-kpi__header">
+                <span className="ps-kpi__label">Tamamlanan</span>
+                <span className="ps-kpi__icon" style={{ background: '#eff6ff', color: '#3b82f6' }}><CheckCircleOutlined /></span>
+              </div>
+              <div className="ps-kpi__value">{fmt(data?.completedTrips)}</div>
+              <div className="ps-kpi__sub">transfer</div>
+            </div>
+            <div className="ps-kpi">
+              <div className="ps-kpi__accent" style={{ background: 'linear-gradient(90deg,#f59e0b,#f97316)' }} />
+              <div className="ps-kpi__header">
+                <span className="ps-kpi__label">Ortalama Gelir</span>
+                <span className="ps-kpi__icon" style={{ background: '#fffbeb', color: '#f59e0b' }}><CarOutlined /></span>
+              </div>
+              <div className="ps-kpi__value" style={{ fontSize: '1.5rem' }}>{fmtCur(data?.avgPerTrip)}</div>
+              <div className="ps-kpi__sub">transfer başına</div>
+            </div>
+          </div>
 
-                <div className="earnings-container">
-                    {/* Header */}
-                    <div style={{ marginBottom: 8 }}>
-                        <h1 style={{ fontSize: 24, fontWeight: 800, color: '#0f172a', margin: 0 }}>💰 Kazanç Raporu</h1>
-                        <p style={{ fontSize: 14, color: '#64748b', margin: '4px 0 0' }}>Tamamlanan transferleriniz ve ödeme detayları</p>
-                    </div>
-
-                    {/* Stats */}
-                    <div className="earnings-stat-grid">
-                        <div style={{
-                            background: 'linear-gradient(135deg, #10b981, #059669)', borderRadius: 16,
-                            padding: '22px 24px', color: '#fff', position: 'relative', overflow: 'hidden',
-                        }}>
-                            <div style={{ position: 'absolute', right: -12, top: -12, width: 90, height: 90, borderRadius: '50%', background: 'rgba(255,255,255,0.1)' }} />
-                            <div style={{ fontSize: 12, fontWeight: 600, opacity: 0.85, textTransform: 'uppercase', letterSpacing: 0.5, display: 'flex', alignItems: 'center', gap: 6 }}>
-                                <RiseOutlined /> Toplam Net Kazanç
-                            </div>
-                            <div style={{ fontSize: 32, fontWeight: 800, lineHeight: 1.2, marginTop: 8 }}>
-                                {stats.totalNet.toFixed(2)}
-                            </div>
-                            <div style={{ fontSize: 12, opacity: 0.7, marginTop: 2 }}>{cur}</div>
-                        </div>
-                        <div style={{
-                            background: 'linear-gradient(135deg, #f59e0b, #d97706)', borderRadius: 16,
-                            padding: '22px 24px', color: '#fff', position: 'relative', overflow: 'hidden',
-                        }}>
-                            <div style={{ position: 'absolute', right: -12, top: -12, width: 90, height: 90, borderRadius: '50%', background: 'rgba(255,255,255,0.1)' }} />
-                            <div style={{ fontSize: 12, fontWeight: 600, opacity: 0.85, textTransform: 'uppercase', letterSpacing: 0.5, display: 'flex', alignItems: 'center', gap: 6 }}>
-                                <ClockCircleOutlined /> Bekleyen Ödeme
-                            </div>
-                            <div style={{ fontSize: 32, fontWeight: 800, lineHeight: 1.2, marginTop: 8 }}>
-                                {stats.pending.toFixed(2)}
-                            </div>
-                            <div style={{ fontSize: 12, opacity: 0.7, marginTop: 2 }}>{cur}</div>
-                        </div>
-                        <div style={{
-                            background: 'linear-gradient(135deg, #6366f1, #4f46e5)', borderRadius: 16,
-                            padding: '22px 24px', color: '#fff', position: 'relative', overflow: 'hidden',
-                        }}>
-                            <div style={{ position: 'absolute', right: -12, top: -12, width: 90, height: 90, borderRadius: '50%', background: 'rgba(255,255,255,0.1)' }} />
-                            <div style={{ fontSize: 12, fontWeight: 600, opacity: 0.85, textTransform: 'uppercase', letterSpacing: 0.5, display: 'flex', alignItems: 'center', gap: 6 }}>
-                                <DollarOutlined /> Yapılan Ödeme
-                            </div>
-                            <div style={{ fontSize: 32, fontWeight: 800, lineHeight: 1.2, marginTop: 8 }}>
-                                {stats.paid.toFixed(2)}
-                            </div>
-                            <div style={{ fontSize: 12, opacity: 0.7, marginTop: 2 }}>{cur}</div>
-                        </div>
-                    </div>
-
-                    {/* Earnings List */}
-                    {loading ? (
-                        <div style={{ textAlign: 'center', padding: 60 }}>
-                            <Spin size="large" />
-                            <p style={{ color: '#94a3b8', marginTop: 12 }}>Yükleniyor...</p>
-                        </div>
-                    ) : earnings.length === 0 ? (
-                        <div style={{
-                            background: '#fff', borderRadius: 20, padding: '60px 24px', textAlign: 'center',
-                            boxShadow: '0 2px 12px rgba(0,0,0,0.04)', border: '1px solid #f1f5f9',
-                        }}>
-                            <InboxOutlined style={{ fontSize: 48, color: '#cbd5e1' }} />
-                            <h3 style={{ color: '#475569', fontWeight: 600, margin: '16px 0 8px' }}>Henüz kazanç kaydı yok</h3>
-                            <p style={{ color: '#94a3b8', fontSize: 14, margin: 0 }}>Tamamlanan transferleriniz burada görünecek</p>
-                        </div>
-                    ) : (
-                        <div style={{
-                            background: '#fff', borderRadius: 18, overflow: 'hidden',
-                            boxShadow: '0 2px 16px rgba(0,0,0,0.04)', border: '1px solid #f1f5f9',
-                        }}>
-                            {/* Table Header - hidden on mobile */}
-                            <div style={{
-                                display: 'grid', gridTemplateColumns: '1.5fr 2fr 1fr 1fr 1fr 0.8fr',
-                                padding: '14px 20px', borderBottom: '1px solid #f1f5f9',
-                                fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.8,
-                            }}>
-                                <span>Tarih</span><span>Güzergah</span><span style={{ textAlign: 'right' }}>Tutar</span>
-                                <span style={{ textAlign: 'right' }}>Kesinti</span><span style={{ textAlign: 'right' }}>Net</span>
-                                <span style={{ textAlign: 'center' }}>Durum</span>
-                            </div>
-
-                            {earnings.map((e, i) => (
-                                <div key={e.id} style={{
-                                    display: 'grid', gridTemplateColumns: '1.5fr 2fr 1fr 1fr 1fr 0.8fr',
-                                    padding: '14px 20px', borderBottom: i < earnings.length - 1 ? '1px solid #f8fafc' : 'none',
-                                    alignItems: 'center', fontSize: 13, transition: 'background 0.2s',
-                                }}>
-                                    {/* Date */}
-                                    <div>
-                                        <div style={{ fontWeight: 600, color: '#1e293b' }}>{e.date}</div>
-                                        <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 1 }}>{e.bookingNumber}</div>
-                                    </div>
-                                    {/* Route */}
-                                    <div style={{ minWidth: 0 }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                                            <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#10b981', flexShrink: 0 }} />
-                                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#475569' }}>{e.route.from}</span>
-                                        </div>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 3 }}>
-                                            <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#ef4444', flexShrink: 0 }} />
-                                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#475569' }}>{e.route.to}</span>
-                                        </div>
-                                    </div>
-                                    {/* Amount */}
-                                    <div style={{ textAlign: 'right', fontWeight: 600, color: '#1e293b' }}>
-                                        {e.amount.toFixed(2)} {e.currency}
-                                    </div>
-                                    {/* Deduction */}
-                                    <div style={{ textAlign: 'right' }}>
-                                        <span style={{ color: e.deduction > 0 ? '#ef4444' : '#94a3b8', fontWeight: 500 }}>
-                                            {e.deduction > 0 ? `-${e.deduction.toFixed(2)}` : '0.00'} {e.currency}
-                                        </span>
-                                        {e.commissionRate != null && (
-                                            <div style={{ fontSize: 10, color: '#94a3b8' }}>%{e.commissionRate}</div>
-                                        )}
-                                    </div>
-                                    {/* Net */}
-                                    <div style={{ textAlign: 'right', fontWeight: 700, color: '#059669', fontSize: 14 }}>
-                                        +{e.net.toFixed(2)} {e.currency}
-                                    </div>
-                                    {/* Status */}
-                                    <div style={{ textAlign: 'center' }}>
-                                        <span style={{
-                                            padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700,
-                                            background: e.status === 'PAID' ? '#d1fae5' : '#fef3c7',
-                                            color: e.status === 'PAID' ? '#065f46' : '#92400e',
-                                            display: 'inline-flex', alignItems: 'center', gap: 4,
-                                        }}>
-                                            {e.status === 'PAID' ? <CheckCircleOutlined /> : <ClockCircleOutlined />}
-                                            {e.status === 'PAID' ? 'Ödendi' : 'Bekliyor'}
-                                        </span>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
+          {/* Commission breakdown */}
+          {data?.commissionRate != null && (
+            <div className="ps-card" style={{ marginBottom: 20 }}>
+              <div className="ps-card-header">
+                <h3 className="ps-card-title"><DollarOutlined style={{ color: '#6366f1' }} /> Komisyon Detayı</h3>
+              </div>
+              <div className="ps-card-body">
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <span style={{ fontSize: 13, color: 'var(--ps-text-2)' }}>Komisyon Oranı</span>
+                  <span style={{ fontWeight: 700 }}>%{data.commissionRate}</span>
                 </div>
-    </>
-    );
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <span style={{ fontSize: 13, color: 'var(--ps-text-2)' }}>Toplam Gelir</span>
+                  <span style={{ fontWeight: 700 }}>{fmtCur(data?.totalRevenue)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
+                  <span style={{ fontSize: 13, color: 'var(--ps-text-2)' }}>Komisyon Kesintisi</span>
+                  <span style={{ fontWeight: 700, color: 'var(--ps-danger-text)' }}>{fmtCur(data?.commissionAmount)}</span>
+                </div>
+                <Progress
+                  percent={Math.round(100 - (data.commissionRate || 0))}
+                  strokeColor="#10b981"
+                  format={() => `Net %${Math.round(100 - (data.commissionRate || 0))}`}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Per-vehicle breakdown */}
+          {data?.byVehicle && data.byVehicle.length > 0 && (
+            <div className="ps-card">
+              <div className="ps-card-header">
+                <h3 className="ps-card-title"><CarOutlined style={{ color: '#3b82f6' }} /> Araç Bazlı Gelir</h3>
+              </div>
+              <div style={{ padding: '8px 20px 16px' }}>
+                {data.byVehicle.map((v: any) => (
+                  <div key={v.vehicleId} style={{
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                    padding: '12px 0', borderBottom: '1px solid var(--ps-border)',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{ width: 36, height: 36, borderRadius: 9, background: '#eff6ff', color: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <CarOutlined />
+                      </div>
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: 13 }}>{v.plateNumber}</div>
+                        <div style={{ fontSize: 12, color: 'var(--ps-text-3)' }}>{v.tripCount} transfer</div>
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontWeight: 800, fontSize: 15 }}>{fmtCur(v.revenue)}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {!data && (
+            <div className="ps-empty">
+              <div className="ps-empty__icon"><DollarOutlined /></div>
+              <p className="ps-empty__title">Veri bulunamadı</p>
+              <p className="ps-empty__desc">Seçilen dönem için kazanç verisi yok</p>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
 }
