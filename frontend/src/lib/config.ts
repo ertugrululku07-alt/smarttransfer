@@ -32,10 +32,11 @@ function resolveTenantSlug(): string {
     if (fromEnv) return fromEnv;
 
     if (typeof window !== 'undefined') {
-        const hostname = window.location.hostname;
+        const hostname = window.location.hostname.replace(/^www\./, '');
         if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
-            const parts = hostname.replace(/^www\./, '').split('.');
-            if (parts.length > 2) return parts[0];
+            const parts = hostname.split('.');
+            // Only subdomain tenants: tenant.example.com (3+ labels), not apex jet2home.com
+            if (parts.length >= 3) return parts[0];
         }
     }
 
