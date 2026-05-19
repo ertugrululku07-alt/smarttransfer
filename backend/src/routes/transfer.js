@@ -5663,12 +5663,15 @@ router.post('/partner/bookings', authMiddleware, async (req, res) => {
                 confirmedAt: new Date(),
                 ...(driverId ? { driverId } : {}),
                 contactName: passengerName,
-                contactPhone: passengerPhone || null,
-                contactEmail: passengerEmail || null,
+                contactPhone: passengerPhone || '',
+                contactEmail: passengerEmail || '',
                 startDate,
                 adults: Number(adults) || 1,
                 children: Number(children) || 0,
                 infants: Number(infants) || 0,
+                subtotal: resolvedPrice,
+                tax: 0,
+                serviceFee: 0,
                 total: resolvedPrice,
                 currency: resolvedCurrency,
                 paymentStatus: 'PENDING',
@@ -6541,12 +6544,12 @@ router.get('/partner/marketplace', authMiddleware, async (req, res) => {
                 marketplaceOffers: {
                     include: {
                         partner: {
-                            select: { id: true, companyName: true, email: true }
+                            select: { id: true, fullName: true, email: true, partnerProfile: { select: { companyName: true } } }
                         }
                     }
                 },
                 ownerPartner: {
-                    select: { id: true, companyName: true }
+                    select: { id: true, fullName: true, partnerProfile: { select: { companyName: true } } }
                 }
             },
             orderBy: { startDate: 'asc' }
@@ -6583,6 +6586,7 @@ router.post('/partner/marketplace/:id/bid', authMiddleware, async (req, res) => 
 
         const offer = await prisma.marketplaceOffer.create({
             data: {
+                tenantId,
                 bookingId: id,
                 partnerId: partnerId,
                 amount: Number(amount),
@@ -6628,16 +6632,16 @@ router.post('/partner/marketplace/:id/accept', authMiddleware, async (req, res) 
                 marketplaceStatus: 'ASSIGNED',
             },
             include: {
-                ownerPartner: { select: { id: true, companyName: true } }
+                ownerPartner: { select: { id: true, fullName: true, partnerProfile: { select: { companyName: true } } } }
             }
         });
 
         // Try to get partner's name who accepted
         const acceptingPartner = await prisma.user.findUnique({
             where: { id: partnerId },
-            select: { companyName: true, fullName: true }
+            select: { fullName: true, partnerProfile: { select: { companyName: true } } }
         });
-        const acceptingName = acceptingPartner?.companyName || acceptingPartner?.fullName || 'Bir Partner';
+        const acceptingName = acceptingPartner?.partnerProfile?.companyName || acceptingPartner?.fullName || 'Bir Partner';
 
         // Notify admins and owner partner
         const io = req.app.get('io');

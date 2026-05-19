@@ -26,7 +26,7 @@ interface Booking {
   b2bPrice: number;
   currency: string;
   ownerPartnerId: string;
-  ownerPartner: { id: string; companyName: string };
+  ownerPartner: { id: string; fullName: string; partnerProfile?: { companyName?: string } };
   marketplaceOffers: any[];
 }
 
@@ -121,7 +121,7 @@ export default function MarketplacePage() {
                         {isMyJob && <span className="ps-badge ps-badge--neutral">Sizin İlanınız</span>}
                       </div>
                       <div style={{ fontSize: 12, color: 'var(--ps-text-3)' }}>
-                        <UserOutlined style={{ marginRight: 4 }} />{job.ownerPartner?.companyName}
+                        <UserOutlined style={{ marginRight: 4 }} />{job.ownerPartner?.partnerProfile?.companyName || job.ownerPartner?.fullName}
                         <span style={{ margin: '0 6px' }}>·</span>
                         <CalendarOutlined style={{ marginRight: 4 }} />{dayjs(job.startDate).format('DD MMM YYYY HH:mm')}
                         <span style={{ margin: '0 6px' }}>·</span>

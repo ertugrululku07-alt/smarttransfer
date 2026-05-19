@@ -1,5 +1,5 @@
 'use client';
-import { API_URL } from '@/lib/api-client';
+import apiClient from '@/lib/api-client';
 
 import React, { useState, useEffect, use } from 'react';
 import { useRouter } from 'next/navigation';
@@ -38,18 +38,13 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
     useEffect(() => {
         const fetchBooking = async () => {
             try {
-                const token = localStorage.getItem('token');
-                if (!token) { router.push('/login'); return; }
-                const response = await fetch(`${API_URL}/api/transfer/bookings/${id}`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-                if (response.ok) {
-                    const resData = await response.json();
-                    if (resData.success) setBooking(resData.data);
-                    else message.error('Detaylar alınamadı: ' + resData.error);
-                } else message.error('Sunucu hatası');
-            } catch (error) { console.error('Fetch error:', error); message.error('Bağlantı hatası'); }
-            finally { setLoading(false); }
+                const res = await apiClient.get(`/api/transfer/bookings/${id}`);
+                if (res.data.success) setBooking(res.data.data);
+                else message.error('Detaylar alınamadı: ' + res.data.error);
+            } catch (error: any) {
+                console.error('Fetch error:', error);
+                if (error.response?.status !== 401) message.error('Sunucu hatası');
+            } finally { setLoading(false); }
         };
         if (id) fetchBooking();
     }, [id, router]);
@@ -58,20 +53,15 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
         if (!booking) return;
         setActionLoading(status);
         try {
-            const token = localStorage.getItem('token');
             const body = status === 'COMPLETED'
                 ? { status: 'COMPLETED', subStatus: 'COMPLETED' }
                 : { status: status === 'CONFIRMED' ? 'CONFIRMED' : 'CANCELLED', subStatus: status === 'CONFIRMED' ? 'PARTNER_ACCEPTED' : 'PARTNER_REJECTED' };
-            const response = await fetch(`${API_URL}/api/transfer/bookings/${booking.id}/status`, {
-                method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify(body)
-            });
-            const resData = await response.json();
-            if (resData.success) {
+            const res = await apiClient.put(`/api/transfer/bookings/${booking.id}/status`, body);
+            if (res.data.success) {
                 message.success(status === 'COMPLETED' ? 'Transfer tamamlandı!' : (status === 'CONFIRMED' ? 'Kabul edildi' : 'Reddedildi'));
                 router.push('/partner');
-            } else message.error('İşlem başarısız: ' + resData.error);
-        } catch (error) { console.error('Action error:', error); message.error('Bir hata oluştu'); }
+            } else message.error('İşlem başarısız: ' + res.data.error);
+        } catch (error: any) { console.error('Action error:', error); message.error(error.response?.data?.error || 'Bir hata oluştu'); }
         finally { setActionLoading(null); }
     };
 
@@ -241,7 +231,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                                     items: [
                                         { key: 'call', label: <a href={`tel:${booking.customer.phone}`} style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'inherit' }}><PhoneOutlined /> Ara</a> },
                                         { key: 'sms', label: <a href={`sms:${booking.customer.phone}`} style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'inherit' }}><MessageOutlined /> SMS</a> },
-                                        { key: 'whatsapp', label: <a href={`https://wa.me/${booking.customer.phone.replace(/[^0-9]/g, '')}`} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'inherit' }}><WhatsAppOutlined /> WhatsApp</a> },
+                                        { key: 'whatsapp', label: <a href={`https://wa.me/${(booking.customer.phone || '').replace(/[^0-9]/g, '')}`} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'inherit' }}><WhatsAppOutlined /> WhatsApp</a> },
                                     ]
                                 }} trigger={['click']}>
                                     <div style={{
