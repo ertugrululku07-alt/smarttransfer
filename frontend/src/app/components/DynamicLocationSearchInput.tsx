@@ -22,7 +22,7 @@ const DynamicLocationSearchInput: React.FC<LocationSearchInputProps> = (props) =
 
     // If Google Maps is enabled in admin settings, use Google Places
     if (googleMaps.enabled) {
-        return <GoogleLocationSearchInput {...props} country={googleMaps.country || props.country} />;
+        return <GoogleLocationSearchInput {...props} country={googleMaps.country || props.country} apiKey={googleMaps.apiKey} />;
     }
 
     // Otherwise, fallback to the old Here Maps system

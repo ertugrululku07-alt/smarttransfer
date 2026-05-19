@@ -27,6 +27,7 @@ interface GoogleLocationSearchInputProps {
      * found. Turkish results are still ranked first via region/language bias.
      */
     country?: string | string[];
+    apiKey?: string;
 }
 
 const GoogleLocationSearchInput: React.FC<GoogleLocationSearchInputProps> = ({
@@ -38,11 +39,12 @@ const GoogleLocationSearchInput: React.FC<GoogleLocationSearchInputProps> = ({
     size = 'middle',
     prefix,
     onMapClick,
-    country
+    country,
+    apiKey
 }) => {
     // Load Google Maps script
     const { isLoaded, loadError } = useLoadScript({
-        googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '',
+        googleMapsApiKey: apiKey || process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '',
         libraries,
         language: 'tr',
         region: 'tr'
