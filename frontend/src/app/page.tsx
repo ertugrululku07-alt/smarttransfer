@@ -388,7 +388,7 @@ const HomePage: React.FC = () => {
             onChange={setHourlyPickup}
             onSelect={(val, lat, lng) => { setHourlyPickup(val); if (lat && lng) setHourlyPickupLocation({ lat, lng }); }}
             onMapClick={() => { setMapModalType('pickup'); setMapModalVisible(true); }}
-            country={googleMapsSettings.country || 'TUR'}
+            country={googleMapsSettings.country || 'tr,cy'}
             style={{ borderRadius: 12 }}
           />
         </Col>
@@ -457,7 +457,7 @@ const HomePage: React.FC = () => {
               onChange={setPickup}
               onSelect={(val, lat, lng) => { setPickup(val); if (lat && lng) setPickupLocation({ lat, lng }); }}
               onMapClick={() => openMapModal('pickup')}
-              country={googleMapsSettings.country || 'TUR'}
+              country={googleMapsSettings.country || 'tr,cy'}
               style={{ borderRadius: 12 }}
             />
           </Col>
@@ -472,7 +472,7 @@ const HomePage: React.FC = () => {
               onChange={setDropoff}
               onSelect={(val, lat, lng) => { setDropoff(val); if (lat && lng) setDropoffLocation({ lat, lng }); }}
               onMapClick={() => openMapModal('dropoff')}
-              country={googleMapsSettings.country || 'TUR'}
+              country={googleMapsSettings.country || 'tr,cy'}
               style={{ borderRadius: 12 }}
             />
           </Col>
@@ -704,8 +704,8 @@ const HomePage: React.FC = () => {
         onConfirm={handleMapConfirm}
         initialAddress={mapModalType === 'pickup' ? pickup : dropoff}
         title={mapModalType === 'pickup' ? t('map.pickupTitle') : t('map.dropoffTitle')}
-        country={googleMapsSettings.country || 'tr'}
-        key={`map-modal-${googleMapsSettings.country || 'tr'}`}
+        country={googleMapsSettings.country || 'tr,cy'}
+        key={`map-modal-${googleMapsSettings.country || 'tr,cy'}`}
       />
       <TopBar />
 

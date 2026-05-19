@@ -58,7 +58,7 @@ const BrandingContext = createContext<BrandingContextType | undefined>(undefined
 
 export const BrandingProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [branding, setBranding] = useState<Branding>(DEFAULT_BRANDING);
-  const [googleMaps, setGoogleMaps] = useState<GoogleMapsSettings>({ enabled: false, country: 'tr' });
+  const [googleMaps, setGoogleMaps] = useState<GoogleMapsSettings>({ enabled: false, country: 'tr,cy' });
   const [loading, setLoading] = useState(true);
 
   const fetchBranding = async () => {
@@ -78,7 +78,7 @@ export const BrandingProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         if (savedGoogleMaps) {
           setGoogleMaps({
             enabled: !!savedGoogleMaps.enabled,
-            country: savedGoogleMaps.country || 'tr',
+            country: savedGoogleMaps.country || 'tr,cy',
             apiKey: savedGoogleMaps.apiKey
           });
         }

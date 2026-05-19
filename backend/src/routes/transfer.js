@@ -1285,9 +1285,16 @@ router.post('/search', optionalAuthMiddleware, async (req, res) => {
                             return null;
                         }
                     } else {
+                        // We MUST have a real road distance to bill km-based.
+                        // No silent fallback to 50 km — that produced misleading
+                        // prices for trips with no drivable route (e.g. Alanya → KKTC).
+                        if (!distance || Number(distance) <= 0) {
+                            console.log(`[PriceDecision] vt=${vt.name}: no distance available for km formula → hide vehicle`);
+                            return null;
+                        }
                         const basePrice = openingFee ? Number(openingFee) : 0;
                         const pricePerKm = pricePerKmField ? Number(pricePerKmField) : 0;
-                        const dist = distance ? Number(distance) : 50;
+                        const dist = Number(distance);
                         calculatedPrice = Math.round((basePrice + (dist * pricePerKm)) * typeMult);
                         calculationMethod = 'DISTANCE_BASE';
                         console.log(`[PriceDecision] vt=${vt.name}: km formula → ${calculatedPrice} (${basePrice} + ${dist}km × ${pricePerKm})`);

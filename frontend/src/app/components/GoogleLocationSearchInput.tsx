@@ -20,7 +20,13 @@ interface GoogleLocationSearchInputProps {
     size?: 'large' | 'middle' | 'small';
     prefix?: React.ReactNode;
     onMapClick?: () => void;
-    country?: string; // e.g. "TR"
+    /**
+     * Optional ISO-3166 country code (or array of codes) to restrict results.
+     * When omitted, NO country restriction is applied so that nearby destinations
+     * outside Turkey (e.g. KKTC — Kıbrıs Ercan Havalimanı, Greek islands) can be
+     * found. Turkish results are still ranked first via region/language bias.
+     */
+    country?: string | string[];
 }
 
 const GoogleLocationSearchInput: React.FC<GoogleLocationSearchInputProps> = ({
@@ -32,7 +38,7 @@ const GoogleLocationSearchInput: React.FC<GoogleLocationSearchInputProps> = ({
     size = 'middle',
     prefix,
     onMapClick,
-    country = 'TR'
+    country
 }) => {
     // Load Google Maps script
     const { isLoaded, loadError } = useLoadScript({
@@ -42,6 +48,30 @@ const GoogleLocationSearchInput: React.FC<GoogleLocationSearchInputProps> = ({
         region: 'tr'
     });
 
+    // Build componentRestrictions only when caller explicitly provides a country.
+    // Leaving it undefined lets Google return cross-border matches (e.g. KKTC)
+    // while the script-level region:'tr' / language:'tr' still biases ranking
+    // toward Turkish results.
+    const requestOptions = React.useMemo(() => {
+        if (!country) return {};
+        const normalize = (c: string) => {
+            const lc = (c || '').trim().toLowerCase();
+            // Translate the legacy 3-letter "TUR" we historically saved into the
+            // ISO-3166 alpha-2 code that the Places API actually expects.
+            if (lc === 'tur') return 'tr';
+            return lc;
+        };
+        // Accept either an array, or a comma/space separated string like
+        // "tr,cy" so admins can whitelist neighbouring countries (e.g. KKTC's
+        // Ercan Airport) without code changes.
+        const list = Array.isArray(country)
+            ? country
+            : String(country).split(/[\s,]+/);
+        const codes = list.map(normalize).filter(c => c && c.length === 2);
+        if (codes.length === 0) return {};
+        return { componentRestrictions: { country: codes.length === 1 ? codes[0] : codes } } as const;
+    }, [country]);
+
     const {
         ready,
         value: searchValue,
@@ -49,9 +79,7 @@ const GoogleLocationSearchInput: React.FC<GoogleLocationSearchInputProps> = ({
         setValue,
         clearSuggestions,
     } = usePlacesAutocomplete({
-        requestOptions: {
-            componentRestrictions: { country: country.toLowerCase() === 'tur' ? 'tr' : (country.toLowerCase() || 'tr') },
-        },
+        requestOptions,
         debounce: 300,
         initOnMount: isLoaded, // initialize when script is loaded
     });

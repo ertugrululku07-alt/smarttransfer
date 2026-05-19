@@ -127,9 +127,20 @@ const TransferSearchContent: React.FC = () => {
                         if (encodedPolyline) sessionStorage.setItem('lastEncodedPolyline', encodedPolyline);
                         setRouteStats({ distance: route.distanceKm, duration: route.durationMin });
                         if (typeof route.durationMin === 'number') setDurationMin(route.durationMin);
+                    } else {
+                        // No drivable land route → don't pretend we can price it.
+                        setResults([]);
+                        setRouteStats(null);
+                        setError('Bu güzergah için karayolu rotası bulunamadı. Lütfen başka bir varış noktası seçin.');
+                        setLoading(false);
+                        return;
                     }
                 } catch (e) {
                     console.error('Distance calculation failed:', e);
+                    setResults([]);
+                    setError('Rota hesaplanamadı. Lütfen tekrar deneyin.');
+                    setLoading(false);
+                    return;
                 }
             }
 
