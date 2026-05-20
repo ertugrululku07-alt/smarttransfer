@@ -3534,6 +3534,7 @@ export default function OperationsPage() {
                             onOpenBookingDetail={(booking) => setDetailModal({ visible: true, booking })}
                             onCancelBooking={(booking) => setCancelModal({ booking, reason: '' })}
                             onEditReservation={(booking) => setEditReservationModal({ booking })}
+                            onUetdsSubmit={handleAdminUetdsSubmit}
                         />
                     </div>
                     )}

@@ -138,9 +138,10 @@ interface OperationsTableProps {
     onCellEdit: (bookingId: string, field: string, value: any) => void;
     onStatusChange?: (bookingId: string, newStatus: string) => void;
     onAISuggest?: (bookingId: string) => void;
-    onOpenMessageModal?: (booking: any) => void;
-    onOpenCompleteModal?: (booking: any) => void;
-    onReturnToReservation?: (booking: any) => void;
+    onOpenMessageModal?: (record: any) => void;
+    onOpenCompleteModal?: (record: any) => void;
+    onReturnToReservation?: (record: any) => void;
+    onUetdsSubmit?: (record: any) => void;
     onRowOrderChange?: (newOrder: string[]) => void;
     onAirportColorChange?: (airportCode: string, color: string) => void;
     onOpenLocationModal?: (location: string, name: string) => void;
@@ -177,6 +178,7 @@ export default function OperationsTable({
     onOpenMessageModal,
     onOpenCompleteModal,
     onReturnToReservation,
+    onUetdsSubmit,
     onRowOrderChange,
     onAirportColorChange,
     onOpenLocationModal,
@@ -1469,6 +1471,7 @@ export default function OperationsTable({
                 }
                 menuItems.push(
                     { type: 'divider' },
+                    { key: 'uetds', icon: <img src="/icons/logo-uetds.png" alt="UETDS" style={{ width: 14, height: 14, opacity: 0.7, filter: 'grayscale(100%)' }} onError={(e) => (e.currentTarget.style.display = 'none')} />, label: <span style={{ fontWeight: 600, color: '#334155' }}>UETDS'ye Gönder</span>, onClick: () => onUetdsSubmit?.(record) },
                     { key: 'message', icon: <MessageOutlined style={{ color: '#6366f1' }} />, label: <span style={{ fontWeight: 600 }}>Mesaj Gönder</span>, onClick: () => onOpenMessageModal?.(record) },
                     { type: 'divider' },
                     { key: 'cancel', icon: <StopOutlined style={{ color: '#ef4444' }} />, label: <span style={{ fontWeight: 600, color: '#ef4444' }}>İptal Et</span>, onClick: () => onCancelBooking?.(record) },
