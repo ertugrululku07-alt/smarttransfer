@@ -246,6 +246,48 @@ router.post('/test-email', authMiddleware, async (req, res) => {
 });
 
 /**
+ * POST /api/tenant/test-uetds
+ * Test UETDS credentials (OFFICIAL or UETDS_NET)
+ */
+router.post('/test-uetds', authMiddleware, async (req, res) => {
+    try {
+        if (req.user.roleType !== 'TENANT_ADMIN' && req.user.roleType !== 'SUPER_ADMIN') {
+            return res.status(403).json({ success: false, error: 'Permission denied' });
+        }
+        
+        const { provider, username, password, firmaKodu, environment } = req.body;
+        
+        if (!username || !password) {
+            return res.status(400).json({ success: false, error: 'Kullanıcı adı ve şifre zorunludur' });
+        }
+
+        let result;
+        if (provider === 'UETDS_NET') {
+            const uetdsRestService = require('../services/uetdsRestService');
+            // If environment is 'test', we might want to use a specific test token or URL, 
+            // but the api.uetds.net docs say just use 'demo' credentials.
+            result = await uetdsRestService.testCredentials({
+                firmaKodu, username, password
+            });
+        } else {
+            const uetdsService = require('../services/uetdsService');
+            result = await uetdsService.testCredentials({
+                username, password, yetkiBelgeNo: '', serviceUrl: null
+            });
+        }
+
+        if (result.success) {
+            res.json({ success: true, message: result.message || 'Bağlantı başarılı' });
+        } else {
+            res.status(400).json({ success: false, error: result.error || 'Bağlantı başarısız' });
+        }
+    } catch (error) {
+        console.error('Test UETDS error:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+/**
  * GET /api/tenant/modules
  * Get active modules for current tenant
  */

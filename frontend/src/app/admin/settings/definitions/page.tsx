@@ -148,6 +148,7 @@ export default function DefinitionsPage() {
     // UETDS Settings
     const [uetdsSettings, setUetdsSettings] = useState<{
         enabled: boolean;
+        provider: 'OFFICIAL' | 'UETDS_NET';
         username: string;
         password: string;
         firmaKodu: string;
@@ -157,6 +158,7 @@ export default function DefinitionsPage() {
         environment: 'test' | 'production';
     }>({
         enabled: false,
+        provider: 'OFFICIAL',
         username: '',
         password: '',
         firmaKodu: '',
@@ -166,6 +168,7 @@ export default function DefinitionsPage() {
         environment: 'test',
     });
     const [uetdsSaving, setUetdsSaving] = useState(false);
+    const [uetdsTesting, setUetdsTesting] = useState(false);
     const [showUetdsPass, setShowUetdsPass] = useState(false);
 
     // WhatsApp Settings
@@ -392,6 +395,23 @@ export default function DefinitionsPage() {
             message.error('UETDS ayarları kaydedilirken hata oluştu');
         } finally {
             setUetdsSaving(false);
+        }
+    };
+
+    const handleTestUetdsConnection = async () => {
+        try {
+            setUetdsTesting(true);
+            // Using tenant's UETDS test route (which we will create/update)
+            const res = await apiClient.post('/api/tenant/test-uetds', uetdsSettings);
+            if (res.data.success) {
+                message.success('UETDS bağlantı testi başarılı!');
+            } else {
+                message.error(res.data.error || 'Bağlantı başarısız.');
+            }
+        } catch (error: any) {
+            message.error(error.response?.data?.error || 'Bağlantı testi sırasında bir hata oluştu.');
+        } finally {
+            setUetdsTesting(false);
         }
     };
 
@@ -1271,7 +1291,22 @@ export default function DefinitionsPage() {
                                     />
                                 </div>
                                 <div>
-                                    <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 6 }}>Kullanıcı Adı</label>
+                                    <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 6 }}>Servis Sağlayıcı</label>
+                                    <Select
+                                        value={uetdsSettings.provider || 'OFFICIAL'}
+                                        onChange={(val) => setUetdsSettings(prev => ({ ...prev, provider: val }))}
+                                        style={{ width: '100%' }}
+                                        options={[
+                                            { value: 'OFFICIAL', label: '🏛️ U-NET Resmi API' },
+                                            { value: 'UETDS_NET', label: '⚡ UETDS.net (3. Parti)' },
+                                        ]}
+                                    />
+                                </div>
+                                <div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                                        <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b' }}>Kullanıcı Adı</label>
+                                        <Button type="link" size="small" onClick={() => setUetdsSettings(prev => ({ ...prev, provider: 'UETDS_NET', username: 'demo@demo.com', password: 'demo', firmaKodu: 'demo', environment: 'test' }))} style={{ fontSize: 11, padding: 0 }}>Demo Bilgilerini Doldur</Button>
+                                    </div>
                                     <Input
                                         placeholder="UETDS kullanıcı adınız"
                                         value={uetdsSettings.username}
@@ -1301,9 +1336,9 @@ export default function DefinitionsPage() {
                                             { value: 'production', label: '🚀 Canlı (Production)' },
                                         ]}
                                     />
-                                    <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>
-                                        Entegrasyonu test etmek için önce test ortamında deneyin
-                                    </div>
+                                </div>
+                                <div style={{ marginTop: 10 }}>
+                                    <Button block type="dashed" onClick={handleTestUetdsConnection} loading={uetdsTesting}>Bağlantıyı Test Et</Button>
                                 </div>
                             </div>
                         </div>

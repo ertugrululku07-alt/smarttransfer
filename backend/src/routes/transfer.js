@@ -5902,17 +5902,68 @@ router.post('/partner/uetds-submit', authMiddleware, async (req, res) => {
         const estDurationMs = meta.durationMin ? meta.durationMin * 60 * 1000 : 2 * 60 * 60 * 1000;
         const bitisTarih = new Date(new Date(baslangicTarih).getTime() + estDurationMs);
 
-        // Step 1: seferEkle
-        const seferResult = await uetdsService.seferEkle(credentials, {
-            aracPlaka: vehiclePlate,
-            seferAciklama: `${meta.pickup || ''} → ${meta.dropoff || ''} (${booking.bookingNumber})`,
-            baslangicTarih,
-            bitisTarih,
-            baslangicIl: baslangicIl || '',
-            baslangicIlce: baslangicIlce || '',
-            bitisIl: bitisIl || '',
-            bitisIlce: bitisIlce || '',
-        });
+        let seferResult;
+        
+        if (profile.uetdsProvider === 'UETDS_NET') {
+            const uetdsRestService = require('../services/uetdsRestService');
+            // Mock driver and passenger arrays for demo payload since they come as flat variables here
+            const reservation = {
+                pickupCity: baslangicIl || 'Antalya',
+                dropoffCity: bitisIl || 'Antalya',
+                date: baslangicTarih.toISOString().split('T')[0],
+                time: baslangicTarih.toISOString().split('T')[1].substring(0,5),
+                pickupLocation: meta.pickup || '',
+                dropoffLocation: meta.dropoff || '',
+                groupName: 'TRANSFER',
+                price: booking.total
+            };
+            
+            const vehicleData = { plate: vehiclePlate };
+            const driverData = { tcNo: driverTc || '11111111111', phone: driverPhone || '' };
+            const passengers = [{
+                firstName: passengerFirstName || 'Yolcu',
+                lastName: passengerLastName || 'Yolcu',
+                documentNo: passengerTc || '11111111111',
+                nationality: passengerNationality || 'TR',
+                gender: passengerGender || '1',
+                phone: passengerPhone || ''
+            }];
+
+            try {
+                const submitRes = await uetdsRestService.submitDynamicTrip({
+                    credentials, reservation, vehicleData, driverData, passengers
+                });
+                
+                seferResult = {
+                    success: true,
+                    uetdsSeferId: submitRes.sefer_referans_no,
+                    refNo: submitRes.iletisim_referans_no,
+                    errorMessage: null,
+                    rawRequest: JSON.stringify({ reservation, vehicleData, driverData, passengers }),
+                    rawResponse: JSON.stringify(submitRes)
+                };
+            } catch (err) {
+                seferResult = {
+                    success: false,
+                    errorMessage: err.message,
+                    rawRequest: '',
+                    rawResponse: JSON.stringify(err.response?.data || err.message)
+                };
+            }
+            
+        } else {
+            // Step 1: seferEkle (OFFICIAL SOAP)
+            seferResult = await uetdsService.seferEkle(credentials, {
+                aracPlaka: vehiclePlate,
+                seferAciklama: `${meta.pickup || ''} → ${meta.dropoff || ''} (${booking.bookingNumber})`,
+                baslangicTarih,
+                bitisTarih,
+                baslangicIl: baslangicIl || '',
+                baslangicIlce: baslangicIlce || '',
+                bitisIl: bitisIl || '',
+                bitisIlce: bitisIlce || '',
+            });
+        }
 
         // Create submission record
         const submission = await prisma.uetdsSubmission.create({
@@ -5940,9 +5991,9 @@ router.post('/partner/uetds-submit', authMiddleware, async (req, res) => {
             });
         }
 
-        // Step 2: yolcuEkle (if passenger info provided)
+        // Step 2: yolcuEkle (if passenger info provided and OFFICIAL provider)
         let yolcuResult = null;
-        if (passengerFirstName && passengerLastName) {
+        if (profile.uetdsProvider !== 'UETDS_NET' && passengerFirstName && passengerLastName) {
             yolcuResult = await uetdsService.yolcuEkle(credentials, seferResult.uetdsSeferId, {
                 tcKimlikNo: passengerTc || '',
                 adi: passengerFirstName,
@@ -5963,9 +6014,9 @@ router.post('/partner/uetds-submit', authMiddleware, async (req, res) => {
             });
         }
 
-        // Step 3: personelEkle (if driver info provided)
+        // Step 3: personelEkle (if driver info provided and OFFICIAL provider)
         let personelResult = null;
-        if (driverTc && driverFirstName && driverLastName) {
+        if (profile.uetdsProvider !== 'UETDS_NET' && driverTc && driverFirstName && driverLastName) {
             personelResult = await uetdsService.personelEkle(credentials, seferResult.uetdsSeferId, {
                 tcKimlikNo: driverTc,
                 adi: driverFirstName,

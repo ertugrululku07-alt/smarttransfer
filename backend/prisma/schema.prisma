@@ -2247,6 +2247,7 @@ model PartnerProfile {
 
   // UETDS credentials (encrypted at-rest in application layer)
   uetdsEnabled         Boolean @default(false)
+  uetdsProvider        String  @default("OFFICIAL") // OFFICIAL or UETDS_NET
   uetdsUnetUser        String?
   uetdsUnetPasswordEnc String? // AES-256 encrypted
   uetdsYetkiBelgeNo    String?
