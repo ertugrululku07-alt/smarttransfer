@@ -688,6 +688,35 @@ export default function OperationsPage() {
         }
     };
 
+    const handleAdminUetdsSubmit = async (booking: any) => {
+        const hide = message.loading('UETDS\'ye gönderiliyor...', 0);
+        try {
+            const body = {
+                bookingId: booking.id,
+                vehiclePlate: booking.vehicle?.plateNumber || booking.metadata?.vehiclePlate || booking.assignedVehicle?.plateNumber || '07TEST07',
+                driverTc: booking.driver?.tcNo || booking.metadata?.driverTc || '11111111111',
+                driverFirstName: booking.driver?.firstName || booking.metadata?.driverFirstName || 'Şoför',
+                driverLastName: booking.driver?.lastName || booking.metadata?.driverLastName || 'Soyadı',
+                passengerTc: booking.customer?.tcNo || '11111111111',
+                passengerFirstName: booking.contactName || booking.customer?.name || 'Yolcu',
+                passengerLastName: booking.customer?.surname || 'Soyadı',
+                baslangicIl: booking.pickup?.city || 'Antalya',
+                bitisIl: booking.dropoff?.city || 'Antalya',
+            };
+            const res = await apiClient.post('/api/tenant/uetds-submit', body);
+            if (res.data.success) {
+                message.success('UETDS Bildirimi Başarılı! Sefer ID: ' + res.data.data.uetdsSeferId);
+                fetchBookings(); // Refresh status
+            } else {
+                message.error('Hata: ' + res.data.error);
+            }
+        } catch (error: any) {
+            message.error('UETDS gönderimi başarısız: ' + (error.response?.data?.error || error.message));
+        } finally {
+            hide();
+        }
+    };
+
     // Fullscreen toggle
     const toggleFullscreen = () => {
         if (!document.fullscreenElement) {
@@ -1374,8 +1403,7 @@ export default function OperationsPage() {
                 menuItems.push(
                     { type: 'divider' },
                     { key: 'uetds', icon: <img src="/icons/logo-uetds.png" alt="UETDS" style={{ width: 14, height: 14, opacity: 0.7, filter: 'grayscale(100%)' }} onError={(e) => (e.currentTarget.style.display = 'none')} />, label: <span style={{ fontWeight: 600, color: '#334155' }}>UETDS'ye Gönder</span>, onClick: () => {
-                        message.info('UETDS entegrasyon ekranı açılıyor...');
-                        // setUetdsModal({ visible: true, booking: record });
+                        handleAdminUetdsSubmit(record);
                     }},
                     { key: 'message', icon: <MessageOutlined style={{ color: '#6366f1' }} />, label: <span style={{ fontWeight: 600 }}>Mesaj Gönder</span>, onClick: () => handleOpenMessageModal(record.driverId) },
                     { type: 'divider' },
