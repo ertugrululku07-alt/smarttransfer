@@ -1373,6 +1373,10 @@ export default function OperationsPage() {
                 }
                 menuItems.push(
                     { type: 'divider' },
+                    { key: 'uetds', icon: <img src="/icons/logo-uetds.png" alt="UETDS" style={{ width: 14, height: 14, opacity: 0.7, filter: 'grayscale(100%)' }} onError={(e) => (e.currentTarget.style.display = 'none')} />, label: <span style={{ fontWeight: 600, color: '#334155' }}>UETDS'ye Gönder</span>, onClick: () => {
+                        message.info('UETDS entegrasyon ekranı açılıyor...');
+                        // setUetdsModal({ visible: true, booking: record });
+                    }},
                     { key: 'message', icon: <MessageOutlined style={{ color: '#6366f1' }} />, label: <span style={{ fontWeight: 600 }}>Mesaj Gönder</span>, onClick: () => handleOpenMessageModal(record.driverId) },
                     { type: 'divider' },
                     { key: 'cancel', icon: <StopOutlined style={{ color: '#ef4444' }} />, label: <span style={{ fontWeight: 600, color: '#ef4444' }}>İptal Et</span>, onClick: () => setCancelModal({ booking: record, reason: '' }) },
