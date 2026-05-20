@@ -376,11 +376,17 @@ router.post('/uetds-submit', authMiddleware, async (req, res) => {
 
         const submission = await prisma.uetdsSubmission.create({
             data: {
-                tenantId: req.user.tenantId, partnerId: booking.partnerId, bookingId,
-                vehicleId: meta.assignedVehicleId || null, driverId: booking.driverId || null,
-                uetdsSeferId: seferResult.uetdsSeferId || null, uetdsRefNo: seferResult.refNo || null,
-                status: seferResult.success ? 'SENT' : 'REJECTED', errorMessage: seferResult.errorMessage || null,
-                request: { sefer: seferResult.rawRequest?.substring(0, 2000) }, response: { sefer: seferResult.rawResponse?.substring(0, 2000) },
+                tenantId: req.user.tenantId, 
+                partnerId: booking.partnerId || req.user.id, // Fallback to admin user if no partner
+                bookingId,
+                vehicleId: meta.assignedVehicleId || null, 
+                driverId: booking.driverId || null,
+                uetdsSeferId: seferResult.uetdsSeferId || null, 
+                uetdsRefNo: seferResult.refNo || null,
+                status: seferResult.success ? 'SENT' : 'REJECTED', 
+                errorMessage: seferResult.errorMessage || null,
+                request: { sefer: seferResult.rawRequest?.substring(0, 2000) }, 
+                response: { sefer: seferResult.rawResponse?.substring(0, 2000) },
                 submittedAt: seferResult.success ? new Date() : null,
             }
         });
