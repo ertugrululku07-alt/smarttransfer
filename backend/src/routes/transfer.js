@@ -2340,58 +2340,103 @@ router.get('/partner/active-bookings', authMiddleware, async (req, res) => {
         const bookings = await prisma.booking.findMany({
             where: {
                 productType: 'TRANSFER',
-                status: 'CONFIRMED',
-                // Check if this partner confirmed the booking
-                // Note: verified in PUT /bookings/:id/status that we set confirmedBy
+                status: { in: ['CONFIRMED', 'IN_PROGRESS'] },
                 confirmedBy: userId
+            },
+            include: {
+                driver: {
+                    select: { id: true, firstName: true, lastName: true, fullName: true, phone: true, avatar: true, lastSeenAt: true }
+                }
             },
             orderBy: { startDate: 'asc' }
         });
 
-        // Filter out completed ones if necessary (based on metadata or another status field)
-        // For now, assume CONFIRMED status implies active until marked COMPLETED/FINISHED
-        const activeBookings = bookings.filter(b => {
-            // If you have a specific completed status, check it here
-            // e.g., if (b.metadata?.operationalStatus === 'COMPLETED') return false;
-            return true;
-        });
+        const vehicleIds = Array.from(new Set(
+            bookings
+                .map(b => b.metadata?.assignedVehicleId || b.metadata?.partnerVehicleId)
+                .filter(Boolean)
+        ));
+        const vehicleMap = new Map();
+        if (vehicleIds.length) {
+            const vehicles = await prisma.vehicle.findMany({
+                where: { id: { in: vehicleIds } },
+                include: { vehicleType: true }
+            });
+            vehicles.forEach(v => vehicleMap.set(v.id, v));
+        }
 
-        const mappedBookings = activeBookings.map(b => ({
-            id: b.id,
-            bookingNumber: b.bookingNumber,
-            customer: {
-                name: b.contactName,
-                phone: b.contactPhone,
-                avatar: b.contactName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()
-            },
-            pickup: {
-                location: b.metadata?.pickup || 'Belirtilmemiş',
-                time: new Date(b.startDate).toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }),
-                timeDate: b.startDate, // Raw date for FlightTracker
-                note: b.specialRequests
-            },
-            flightNumber: b.metadata?.flightNumber,
-            flightTime: b.metadata?.flightTime,
-            dropoff: {
-                location: b.metadata?.dropoff || 'Belirtilmemiş',
-                dist: b.metadata?.distance || 'KM Bilgisi Yok',
-                duration: b.metadata?.duration || 'Süre Yok'
-            },
-            vehicle: {
-                type: b.metadata?.vehicleType || 'Standart',
-                pax: b.adults,
-                luggage: 2
-            },
-            price: {
-                amount: b.metadata?.poolPrice ? Number(b.metadata.poolPrice) : Number(b.total),
-                currency: b.currency
-            },
-            status: 'ACCEPTED', // Frontend tracking
-            operationalStatus: b.metadata?.operationalStatus,
-            partnerVehicleId: b.metadata?.partnerVehicleId || null,
-            partnerVehiclePlate: b.metadata?.partnerVehiclePlate || null,
-            partnerVehicleName: b.metadata?.partnerVehicleName || null
-        }));
+        const mappedBookings = bookings.map(b => {
+            const vId = b.metadata?.assignedVehicleId || b.metadata?.partnerVehicleId || null;
+            const v = vId ? vehicleMap.get(vId) : null;
+            const driverIsOnline = b.driver?.lastSeenAt
+                ? (Date.now() - new Date(b.driver.lastSeenAt).getTime()) < 10 * 60 * 1000
+                : false;
+            return {
+                id: b.id,
+                bookingNumber: b.bookingNumber,
+                customer: {
+                    name: b.contactName,
+                    phone: b.contactPhone,
+                    email: b.contactEmail,
+                    avatar: (b.contactName || '').split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()
+                },
+                pickup: {
+                    location: b.metadata?.pickup || 'Belirtilmemiş',
+                    time: new Date(b.startDate).toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }),
+                    timeDate: b.startDate,
+                    note: b.specialRequests,
+                    lat: b.metadata?.pickupLat ?? null,
+                    lng: b.metadata?.pickupLng ?? null
+                },
+                flightNumber: b.metadata?.flightNumber,
+                flightTime: b.metadata?.flightTime,
+                dropoff: {
+                    location: b.metadata?.dropoff || 'Belirtilmemiş',
+                    dist: b.metadata?.distance || null,
+                    duration: b.metadata?.duration || null,
+                    lat: b.metadata?.dropoffLat ?? null,
+                    lng: b.metadata?.dropoffLng ?? null
+                },
+                vehicle: {
+                    type: b.metadata?.vehicleType || 'Standart',
+                    pax: b.adults,
+                    children: b.children || 0,
+                    infants: b.infants || 0,
+                    luggage: b.metadata?.luggage || 2
+                },
+                assignedVehicle: v ? {
+                    id: v.id,
+                    plate: v.plateNumber,
+                    brand: v.brand,
+                    model: v.model,
+                    capacity: v.vehicleType?.capacity || 0,
+                    category: v.vehicleType?.category || null
+                } : null,
+                driver: b.driver ? {
+                    id: b.driver.id,
+                    name: b.driver.fullName || `${b.driver.firstName || ''} ${b.driver.lastName || ''}`.trim(),
+                    phone: b.driver.phone,
+                    avatar: b.driver.avatar,
+                    isOnline: driverIsOnline,
+                    lastSeenAt: b.driver.lastSeenAt
+                } : null,
+                price: {
+                    amount: b.metadata?.poolPrice ? Number(b.metadata.poolPrice) : Number(b.total),
+                    currency: b.currency
+                },
+                paymentStatus: b.paymentStatus,
+                status: b.status,
+                operationalStatus: b.metadata?.operationalStatus || (b.driverId ? 'DRIVER_ASSIGNED' : 'CONFIRMED'),
+                internalNotes: b.internalNotes || b.metadata?.internalNotes || '',
+                specialRequests: b.specialRequests || '',
+                pickedUpAt: b.pickedUpAt,
+                droppedOffAt: b.droppedOffAt,
+                createdAt: b.createdAt,
+                partnerVehicleId: b.metadata?.partnerVehicleId || null,
+                partnerVehiclePlate: b.metadata?.partnerVehiclePlate || null,
+                partnerVehicleName: b.metadata?.partnerVehicleName || null
+            };
+        });
 
         res.json({
             success: true,
@@ -2436,17 +2481,20 @@ router.get('/partner/completed-bookings', authMiddleware, async (req, res) => {
             customer: {
                 name: b.contactName,
                 phone: b.contactPhone,
-                avatar: b.contactName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()
+                email: b.contactEmail,
+                avatar: (b.contactName || '').split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()
             },
             pickup: {
                 location: b.metadata?.pickup || 'Belirtilmemiş',
                 time: new Date(b.startDate).toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+                timeDate: b.startDate,
             },
             dropoff: {
                 location: b.metadata?.dropoff || 'Belirtilmemiş',
             },
             vehicle: {
                 type: b.metadata?.vehicleType || 'Standart',
+                pax: b.adults,
             },
             price: {
                 amount: b.metadata?.poolPrice ? Number(b.metadata.poolPrice) : Number(b.total),
@@ -2455,8 +2503,11 @@ router.get('/partner/completed-bookings', authMiddleware, async (req, res) => {
                 commissionAmount: b.metadata?.partnerCommissionAmount !== undefined ? Number(b.metadata.partnerCommissionAmount) : 0,
                 netEarning: b.metadata?.partnerNetEarning !== undefined ? Number(b.metadata.partnerNetEarning) : (b.metadata?.poolPrice ? Number(b.metadata.poolPrice) : Number(b.total))
             },
-            paymentStatus: b.paymentStatus, // PAID, PENDING, DISPUTED
-            completedAt: b.updatedAt // Or a specific completedAt field if added
+            status: b.status,
+            operationalStatus: 'COMPLETED',
+            paymentStatus: b.paymentStatus,
+            completedAt: b.updatedAt,
+            internalNotes: b.internalNotes || b.metadata?.internalNotes || ''
         }));
 
         res.json({
@@ -4107,6 +4158,221 @@ router.delete('/partner/drivers/:driverId', authMiddleware, async (req, res) => 
  * POST /api/transfer/partner/assign
  * Partner assigns a booking to one of their drivers + vehicle
  */
+/**
+ * GET /api/transfer/partner/operations/fleet
+ * Combined drivers + vehicles for the partner operations screen
+ */
+router.get('/partner/operations/fleet', authMiddleware, async (req, res) => {
+    try {
+        const partnerId = req.user.id;
+        const tenantId = req.tenant?.id || req.user.tenantId;
+
+        const [drivers, vehicles] = await Promise.all([
+            prisma.user.findMany({
+                where: { partnerId, deletedAt: null, status: 'ACTIVE' },
+                select: {
+                    id: true, firstName: true, lastName: true, fullName: true,
+                    phone: true, avatar: true, lastSeenAt: true
+                },
+                orderBy: { firstName: 'asc' }
+            }),
+            prisma.vehicle.findMany({
+                where: { tenantId, ownerId: partnerId, status: 'ACTIVE' },
+                include: { vehicleType: true },
+                orderBy: { plateNumber: 'asc' }
+            })
+        ]);
+
+        const driversOut = drivers.map(d => ({
+            id: d.id,
+            name: d.fullName || `${d.firstName || ''} ${d.lastName || ''}`.trim(),
+            firstName: d.firstName,
+            lastName: d.lastName,
+            phone: d.phone,
+            avatar: d.avatar,
+            isOnline: d.lastSeenAt ? (Date.now() - new Date(d.lastSeenAt).getTime()) < 10 * 60 * 1000 : false,
+            lastSeenAt: d.lastSeenAt
+        }));
+
+        const vehiclesOut = vehicles.map(v => ({
+            id: v.id,
+            plate: v.plateNumber,
+            brand: v.brand,
+            model: v.model,
+            capacity: v.vehicleType?.capacity || 0,
+            category: v.vehicleType?.category || null,
+            driverId: v.metadata?.driverId || null
+        }));
+
+        res.json({ success: true, data: { drivers: driversOut, vehicles: vehiclesOut } });
+    } catch (error) {
+        console.error('Partner operations fleet error:', error);
+        res.status(500).json({ success: false, error: 'Filo bilgisi alınamadı' });
+    }
+});
+
+/**
+ * Helper: ensure partner owns the booking (confirmedBy === partner)
+ */
+async function ensurePartnerOwnsBooking(bookingId, partnerId) {
+    const booking = await prisma.booking.findUnique({ where: { id: bookingId } });
+    if (!booking) return { ok: false, status: 404, error: 'Rezervasyon bulunamadı' };
+    if (booking.confirmedBy !== partnerId) {
+        return { ok: false, status: 403, error: 'Bu rezervasyon size ait değil' };
+    }
+    return { ok: true, booking };
+}
+
+/**
+ * PATCH /api/transfer/partner/operations/:id/assign
+ * Assign driver and/or vehicle (with ownership checks)
+ */
+router.patch('/partner/operations/:id/assign', authMiddleware, async (req, res) => {
+    try {
+        const partnerId = req.user.id;
+        const tenantId = req.tenant?.id || req.user.tenantId;
+        const { id } = req.params;
+        const { driverId, vehicleId } = req.body;
+
+        const own = await ensurePartnerOwnsBooking(id, partnerId);
+        if (!own.ok) return res.status(own.status).json({ success: false, error: own.error });
+
+        if (driverId) {
+            const driver = await prisma.user.findFirst({
+                where: { id: driverId, partnerId, status: 'ACTIVE' }
+            });
+            if (!driver) {
+                return res.status(400).json({ success: false, error: 'Şoför ekibinizde bulunmuyor veya pasif' });
+            }
+        }
+
+        let vehicleRow = null;
+        if (vehicleId) {
+            vehicleRow = await prisma.vehicle.findFirst({
+                where: { id: vehicleId, ownerId: partnerId, tenantId, status: 'ACTIVE' },
+                include: { vehicleType: true }
+            });
+            if (!vehicleRow) {
+                return res.status(400).json({ success: false, error: 'Araç size ait değil veya pasif' });
+            }
+        }
+
+        const newMetadata = {
+            ...(own.booking.metadata || {}),
+            assignedByPartnerId: partnerId,
+            assignedVehicleId: vehicleId ?? own.booking.metadata?.assignedVehicleId ?? null,
+            partnerVehicleId: vehicleId ?? own.booking.metadata?.partnerVehicleId ?? null,
+            partnerVehiclePlate: vehicleRow ? vehicleRow.plateNumber : own.booking.metadata?.partnerVehiclePlate ?? null,
+            partnerVehicleName: vehicleRow ? `${vehicleRow.brand} ${vehicleRow.model}` : own.booking.metadata?.partnerVehicleName ?? null,
+            assignedAt: new Date().toISOString(),
+            operationalStatus: driverId ? 'DRIVER_ASSIGNED' : (own.booking.metadata?.operationalStatus || 'CONFIRMED')
+        };
+
+        const updated = await prisma.booking.update({
+            where: { id },
+            data: {
+                driverId: driverId === null ? null : (driverId ?? own.booking.driverId),
+                metadata: newMetadata
+            }
+        });
+
+        try {
+            const io = req.app.get('io');
+            if (io && driverId) {
+                io.to(`user:${driverId}`).emit('booking:assigned', { bookingId: id });
+            }
+        } catch (e) { /* socket optional */ }
+
+        res.json({ success: true, data: { id: updated.id, driverId: updated.driverId, metadata: updated.metadata } });
+    } catch (error) {
+        console.error('Partner operations assign error:', error);
+        res.status(500).json({ success: false, error: 'Atama yapılamadı' });
+    }
+});
+
+/**
+ * PATCH /api/transfer/partner/operations/:id/status
+ * Operational status transitions for the partner-owned booking
+ */
+router.patch('/partner/operations/:id/status', authMiddleware, async (req, res) => {
+    try {
+        const partnerId = req.user.id;
+        const { id } = req.params;
+        const { operationalStatus, status, subStatus, cancelReason } = req.body;
+
+        const own = await ensurePartnerOwnsBooking(id, partnerId);
+        if (!own.ok) return res.status(own.status).json({ success: false, error: own.error });
+
+        const updateData = { metadata: { ...(own.booking.metadata || {}) } };
+        if (operationalStatus) updateData.metadata.operationalStatus = operationalStatus;
+        if (cancelReason) updateData.metadata.cancelReason = cancelReason;
+
+        if (operationalStatus === 'PASSENGER_PICKED_UP' && !own.booking.pickedUpAt) {
+            updateData.pickedUpAt = new Date();
+        }
+        if (operationalStatus === 'COMPLETED') {
+            updateData.droppedOffAt = new Date();
+        }
+
+        if (status === 'COMPLETED') {
+            updateData.status = 'COMPLETED';
+            updateData.metadata.operationalStatus = 'COMPLETED';
+            updateData.droppedOffAt = new Date();
+        }
+        if (status === 'CANCELLED') {
+            updateData.status = 'CANCELLED';
+            updateData.metadata.operationalStatus = 'CANCELLED';
+            if (subStatus) updateData.metadata.cancelSubStatus = subStatus;
+        }
+        if (status === 'IN_PROGRESS') {
+            updateData.status = 'IN_PROGRESS';
+        }
+
+        const updated = await prisma.booking.update({
+            where: { id },
+            data: updateData
+        });
+
+        try {
+            const io = req.app.get('io');
+            if (io) io.emit('booking:status', { bookingId: id, status: updated.status, operationalStatus: updated.metadata?.operationalStatus });
+        } catch (e) { /* socket optional */ }
+
+        res.json({ success: true, data: { id: updated.id, status: updated.status, metadata: updated.metadata } });
+    } catch (error) {
+        console.error('Partner operations status error:', error);
+        res.status(500).json({ success: false, error: 'Durum güncellenemedi' });
+    }
+});
+
+/**
+ * PATCH /api/transfer/partner/operations/:id/note
+ * Update operational note (internalNotes)
+ */
+router.patch('/partner/operations/:id/note', authMiddleware, async (req, res) => {
+    try {
+        const partnerId = req.user.id;
+        const { id } = req.params;
+        const { internalNotes } = req.body;
+
+        const own = await ensurePartnerOwnsBooking(id, partnerId);
+        if (!own.ok) return res.status(own.status).json({ success: false, error: own.error });
+
+        const updated = await prisma.booking.update({
+            where: { id },
+            data: {
+                internalNotes: internalNotes ?? '',
+                metadata: { ...(own.booking.metadata || {}), internalNotes: internalNotes ?? '' }
+            }
+        });
+
+        res.json({ success: true, data: { id: updated.id, internalNotes: updated.internalNotes } });
+    } catch (error) {
+        console.error('Partner operations note error:', error);
+        res.status(500).json({ success: false, error: 'Not güncellenemedi' });
+    }
+});
+
 router.post('/partner/assign', authMiddleware, async (req, res) => {
     try {
         const partnerId = req.user.id;
