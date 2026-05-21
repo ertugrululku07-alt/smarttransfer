@@ -124,6 +124,9 @@ app.use('/api/transfer', tenantMiddleware, transferRoutes);
 const partnerAccountingRoutes = require('./src/routes/partner-accounting');
 app.use('/api/partner-accounting', tenantMiddleware, partnerAccountingRoutes);
 
+// Partner accounting cron jobs (overdue invoice email reminders)
+try { require('./src/jobs/partner-accounting-cron').start(); } catch (e) { console.warn('Cron startup failed:', e.message); }
+
 // Campaigns & Loyalty routes
 const campaignRoutes = require('./src/routes/campaigns');
 app.use('/api/campaigns', tenantMiddleware, campaignRoutes);

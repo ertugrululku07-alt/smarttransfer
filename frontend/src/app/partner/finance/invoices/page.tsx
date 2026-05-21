@@ -7,7 +7,8 @@ import {
 import {
   PlusOutlined, EditOutlined, DeleteOutlined, FileTextOutlined, CheckCircleOutlined,
   DollarOutlined, SendOutlined, CloseCircleOutlined, PrinterOutlined, MailOutlined,
-  WhatsAppOutlined, DownloadOutlined, LinkOutlined, FileExcelOutlined,
+  WhatsAppOutlined, DownloadOutlined, LinkOutlined, FileExcelOutlined, CloudUploadOutlined,
+  CodeOutlined,
 } from '@ant-design/icons';
 import { API_URL } from '@/lib/config';
 import { exportResourceXlsx } from '../exportHelper';
@@ -216,6 +217,29 @@ export default function InvoicesPage() {
     } catch (e: any) { message.error(e?.response?.data?.error || 'Hata'); }
   };
 
+  const downloadUbl = (row: any) => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    fetch(`${API_URL}/api/partner-accounting/invoices/${row.id}/ubl`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => r.blob())
+      .then((blob) => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${row.invoiceNo}.xml`;
+        a.click();
+        URL.revokeObjectURL(url);
+      });
+  };
+
+  const sendToEinvoiceProvider = async (row: any) => {
+    if (!window.confirm(`${row.invoiceNo} e-Fatura sağlayıcınıza gönderilecek. Devam edilsin mi?`)) return;
+    try {
+      const res = await apiClient.post(`/api/partner-accounting/invoices/${row.id}/efatura/send`);
+      if (res.data?.success) { message.success('Sağlayıcıya gönderildi'); load(); }
+      else message.error(res.data?.error || 'Gönderim başarısız');
+    } catch (e: any) { message.error(e?.response?.data?.error || 'Gönderim başarısız'); }
+  };
+
   const exportCsv = () => {
     const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
     fetch(`${API_URL}/api/partner-accounting/exports/invoices`, { headers: { Authorization: `Bearer ${token}` } })
@@ -264,9 +288,13 @@ export default function InvoicesPage() {
     { title: 'Toplam', dataIndex: 'grandTotal', width: 140, align: 'right', render: (v: number, r: any) => <b>{fmt(Number(v), r.currency)}</b> },
     { title: 'Ödenen', dataIndex: 'paidTotal', width: 120, align: 'right', render: (v: number, r: any) => <span style={{ color: '#10b981' }}>{fmt(Number(v), r.currency)}</span> },
     { title: 'Durum', dataIndex: 'status', width: 130, render: (v: string) => <Tag color={STATUS_COLOR[v] || 'default'}>{STATUS_LABELS[v] || v}</Tag> },
-    { title: '', width: 280, fixed: 'right', render: (_: any, r: any) => (
+    { title: '', width: 360, fixed: 'right', render: (_: any, r: any) => (
       <Space size={4}>
         <Tooltip title="PDF / Yazdır"><Button size="small" icon={<PrinterOutlined />} onClick={() => openPdf(r)} /></Tooltip>
+        <Tooltip title="UBL XML İndir"><Button size="small" icon={<CodeOutlined />} onClick={() => downloadUbl(r)} /></Tooltip>
+        {(r.kind === 'EFATURA' || r.kind === 'EARCHIVE') && ['APPROVED','DRAFT'].includes(r.status) && (
+          <Tooltip title="e-Fatura Sağlayıcısına Gönder"><Button size="small" icon={<CloudUploadOutlined style={{ color: '#f59e0b' }} />} onClick={() => sendToEinvoiceProvider(r)} /></Tooltip>
+        )}
         <Tooltip title="E-posta Gönder"><Button size="small" icon={<MailOutlined />} onClick={() => openSend(r, 'email')} /></Tooltip>
         <Tooltip title="WhatsApp Gönder"><Button size="small" icon={<WhatsAppOutlined style={{ color: '#16a34a' }} />} onClick={() => openSend(r, 'whatsapp')} /></Tooltip>
         {r.status === 'DRAFT' && <>

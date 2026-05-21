@@ -2775,6 +2775,7 @@ model PartnerEmployee {
 
   payrollEntries PartnerPayrollEntry[]
   leaves         PartnerLeave[]
+  timesheets     PartnerTimesheet[]
 
   createdAt DateTime              @default(now())
   updatedAt DateTime              @updatedAt
@@ -2879,6 +2880,56 @@ enum PartnerDriverCollectionStatus {
   HANDED_OVER
   CONFIRMED
   REJECTED
+}
+
+model PartnerTimesheet {
+  id        String   @id @default(uuid())
+  tenantId  String
+  partnerId String
+
+  employeeId String
+  employee   PartnerEmployee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  date      DateTime
+  clockIn   DateTime?
+  clockOut  DateTime?
+  breakMinutes Int     @default(0)
+  hours     Decimal?  @db.Decimal(5, 2)
+  overtime  Decimal?  @db.Decimal(5, 2)
+  hourlyRate Decimal? @db.Decimal(10, 2)
+  source    String?  // MANUAL | CLOCK | IMPORT
+  notes     String?
+  approved  Boolean  @default(false)
+  approvedById String?
+  approvedAt DateTime?
+  metadata  Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([employeeId, date])
+  @@index([tenantId, partnerId])
+  @@index([partnerId, employeeId, date])
+}
+
+model PartnerBudget {
+  id        String   @id @default(uuid())
+  tenantId  String
+  partnerId String
+
+  periodYear  Int
+  periodMonth Int      // 1-12 (0 = yıllık)
+  category    String   // FUEL | SALARY | MAINTENANCE | ...
+  plannedAmount Decimal @db.Decimal(14, 2)
+  currency    String   @default("TRY")
+  notes       String?
+  metadata    Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([partnerId, periodYear, periodMonth, category])
+  @@index([tenantId, partnerId])
 }
 
 model PartnerDriverCollection {

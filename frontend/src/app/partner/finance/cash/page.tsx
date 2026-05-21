@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { Button, Card, DatePicker, Form, Input, InputNumber, Modal, Select, Space, Table, Tag, message } from 'antd';
-import { PlusOutlined, WalletOutlined, DeleteOutlined, DownloadOutlined, ImportOutlined, FileExcelOutlined } from '@ant-design/icons';
+import { PlusOutlined, WalletOutlined, DeleteOutlined, DownloadOutlined, ImportOutlined, FileExcelOutlined, SyncOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import apiClient from '@/lib/api-client';
 import { exportResource, exportResourceXlsx } from '../exportHelper';
@@ -108,6 +108,12 @@ export default function CashPage() {
             <Button icon={<DownloadOutlined />} onClick={() => exportResource('cash', 'kasa-banka')}>CSV</Button>
             <Button icon={<FileExcelOutlined style={{ color: '#16a34a' }} />} onClick={() => exportResourceXlsx('cash', 'kasa-banka')}>Excel</Button>
             <Button icon={<ImportOutlined />} onClick={() => setImportModal((m) => ({ ...m, open: true }))}>Banka Aktarımı</Button>
+            <Button icon={<SyncOutlined />} onClick={async () => {
+              try {
+                const res = await apiClient.post('/api/partner-accounting/bank-sync/run');
+                if (res.data?.success) { message.success(`${res.data.imported} yeni · ${res.data.duplicates || 0} mükerrer`); load(); }
+              } catch (e: any) { message.error(e?.response?.data?.error || 'Sync ayarlanmadı veya hata'); }
+            }}>Banka Sync</Button>
             <Button type="primary" icon={<PlusOutlined />} onClick={() => { form.resetFields(); setModalOpen(true); }}>Yeni Kayıt</Button>
           </Space>
         }

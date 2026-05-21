@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Button, Card, DatePicker, Empty, Space, Spin, Table, Tag } from 'antd';
-import { BarChartOutlined, ReloadOutlined, RiseOutlined, FallOutlined } from '@ant-design/icons';
+import { Button, Card, DatePicker, Empty, Input, Modal, Space, Spin, Table, Tag, message } from 'antd';
+import { BarChartOutlined, ReloadOutlined, RiseOutlined, FallOutlined, MailOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import apiClient from '@/lib/api-client';
 
@@ -16,6 +16,7 @@ export default function ReportsPage() {
   const [trial, setTrial] = useState<any>(null);
   const [cashflow, setCashflow] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [emailModal, setEmailModal] = useState<{ open: boolean; to: string; sending: boolean }>({ open: false, to: '', sending: false });
 
   const load = async () => {
     setLoading(true);
@@ -45,6 +46,7 @@ export default function ReportsPage() {
           <Space>
             <DatePicker.RangePicker value={range} onChange={(v) => setRange(v)} />
             <Button icon={<ReloadOutlined />} onClick={load}>Hesapla</Button>
+            <Button icon={<MailOutlined />} onClick={() => setEmailModal({ open: true, to: '', sending: false })}>Aylık Rapor E-postala</Button>
           </Space>
         }
       >
@@ -127,6 +129,33 @@ export default function ReportsPage() {
           </>
         )}
       </Card>
+
+      <Modal
+        title="Aylık Konsolide Raporu E-Postala"
+        open={emailModal.open}
+        onCancel={() => setEmailModal({ open: false, to: '', sending: false })}
+        onOk={async () => {
+          if (!emailModal.to) { message.warning('Alıcı e-posta gerekli'); return; }
+          setEmailModal((m) => ({ ...m, sending: true }));
+          try {
+            const res = await apiClient.post('/api/partner-accounting/reports/monthly/email', {
+              to: emailModal.to,
+              periodYear: (range?.[0] || dayjs()).year(),
+              periodMonth: (range?.[0] || dayjs()).month() + 1,
+            });
+            if (res.data?.success) {
+              message.success(res.data.message || 'Gönderildi');
+              setEmailModal({ open: false, to: '', sending: false });
+            }
+          } catch (e: any) { message.error(e?.response?.data?.error || 'Hata'); setEmailModal((m) => ({ ...m, sending: false })); }
+        }}
+        confirmLoading={emailModal.sending}
+        okText="Gönder"
+        cancelText="Vazgeç"
+      >
+        <p style={{ fontSize: 12, color: '#64748b' }}>Seçili ayın özet KPI'ları, gelir tablosu ve mizan tek bir HTML rapor olarak SMTP üzerinden gönderilir.</p>
+        <Input prefix={<MailOutlined />} placeholder="alici@firma.com" value={emailModal.to} onChange={(e) => setEmailModal((m) => ({ ...m, to: e.target.value }))} />
+      </Modal>
     </div>
   );
 }

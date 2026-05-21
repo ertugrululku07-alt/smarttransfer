@@ -62,6 +62,12 @@ export default function SettingsPage() {
     const [savingEmail, setSavingEmail] = useState(false);
     const [testingEmail, setTestingEmail] = useState(false);
     const [emailTestModal, setEmailTestModal] = useState<{ open: boolean; to: string }>({ open: false, to: '' });
+    const [einvoiceCfg, setEinvoiceCfg] = useState<any>(null);
+    const [einvoiceForm] = Form.useForm();
+    const [savingEinvoice, setSavingEinvoice] = useState(false);
+    const [bankSyncCfg, setBankSyncCfg] = useState<any>(null);
+    const [bankSyncForm] = Form.useForm();
+    const [savingBankSync, setSavingBankSync] = useState(false);
 
     const [documents, setDocuments] = useState([
         { id: 1, name: 'Sürücü Belgesi', status: 'VERIFIED', uploadDate: '2024-01-15' },
@@ -106,10 +112,33 @@ export default function SettingsPage() {
     const fetchIntegrations = async () => {
         setIntegrationsLoading(true);
         try {
-            const [profileRes, notifRes] = await Promise.all([
+            const [profileRes, notifRes, einvRes, bankRes] = await Promise.all([
                 apiClient.get('/api/transfer/partner/profile'),
                 apiClient.get('/api/transfer/partner/notifications').catch(() => ({ data: { success: false } })),
+                apiClient.get('/api/partner-accounting/einvoice-config').catch(() => ({ data: { success: false } })),
+                apiClient.get('/api/partner-accounting/bank-sync/config').catch(() => ({ data: { success: false } })),
             ]);
+            if (einvRes.data?.success) {
+                setEinvoiceCfg(einvRes.data.data);
+                einvoiceForm.setFieldsValue({
+                    enabled: !!einvRes.data.data.enabled,
+                    provider: einvRes.data.data.provider || 'GENERIC',
+                    endpoint: einvRes.data.data.endpoint || '',
+                    username: einvRes.data.data.username || '',
+                    apiKey: '',
+                    testMode: !!einvRes.data.data.testMode,
+                });
+            }
+            if (bankRes.data?.success) {
+                setBankSyncCfg(bankRes.data.data);
+                bankSyncForm.setFieldsValue({
+                    enabled: !!bankRes.data.data.enabled,
+                    provider: bankRes.data.data.provider || 'GENERIC',
+                    endpoint: bankRes.data.data.endpoint || '',
+                    accountKey: bankRes.data.data.accountKey || 'BANK_DEFAULT',
+                    apiKey: '',
+                });
+            }
             if (profileRes.data?.success) {
                 setUetdsProfile(profileRes.data.data);
                 uetdsForm.setFieldsValue({
@@ -289,6 +318,48 @@ export default function SettingsPage() {
         } finally {
             setSavingEmail(false);
         }
+    };
+
+    const handleSaveEinvoice = async () => {
+        try {
+            const v = await einvoiceForm.validateFields();
+            setSavingEinvoice(true);
+            const payload: any = {
+                enabled: !!v.enabled,
+                provider: v.provider,
+                endpoint: v.endpoint,
+                username: v.username,
+                testMode: !!v.testMode,
+            };
+            if (v.apiKey) payload.apiKey = v.apiKey;
+            const res = await apiClient.put('/api/partner-accounting/einvoice-config', payload);
+            if (res.data?.success) { messageApi.success('Kaydedildi'); einvoiceForm.setFieldValue('apiKey', ''); fetchIntegrations(); }
+        } catch (e: any) { if (e?.errorFields) return; messageApi.error(e?.response?.data?.error || 'Hata'); }
+        finally { setSavingEinvoice(false); }
+    };
+
+    const handleSaveBankSync = async () => {
+        try {
+            const v = await bankSyncForm.validateFields();
+            setSavingBankSync(true);
+            const payload: any = {
+                enabled: !!v.enabled,
+                provider: v.provider,
+                endpoint: v.endpoint,
+                accountKey: v.accountKey,
+            };
+            if (v.apiKey) payload.apiKey = v.apiKey;
+            const res = await apiClient.put('/api/partner-accounting/bank-sync/config', payload);
+            if (res.data?.success) { messageApi.success('Kaydedildi'); bankSyncForm.setFieldValue('apiKey', ''); fetchIntegrations(); }
+        } catch (e: any) { if (e?.errorFields) return; messageApi.error(e?.response?.data?.error || 'Hata'); }
+        finally { setSavingBankSync(false); }
+    };
+
+    const handleRunBankSync = async () => {
+        try {
+            const res = await apiClient.post('/api/partner-accounting/bank-sync/run');
+            if (res.data?.success) messageApi.success(`${res.data.imported} yeni hareket · ${res.data.duplicates || 0} mükerrer`);
+        } catch (e: any) { messageApi.error(e?.response?.data?.error || 'Hata'); }
     };
 
     const handleTestEmail = async () => {
@@ -903,6 +974,121 @@ export default function SettingsPage() {
                                                             Test Mesajı Gönder
                                                         </Button>
                                                     </div>
+                                                </Form>
+                                            </div>
+
+                                            {/* e-Fatura Sağlayıcı Card */}
+                                            <div style={{ border: '1px solid #f1f5f9', borderRadius: 16, padding: '20px 22px', background: '#fff' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginBottom: 14 }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                                        <div style={{ width: 42, height: 42, borderRadius: 12, background: 'linear-gradient(135deg, #6366f1, #4338ca)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>
+                                                            <SafetyCertificateOutlined />
+                                                        </div>
+                                                        <div>
+                                                            <div style={{ fontSize: 15, fontWeight: 800, color: '#0f172a' }}>e-Fatura Sağlayıcısı</div>
+                                                            <div style={{ fontSize: 12, color: '#64748b' }}>Foriba / UYUMSOFT / eFinans / Generic Webhook</div>
+                                                        </div>
+                                                    </div>
+                                                    {einvoiceCfg?.enabled ? <Tag color="green">Aktif</Tag> : <Tag>Pasif</Tag>}
+                                                    {einvoiceCfg?.testMode && <Tag color="orange">Test modu</Tag>}
+                                                    {einvoiceCfg?.hasApiKey && <Tag color="blue">API key kayıtlı</Tag>}
+                                                </div>
+                                                <Form form={einvoiceForm} layout="vertical">
+                                                    <Row gutter={12}>
+                                                        <Col xs={24} md={8}>
+                                                            <Form.Item label="Sağlayıcı" name="provider" initialValue="GENERIC">
+                                                                <Select size="large" style={{ borderRadius: 10 }} options={[
+                                                                    { value: 'FORIBA', label: 'Foriba' },
+                                                                    { value: 'UYUMSOFT', label: 'UYUMSOFT' },
+                                                                    { value: 'EFINANS', label: 'eFinans' },
+                                                                    { value: 'IZIBIZ', label: 'İzibiz' },
+                                                                    { value: 'NES', label: 'NES Bilgi' },
+                                                                    { value: 'GENERIC', label: 'Generic Webhook' },
+                                                                ]} />
+                                                            </Form.Item>
+                                                        </Col>
+                                                        <Col xs={24} md={16}>
+                                                            <Form.Item label="Endpoint URL" name="endpoint" rules={[{ required: true }]}>
+                                                                <Input size="large" placeholder="https://entegrator.firma.com/efatura" style={{ borderRadius: 10 }} />
+                                                            </Form.Item>
+                                                        </Col>
+                                                        <Col xs={24} md={12}>
+                                                            <Form.Item label="Kullanıcı" name="username"><Input size="large" style={{ borderRadius: 10 }} /></Form.Item>
+                                                        </Col>
+                                                        <Col xs={24} md={12}>
+                                                            <Form.Item label={<span>API Key {einvoiceCfg?.hasApiKey && <Tag color="green" style={{ marginLeft: 6 }}>kayıtlı</Tag>}</span>} name="apiKey">
+                                                                <Input.Password size="large" placeholder={einvoiceCfg?.hasApiKey ? 'Yenilemek için yeni API key' : 'API key'} style={{ borderRadius: 10 }} />
+                                                            </Form.Item>
+                                                        </Col>
+                                                        <Col xs={12} md={6}>
+                                                            <Form.Item label="Aktif" name="enabled" valuePropName="checked">
+                                                                <Select size="large" options={[{value:true,label:'Açık'},{value:false,label:'Kapalı'}]} />
+                                                            </Form.Item>
+                                                        </Col>
+                                                        <Col xs={12} md={6}>
+                                                            <Form.Item label="Test Modu" name="testMode" valuePropName="checked">
+                                                                <Select size="large" options={[{value:true,label:'Açık'},{value:false,label:'Kapalı'}]} />
+                                                            </Form.Item>
+                                                        </Col>
+                                                    </Row>
+                                                    <Button type="primary" icon={<SaveOutlined />} loading={savingEinvoice} onClick={handleSaveEinvoice}>Kaydet</Button>
+                                                </Form>
+                                            </div>
+
+                                            {/* Banka Sync Card */}
+                                            <div style={{ border: '1px solid #f1f5f9', borderRadius: 16, padding: '20px 22px', background: '#fff' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginBottom: 14 }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                                        <div style={{ width: 42, height: 42, borderRadius: 12, background: 'linear-gradient(135deg, #0ea5e9, #0369a1)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>
+                                                            <BankOutlined />
+                                                        </div>
+                                                        <div>
+                                                            <div style={{ fontSize: 15, fontWeight: 800, color: '#0f172a' }}>Banka Senkronizasyonu</div>
+                                                            <div style={{ fontSize: 12, color: '#64748b' }}>Garanti FinansApi / İşBank / Generic Webhook üzerinden otomatik hareket çekme</div>
+                                                        </div>
+                                                    </div>
+                                                    {bankSyncCfg?.enabled ? <Tag color="green">Aktif</Tag> : <Tag>Pasif</Tag>}
+                                                    {bankSyncCfg?.lastSyncAt && <Tag color="blue">Son sync: {new Date(bankSyncCfg.lastSyncAt).toLocaleString('tr-TR')}</Tag>}
+                                                </div>
+                                                <Form form={bankSyncForm} layout="vertical">
+                                                    <Row gutter={12}>
+                                                        <Col xs={24} md={8}>
+                                                            <Form.Item label="Sağlayıcı" name="provider" initialValue="GENERIC">
+                                                                <Select size="large" style={{ borderRadius: 10 }} options={[
+                                                                    { value: 'GARANTI', label: 'Garanti BBVA' },
+                                                                    { value: 'ISBANK', label: 'İş Bankası' },
+                                                                    { value: 'ZIRAAT', label: 'Ziraat' },
+                                                                    { value: 'YAPIKREDI', label: 'Yapı Kredi' },
+                                                                    { value: 'AKBANK', label: 'Akbank' },
+                                                                    { value: 'GENERIC', label: 'Generic Webhook' },
+                                                                ]} />
+                                                            </Form.Item>
+                                                        </Col>
+                                                        <Col xs={24} md={16}>
+                                                            <Form.Item label="Endpoint URL" name="endpoint">
+                                                                <Input size="large" placeholder="https://entegrator.firma.com/bank-sync" style={{ borderRadius: 10 }} />
+                                                            </Form.Item>
+                                                        </Col>
+                                                        <Col xs={24} md={12}>
+                                                            <Form.Item label="Kasa/Banka Hesap Anahtarı" name="accountKey" initialValue="BANK_DEFAULT">
+                                                                <Input size="large" placeholder="BANK_GARANTI" style={{ borderRadius: 10 }} />
+                                                            </Form.Item>
+                                                        </Col>
+                                                        <Col xs={24} md={12}>
+                                                            <Form.Item label={<span>API Key {bankSyncCfg?.hasApiKey && <Tag color="green" style={{ marginLeft: 6 }}>kayıtlı</Tag>}</span>} name="apiKey">
+                                                                <Input.Password size="large" placeholder={bankSyncCfg?.hasApiKey ? 'Yenilemek için yeni' : 'API key'} style={{ borderRadius: 10 }} />
+                                                            </Form.Item>
+                                                        </Col>
+                                                        <Col xs={12} md={6}>
+                                                            <Form.Item label="Aktif" name="enabled" valuePropName="checked">
+                                                                <Select size="large" options={[{value:true,label:'Açık'},{value:false,label:'Kapalı'}]} />
+                                                            </Form.Item>
+                                                        </Col>
+                                                    </Row>
+                                                    <Space>
+                                                        <Button type="primary" icon={<SaveOutlined />} loading={savingBankSync} onClick={handleSaveBankSync}>Kaydet</Button>
+                                                        <Button icon={<ExperimentOutlined />} onClick={handleRunBankSync} disabled={!bankSyncCfg?.enabled}>Sync Şimdi Çalıştır</Button>
+                                                    </Space>
                                                 </Form>
                                             </div>
 
