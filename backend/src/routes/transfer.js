@@ -2386,7 +2386,9 @@ router.get('/partner/active-bookings', authMiddleware, async (req, res) => {
                     timeDate: b.startDate,
                     note: b.specialRequests,
                     lat: b.metadata?.pickupLat ?? null,
-                    lng: b.metadata?.pickupLng ?? null
+                    lng: b.metadata?.pickupLng ?? null,
+                    zoneCode: b.metadata?.pickupRegionCode || b.metadata?.pickupZoneCode || null,
+                    iata: b.metadata?.pickupIata || b.metadata?.flightIata || null
                 },
                 flightNumber: b.metadata?.flightNumber,
                 flightTime: b.metadata?.flightTime,
@@ -2395,8 +2397,11 @@ router.get('/partner/active-bookings', authMiddleware, async (req, res) => {
                     dist: b.metadata?.distance || null,
                     duration: b.metadata?.duration || null,
                     lat: b.metadata?.dropoffLat ?? null,
-                    lng: b.metadata?.dropoffLng ?? null
+                    lng: b.metadata?.dropoffLng ?? null,
+                    zoneCode: b.metadata?.dropoffRegionCode || b.metadata?.dropoffZoneCode || null,
+                    iata: b.metadata?.dropoffIata || null
                 },
+                agencyName: b.metadata?.partnerName || b.metadata?.agencyName || null,
                 vehicle: {
                     type: b.metadata?.vehicleType || 'Standart',
                     pax: b.adults,
@@ -4326,6 +4331,17 @@ router.patch('/partner/operations/:id/status', authMiddleware, async (req, res) 
         }
         if (status === 'IN_PROGRESS') {
             updateData.status = 'IN_PROGRESS';
+        }
+        if (status === 'PENDING') {
+            updateData.status = 'PENDING';
+            updateData.confirmedBy = null;
+            updateData.confirmedAt = null;
+            updateData.driverId = null;
+            updateData.metadata.operationalStatus = null;
+            updateData.metadata.partnerVehicleId = null;
+            updateData.metadata.partnerVehiclePlate = null;
+            updateData.metadata.partnerVehicleName = null;
+            updateData.metadata.assignedVehicleId = null;
         }
 
         const updated = await prisma.booking.update({

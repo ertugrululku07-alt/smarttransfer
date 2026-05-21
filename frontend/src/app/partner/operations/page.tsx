@@ -29,20 +29,26 @@ import {
   CarOutlined,
   CheckCircleOutlined,
   ClockCircleOutlined,
+  CloudUploadOutlined,
   DeleteOutlined,
   DownloadOutlined,
   EditOutlined,
   EnvironmentOutlined,
   EyeOutlined,
+  FormOutlined,
   HolderOutlined,
   InfoCircleOutlined,
+  LoginOutlined,
+  LogoutOutlined,
   MailOutlined,
   MessageOutlined,
   MoreOutlined,
   PhoneOutlined,
   ReloadOutlined,
+  RollbackOutlined,
   SearchOutlined,
   StopOutlined,
+  SwapOutlined,
   ThunderboltOutlined,
   UserOutlined,
 } from '@ant-design/icons';
@@ -90,8 +96,23 @@ type PartnerBooking = {
   id: string;
   bookingNumber: string;
   customer: { name: string; phone?: string; email?: string; avatar?: string };
-  pickup: { location: string; time: string; timeDate?: string; lat?: number | null; lng?: number | null; note?: string };
-  dropoff: { location: string; lat?: number | null; lng?: number | null };
+  pickup: {
+    location: string;
+    time: string;
+    timeDate?: string;
+    lat?: number | null;
+    lng?: number | null;
+    note?: string;
+    zoneCode?: string | null;
+    iata?: string | null;
+  };
+  dropoff: {
+    location: string;
+    lat?: number | null;
+    lng?: number | null;
+    zoneCode?: string | null;
+    iata?: string | null;
+  };
   vehicle: { type: string; pax?: number; children?: number; infants?: number; luggage?: number };
   assignedVehicle?: Vehicle | null;
   driver?: Driver | null;
@@ -106,6 +127,7 @@ type PartnerBooking = {
   completedAt?: string;
   pickedUpAt?: string | null;
   droppedOffAt?: string | null;
+  agencyName?: string;
 };
 
 type TabKey = 'active' | 'pool' | 'completed';
@@ -152,6 +174,42 @@ const CANCEL_REASONS: { value: string; label: string }[] = [
   { value: 'OTHER', label: 'Diğer' },
 ];
 
+const IATA_REGEX = /\b(AYT|GZP|IST|SAW|ESB|ADB|BJV|DLM|ADA|TZX|ASR|VAS|AOE|EZS|VAN|NAV|ECN|KCO|SZF)\b/i;
+const ZONE_HINTS: Record<string, string> = {
+  alanya: 'ALANYA',
+  manavgat: 'MANAVGAT',
+  side: 'SIDE',
+  kemer: 'KEMER',
+  belek: 'BELEK',
+  konaklı: 'KONAKLI',
+  antalya: 'ANTALYA',
+  kalkan: 'KALKAN',
+  kaş: 'KAS',
+  kas: 'KAS',
+  fethiye: 'FETHIYE',
+  kundu: 'KUNDU',
+  lara: 'LARA',
+  okurcalar: 'OKURCALAR',
+  gazipaşa: 'GZP',
+  gazipasa: 'GZP',
+  havaliman: 'HAVALIMANI',
+};
+
+function extractIataFallback(b: { pickup?: { location?: string }; dropoff?: { location?: string }; flightNumber?: string }) {
+  const t = `${b.pickup?.location || ''} ${b.dropoff?.location || ''} ${b.flightNumber || ''}`;
+  const m = IATA_REGEX.exec(t);
+  return m ? m[1] : null;
+}
+
+function extractZoneFallback(location?: string) {
+  if (!location) return null;
+  const l = location.toLocaleLowerCase('tr');
+  for (const key of Object.keys(ZONE_HINTS)) {
+    if (l.includes(key)) return ZONE_HINTS[key];
+  }
+  return null;
+}
+
 function routeDirection(pickup?: string, dropoff?: string) {
   const p = String(pickup || '').toLocaleLowerCase('tr');
   const d = String(dropoff || '').toLocaleLowerCase('tr');
@@ -172,6 +230,157 @@ function openMaps(b: PartnerBooking) {
 function formatPickupTime(value?: string) {
   if (!value) return '-';
   return value;
+}
+
+function RowActions({
+  row,
+  tab,
+  actionLoading,
+  onDetail,
+  onEdit,
+  onCall,
+  onComplete,
+  onCancel,
+  onPool,
+  onUnconfirm,
+  onInOperation,
+  onPickedUp,
+  onOnWay,
+  onUetds,
+  onMessage,
+  onNote,
+}: {
+  row: PartnerBooking;
+  tab: TabKey;
+  actionLoading: string | null;
+  onDetail: () => void;
+  onEdit: () => void;
+  onCall: () => void;
+  onComplete: () => void;
+  onCancel: () => void;
+  onPool: () => void;
+  onUnconfirm: () => void;
+  onInOperation: () => void;
+  onPickedUp: () => void;
+  onOnWay: () => void;
+  onUetds: () => void;
+  onMessage: () => void;
+  onNote: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  if (tab === 'completed') {
+    return (
+      <Space size={4}>
+        <Tooltip title="Detay">
+          <Button size="small" icon={<EyeOutlined />} onClick={onDetail} />
+        </Tooltip>
+        <Tooltip title="Müşteriyi ara">
+          <Button size="small" icon={<PhoneOutlined />} disabled={!row.customer?.phone} onClick={onCall} />
+        </Tooltip>
+        <Tooltip title="UETDS'ye Gönder">
+          <Button size="small" icon={<CloudUploadOutlined />} onClick={onUetds} />
+        </Tooltip>
+      </Space>
+    );
+  }
+
+  const items = [
+    { key: 'detail', icon: <EyeOutlined />, label: 'Detay Görüntüle' },
+    { key: 'edit', icon: <FormOutlined />, label: 'Rezervasyonu Düzenle' },
+    { type: 'divider' as const },
+    { key: 'inop', icon: <ThunderboltOutlined style={{ color: '#6366f1' }} />, label: 'Operasyona Al' },
+    { key: 'picked', icon: <CheckCircleOutlined style={{ color: '#10b981' }} />, label: 'Yolcu Alındı' },
+    { key: 'onway', icon: <CarOutlined style={{ color: '#3b82f6' }} />, label: 'Yolda' },
+    { key: 'complete', icon: <CheckCircleOutlined style={{ color: '#16a34a' }} />, label: 'Tamamla' },
+    { type: 'divider' as const },
+    { key: 'note', icon: <EditOutlined />, label: 'Operasyon Notu' },
+    { key: 'pool', icon: <SwapOutlined />, label: 'Havuza Gönder' },
+    { key: 'unconfirm', icon: <RollbackOutlined />, label: 'Geri Al (Rezervasyona)' },
+    { type: 'divider' as const },
+    { key: 'uetds', icon: <CloudUploadOutlined style={{ color: '#f59e0b' }} />, label: "UETDS'ye Gönder" },
+    {
+      key: 'message',
+      icon: <MessageOutlined style={{ color: '#6366f1' }} />,
+      label: 'Mesaj Gönder',
+      disabled: !row.driver?.id,
+    },
+    { type: 'divider' as const },
+    { key: 'cancel', icon: <StopOutlined />, danger: true, label: 'İptal Et' },
+  ];
+
+  const handleMenu = ({ key }: { key: string }) => {
+    setOpen(false);
+    switch (key) {
+      case 'detail':
+        onDetail();
+        break;
+      case 'edit':
+        onEdit();
+        break;
+      case 'inop':
+        onInOperation();
+        break;
+      case 'picked':
+        onPickedUp();
+        break;
+      case 'onway':
+        onOnWay();
+        break;
+      case 'complete':
+        onComplete();
+        break;
+      case 'note':
+        onNote();
+        break;
+      case 'pool':
+        onPool();
+        break;
+      case 'unconfirm':
+        onUnconfirm();
+        break;
+      case 'uetds':
+        onUetds();
+        break;
+      case 'message':
+        onMessage();
+        break;
+      case 'cancel':
+        onCancel();
+        break;
+    }
+  };
+
+  return (
+    <Space size={4} onClick={(e) => e.stopPropagation()}>
+      <Tooltip title="Detay">
+        <Button size="small" icon={<EyeOutlined />} onClick={onDetail} />
+      </Tooltip>
+      <Tooltip title="Tamamla">
+        <Button
+          size="small"
+          type="primary"
+          icon={<CheckCircleOutlined />}
+          loading={actionLoading === `${row.id}:status:COMPLETED`}
+          onClick={onComplete}
+        />
+      </Tooltip>
+      <Tooltip title="Müşteriyi ara">
+        <Button size="small" icon={<PhoneOutlined />} disabled={!row.customer?.phone} onClick={onCall} />
+      </Tooltip>
+      <Dropdown
+        menu={{ items, onClick: handleMenu }}
+        trigger={['click']}
+        open={open}
+        onOpenChange={setOpen}
+        placement="bottomRight"
+        getPopupContainer={() => document.body}
+        destroyPopupOnHide
+      >
+        <Button size="small" icon={<MoreOutlined />} />
+      </Dropdown>
+    </Space>
+  );
 }
 
 function SortableRow({
@@ -240,6 +449,22 @@ export default function PartnerOperationsPage() {
   const [detailRow, setDetailRow] = useState<PartnerBooking | null>(null);
   const [cancelModal, setCancelModal] = useState<{ row: PartnerBooking; reason: string; note: string } | null>(null);
   const [editNoteRow, setEditNoteRow] = useState<{ row: PartnerBooking; value: string } | null>(null);
+  const [messageModal, setMessageModal] = useState<{ row: PartnerBooking; text: string } | null>(null);
+  const [uetdsModal, setUetdsModal] = useState<{
+    row: PartnerBooking;
+    vehiclePlate: string;
+    driverTc: string;
+    driverFirstName: string;
+    driverLastName: string;
+    driverPhone: string;
+    passengerTc: string;
+    passengerFirstName: string;
+    passengerLastName: string;
+    baslangicIl: string;
+    bitisIl: string;
+    baslangicIlce: string;
+    bitisIlce: string;
+  } | null>(null);
 
   const [newPresetName, setNewPresetName] = useState('');
   const [filterPresets, setFilterPresets] = useState<FilterPreset[]>([]);
@@ -248,11 +473,16 @@ export default function PartnerOperationsPage() {
     { key: 'index', title: '#', visible: true },
     { key: 'bookingNumber', title: 'T.KOD', visible: true },
     { key: 'direction', title: 'YÖN', visible: true },
+    { key: 'agency', title: 'ACENTE', visible: true },
     { key: 'customer', title: 'AD SOYAD', visible: true },
     { key: 'pickupTime', title: 'TRF. SAATİ', visible: true },
-    { key: 'pickupLocation', title: 'ALIŞ', visible: true },
-    { key: 'dropoffLocation', title: 'VARIŞ', visible: true },
+    { key: 'flightTime', title: 'UÇUŞ SAATİ', visible: false },
+    { key: 'pickupZone', title: 'A.BÖLGE', visible: true },
+    { key: 'dropoffZone', title: 'V.BÖLGE', visible: true },
+    { key: 'pickupLocation', title: 'ALIŞ NOKTASI', visible: false },
+    { key: 'dropoffLocation', title: 'VARIŞ NOKTASI', visible: false },
     { key: 'pax', title: 'PAX', visible: true },
+    { key: 'iata', title: 'IATA', visible: true },
     { key: 'vehicleType', title: 'ARAÇ TİPİ', visible: true },
     { key: 'driverInline', title: 'ŞOFÖR', visible: true },
     { key: 'vehicleInline', title: 'ARAÇ', visible: true },
@@ -584,6 +814,136 @@ export default function PartnerOperationsPage() {
     }
   };
 
+  const sendToPool = async (row: PartnerBooking) => {
+    setActionLoading(`${row.id}:pool`);
+    try {
+      const res = await apiClient.patch(`/api/transfer/partner/operations/${row.id}/status`, {
+        operationalStatus: 'POOL',
+      });
+      if (res.data?.success) {
+        message.success('Havuza gönderildi');
+        await load();
+      }
+    } catch (e: any) {
+      message.error(e?.response?.data?.error || 'Havuza gönderilemedi');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const sendBackToReservation = async (row: PartnerBooking) => {
+    Modal.confirm({
+      title: 'Rezervasyona geri al?',
+      content:
+        'Bu rezervasyon onaylı listenizden kalkacak, şoför ataması temizlenecek ve tekrar pazar yerine düşecek. Devam edilsin mi?',
+      okText: 'Evet, geri al',
+      cancelText: 'Vazgeç',
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        setActionLoading(`${row.id}:unconfirm`);
+        try {
+          const res = await apiClient.patch(`/api/transfer/partner/operations/${row.id}/status`, {
+            status: 'PENDING',
+          });
+          if (res.data?.success) {
+            message.success('Rezervasyona geri alındı');
+            await load();
+          }
+        } catch (e: any) {
+          message.error(e?.response?.data?.error || 'İşlem başarısız');
+        } finally {
+          setActionLoading(null);
+        }
+      },
+    });
+  };
+
+  const submitMessage = async () => {
+    if (!messageModal) return;
+    if (!messageModal.row.driver?.id) {
+      message.warning('Bu rezervasyona henüz şoför atanmamış');
+      return;
+    }
+    if (!messageModal.text.trim()) {
+      message.warning('Mesaj boş olamaz');
+      return;
+    }
+    setActionLoading(`${messageModal.row.id}:msg`);
+    try {
+      const res = await apiClient.post('/api/messages', {
+        receiverId: messageModal.row.driver.id,
+        bookingId: messageModal.row.id,
+        content: messageModal.text.trim(),
+        format: 'TEXT',
+      });
+      if (res.data?.success) {
+        message.success('Mesaj gönderildi');
+        setMessageModal(null);
+      }
+    } catch (e: any) {
+      message.error(e?.response?.data?.error || 'Mesaj gönderilemedi');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const submitUetds = async () => {
+    if (!uetdsModal) return;
+    const m = uetdsModal;
+    if (!m.vehiclePlate || !m.driverTc || !m.driverFirstName || !m.driverLastName || !m.passengerTc || !m.passengerFirstName || !m.passengerLastName) {
+      message.warning('Lütfen zorunlu alanları doldurun');
+      return;
+    }
+    setActionLoading(`${m.row.id}:uetds`);
+    try {
+      const res = await apiClient.post('/api/transfer/partner/uetds-submit', {
+        bookingId: m.row.id,
+        vehiclePlate: m.vehiclePlate.toUpperCase().replace(/\s+/g, ''),
+        driverTc: m.driverTc,
+        driverFirstName: m.driverFirstName,
+        driverLastName: m.driverLastName,
+        driverPhone: m.driverPhone,
+        passengerTc: m.passengerTc,
+        passengerFirstName: m.passengerFirstName,
+        passengerLastName: m.passengerLastName,
+        baslangicIl: m.baslangicIl,
+        baslangicIlce: m.baslangicIlce,
+        bitisIl: m.bitisIl,
+        bitisIlce: m.bitisIlce,
+      });
+      if (res.data?.success) {
+        message.success('UETDS bildirimi gönderildi. Sefer ID: ' + (res.data.data?.uetdsSeferId || ''));
+        setUetdsModal(null);
+        await load();
+      } else {
+        message.error(res.data?.error || 'UETDS gönderimi başarısız');
+      }
+    } catch (e: any) {
+      message.error(e?.response?.data?.error || 'UETDS gönderilemedi');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const openUetdsModal = (row: PartnerBooking) => {
+    const nameParts = (row.customer?.name || '').split(' ');
+    setUetdsModal({
+      row,
+      vehiclePlate: row.assignedVehicle?.plate || '',
+      driverTc: '',
+      driverFirstName: row.driver?.name?.split(' ')[0] || '',
+      driverLastName: row.driver?.name?.split(' ').slice(1).join(' ') || '',
+      driverPhone: row.driver?.phone || '',
+      passengerTc: '',
+      passengerFirstName: nameParts[0] || '',
+      passengerLastName: nameParts.slice(1).join(' ') || '',
+      baslangicIl: 'Antalya',
+      baslangicIlce: '',
+      bitisIl: 'Antalya',
+      bitisIlce: '',
+    });
+  };
+
   // ──────────────────────────────────────────────────────────
   // COLUMNS
   // ──────────────────────────────────────────────────────────
@@ -616,11 +976,93 @@ export default function PartnerOperationsPage() {
     direction: {
       key: 'direction',
       title: 'YÖN',
-      width: 80,
+      width: 90,
       render: (_: any, r: PartnerBooking) => {
         const dir = routeDirection(r.pickup?.location, r.dropoff?.location);
-        const color = dir === 'GELİŞ' ? 'green' : dir === 'GİDİŞ' ? 'blue' : 'default';
-        return <Tag color={color}>{dir}</Tag>;
+        if (dir === 'GELİŞ') {
+          return (
+            <Tag
+              icon={<LoginOutlined />}
+              color="green"
+              style={{ fontWeight: 700, padding: '2px 8px', borderRadius: 12 }}
+            >
+              GELİŞ
+            </Tag>
+          );
+        }
+        if (dir === 'GİDİŞ') {
+          return (
+            <Tag
+              icon={<LogoutOutlined />}
+              color="orange"
+              style={{ fontWeight: 700, padding: '2px 8px', borderRadius: 12 }}
+            >
+              GİDİŞ
+            </Tag>
+          );
+        }
+        return (
+          <Tag icon={<SwapOutlined />} color="default" style={{ fontWeight: 700, padding: '2px 8px', borderRadius: 12 }}>
+            ARA
+          </Tag>
+        );
+      },
+    },
+    agency: {
+      key: 'agency',
+      title: 'ACENTE',
+      width: 140,
+      render: (_: any, r: PartnerBooking) => (
+        <span style={{ fontWeight: 600, color: '#1e293b' }}>{r.agencyName || 'Direkt'}</span>
+      ),
+    },
+    flightTime: {
+      key: 'flightTime',
+      title: 'UÇUŞ SAATİ',
+      width: 120,
+      render: (_: any, r: PartnerBooking) =>
+        r.flightTime ? (
+          <span style={{ color: '#1e293b' }}>
+            <ClockCircleOutlined style={{ marginRight: 4, color: '#94a3b8' }} />
+            {r.flightTime}
+          </span>
+        ) : (
+          <span style={{ color: '#cbd5e1' }}>—</span>
+        ),
+    },
+    pickupZone: {
+      key: 'pickupZone',
+      title: 'A.BÖLGE',
+      width: 120,
+      render: (_: any, r: PartnerBooking) => {
+        const code = r.pickup?.zoneCode || extractZoneFallback(r.pickup?.location);
+        return code ? (
+          <Tag color="cyan" style={{ fontWeight: 700, letterSpacing: 0.5 }}>{String(code).toUpperCase()}</Tag>
+        ) : (
+          <span style={{ color: '#cbd5e1' }}>—</span>
+        );
+      },
+    },
+    dropoffZone: {
+      key: 'dropoffZone',
+      title: 'V.BÖLGE',
+      width: 120,
+      render: (_: any, r: PartnerBooking) => {
+        const code = r.dropoff?.zoneCode || extractZoneFallback(r.dropoff?.location);
+        return code ? (
+          <Tag color="purple" style={{ fontWeight: 700, letterSpacing: 0.5 }}>{String(code).toUpperCase()}</Tag>
+        ) : (
+          <span style={{ color: '#cbd5e1' }}>—</span>
+        );
+      },
+    },
+    iata: {
+      key: 'iata',
+      title: 'IATA',
+      width: 80,
+      render: (_: any, r: PartnerBooking) => {
+        const iata = r.pickup?.iata || r.dropoff?.iata || extractIataFallback(r);
+        return iata ? <Tag color="blue" style={{ fontWeight: 700 }}>{String(iata).toUpperCase()}</Tag> : <span style={{ color: '#cbd5e1' }}>—</span>;
       },
     },
     customer: {
@@ -826,93 +1268,33 @@ export default function PartnerOperationsPage() {
       key: 'actions',
       title: 'İŞLEMLER',
       fixed: 'right',
-      width: 200,
-      render: (_: any, r: PartnerBooking) => {
-        if (tab === 'completed') {
-          return (
-            <Space size={4}>
-              <Tooltip title="Detay">
-                <Button
-                  size="small"
-                  icon={<EyeOutlined />}
-                  onClick={() => {
-                    setDetailRow(r);
-                    setIsDetailDrawerOpen(true);
-                  }}
-                />
-              </Tooltip>
-              <Tooltip title="Müşteriyi ara">
-                <Button
-                  size="small"
-                  icon={<PhoneOutlined />}
-                  disabled={!r.customer?.phone}
-                  onClick={() => window.open(`tel:${r.customer?.phone || ''}`)}
-                />
-              </Tooltip>
-            </Space>
-          );
-        }
-        const items = [
-          { key: 'op_inop', icon: <ThunderboltOutlined />, label: 'Operasyona Al' },
-          { key: 'op_picked', icon: <CheckCircleOutlined />, label: 'Yolcu Alındı' },
-          { key: 'op_onway', icon: <CarOutlined />, label: 'Yolda' },
-          { key: 'op_complete', icon: <CheckCircleOutlined />, label: 'Tamamla' },
-          { type: 'divider' as const },
-          { key: 'op_cancel', icon: <StopOutlined />, danger: true, label: 'İptal Et (nedenle)' },
-        ];
-        return (
-          <Space size={4}>
-            <Tooltip title="Detay">
-              <Button
-                size="small"
-                icon={<EyeOutlined />}
-                onClick={() => {
-                  setDetailRow(r);
-                  setIsDetailDrawerOpen(true);
-                }}
-              />
-            </Tooltip>
-            <Tooltip title="Tamamla">
-              <Button
-                size="small"
-                type="primary"
-                icon={<CheckCircleOutlined />}
-                loading={actionLoading === `${r.id}:status:COMPLETED`}
-                onClick={() => transitionStatus(r, 'COMPLETED')}
-              />
-            </Tooltip>
-            <Tooltip title="Müşteriyi ara">
-              <Button
-                size="small"
-                icon={<PhoneOutlined />}
-                disabled={!r.customer?.phone}
-                onClick={() => window.open(`tel:${r.customer?.phone || ''}`)}
-              />
-            </Tooltip>
-            <Dropdown
-              menu={{
-                items,
-                onClick: ({ key }) => {
-                  if (key === 'op_cancel') {
-                    setCancelModal({ row: r, reason: '', note: '' });
-                  } else if (key === 'op_inop') {
-                    transitionStatus(r, 'IN_OPERATION');
-                  } else if (key === 'op_picked') {
-                    transitionStatus(r, 'PASSENGER_PICKED_UP');
-                  } else if (key === 'op_onway') {
-                    transitionStatus(r, 'ON_THE_WAY');
-                  } else if (key === 'op_complete') {
-                    transitionStatus(r, 'COMPLETED');
-                  }
-                },
-              }}
-              placement="bottomRight"
-            >
-              <Button size="small" icon={<MoreOutlined />} />
-            </Dropdown>
-          </Space>
-        );
-      },
+      width: 170,
+      render: (_: any, r: PartnerBooking) => (
+        <RowActions
+          row={r}
+          tab={tab}
+          actionLoading={actionLoading}
+          onDetail={() => {
+            setDetailRow(r);
+            setIsDetailDrawerOpen(true);
+          }}
+          onEdit={() => {
+            setDetailRow(r);
+            setIsDetailDrawerOpen(true);
+          }}
+          onCall={() => window.open(`tel:${r.customer?.phone || ''}`)}
+          onComplete={() => transitionStatus(r, 'COMPLETED')}
+          onCancel={() => setCancelModal({ row: r, reason: '', note: '' })}
+          onPool={() => sendToPool(r)}
+          onUnconfirm={() => sendBackToReservation(r)}
+          onInOperation={() => transitionStatus(r, 'IN_OPERATION')}
+          onPickedUp={() => transitionStatus(r, 'PASSENGER_PICKED_UP')}
+          onOnWay={() => transitionStatus(r, 'ON_THE_WAY')}
+          onUetds={() => openUetdsModal(r)}
+          onMessage={() => setMessageModal({ row: r, text: '' })}
+          onNote={() => setEditNoteRow({ row: r, value: r.internalNotes || '' })}
+        />
+      ),
     },
   };
 
@@ -957,40 +1339,64 @@ export default function PartnerOperationsPage() {
       </div>
 
       <div className="ps-card" style={{ padding: 12, marginBottom: 10 }}>
-        <Space wrap>
-          <Segmented
-            value={tab}
-            onChange={(v) => setTab(v as TabKey)}
-            options={[
-              { label: 'Özel Transferler', value: 'active' },
-              { label: 'Havuz', value: 'pool' },
-              { label: 'Tamamlanan', value: 'completed' },
-            ]}
-          />
-          <Select
-            value={statusFilter}
-            style={{ width: 180 }}
-            onChange={(v) => setStatusFilter(v)}
-            options={[
-              { value: 'all', label: 'Tüm Durumlar' },
-              { value: 'CONFIRMED', label: 'Onaylandı' },
-              { value: 'DRIVER_ASSIGNED', label: 'Şoför Atandı' },
-              { value: 'IN_OPERATION', label: 'Operasyonda' },
-              { value: 'PASSENGER_PICKED_UP', label: 'Yolcu Alındı' },
-              { value: 'ON_THE_WAY', label: 'Yolda' },
-            ]}
-          />
-          <Select
-            value={directionFilter}
-            style={{ width: 140 }}
-            onChange={(v) => setDirectionFilter(v)}
-            options={[
-              { value: 'all', label: 'Tüm Yönler' },
-              { value: 'GELİŞ', label: 'Geliş' },
-              { value: 'GİDİŞ', label: 'Gidiş' },
-              { value: 'ARA', label: 'Ara' },
-            ]}
-          />
+        <Space wrap style={{ width: '100%', justifyContent: 'space-between' }}>
+          <Space wrap>
+            <Segmented
+              value={tab}
+              onChange={(v) => setTab(v as TabKey)}
+              options={[
+                { label: `Özel (${active.filter((b) => b.operationalStatus !== 'POOL' && b.operationalStatus !== 'IN_POOL').length})`, value: 'active' },
+                { label: `Havuz (${active.filter((b) => b.operationalStatus === 'POOL' || b.operationalStatus === 'IN_POOL').length})`, value: 'pool' },
+                { label: `Tamamlanan (${completed.length})`, value: 'completed' },
+              ]}
+            />
+            <Select
+              value={statusFilter}
+              style={{ width: 180 }}
+              onChange={(v) => setStatusFilter(v)}
+              options={[
+                { value: 'all', label: 'Tüm Durumlar' },
+                { value: 'CONFIRMED', label: 'Onaylandı' },
+                { value: 'DRIVER_ASSIGNED', label: 'Şoför Atandı' },
+                { value: 'IN_OPERATION', label: 'Operasyonda' },
+                { value: 'PASSENGER_PICKED_UP', label: 'Yolcu Alındı' },
+                { value: 'ON_THE_WAY', label: 'Yolda' },
+              ]}
+            />
+          </Space>
+          <Space wrap>
+            <Button
+              type={directionFilter === 'all' ? 'primary' : 'default'}
+              size="small"
+              onClick={() => setDirectionFilter('all')}
+            >
+              HEPSİ
+            </Button>
+            <Button
+              type={directionFilter === 'GELİŞ' ? 'primary' : 'default'}
+              size="small"
+              icon={<LoginOutlined />}
+              onClick={() => setDirectionFilter('GELİŞ')}
+            >
+              GELİŞ
+            </Button>
+            <Button
+              type={directionFilter === 'GİDİŞ' ? 'primary' : 'default'}
+              size="small"
+              icon={<LogoutOutlined />}
+              onClick={() => setDirectionFilter('GİDİŞ')}
+            >
+              GİDİŞ
+            </Button>
+            <Button
+              type={directionFilter === 'ARA' ? 'primary' : 'default'}
+              size="small"
+              icon={<SwapOutlined />}
+              onClick={() => setDirectionFilter('ARA')}
+            >
+              ARA
+            </Button>
+          </Space>
         </Space>
       </div>
 
@@ -1386,6 +1792,128 @@ export default function PartnerOperationsPage() {
             value={editNoteRow.value}
             onChange={(e) => setEditNoteRow({ ...editNoteRow, value: e.target.value })}
           />
+        )}
+      </Modal>
+
+      {/* MESSAGE MODAL */}
+      <Modal
+        title={
+          messageModal?.row.driver
+            ? `Mesaj Gönder · ${messageModal.row.driver.name}`
+            : 'Mesaj Gönder'
+        }
+        open={!!messageModal}
+        onCancel={() => setMessageModal(null)}
+        onOk={submitMessage}
+        confirmLoading={!!messageModal && actionLoading === `${messageModal.row.id}:msg`}
+        okText="Gönder"
+        cancelText="Vazgeç"
+      >
+        {messageModal && (
+          <Space direction="vertical" style={{ width: '100%' }} size={10}>
+            {!messageModal.row.driver?.id && (
+              <div className="ps-alert" style={{ padding: 10, color: '#92400e' }}>
+                <InfoCircleOutlined style={{ marginRight: 6 }} />
+                Bu rezervasyona henüz şoför atanmamış. Önce şoför atayın.
+              </div>
+            )}
+            <div style={{ fontSize: 12, color: '#64748b' }}>
+              Rezervasyon: <b>{messageModal.row.bookingNumber}</b>
+            </div>
+            <Input.TextArea
+              rows={4}
+              placeholder="Şoföre iletilecek mesaj"
+              value={messageModal.text}
+              onChange={(e) => setMessageModal({ ...messageModal, text: e.target.value })}
+            />
+          </Space>
+        )}
+      </Modal>
+
+      {/* UETDS MODAL */}
+      <Modal
+        title="UETDS'ye Gönder"
+        open={!!uetdsModal}
+        onCancel={() => setUetdsModal(null)}
+        onOk={submitUetds}
+        confirmLoading={!!uetdsModal && actionLoading === `${uetdsModal.row.id}:uetds`}
+        okText="Gönder"
+        cancelText="Vazgeç"
+        width={680}
+      >
+        {uetdsModal && (
+          <Space direction="vertical" style={{ width: '100%' }} size={12}>
+            <div style={{ fontSize: 12, color: '#64748b' }}>
+              Rezervasyon: <b>{uetdsModal.row.bookingNumber}</b> · {uetdsModal.row.customer?.name}
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
+              <Input
+                placeholder="Araç Plakası (zorunlu)"
+                value={uetdsModal.vehiclePlate}
+                onChange={(e) => setUetdsModal({ ...uetdsModal, vehiclePlate: e.target.value })}
+              />
+              <Input
+                placeholder="Şoför TC No (zorunlu)"
+                value={uetdsModal.driverTc}
+                onChange={(e) => setUetdsModal({ ...uetdsModal, driverTc: e.target.value })}
+              />
+              <Input
+                placeholder="Şoför Adı"
+                value={uetdsModal.driverFirstName}
+                onChange={(e) => setUetdsModal({ ...uetdsModal, driverFirstName: e.target.value })}
+              />
+              <Input
+                placeholder="Şoför Soyadı"
+                value={uetdsModal.driverLastName}
+                onChange={(e) => setUetdsModal({ ...uetdsModal, driverLastName: e.target.value })}
+              />
+              <Input
+                placeholder="Şoför Telefon"
+                value={uetdsModal.driverPhone}
+                onChange={(e) => setUetdsModal({ ...uetdsModal, driverPhone: e.target.value })}
+              />
+              <Input
+                placeholder="Yolcu TC No (zorunlu)"
+                value={uetdsModal.passengerTc}
+                onChange={(e) => setUetdsModal({ ...uetdsModal, passengerTc: e.target.value })}
+              />
+              <Input
+                placeholder="Yolcu Adı"
+                value={uetdsModal.passengerFirstName}
+                onChange={(e) => setUetdsModal({ ...uetdsModal, passengerFirstName: e.target.value })}
+              />
+              <Input
+                placeholder="Yolcu Soyadı"
+                value={uetdsModal.passengerLastName}
+                onChange={(e) => setUetdsModal({ ...uetdsModal, passengerLastName: e.target.value })}
+              />
+              <Input
+                placeholder="Başlangıç İl"
+                value={uetdsModal.baslangicIl}
+                onChange={(e) => setUetdsModal({ ...uetdsModal, baslangicIl: e.target.value })}
+              />
+              <Input
+                placeholder="Başlangıç İlçe"
+                value={uetdsModal.baslangicIlce}
+                onChange={(e) => setUetdsModal({ ...uetdsModal, baslangicIlce: e.target.value })}
+              />
+              <Input
+                placeholder="Bitiş İl"
+                value={uetdsModal.bitisIl}
+                onChange={(e) => setUetdsModal({ ...uetdsModal, bitisIl: e.target.value })}
+              />
+              <Input
+                placeholder="Bitiş İlçe"
+                value={uetdsModal.bitisIlce}
+                onChange={(e) => setUetdsModal({ ...uetdsModal, bitisIlce: e.target.value })}
+              />
+            </div>
+            <div className="ps-alert" style={{ padding: 10, color: '#92400e', fontSize: 12 }}>
+              <InfoCircleOutlined style={{ marginRight: 6 }} />
+              UETDS gönderimi için partner profilinizde UNet kullanıcı bilgisi tanımlı olmalıdır
+              (UETDS sayfasından). Yetki Belge No’nuz yönetici tarafından girilmiş olmalıdır.
+            </div>
+          </Space>
         )}
       </Modal>
     </div>
