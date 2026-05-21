@@ -120,6 +120,10 @@ app.use('/api/dashboard', tenantMiddleware, dashboardRoutes);
 // Transfer module routes
 app.use('/api/transfer', tenantMiddleware, transferRoutes);
 
+// Partner accounting (multi-tenant, partner-isolated)
+const partnerAccountingRoutes = require('./src/routes/partner-accounting');
+app.use('/api/partner-accounting', tenantMiddleware, partnerAccountingRoutes);
+
 // Campaigns & Loyalty routes
 const campaignRoutes = require('./src/routes/campaigns');
 app.use('/api/campaigns', tenantMiddleware, campaignRoutes);
