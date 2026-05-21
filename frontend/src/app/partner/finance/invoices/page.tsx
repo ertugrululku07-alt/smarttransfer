@@ -7,9 +7,10 @@ import {
 import {
   PlusOutlined, EditOutlined, DeleteOutlined, FileTextOutlined, CheckCircleOutlined,
   DollarOutlined, SendOutlined, CloseCircleOutlined, PrinterOutlined, MailOutlined,
-  WhatsAppOutlined, DownloadOutlined, LinkOutlined,
+  WhatsAppOutlined, DownloadOutlined, LinkOutlined, FileExcelOutlined,
 } from '@ant-design/icons';
 import { API_URL } from '@/lib/config';
+import { exportResourceXlsx } from '../exportHelper';
 import dayjs from 'dayjs';
 import apiClient from '@/lib/api-client';
 
@@ -297,6 +298,7 @@ export default function InvoicesPage() {
             <Select placeholder="Tip" allowClear style={{ width: 150 }} value={typeFilter} onChange={(v)=>{ setTypeFilter(v); setTimeout(load, 0); }} options={TYPES} />
             <Select placeholder="Durum" allowClear style={{ width: 140 }} value={statusFilter} onChange={(v)=>{ setStatusFilter(v); setTimeout(load, 0); }} options={Object.keys(STATUS_LABELS).map(k=>({ value: k, label: STATUS_LABELS[k] }))} />
             <Button icon={<DownloadOutlined />} onClick={exportCsv}>CSV</Button>
+            <Button icon={<FileExcelOutlined style={{ color: '#16a34a' }} />} onClick={() => exportResourceXlsx('invoices', 'faturalar')}>Excel</Button>
             <Button icon={<LinkOutlined />} onClick={openFromBooking}>Rezervasyondan Oluştur</Button>
             <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>Yeni Fatura</Button>
           </Space>

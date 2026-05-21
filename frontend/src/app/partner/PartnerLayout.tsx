@@ -58,6 +58,7 @@ const NAV_ITEMS: Omit<NavItem, 'badge'>[] = [
   { key: 'fin-emp',      label: 'Personel',          icon: <WalletOutlined />,          path: '/partner/finance/employees',          section: 'finance' },
   { key: 'fin-payroll',  label: 'Hakediş & Maaş',    icon: <WalletOutlined />,          path: '/partner/finance/payroll',            section: 'finance' },
   { key: 'fin-leaves',   label: 'İzinler',           icon: <WalletOutlined />,          path: '/partner/finance/leaves',             section: 'finance' },
+  { key: 'fin-reports',  label: 'Raporlar',          icon: <WalletOutlined />,          path: '/partner/finance/reports',            section: 'finance' },
   { key: 'earnings',     label: 'Kazancım',          icon: <DollarOutlined />,          path: '/partner/earnings',                   section: 'finance' },
   { key: 'settings',     label: 'Ayarlar',           icon: <SettingOutlined />,         path: '/partner/settings',                   section: 'system'  },
 ];

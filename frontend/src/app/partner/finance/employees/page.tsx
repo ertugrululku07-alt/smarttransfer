@@ -2,10 +2,10 @@
 
 import React, { useEffect, useState } from 'react';
 import { Button, Card, DatePicker, Form, Input, InputNumber, Modal, Select, Space, Table, Tag, message } from 'antd';
-import { TeamOutlined, EditOutlined, DeleteOutlined, PlusOutlined, DownloadOutlined } from '@ant-design/icons';
+import { TeamOutlined, EditOutlined, DeleteOutlined, PlusOutlined, DownloadOutlined, FileExcelOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import apiClient from '@/lib/api-client';
-import { exportResource } from '../exportHelper';
+import { exportResource, exportResourceXlsx } from '../exportHelper';
 
 const JOB_TITLES = [
   { value: 'DRIVER', label: 'Şoför' },
@@ -106,6 +106,7 @@ export default function EmployeesPage() {
             <Input.Search placeholder="Ara" allowClear value={search} onChange={(e)=>setSearch(e.target.value)} onSearch={load} style={{ width: 180 }} />
             <Select placeholder="Tüm durumlar" allowClear style={{ width: 140 }} value={status} onChange={(v)=>{ setStatus(v); setTimeout(load, 0); }} options={Object.keys(STATUS_LABELS).map(k=>({value:k,label:STATUS_LABELS[k]}))} />
             <Button icon={<DownloadOutlined />} onClick={() => exportResource('employees', 'personel')}>CSV</Button>
+            <Button icon={<FileExcelOutlined style={{ color: '#16a34a' }} />} onClick={() => exportResourceXlsx('employees', 'personel')}>Excel</Button>
             <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>Yeni Personel</Button>
           </Space>
         }

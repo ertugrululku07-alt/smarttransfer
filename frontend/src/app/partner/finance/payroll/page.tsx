@@ -2,10 +2,10 @@
 
 import React, { useEffect, useState } from 'react';
 import { Button, Card, DatePicker, Form, Input, InputNumber, Modal, Select, Space, Table, Tag, message } from 'antd';
-import { UserOutlined, CheckCircleOutlined, PlusOutlined, DeleteOutlined, DownloadOutlined } from '@ant-design/icons';
+import { UserOutlined, CheckCircleOutlined, PlusOutlined, DeleteOutlined, DownloadOutlined, FileExcelOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import apiClient from '@/lib/api-client';
-import { exportResource } from '../exportHelper';
+import { exportResource, exportResourceXlsx } from '../exportHelper';
 
 const TYPES = [
   { value: 'SALARY', label: 'Maaş' },
@@ -106,6 +106,7 @@ export default function PayrollPage() {
             <Select placeholder="Tüm türler" allowClear style={{ width: 140 }} value={type} onChange={(v)=>{ setType(v); setTimeout(load, 0); }} options={TYPES} />
             <Select placeholder="Ödeme" allowClear style={{ width: 130 }} value={paid} onChange={(v)=>{ setPaid(v); setTimeout(load, 0); }} options={[{value:'true',label:'Ödendi'},{value:'false',label:'Bekliyor'}]} />
             <Button icon={<DownloadOutlined />} onClick={() => exportResource('payroll', 'hakedis-maas')}>CSV</Button>
+            <Button icon={<FileExcelOutlined style={{ color: '#16a34a' }} />} onClick={() => exportResourceXlsx('payroll', 'hakedis-maas')}>Excel</Button>
             <Button type="primary" icon={<PlusOutlined />} onClick={() => { form.resetFields(); form.setFieldsValue({ type: 'SALARY', date: dayjs(), periodYear: dayjs().year(), periodMonth: dayjs().month()+1 }); setModalOpen(true); }}>Yeni Bordro</Button>
           </Space>
         }

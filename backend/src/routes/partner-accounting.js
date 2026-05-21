@@ -2032,4 +2032,630 @@ router.get('/exports/:resource', authMiddleware, async (req, res) => {
     }
 });
 
+// ─────────────────────────────────────────────────────────────────
+// XLSX EXPORT — Excel zengin biçim
+// ─────────────────────────────────────────────────────────────────
+const ExcelJS = require('exceljs');
+
+async function buildXlsx({ title, columns, rows }) {
+    const wb = new ExcelJS.Workbook();
+    wb.creator = 'SmartTransfer';
+    wb.created = new Date();
+    const ws = wb.addWorksheet(title.substring(0, 30) || 'Sayfa', {
+        views: [{ state: 'frozen', ySplit: 1 }],
+    });
+    ws.columns = columns.map((c) => ({ header: c.label, key: c.value || c.key, width: c.width || 18 }));
+    ws.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    ws.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4F46E5' } };
+    ws.getRow(1).alignment = { vertical: 'middle' };
+    ws.getRow(1).height = 22;
+
+    rows.forEach((r) => {
+        const out = {};
+        columns.forEach((c) => {
+            const v = typeof c.value === 'function' ? c.value(r) : r[c.value];
+            out[c.value || c.key] = v;
+        });
+        ws.addRow(out);
+    });
+    ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: columns.length } };
+
+    const buf = await wb.xlsx.writeBuffer();
+    return Buffer.from(buf);
+}
+
+function sendXlsx(res, filename, buffer) {
+    res.set('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.set('Content-Disposition', `attachment; filename="${filename}-${new Date().toISOString().slice(0, 10)}.xlsx"`);
+    res.send(buffer);
+}
+
+router.get('/exports/:resource.xlsx', authMiddleware, async (req, res) => {
+    const scope = ensurePartner(req, res);
+    if (!scope) return;
+    try {
+        const where = { tenantId: scope.tenantId, partnerId: scope.partnerId };
+        const r = req.params.resource;
+        const colsMap = {
+            accounts: [
+                { label: 'Kod', value: 'code', width: 14 },
+                { label: 'Ad', value: 'name', width: 32 },
+                { label: 'Tip', value: 'type', width: 14 },
+                { label: 'VKN/TCKN', value: 'taxNumber', width: 16 },
+                { label: 'Vergi Dairesi', value: 'taxOffice', width: 18 },
+                { label: 'Telefon', value: 'phone', width: 16 },
+                { label: 'E-Posta', value: 'email', width: 26 },
+                { label: 'Borç', value: (x) => Number(x.debit), width: 14 },
+                { label: 'Alacak', value: (x) => Number(x.credit), width: 14 },
+                { label: 'Bakiye', value: (x) => Number(x.balance), width: 14 },
+                { label: 'Para Birimi', value: 'currency', width: 10 },
+                { label: 'Aktif', value: 'isActive', width: 8 },
+            ],
+            invoices: [
+                { label: 'No', value: 'invoiceNo', width: 18 },
+                { label: 'Tarih', value: (x) => new Date(x.issueDate).toLocaleDateString('tr-TR'), width: 12 },
+                { label: 'Tip', value: 'type', width: 12 },
+                { label: 'Tür', value: 'kind', width: 12 },
+                { label: 'Durum', value: 'status', width: 12 },
+                { label: 'Cari', value: 'counterpartyName', width: 30 },
+                { label: 'VKN', value: 'counterpartyTaxNumber', width: 16 },
+                { label: 'Ara Toplam', value: (x) => Number(x.subtotal), width: 14 },
+                { label: 'KDV', value: (x) => Number(x.taxTotal), width: 12 },
+                { label: 'Toplam', value: (x) => Number(x.grandTotal), width: 14 },
+                { label: 'Ödenen', value: (x) => Number(x.paidTotal), width: 14 },
+                { label: 'Para Birimi', value: 'currency', width: 10 },
+            ],
+            cash: [
+                { label: 'Tarih', value: (x) => new Date(x.date).toLocaleString('tr-TR'), width: 18 },
+                { label: 'Hesap', value: 'accountKey', width: 18 },
+                { label: 'Tip', value: 'accountType', width: 10 },
+                { label: 'Yön', value: 'direction', width: 8 },
+                { label: 'Tutar', value: (x) => Number(x.amount), width: 14 },
+                { label: 'Para Birimi', value: 'currency', width: 10 },
+                { label: 'Açıklama', value: 'description', width: 40 },
+            ],
+            collections: [
+                { label: 'Tarih', value: (x) => new Date(x.date).toLocaleString('tr-TR'), width: 18 },
+                { label: 'Şoför ID', value: 'driverId', width: 36 },
+                { label: 'Tutar', value: (x) => Number(x.amount), width: 12 },
+                { label: 'Para Birimi', value: 'currency', width: 10 },
+                { label: 'Yöntem', value: 'method', width: 10 },
+                { label: 'Durum', value: 'status', width: 12 },
+                { label: 'Not', value: 'notes', width: 30 },
+            ],
+            employees: [
+                { label: 'Ad', value: 'firstName', width: 14 },
+                { label: 'Soyad', value: 'lastName', width: 14 },
+                { label: 'TCKN', value: 'identityNo', width: 14 },
+                { label: 'Görev', value: 'jobTitle', width: 16 },
+                { label: 'Departman', value: 'department', width: 14 },
+                { label: 'Telefon', value: 'phone', width: 16 },
+                { label: 'E-Posta', value: 'email', width: 26 },
+                { label: 'İşe Giriş', value: (x) => x.hireDate ? new Date(x.hireDate).toLocaleDateString('tr-TR') : '', width: 12 },
+                { label: 'Maaş', value: (x) => x.baseSalary ? Number(x.baseSalary) : '', width: 12 },
+                { label: 'IBAN', value: 'iban', width: 30 },
+                { label: 'Banka', value: 'bankName', width: 16 },
+                { label: 'SGK No', value: 'sgkNumber', width: 16 },
+                { label: 'Durum', value: 'status', width: 12 },
+            ],
+            payroll: [
+                { label: 'Tarih', value: (x) => new Date(x.date).toLocaleDateString('tr-TR'), width: 12 },
+                { label: 'Personel', value: (x) => `${x.employee?.firstName || ''} ${x.employee?.lastName || ''}`.trim(), width: 24 },
+                { label: 'Tür', value: 'type', width: 14 },
+                { label: 'Dönem', value: (x) => (x.periodYear ? `${x.periodMonth}/${x.periodYear}` : ''), width: 10 },
+                { label: 'Tutar', value: (x) => Number(x.amount), width: 14 },
+                { label: 'Para Birimi', value: 'currency', width: 10 },
+                { label: 'Ödendi', value: 'paid', width: 8 },
+                { label: 'Açıklama', value: 'description', width: 30 },
+            ],
+            leaves: [
+                { label: 'Personel', value: (x) => `${x.employee?.firstName || ''} ${x.employee?.lastName || ''}`.trim(), width: 24 },
+                { label: 'Tür', value: 'type', width: 14 },
+                { label: 'Başlangıç', value: (x) => new Date(x.startDate).toLocaleDateString('tr-TR'), width: 12 },
+                { label: 'Bitiş', value: (x) => new Date(x.endDate).toLocaleDateString('tr-TR'), width: 12 },
+                { label: 'Gün', value: 'days', width: 6 },
+                { label: 'Durum', value: 'status', width: 12 },
+                { label: 'Sebep', value: 'reason', width: 30 },
+            ],
+        };
+        if (!colsMap[r]) return res.status(400).json({ success: false, error: 'Desteklenmeyen kaynak' });
+        let rows;
+        if (r === 'accounts') rows = await prisma.partnerAccount.findMany({ where, orderBy: { name: 'asc' } });
+        else if (r === 'invoices') rows = await prisma.partnerInvoice.findMany({ where, orderBy: { issueDate: 'desc' } });
+        else if (r === 'cash') rows = await prisma.partnerCashEntry.findMany({ where, orderBy: { date: 'desc' } });
+        else if (r === 'collections') rows = await prisma.partnerDriverCollection.findMany({ where, orderBy: { date: 'desc' } });
+        else if (r === 'employees') rows = await prisma.partnerEmployee.findMany({ where, orderBy: { firstName: 'asc' } });
+        else if (r === 'payroll') rows = await prisma.partnerPayrollEntry.findMany({ where, orderBy: { date: 'desc' }, include: { employee: true } });
+        else if (r === 'leaves') rows = await prisma.partnerLeave.findMany({ where, orderBy: { startDate: 'desc' }, include: { employee: true } });
+        const buf = await buildXlsx({ title: r, columns: colsMap[r], rows });
+        sendXlsx(res, r, buf);
+    } catch (error) {
+        console.error('XLSX export error:', error);
+        res.status(500).json({ success: false, error: 'Excel export başarısız' });
+    }
+});
+
+// ─────────────────────────────────────────────────────────────────
+// BANK STATEMENT IMPORT — CSV / MT940 (lite)
+// ─────────────────────────────────────────────────────────────────
+function parseCsvBankStatement(text) {
+    const lines = text.replace(/\r/g, '').split('\n').filter(Boolean);
+    if (!lines.length) return [];
+    // Detect delimiter
+    const header = lines[0];
+    const delim = header.includes(';') ? ';' : ',';
+    const parts = (s) => {
+        // Naive CSV parser respecting double-quoted commas
+        const out = [];
+        let cur = '';
+        let inQ = false;
+        for (let i = 0; i < s.length; i++) {
+            const ch = s[i];
+            if (ch === '"') { inQ = !inQ; continue; }
+            if (!inQ && ch === delim) { out.push(cur); cur = ''; continue; }
+            cur += ch;
+        }
+        out.push(cur);
+        return out;
+    };
+    const cols = parts(header).map((c) => c.trim().toLowerCase());
+    const find = (...keys) => {
+        for (const k of keys) {
+            const idx = cols.findIndex((c) => c === k.toLowerCase());
+            if (idx >= 0) return idx;
+        }
+        for (const k of keys) {
+            const idx = cols.findIndex((c) => c.includes(k.toLowerCase()));
+            if (idx >= 0) return idx;
+        }
+        return -1;
+    };
+    const iDate = find('date', 'tarih', 'işlem tarihi', 'transaction_date', 'islem_tarihi');
+    const iDesc = find('description', 'aciklama', 'açıklama', 'narration', 'detay');
+    const iAmount = find('amount', 'tutar', 'transaction_amount', 'amount_try');
+    const iDebit = find('debit', 'borc', 'borç', 'odeme', 'cikis', 'çıkış');
+    const iCredit = find('credit', 'alacak', 'tahsilat', 'giris', 'giriş');
+    const iCurrency = find('currency', 'para birimi', 'para_birimi', 'ccy');
+
+    const out = [];
+    for (let i = 1; i < lines.length; i++) {
+        const row = parts(lines[i]);
+        if (!row.length || row.every((v) => !v?.trim())) continue;
+        const rawDate = iDate >= 0 ? row[iDate] : null;
+        const rawDesc = iDesc >= 0 ? row[iDesc] : '';
+        let amount = 0;
+        let direction = null;
+        if (iAmount >= 0) {
+            amount = Number(String(row[iAmount] || '0').replace(/\./g, '').replace(',', '.').replace(/[^\d.\-]/g, ''));
+            direction = amount >= 0 ? 'IN' : 'OUT';
+            amount = Math.abs(amount);
+        } else {
+            const dr = iDebit >= 0 ? Number(String(row[iDebit] || '0').replace(/\./g, '').replace(',', '.').replace(/[^\d.\-]/g, '')) : 0;
+            const cr = iCredit >= 0 ? Number(String(row[iCredit] || '0').replace(/\./g, '').replace(',', '.').replace(/[^\d.\-]/g, '')) : 0;
+            if (cr > 0) { amount = cr; direction = 'IN'; }
+            else if (dr > 0) { amount = dr; direction = 'OUT'; }
+        }
+        const currency = iCurrency >= 0 ? String(row[iCurrency] || 'TRY').trim().toUpperCase() : 'TRY';
+        // Date parsing: DD.MM.YYYY or DD/MM/YYYY or ISO
+        let dateObj = null;
+        if (rawDate) {
+            const m = String(rawDate).match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})/);
+            if (m) {
+                const yy = m[3].length === 2 ? Number('20' + m[3]) : Number(m[3]);
+                dateObj = new Date(yy, Number(m[2]) - 1, Number(m[1]));
+            } else if (!isNaN(Date.parse(rawDate))) {
+                dateObj = new Date(rawDate);
+            }
+        }
+        if (amount > 0 && direction && dateObj) {
+            out.push({ date: dateObj.toISOString(), direction, amount, currency, description: String(rawDesc || '').trim() });
+        }
+    }
+    return out;
+}
+
+function parseMt940(text) {
+    // Very small subset: parse :61: lines and :86: narrations
+    const out = [];
+    const lines = text.replace(/\r/g, '').split('\n');
+    let pendingNarration = null;
+    let pendingTx = null;
+    for (const raw of lines) {
+        const line = raw.trim();
+        if (line.startsWith(':61:')) {
+            // commit previous
+            if (pendingTx) {
+                pendingTx.description = pendingNarration || '';
+                out.push(pendingTx);
+                pendingNarration = null;
+            }
+            // :61:YYMMDD<DC>amountN<typecode>refs
+            const m = line.match(/^:61:(\d{6})\d{0,4}(C|D|CR|DR|RC|RD)([\d,]+)/);
+            if (m) {
+                const yy = Number(m[1].substring(0, 2));
+                const mm = Number(m[1].substring(2, 4)) - 1;
+                const dd = Number(m[1].substring(4, 6));
+                const year = (yy >= 70 ? 1900 : 2000) + yy;
+                const direction = /^C/i.test(m[2]) ? 'IN' : 'OUT';
+                const amount = Number(m[3].replace(',', '.'));
+                pendingTx = { date: new Date(year, mm, dd).toISOString(), direction, amount, currency: 'TRY' };
+            }
+        } else if (line.startsWith(':86:')) {
+            pendingNarration = (pendingNarration ? pendingNarration + ' ' : '') + line.substring(4).trim();
+        } else if (pendingNarration != null && line && !line.startsWith(':')) {
+            pendingNarration += ' ' + line;
+        }
+    }
+    if (pendingTx) {
+        pendingTx.description = pendingNarration || '';
+        out.push(pendingTx);
+    }
+    return out;
+}
+
+router.post('/bank-import/preview', authMiddleware, async (req, res) => {
+    const scope = ensurePartner(req, res);
+    if (!scope) return;
+    try {
+        const { format = 'CSV', content } = req.body || {};
+        if (!content) return res.status(400).json({ success: false, error: 'İçerik boş' });
+        const parsed = format.toUpperCase() === 'MT940' ? parseMt940(String(content)) : parseCsvBankStatement(String(content));
+        res.json({ success: true, data: parsed });
+    } catch (error) {
+        console.error('Bank import preview error:', error);
+        res.status(500).json({ success: false, error: 'İçerik çözümlenemedi' });
+    }
+});
+
+router.post('/bank-import/apply', authMiddleware, async (req, res) => {
+    const scope = ensurePartner(req, res);
+    if (!scope) return;
+    try {
+        const { accountKey = 'BANK_DEFAULT', entries = [] } = req.body || {};
+        if (!Array.isArray(entries) || !entries.length) return res.status(400).json({ success: false, error: 'Aktarılacak kayıt yok' });
+        let imported = 0;
+        for (const e of entries) {
+            const amount = Number(e.amount);
+            if (!(amount > 0)) continue;
+            await prisma.partnerCashEntry.create({
+                data: {
+                    tenantId: scope.tenantId,
+                    partnerId: scope.partnerId,
+                    accountType: 'BANK',
+                    accountKey,
+                    currency: e.currency || 'TRY',
+                    date: e.date ? new Date(e.date) : new Date(),
+                    direction: e.direction === 'OUT' ? 'OUT' : 'IN',
+                    amount,
+                    description: e.description || 'Banka aktarımı',
+                    refType: 'BANK_IMPORT',
+                    createdById: scope.partnerId,
+                    metadata: { source: 'BANK_IMPORT' },
+                },
+            });
+            imported++;
+        }
+        res.json({ success: true, imported });
+    } catch (error) {
+        console.error('Bank import apply error:', error);
+        res.status(500).json({ success: false, error: 'Aktarım başarısız' });
+    }
+});
+
+// ─────────────────────────────────────────────────────────────────
+// PERIOD REPORTS — Gelir Tablosu, Mizan, Kâr-Zarar
+// ─────────────────────────────────────────────────────────────────
+function parsePeriod(req) {
+    const now = new Date();
+    const from = req.query.from ? new Date(String(req.query.from)) : new Date(now.getFullYear(), now.getMonth(), 1);
+    const to = req.query.to ? new Date(String(req.query.to)) : new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+    return { from, to };
+}
+
+router.get('/reports/income-statement', authMiddleware, async (req, res) => {
+    const scope = ensurePartner(req, res);
+    if (!scope) return;
+    try {
+        const { from, to } = parsePeriod(req);
+        const baseWhere = { tenantId: scope.tenantId, partnerId: scope.partnerId };
+
+        const [invSalesAgg, invPurchaseAgg, invExpenseAgg, cashInAgg, cashOutAgg, payrollAgg, financeIncome, financeExpense] = await Promise.all([
+            prisma.partnerInvoice.aggregate({
+                where: { ...baseWhere, type: 'SALES', status: { in: ['APPROVED', 'SENT', 'ACCEPTED', 'PAID', 'PARTIALLY_PAID'] }, issueDate: { gte: from, lte: to } },
+                _sum: { subtotal: true, taxTotal: true, grandTotal: true, paidTotal: true },
+                _count: true,
+            }),
+            prisma.partnerInvoice.aggregate({
+                where: { ...baseWhere, type: 'PURCHASE', status: { in: ['APPROVED', 'SENT', 'ACCEPTED', 'PAID', 'PARTIALLY_PAID'] }, issueDate: { gte: from, lte: to } },
+                _sum: { subtotal: true, taxTotal: true, grandTotal: true, paidTotal: true },
+                _count: true,
+            }),
+            prisma.partnerInvoice.aggregate({
+                where: { ...baseWhere, type: 'EXPENSE', status: { in: ['APPROVED', 'PAID', 'PARTIALLY_PAID'] }, issueDate: { gte: from, lte: to } },
+                _sum: { grandTotal: true },
+                _count: true,
+            }),
+            prisma.partnerCashEntry.aggregate({
+                where: { ...baseWhere, direction: 'IN', date: { gte: from, lte: to } },
+                _sum: { amount: true },
+            }),
+            prisma.partnerCashEntry.aggregate({
+                where: { ...baseWhere, direction: 'OUT', date: { gte: from, lte: to } },
+                _sum: { amount: true },
+            }),
+            prisma.partnerPayrollEntry.groupBy({
+                by: ['type'],
+                where: { ...baseWhere, date: { gte: from, lte: to } },
+                _sum: { amount: true },
+            }),
+            prisma.partnerFinanceEntry.aggregate({
+                where: { ...baseWhere, type: 'INCOME', date: { gte: from, lte: to } },
+                _sum: { amount: true },
+            }),
+            prisma.partnerFinanceEntry.aggregate({
+                where: { ...baseWhere, type: 'EXPENSE', date: { gte: from, lte: to } },
+                _sum: { amount: true },
+            }),
+        ]);
+
+        const revenue = Number(invSalesAgg._sum.subtotal || 0) + Number(financeIncome._sum.amount || 0);
+        const cogs = Number(invPurchaseAgg._sum.subtotal || 0);
+        const grossProfit = revenue - cogs;
+        const operatingExpenses = Number(invExpenseAgg._sum.grandTotal || 0) + Number(financeExpense._sum.amount || 0);
+        const payrollByType = {};
+        let totalPayroll = 0;
+        payrollAgg.forEach((p) => { payrollByType[p.type] = Number(p._sum.amount || 0); totalPayroll += Number(p._sum.amount || 0); });
+        const ebit = grossProfit - operatingExpenses - totalPayroll;
+
+        res.json({
+            success: true,
+            data: {
+                period: { from, to },
+                revenue: {
+                    salesNet: Number(invSalesAgg._sum.subtotal || 0),
+                    salesGross: Number(invSalesAgg._sum.grandTotal || 0),
+                    salesCount: invSalesAgg._count,
+                    otherIncome: Number(financeIncome._sum.amount || 0),
+                    total: revenue,
+                },
+                costs: {
+                    purchasesNet: Number(invPurchaseAgg._sum.subtotal || 0),
+                    purchasesCount: invPurchaseAgg._count,
+                    total: cogs,
+                },
+                grossProfit,
+                operatingExpenses: {
+                    invoiceExpenses: Number(invExpenseAgg._sum.grandTotal || 0),
+                    otherExpenses: Number(financeExpense._sum.amount || 0),
+                    total: operatingExpenses,
+                },
+                payroll: { byType: payrollByType, total: totalPayroll },
+                ebit,
+                cashFlow: {
+                    inflow: Number(cashInAgg._sum.amount || 0),
+                    outflow: Number(cashOutAgg._sum.amount || 0),
+                    net: Number(cashInAgg._sum.amount || 0) - Number(cashOutAgg._sum.amount || 0),
+                },
+            },
+        });
+    } catch (error) {
+        console.error('Income statement error:', error);
+        res.status(500).json({ success: false, error: 'Rapor üretilemedi' });
+    }
+});
+
+router.get('/reports/trial-balance', authMiddleware, async (req, res) => {
+    const scope = ensurePartner(req, res);
+    if (!scope) return;
+    try {
+        const accounts = await prisma.partnerAccount.findMany({
+            where: { tenantId: scope.tenantId, partnerId: scope.partnerId },
+            orderBy: [{ type: 'asc' }, { name: 'asc' }],
+        });
+        const rows = accounts.map((a) => ({
+            id: a.id, code: a.code, name: a.name, type: a.type, currency: a.currency,
+            debit: Number(a.debit || 0), credit: Number(a.credit || 0), balance: Number(a.balance || 0),
+        }));
+        const totals = rows.reduce((acc, r) => ({ debit: acc.debit + r.debit, credit: acc.credit + r.credit }), { debit: 0, credit: 0 });
+        res.json({ success: true, data: { rows, totals } });
+    } catch (error) {
+        console.error('Trial balance error:', error);
+        res.status(500).json({ success: false, error: 'Mizan üretilemedi' });
+    }
+});
+
+router.get('/reports/cash-flow', authMiddleware, async (req, res) => {
+    const scope = ensurePartner(req, res);
+    if (!scope) return;
+    try {
+        const { from, to } = parsePeriod(req);
+        const entries = await prisma.partnerCashEntry.findMany({
+            where: { tenantId: scope.tenantId, partnerId: scope.partnerId, date: { gte: from, lte: to } },
+        });
+        const byKey = new Map();
+        for (const e of entries) {
+            const k = e.accountKey;
+            if (!byKey.has(k)) byKey.set(k, { accountKey: k, accountType: e.accountType, currency: e.currency, in: 0, out: 0, net: 0 });
+            const r = byKey.get(k);
+            if (e.direction === 'IN') r.in += Number(e.amount);
+            else if (e.direction === 'OUT') r.out += Number(e.amount);
+            r.net = round2(r.in - r.out);
+        }
+        // Daily series
+        const daily = new Map();
+        for (const e of entries) {
+            const day = new Date(e.date).toISOString().slice(0, 10);
+            if (!daily.has(day)) daily.set(day, { date: day, in: 0, out: 0, net: 0 });
+            const d = daily.get(day);
+            if (e.direction === 'IN') d.in += Number(e.amount);
+            else if (e.direction === 'OUT') d.out += Number(e.amount);
+            d.net = round2(d.in - d.out);
+        }
+        res.json({ success: true, data: { period: { from, to }, accounts: Array.from(byKey.values()), daily: Array.from(daily.values()).sort((a, b) => a.date.localeCompare(b.date)) } });
+    } catch (error) {
+        console.error('Cash flow report error:', error);
+        res.status(500).json({ success: false, error: 'Nakit akış üretilemedi' });
+    }
+});
+
+// ─────────────────────────────────────────────────────────────────
+// ALERTS — Vade, eksik kimlik, ödenmemiş bordro, kritik stok yok :)
+// ─────────────────────────────────────────────────────────────────
+router.get('/alerts', authMiddleware, async (req, res) => {
+    const scope = ensurePartner(req, res);
+    if (!scope) return;
+    try {
+        const now = new Date();
+        const soon = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+        const baseWhere = { tenantId: scope.tenantId, partnerId: scope.partnerId };
+        const [overdue, upcoming, unpaidPayroll, pendingLeaves, pendingCollections] = await Promise.all([
+            prisma.partnerInvoice.findMany({
+                where: { ...baseWhere, status: { in: ['APPROVED', 'SENT', 'ACCEPTED', 'PARTIALLY_PAID'] }, dueDate: { not: null, lt: now } },
+                orderBy: { dueDate: 'asc' },
+                take: 50,
+                include: { account: { select: { name: true, phone: true, email: true } } },
+            }),
+            prisma.partnerInvoice.findMany({
+                where: { ...baseWhere, status: { in: ['APPROVED', 'SENT', 'ACCEPTED', 'PARTIALLY_PAID'] }, dueDate: { gte: now, lte: soon } },
+                orderBy: { dueDate: 'asc' },
+                take: 50,
+                include: { account: { select: { name: true, phone: true, email: true } } },
+            }),
+            prisma.partnerPayrollEntry.findMany({
+                where: { ...baseWhere, paid: false },
+                orderBy: { date: 'asc' },
+                take: 50,
+                include: { employee: { select: { firstName: true, lastName: true } } },
+            }),
+            prisma.partnerLeave.findMany({
+                where: { ...baseWhere, status: 'PENDING' },
+                orderBy: { startDate: 'asc' },
+                take: 30,
+                include: { employee: { select: { firstName: true, lastName: true } } },
+            }),
+            prisma.partnerDriverCollection.findMany({
+                where: { ...baseWhere, status: { in: ['PENDING', 'HANDED_OVER'] } },
+                orderBy: { date: 'asc' },
+                take: 30,
+            }),
+        ]);
+
+        res.json({
+            success: true,
+            data: {
+                overdueInvoices: overdue.map((i) => ({
+                    id: i.id, invoiceNo: i.invoiceNo, dueDate: i.dueDate, daysOverdue: Math.ceil((now.getTime() - new Date(i.dueDate).getTime()) / 86400000),
+                    counterparty: i.counterpartyName || i.account?.name, contact: i.counterpartyPhone || i.account?.phone, email: i.counterpartyEmail || i.account?.email,
+                    grandTotal: Number(i.grandTotal), paidTotal: Number(i.paidTotal), remaining: Number(i.grandTotal) - Number(i.paidTotal), currency: i.currency,
+                })),
+                upcomingInvoices: upcoming.map((i) => ({
+                    id: i.id, invoiceNo: i.invoiceNo, dueDate: i.dueDate, daysToDue: Math.ceil((new Date(i.dueDate).getTime() - now.getTime()) / 86400000),
+                    counterparty: i.counterpartyName || i.account?.name,
+                    grandTotal: Number(i.grandTotal), paidTotal: Number(i.paidTotal), remaining: Number(i.grandTotal) - Number(i.paidTotal), currency: i.currency,
+                })),
+                unpaidPayroll: unpaidPayroll.map((p) => ({
+                    id: p.id, type: p.type, amount: Number(p.amount), currency: p.currency, date: p.date,
+                    employee: p.employee ? `${p.employee.firstName} ${p.employee.lastName}` : '-',
+                })),
+                pendingLeaves: pendingLeaves.map((l) => ({
+                    id: l.id, type: l.type, startDate: l.startDate, endDate: l.endDate, days: l.days,
+                    employee: l.employee ? `${l.employee.firstName} ${l.employee.lastName}` : '-',
+                })),
+                pendingCollections: pendingCollections.map((c) => ({
+                    id: c.id, driverId: c.driverId, amount: Number(c.amount), currency: c.currency, status: c.status, date: c.date,
+                })),
+            },
+        });
+    } catch (error) {
+        console.error('Alerts error:', error);
+        res.status(500).json({ success: false, error: 'Uyarılar alınamadı' });
+    }
+});
+
+router.post('/alerts/remind-overdue', authMiddleware, async (req, res) => {
+    const scope = ensurePartner(req, res);
+    if (!scope) return;
+    try {
+        const { channel = 'EMAIL', invoiceIds = [] } = req.body || {};
+        const ids = Array.isArray(invoiceIds) ? invoiceIds : [];
+        if (!ids.length) return res.status(400).json({ success: false, error: 'Fatura seçilmedi' });
+        const invoices = await prisma.partnerInvoice.findMany({
+            where: { id: { in: ids }, tenantId: scope.tenantId, partnerId: scope.partnerId },
+        });
+        const profile = await prisma.partnerProfile.findUnique({ where: { userId: scope.partnerId } });
+        const partner = await prisma.user.findUnique({ where: { id: scope.partnerId } });
+        let sent = 0;
+        const errors = [];
+
+        for (const inv of invoices) {
+            try {
+                if (channel === 'EMAIL') {
+                    const email = profile?.metadata?.notifications?.email;
+                    if (!email || !email.smtpHost || !email.smtpUser || !email.smtpPassEnc) throw new Error('SMTP yapılandırılmamış');
+                    if (!inv.counterpartyEmail) throw new Error('Alıcı e-posta yok');
+                    const nodemailer = require('nodemailer');
+                    const transporter = nodemailer.createTransport({
+                        host: email.smtpHost,
+                        port: Number(email.smtpPort) || 587,
+                        secure: !!email.smtpSecure || Number(email.smtpPort) === 465,
+                        auth: { user: email.smtpUser, pass: uetdsService.decrypt(email.smtpPassEnc) },
+                        tls: { rejectUnauthorized: false },
+                    });
+                    const fromName = email.senderName || profile?.companyName || partner?.fullName || 'Partner';
+                    const fromAddr = email.senderEmail || email.smtpUser;
+                    const days = Math.ceil((Date.now() - new Date(inv.dueDate).getTime()) / 86400000);
+                    const total = `${Number(inv.grandTotal).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ${inv.currency}`;
+                    const remaining = `${(Number(inv.grandTotal) - Number(inv.paidTotal)).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ${inv.currency}`;
+                    await transporter.sendMail({
+                        from: `"${fromName}" <${fromAddr}>`,
+                        to: inv.counterpartyEmail,
+                        subject: `Hatırlatma · Fatura ${inv.invoiceNo} (${days} gün vadesi geçti)`,
+                        html: `<p>Sayın ${inv.counterpartyName || ''},</p>
+<p><b>${inv.invoiceNo}</b> numaralı faturanızın vadesi <b>${days}</b> gün geçmiştir.</p>
+<p>Toplam: <b>${total}</b><br/>Kalan: <b style="color:#b91c1c;">${remaining}</b></p>
+<p>En kısa sürede ödeme yapmanızı rica ederiz.</p>`,
+                    });
+                } else if (channel === 'WHATSAPP') {
+                    const wa = profile?.metadata?.notifications?.whatsapp;
+                    if (!wa || !wa.enabled) throw new Error('WhatsApp aktif değil');
+                    if (!inv.counterpartyPhone) throw new Error('Telefon yok');
+                    const phone = (() => {
+                        let c = String(inv.counterpartyPhone).replace(/[^\d+]/g, '');
+                        if (c.startsWith('+')) c = c.slice(1);
+                        if (c.startsWith('0')) c = '90' + c.slice(1);
+                        if (c.length === 10 && c.startsWith('5')) c = '90' + c;
+                        return c;
+                    })();
+                    const days = Math.ceil((Date.now() - new Date(inv.dueDate).getTime()) / 86400000);
+                    const link = getInvoiceLink(req, inv.id);
+                    const text = `Sayın ${inv.counterpartyName || ''}, ${inv.invoiceNo} numaralı faturanızın vadesi ${days} gün geçti. Kalan: ${(Number(inv.grandTotal) - Number(inv.paidTotal)).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ${inv.currency}. Detay: ${link}`;
+                    const provider = (wa.provider || 'META').toUpperCase();
+                    if (provider === 'META') {
+                        const token = uetdsService.decrypt(wa.metaAccessTokenEnc);
+                        await axios.post(`https://graph.facebook.com/v18.0/${wa.metaPhoneNumberId}/messages`,
+                            { messaging_product: 'whatsapp', to: phone, type: 'text', text: { body: text } },
+                            { headers: { Authorization: `Bearer ${token}` }, timeout: 15000 });
+                    } else if (provider === 'GREEN') {
+                        const token = uetdsService.decrypt(wa.greenApiTokenEnc);
+                        await axios.post(`https://api.green-api.com/waInstance${wa.greenInstanceId}/sendMessage/${token}`,
+                            { chatId: `${phone}@c.us`, message: text }, { timeout: 15000 });
+                    } else if (provider === 'WEBHOOK') {
+                        const secret = wa.webhookSecretEnc ? uetdsService.decrypt(wa.webhookSecretEnc) : null;
+                        const headers = { 'Content-Type': 'application/json' };
+                        if (secret) headers['X-Webhook-Secret'] = secret;
+                        await axios.post(wa.webhookUrl, { phone, message: text, invoiceId: inv.id }, { headers, timeout: 15000 });
+                    }
+                }
+                sent++;
+            } catch (e) {
+                errors.push({ invoiceId: inv.id, error: e.message });
+            }
+        }
+        res.json({ success: true, sent, errors });
+    } catch (error) {
+        console.error('Reminder error:', error);
+        res.status(500).json({ success: false, error: 'Hatırlatma gönderilemedi' });
+    }
+});
+
 module.exports = router;

@@ -13,6 +13,7 @@ import {
   CalendarOutlined,
   DollarOutlined,
   SafetyCertificateOutlined,
+  BarChartOutlined,
 } from '@ant-design/icons';
 
 type NavItem = { key: string; label: string; href: string; icon: React.ReactNode };
@@ -26,6 +27,7 @@ const NAV: NavItem[] = [
   { key: 'employees',   label: 'Personel',             href: '/partner/finance/employees',    icon: <TeamOutlined /> },
   { key: 'payroll',     label: 'Hakediş & Maaş',       href: '/partner/finance/payroll',      icon: <UserOutlined /> },
   { key: 'leaves',      label: 'İzinler',              href: '/partner/finance/leaves',       icon: <CalendarOutlined /> },
+  { key: 'reports',     label: 'Raporlar',             href: '/partner/finance/reports',      icon: <BarChartOutlined /> },
 ];
 
 export default function FinanceLayout({ children }: { children: React.ReactNode }) {

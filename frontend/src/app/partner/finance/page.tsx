@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Card, Empty, Spin, Tag, Tooltip } from 'antd';
+import { Button, Card, Empty, Space, Spin, Tag, Tooltip, message } from 'antd';
 import {
   RiseOutlined,
   FallOutlined,
@@ -11,6 +11,9 @@ import {
   WarningOutlined,
   TeamOutlined,
   ClockCircleOutlined,
+  MailOutlined,
+  WhatsAppOutlined,
+  AlertOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import apiClient from '@/lib/api-client';
@@ -56,19 +59,37 @@ export default function FinanceDashboardPage() {
   const [data, setData] = useState<Dashboard | null>(null);
   const [loading, setLoading] = useState(true);
   const [fx, setFx] = useState<{ updatedAt: string; rates: { code: string; forexBuying: number | null; forexSelling: number | null }[] } | null>(null);
+  const [alerts, setAlerts] = useState<any>(null);
+  const [reminding, setReminding] = useState<'EMAIL' | 'WHATSAPP' | null>(null);
 
   const load = async () => {
     setLoading(true);
     try {
-      const [d, f] = await Promise.allSettled([
+      const [d, f, a] = await Promise.allSettled([
         apiClient.get('/api/partner-accounting/dashboard'),
         apiClient.get('/api/partner-accounting/fx/rates'),
+        apiClient.get('/api/partner-accounting/alerts'),
       ]);
       if (d.status === 'fulfilled' && d.value.data?.success) setData(d.value.data.data);
       if (f.status === 'fulfilled' && f.value.data?.success) setFx(f.value.data.data);
+      if (a.status === 'fulfilled' && a.value.data?.success) setAlerts(a.value.data.data);
     } finally {
       setLoading(false);
     }
+  };
+
+  const sendReminders = async (channel: 'EMAIL' | 'WHATSAPP') => {
+    if (!alerts?.overdueInvoices?.length) { message.info('Vadesi geçmiş fatura yok'); return; }
+    const ids = alerts.overdueInvoices.map((i: any) => i.id);
+    setReminding(channel);
+    try {
+      const res = await apiClient.post('/api/partner-accounting/alerts/remind-overdue', { channel, invoiceIds: ids });
+      if (res.data?.success) {
+        const failed = (res.data.errors || []).length;
+        message.success(`${res.data.sent} hatırlatma gönderildi${failed ? ` · ${failed} hata` : ''}`);
+      }
+    } catch (e: any) { message.error(e?.response?.data?.error || 'Hata'); }
+    finally { setReminding(null); }
   };
 
   useEffect(() => { load(); }, []);
@@ -106,19 +127,75 @@ export default function FinanceDashboardPage() {
         </div>
       )}
 
-      {data.overdueInvoices.length > 0 && (
-        <div className="ps-card" style={{ padding: 14, borderLeft: '4px solid #ef4444' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, fontWeight: 700, color: '#b91c1c' }}>
-            <WarningOutlined /> Vadesi Geçmiş Faturalar ({data.overdueInvoices.length})
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {data.overdueInvoices.map((inv) => (
-              <div key={inv.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 8px', background: '#fef2f2', borderRadius: 8, fontSize: 13 }}>
-                <span><b>{inv.invoiceNo}</b> · {inv.counterpartyName || inv.account?.name || '-'}</span>
-                <span style={{ color: '#991b1b' }}>{fmt(Number(inv.grandTotal), inv.currency)} · {dayjs(inv.dueDate).format('DD.MM.YYYY')}</span>
+      {alerts && (alerts.overdueInvoices.length + alerts.upcomingInvoices.length + alerts.unpaidPayroll.length + alerts.pendingLeaves.length + alerts.pendingCollections.length) > 0 && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 12 }}>
+          {alerts.overdueInvoices.length > 0 && (
+            <Card size="small" title={<span style={{ color: '#b91c1c' }}><WarningOutlined /> Vadesi Geçmiş ({alerts.overdueInvoices.length})</span>}
+              extra={
+                <Space>
+                  <Button size="small" icon={<MailOutlined />} loading={reminding === 'EMAIL'} onClick={() => sendReminders('EMAIL')}>E-posta hatırlat</Button>
+                  <Button size="small" icon={<WhatsAppOutlined style={{ color: '#16a34a' }} />} loading={reminding === 'WHATSAPP'} onClick={() => sendReminders('WHATSAPP')}>WhatsApp</Button>
+                </Space>
+              }
+            >
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {alerts.overdueInvoices.slice(0, 8).map((i: any) => (
+                  <div key={i.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 8px', background: '#fef2f2', borderRadius: 8, fontSize: 12.5 }}>
+                    <span><b>{i.invoiceNo}</b> · {i.counterparty || '-'} <Tag color="red" style={{ marginLeft: 4 }}>{i.daysOverdue} gün</Tag></span>
+                    <span style={{ color: '#991b1b', fontWeight: 700 }}>{fmt(i.remaining, i.currency)}</span>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            </Card>
+          )}
+          {alerts.upcomingInvoices.length > 0 && (
+            <Card size="small" title={<span style={{ color: '#92400e' }}><AlertOutlined /> Yaklaşan Vade ({alerts.upcomingInvoices.length})</span>}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {alerts.upcomingInvoices.slice(0, 8).map((i: any) => (
+                  <div key={i.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 8px', background: '#fffbeb', borderRadius: 8, fontSize: 12.5 }}>
+                    <span><b>{i.invoiceNo}</b> · {i.counterparty || '-'} <Tag color="gold" style={{ marginLeft: 4 }}>{i.daysToDue} gün kaldı</Tag></span>
+                    <span style={{ color: '#92400e', fontWeight: 700 }}>{fmt(i.remaining, i.currency)}</span>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
+          {alerts.unpaidPayroll.length > 0 && (
+            <Card size="small" title={<span><TeamOutlined /> Ödenmemiş Bordro ({alerts.unpaidPayroll.length})</span>}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {alerts.unpaidPayroll.slice(0, 8).map((p: any) => (
+                  <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 8px', background: '#f8fafc', borderRadius: 8, fontSize: 12.5 }}>
+                    <span><b>{p.employee}</b> · <Tag>{p.type}</Tag></span>
+                    <span style={{ color: '#0f172a', fontWeight: 700 }}>{fmt(p.amount, p.currency)}</span>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
+          {alerts.pendingLeaves.length > 0 && (
+            <Card size="small" title={<span><ClockCircleOutlined /> Bekleyen İzinler ({alerts.pendingLeaves.length})</span>}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {alerts.pendingLeaves.slice(0, 8).map((l: any) => (
+                  <div key={l.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 8px', background: '#f8fafc', borderRadius: 8, fontSize: 12.5 }}>
+                    <span><b>{l.employee}</b> · {dayjs(l.startDate).format('DD.MM')} → {dayjs(l.endDate).format('DD.MM')} ({l.days}g)</span>
+                    <Tag>{l.type}</Tag>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
+          {alerts.pendingCollections.length > 0 && (
+            <Card size="small" title={<span>Bekleyen Şoför Tahsilatları ({alerts.pendingCollections.length})</span>}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {alerts.pendingCollections.slice(0, 8).map((c: any) => (
+                  <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 8px', background: '#f8fafc', borderRadius: 8, fontSize: 12.5 }}>
+                    <span><Tag>{c.status}</Tag> {dayjs(c.date).format('DD.MM.YYYY')}</span>
+                    <span style={{ fontWeight: 700 }}>{fmt(c.amount, c.currency)}</span>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
         </div>
       )}
 

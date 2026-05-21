@@ -2,10 +2,10 @@
 
 import React, { useEffect, useState } from 'react';
 import { Button, Card, DatePicker, Form, Input, InputNumber, Modal, Select, Space, Table, Tag, message } from 'antd';
-import { DollarOutlined, CheckCircleOutlined, PlusOutlined, DownloadOutlined } from '@ant-design/icons';
+import { DollarOutlined, CheckCircleOutlined, PlusOutlined, DownloadOutlined, FileExcelOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import apiClient from '@/lib/api-client';
-import { exportResource } from '../exportHelper';
+import { exportResource, exportResourceXlsx } from '../exportHelper';
 
 const STATUS_COLOR: Record<string, string> = { PENDING:'orange', HANDED_OVER:'blue', CONFIRMED:'green', REJECTED:'red' };
 const STATUS_LABELS: Record<string, string> = { PENDING:'Bekliyor', HANDED_OVER:'Teslim Edildi', CONFIRMED:'Onaylı', REJECTED:'Reddedildi' };
@@ -81,6 +81,7 @@ export default function CollectionsPage() {
           <Space>
             <Select placeholder="Tüm durumlar" allowClear style={{ width: 160 }} value={status} onChange={(v)=>{ setStatus(v); setTimeout(load, 0); }} options={Object.keys(STATUS_LABELS).map(k=>({value:k,label:STATUS_LABELS[k]}))} />
             <Button icon={<DownloadOutlined />} onClick={() => exportResource('collections', 'sofor-tahsilatlari')}>CSV</Button>
+            <Button icon={<FileExcelOutlined style={{ color: '#16a34a' }} />} onClick={() => exportResourceXlsx('collections', 'sofor-tahsilatlari')}>Excel</Button>
             <Button type="primary" icon={<PlusOutlined />} onClick={() => { form.resetFields(); setModalOpen(true); }}>Yeni Tahsilat</Button>
           </Space>
         }
