@@ -69,6 +69,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import dayjs from 'dayjs';
 import apiClient from '@/lib/api-client';
+import { useSocket } from '@/app/context/SocketContext';
 
 const { Option } = Select;
 const { RangePicker } = DatePicker;
@@ -391,10 +392,13 @@ function SortableRow({
   onToggle: (key: string, visible: boolean) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: cfg.key });
-  const style = {
+  const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.5 : 1,
+    opacity: isDragging ? 0.65 : 1,
+    boxShadow: isDragging ? '0 8px 24px rgba(99,102,241,0.25)' : undefined,
+    zIndex: isDragging ? 10 : 'auto',
+    position: 'relative',
   };
   return (
     <div
@@ -402,27 +406,31 @@ function SortableRow({
       style={{
         ...style,
         display: 'grid',
-        gridTemplateColumns: 'auto 1fr auto',
+        gridTemplateColumns: 'auto auto 1fr auto',
         alignItems: 'center',
         gap: 10,
         border: '1px solid #e2e8f0',
         borderRadius: 8,
-        padding: '8px 10px',
+        padding: '6px 10px',
         background: '#fff',
+        userSelect: 'none',
+        cursor: 'grab',
       }}
+      {...attributes}
+      {...listeners}
     >
-      <span
-        {...attributes}
-        {...listeners}
-        style={{ cursor: 'grab', color: '#94a3b8', display: 'inline-flex' }}
-        aria-label="Sürükle"
-      >
+      <span style={{ color: '#94a3b8', display: 'inline-flex', cursor: 'grab' }} aria-label="Sürükle">
         <HolderOutlined />
       </span>
-      <Checkbox checked={cfg.visible} onChange={(e) => onToggle(cfg.key, e.target.checked)}>
-        {cfg.title}
-      </Checkbox>
-      <span style={{ color: '#94a3b8', fontSize: 11 }}>{cfg.key}</span>
+      <span
+        onPointerDown={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <Checkbox checked={cfg.visible} onChange={(e) => onToggle(cfg.key, e.target.checked)} />
+      </span>
+      <span style={{ fontWeight: 500, color: '#1e293b' }}>{cfg.title}</span>
+      <span style={{ color: '#94a3b8', fontSize: 10, fontFamily: 'monospace' }}>{cfg.key}</span>
     </div>
   );
 }
@@ -497,8 +505,8 @@ export default function PartnerOperationsPage() {
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
-  const load = async () => {
-    setLoading(true);
+  const load = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const [aRes, cRes, fRes] = await Promise.allSettled([
         apiClient.get('/api/transfer/partner/active-bookings'),
@@ -512,16 +520,35 @@ export default function PartnerOperationsPage() {
         setVehicles(fRes.value.data.data?.vehicles || []);
       }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => {
     load();
-    const t = setInterval(load, 30000);
-    return () => clearInterval(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const { socket, isConnected } = useSocket();
+  useEffect(() => {
+    if (!socket || !isConnected) return;
+    const refresh = () => load(true);
+    socket.on('booking:status', refresh);
+    socket.on('booking:assigned', refresh);
+    socket.on('booking:created', refresh);
+    socket.on('booking:updated', refresh);
+    socket.on('booking:cancelled', refresh);
+    socket.on('new_booking_for_pool', refresh);
+    return () => {
+      socket.off('booking:status', refresh);
+      socket.off('booking:assigned', refresh);
+      socket.off('booking:created', refresh);
+      socket.off('booking:updated', refresh);
+      socket.off('booking:cancelled', refresh);
+      socket.off('new_booking_for_pool', refresh);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [socket, isConnected]);
 
   useEffect(() => {
     try {
@@ -951,15 +978,15 @@ export default function PartnerOperationsPage() {
     index: {
       key: 'index',
       title: '#',
-      width: 50,
+      width: 44,
       fixed: 'left',
-      render: (_: any, __: any, i: number) => <span style={{ color: '#64748b' }}>{i + 1}</span>,
+      render: (_: any, __: any, i: number) => <span style={{ color: '#94a3b8', fontSize: 11 }}>{i + 1}</span>,
     },
     bookingNumber: {
       key: 'bookingNumber',
       title: 'T.KOD',
       dataIndex: 'bookingNumber',
-      width: 130,
+      width: 120,
       fixed: 'left',
       render: (v: string, r: PartnerBooking) => (
         <a
@@ -967,7 +994,7 @@ export default function PartnerOperationsPage() {
             setDetailRow(r);
             setIsDetailDrawerOpen(true);
           }}
-          style={{ fontWeight: 700, color: '#4f46e5' }}
+          style={{ fontWeight: 700, color: '#4f46e5', fontSize: 11 }}
         >
           {v}
         </a>
@@ -976,33 +1003,25 @@ export default function PartnerOperationsPage() {
     direction: {
       key: 'direction',
       title: 'YÖN',
-      width: 90,
+      width: 76,
       render: (_: any, r: PartnerBooking) => {
         const dir = routeDirection(r.pickup?.location, r.dropoff?.location);
         if (dir === 'GELİŞ') {
           return (
-            <Tag
-              icon={<LoginOutlined />}
-              color="green"
-              style={{ fontWeight: 700, padding: '2px 8px', borderRadius: 12 }}
-            >
+            <Tag icon={<LoginOutlined />} color="green" style={{ fontWeight: 700, fontSize: 10, margin: 0, padding: '0 6px', borderRadius: 10 }}>
               GELİŞ
             </Tag>
           );
         }
         if (dir === 'GİDİŞ') {
           return (
-            <Tag
-              icon={<LogoutOutlined />}
-              color="orange"
-              style={{ fontWeight: 700, padding: '2px 8px', borderRadius: 12 }}
-            >
+            <Tag icon={<LogoutOutlined />} color="orange" style={{ fontWeight: 700, fontSize: 10, margin: 0, padding: '0 6px', borderRadius: 10 }}>
               GİDİŞ
             </Tag>
           );
         }
         return (
-          <Tag icon={<SwapOutlined />} color="default" style={{ fontWeight: 700, padding: '2px 8px', borderRadius: 12 }}>
+          <Tag icon={<SwapOutlined />} color="default" style={{ fontWeight: 700, fontSize: 10, margin: 0, padding: '0 6px', borderRadius: 10 }}>
             ARA
           </Tag>
         );
@@ -1011,21 +1030,19 @@ export default function PartnerOperationsPage() {
     agency: {
       key: 'agency',
       title: 'ACENTE',
-      width: 140,
+      width: 110,
+      ellipsis: true,
       render: (_: any, r: PartnerBooking) => (
-        <span style={{ fontWeight: 600, color: '#1e293b' }}>{r.agencyName || 'Direkt'}</span>
+        <span style={{ fontWeight: 600, color: '#1e293b', fontSize: 11 }}>{r.agencyName || 'Direkt'}</span>
       ),
     },
     flightTime: {
       key: 'flightTime',
-      title: 'UÇUŞ SAATİ',
-      width: 120,
+      title: 'UÇUŞ',
+      width: 80,
       render: (_: any, r: PartnerBooking) =>
         r.flightTime ? (
-          <span style={{ color: '#1e293b' }}>
-            <ClockCircleOutlined style={{ marginRight: 4, color: '#94a3b8' }} />
-            {r.flightTime}
-          </span>
+          <span style={{ color: '#1e293b', fontSize: 11 }}>{r.flightTime}</span>
         ) : (
           <span style={{ color: '#cbd5e1' }}>—</span>
         ),
@@ -1033,11 +1050,11 @@ export default function PartnerOperationsPage() {
     pickupZone: {
       key: 'pickupZone',
       title: 'A.BÖLGE',
-      width: 120,
+      width: 96,
       render: (_: any, r: PartnerBooking) => {
         const code = r.pickup?.zoneCode || extractZoneFallback(r.pickup?.location);
         return code ? (
-          <Tag color="cyan" style={{ fontWeight: 700, letterSpacing: 0.5 }}>{String(code).toUpperCase()}</Tag>
+          <Tag color="cyan" style={{ fontWeight: 700, fontSize: 10, margin: 0, padding: '0 6px' }}>{String(code).toUpperCase()}</Tag>
         ) : (
           <span style={{ color: '#cbd5e1' }}>—</span>
         );
@@ -1046,11 +1063,11 @@ export default function PartnerOperationsPage() {
     dropoffZone: {
       key: 'dropoffZone',
       title: 'V.BÖLGE',
-      width: 120,
+      width: 96,
       render: (_: any, r: PartnerBooking) => {
         const code = r.dropoff?.zoneCode || extractZoneFallback(r.dropoff?.location);
         return code ? (
-          <Tag color="purple" style={{ fontWeight: 700, letterSpacing: 0.5 }}>{String(code).toUpperCase()}</Tag>
+          <Tag color="purple" style={{ fontWeight: 700, fontSize: 10, margin: 0, padding: '0 6px' }}>{String(code).toUpperCase()}</Tag>
         ) : (
           <span style={{ color: '#cbd5e1' }}>—</span>
         );
@@ -1059,22 +1076,23 @@ export default function PartnerOperationsPage() {
     iata: {
       key: 'iata',
       title: 'IATA',
-      width: 80,
+      width: 64,
       render: (_: any, r: PartnerBooking) => {
         const iata = r.pickup?.iata || r.dropoff?.iata || extractIataFallback(r);
-        return iata ? <Tag color="blue" style={{ fontWeight: 700 }}>{String(iata).toUpperCase()}</Tag> : <span style={{ color: '#cbd5e1' }}>—</span>;
+        return iata ? <Tag color="blue" style={{ fontWeight: 700, fontSize: 10, margin: 0, padding: '0 6px' }}>{String(iata).toUpperCase()}</Tag> : <span style={{ color: '#cbd5e1' }}>—</span>;
       },
     },
     customer: {
       key: 'customer',
       title: 'AD SOYAD',
-      width: 200,
+      width: 160,
+      ellipsis: true,
       render: (_: any, r: PartnerBooking) => (
-        <div style={{ lineHeight: 1.25 }}>
-          <div style={{ fontWeight: 600, color: '#1e293b' }}>{r.customer?.name || '-'}</div>
+        <div style={{ lineHeight: 1.2 }}>
+          <div style={{ fontWeight: 600, color: '#1e293b', fontSize: 11 }}>{r.customer?.name || '-'}</div>
           {r.customer?.phone && (
-            <div style={{ fontSize: 11, color: '#64748b' }}>
-              <PhoneOutlined style={{ marginRight: 4 }} />
+            <div style={{ fontSize: 10, color: '#94a3b8' }}>
+              <PhoneOutlined style={{ marginRight: 3 }} />
               {r.customer.phone}
             </div>
           )}
@@ -1084,10 +1102,10 @@ export default function PartnerOperationsPage() {
     pickupTime: {
       key: 'pickupTime',
       title: 'TRF. SAATİ',
-      width: 170,
+      width: 130,
       render: (_: any, r: PartnerBooking) => (
-        <span style={{ color: '#1e293b', fontWeight: 500 }}>
-          <CalendarOutlined style={{ marginRight: 5, color: '#94a3b8' }} />
+        <span style={{ color: '#1e293b', fontSize: 11, fontWeight: 500 }}>
+          <CalendarOutlined style={{ marginRight: 4, color: '#94a3b8' }} />
           {formatPickupTime(r.pickup?.time)}
         </span>
       ),
@@ -1095,11 +1113,12 @@ export default function PartnerOperationsPage() {
     pickupLocation: {
       key: 'pickupLocation',
       title: 'ALIŞ',
-      width: 240,
+      width: 200,
+      ellipsis: true,
       render: (_: any, r: PartnerBooking) => (
         <Tooltip title={r.pickup?.location} placement="topLeft">
-          <span style={{ color: '#334155' }}>
-            <EnvironmentOutlined style={{ color: '#10b981', marginRight: 5 }} />
+          <span style={{ color: '#334155', fontSize: 11 }}>
+            <EnvironmentOutlined style={{ color: '#10b981', marginRight: 4 }} />
             {r.pickup?.location}
           </span>
         </Tooltip>
@@ -1108,11 +1127,12 @@ export default function PartnerOperationsPage() {
     dropoffLocation: {
       key: 'dropoffLocation',
       title: 'VARIŞ',
-      width: 240,
+      width: 200,
+      ellipsis: true,
       render: (_: any, r: PartnerBooking) => (
         <Tooltip title={r.dropoff?.location} placement="topLeft">
-          <span style={{ color: '#334155' }}>
-            <EnvironmentOutlined style={{ color: '#ef4444', marginRight: 5 }} />
+          <span style={{ color: '#334155', fontSize: 11 }}>
+            <EnvironmentOutlined style={{ color: '#ef4444', marginRight: 4 }} />
             {r.dropoff?.location}
           </span>
         </Tooltip>
@@ -1121,16 +1141,19 @@ export default function PartnerOperationsPage() {
     pax: {
       key: 'pax',
       title: 'PAX',
-      width: 70,
-      render: (_: any, r: PartnerBooking) => r.vehicle?.pax || '-',
+      width: 56,
+      render: (_: any, r: PartnerBooking) => (
+        <span style={{ fontSize: 11 }}>{r.vehicle?.pax || '-'}</span>
+      ),
     },
     vehicleType: {
       key: 'vehicleType',
       title: 'ARAÇ TİPİ',
-      width: 130,
+      width: 108,
+      ellipsis: true,
       render: (_: any, r: PartnerBooking) => (
-        <Tag style={{ background: '#f0f9ff', borderColor: '#bae6fd', color: '#0369a1', fontWeight: 600 }}>
-          <CarOutlined style={{ marginRight: 4 }} />
+        <Tag style={{ background: '#f0f9ff', borderColor: '#bae6fd', color: '#0369a1', fontWeight: 600, fontSize: 10, margin: 0, padding: '0 6px' }}>
+          <CarOutlined style={{ marginRight: 3 }} />
           {r.vehicle?.type}
         </Tag>
       ),
@@ -1138,7 +1161,7 @@ export default function PartnerOperationsPage() {
     driverInline: {
       key: 'driverInline',
       title: 'ŞOFÖR',
-      width: 220,
+      width: 170,
       render: (_: any, r: PartnerBooking) => {
         if (tab === 'completed') return r.driver?.name || <span style={{ color: '#94a3b8' }}>-</span>;
         return (
@@ -1178,7 +1201,7 @@ export default function PartnerOperationsPage() {
     vehicleInline: {
       key: 'vehicleInline',
       title: 'ARAÇ',
-      width: 180,
+      width: 140,
       render: (_: any, r: PartnerBooking) => {
         if (tab === 'completed') {
           return r.assignedVehicle?.plate || <span style={{ color: '#94a3b8' }}>-</span>;
@@ -1205,7 +1228,7 @@ export default function PartnerOperationsPage() {
     note: {
       key: 'note',
       title: 'OP. NOTU',
-      width: 200,
+      width: 160,
       render: (_: any, r: PartnerBooking) => {
         const note = r.internalNotes || '';
         return (
@@ -1235,10 +1258,10 @@ export default function PartnerOperationsPage() {
     amount: {
       key: 'amount',
       title: 'TUTAR',
-      width: 130,
+      width: 110,
       align: 'right',
       render: (_: any, r: PartnerBooking) => (
-        <span style={{ fontWeight: 700, color: '#1e293b' }}>
+        <span style={{ fontWeight: 700, color: '#1e293b', fontSize: 11 }}>
           {Number(r.price?.amount || 0).toLocaleString('tr-TR')} {r.price?.currency || ''}
         </span>
       ),
@@ -1246,29 +1269,29 @@ export default function PartnerOperationsPage() {
     payment: {
       key: 'payment',
       title: 'ÖDEME',
-      width: 110,
+      width: 92,
       render: (_: any, r: PartnerBooking) => {
         const p = r.paymentStatus || 'PENDING';
         const color = p === 'PAID' ? 'green' : p === 'DISPUTED' ? 'red' : 'orange';
-        return <Tag color={color}>{p}</Tag>;
+        return <Tag color={color} style={{ fontSize: 10, margin: 0, padding: '0 6px' }}>{p}</Tag>;
       },
     },
     status: {
       key: 'status',
       title: 'DURUM',
-      width: 150,
+      width: 128,
       render: (_: any, r: PartnerBooking) => {
-        if (tab === 'completed') return <Tag color="green">TAMAMLANDI</Tag>;
+        if (tab === 'completed') return <Tag color="green" style={{ fontSize: 10, margin: 0, padding: '0 6px' }}>TAMAMLANDI</Tag>;
         const op = r.operationalStatus || (r.driver ? 'DRIVER_ASSIGNED' : 'CONFIRMED');
         const meta = STATUS_META[op] || { label: op || '-', color: 'default' };
-        return <Tag color={meta.color}>{meta.label}</Tag>;
+        return <Tag color={meta.color} style={{ fontSize: 10, margin: 0, padding: '0 6px' }}>{meta.label}</Tag>;
       },
     },
     actions: {
       key: 'actions',
       title: 'İŞLEMLER',
       fixed: 'right',
-      width: 170,
+      width: 156,
       render: (_: any, r: PartnerBooking) => (
         <RowActions
           row={r}
@@ -1303,8 +1326,6 @@ export default function PartnerOperationsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [columnConfigs, tab, drivers, vehicles, actionLoading]);
 
-  const scrollX = useMemo(() => columns.reduce((sum, c: any) => sum + (c?.width || 120), 0), [columns]);
-
   // ──────────────────────────────────────────────────────────
   // RENDER
   // ──────────────────────────────────────────────────────────
@@ -1332,7 +1353,7 @@ export default function PartnerOperationsPage() {
           <Button icon={<ThunderboltOutlined />} onClick={() => setIsPresetsDrawerOpen(true)}>
             Presetler
           </Button>
-          <Button icon={<ReloadOutlined />} onClick={load} loading={loading}>
+          <Button icon={<ReloadOutlined />} onClick={() => load()} loading={loading}>
             Yenile
           </Button>
         </Space>
@@ -1475,9 +1496,10 @@ export default function PartnerOperationsPage() {
             rowKey="id"
             dataSource={filtered}
             columns={columns}
-            pagination={{ pageSize: 25, showSizeChanger: true, pageSizeOptions: ['10', '25', '50', '100'] }}
-            scroll={{ x: scrollX }}
+            pagination={{ pageSize: 25, showSizeChanger: true, pageSizeOptions: ['10', '25', '50', '100'], size: 'small' }}
+            scroll={{ x: 'max-content', y: 600 }}
             size="small"
+            sticky
             locale={{ emptyText: <Empty description="Kayıt bulunamadı" /> }}
           />
         )}
@@ -1488,23 +1510,25 @@ export default function PartnerOperationsPage() {
         title="Kolon Yönetimi"
         open={isColumnsDrawerOpen}
         onClose={() => setIsColumnsDrawerOpen(false)}
-        width={420}
+        width={440}
         extra={
           <Button size="small" onClick={resetColumns}>
             Varsayılana Dön
           </Button>
         }
       >
-        <p style={{ color: '#64748b', fontSize: 12, marginBottom: 10 }}>
-          Sürükle-bırak ile sırala. Kutu işaretini kaldırarak kolonu gizle. Tercihler otomatik kaydedilir.
-        </p>
+        <div style={{ color: '#64748b', fontSize: 12, marginBottom: 12, padding: 10, background: '#f8fafc', borderRadius: 8 }}>
+          <HolderOutlined style={{ marginRight: 6 }} />
+          Satırı sürükleyerek yerini değiştir. <br />
+          <span style={{ fontSize: 11 }}>Onay kutusu ile kolonu gizle/göster. Tercihler kalıcı.</span>
+        </div>
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onColumnDragEnd}>
           <SortableContext items={columnConfigs.map((c) => c.key)} strategy={verticalListSortingStrategy}>
-            <Space direction="vertical" style={{ width: '100%' }} size={6}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {columnConfigs.map((cfg) => (
                 <SortableRow key={cfg.key} cfg={cfg} onToggle={setColumnVisibility} />
               ))}
-            </Space>
+            </div>
           </SortableContext>
         </DndContext>
       </Drawer>

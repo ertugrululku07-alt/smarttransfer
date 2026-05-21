@@ -23,7 +23,10 @@ import {
   GlobalOutlined,
   CompassOutlined,
   AppstoreOutlined,
+  LeftOutlined,
+  RightOutlined,
 } from '@ant-design/icons';
+import { Tooltip } from 'antd';
 
 interface NavItem {
   key: string;
@@ -63,11 +66,27 @@ const SECTION_LABELS: Record<string, string> = {
 
 export default function PartnerLayout({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
   const [activeCount, setActiveCount] = useState(0);
   const router = useRouter();
   const pathname = usePathname();
   const { user, logout } = useAuth();
   const { branding } = useBranding();
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('partner-sidebar-collapsed');
+      if (saved) setCollapsed(saved === '1');
+    } catch {}
+  }, []);
+
+  const toggleCollapsed = () => {
+    setCollapsed((c) => {
+      const next = !c;
+      try { localStorage.setItem('partner-sidebar-collapsed', next ? '1' : '0'); } catch {}
+      return next;
+    });
+  };
 
   useEffect(() => {
     apiClient.get('/api/transfer/partner/active-bookings')
@@ -97,7 +116,7 @@ export default function PartnerLayout({ children }: { children: React.ReactNode 
   const sections = ['main', 'fleet', 'finance', 'system'] as const;
 
   return (
-    <div className="partner-root">
+    <div className={`partner-root${collapsed ? ' partner-root--collapsed' : ''}`}>
       {/* ── Mobile header ────────────────────────────────── */}
       <header className="ps-mobile-header">
         <button type="button" className="ps-mobile-header__btn" onClick={() => setOpen(o => !o)} aria-label="Menü">
@@ -112,6 +131,14 @@ export default function PartnerLayout({ children }: { children: React.ReactNode 
 
       {/* ── Sidebar ──────────────────────────────────────── */}
       <aside className={`ps-sidebar${open ? ' open' : ''}`}>
+        <button
+          type="button"
+          className="ps-sidebar__collapse"
+          onClick={toggleCollapsed}
+          aria-label={collapsed ? 'Menüyü aç' : 'Menüyü daralt'}
+        >
+          {collapsed ? <RightOutlined /> : <LeftOutlined />}
+        </button>
         <div className="ps-sidebar__inner">
           {/* Brand */}
           <div className="ps-brand">
@@ -120,7 +147,7 @@ export default function PartnerLayout({ children }: { children: React.ReactNode 
                 ? <img src={logoSrc} alt="" className="ps-brand__logo" />
                 : <div className="ps-brand__monogram">{companyInitial}</div>
               }
-              <div>
+              <div className="ps-brand__text">
                 <div className="ps-brand__name">{companyName}</div>
                 <div className="ps-brand__tag">Partner Paneli</div>
               </div>
@@ -130,7 +157,7 @@ export default function PartnerLayout({ children }: { children: React.ReactNode 
           {/* User */}
           <div className="ps-user">
             <div className="ps-user__avatar">{initials}</div>
-            <div style={{ minWidth: 0 }}>
+            <div className="ps-user__text" style={{ minWidth: 0 }}>
               <div className="ps-user__name">{user?.firstName} {user?.lastName}</div>
               <div className="ps-user__role">Partner</div>
             </div>
@@ -146,7 +173,7 @@ export default function PartnerLayout({ children }: { children: React.ReactNode 
                   <div className="ps-nav__group-label">{SECTION_LABELS[section]}</div>
                   {items.map(item => {
                     const active = isActive(item.path, item.exact);
-                    return (
+                    const navItem = (
                       <div
                         key={item.key}
                         role="button"
@@ -156,11 +183,18 @@ export default function PartnerLayout({ children }: { children: React.ReactNode 
                         onKeyDown={e => e.key === 'Enter' && go(item.path)}
                       >
                         <span className="ps-nav__icon">{item.icon}</span>
-                        <span style={{ flex: 1 }}>{item.label}</span>
+                        <span className="ps-nav__label" style={{ flex: 1 }}>{item.label}</span>
                         {item.badge != null && item.badge > 0 && (
                           <span className="ps-nav__badge">{item.badge}</span>
                         )}
                       </div>
+                    );
+                    return collapsed ? (
+                      <Tooltip key={item.key} placement="right" title={item.label}>
+                        {navItem}
+                      </Tooltip>
+                    ) : (
+                      navItem
                     );
                   })}
                 </div>
@@ -171,7 +205,7 @@ export default function PartnerLayout({ children }: { children: React.ReactNode 
           {/* Logout */}
           <button type="button" className="ps-logout" onClick={handleLogout}>
             <LogoutOutlined style={{ fontSize: 16 }} />
-            Çıkış Yap
+            <span className="ps-nav__label">Çıkış Yap</span>
           </button>
         </div>
       </aside>
