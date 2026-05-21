@@ -412,6 +412,44 @@
   font-size: 11px !important;
 }
 
+/* Operations table — resizable column handle */
+.partner-op-table-wrap .ant-table-thead > tr > th {
+  position: relative;
+}
+.partner-op-resize-handle {
+  position: absolute;
+  right: -4px;
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  cursor: col-resize;
+  z-index: 4;
+  background: transparent;
+  transition: background 0.12s ease;
+}
+.partner-op-resize-handle:hover,
+.partner-op-resize-handle:active {
+  background: linear-gradient(90deg, transparent 35%, #6366f1 50%, transparent 65%);
+}
+.partner-op-table-wrap .ant-table-thead > tr > th:hover .partner-op-resize-handle {
+  background: linear-gradient(90deg, transparent 35%, #c7d2fe 50%, transparent 65%);
+}
+.partner-op-table-wrap .react-resizable {
+  position: relative;
+  background-clip: padding-box;
+}
+.partner-op-table-wrap .react-resizable-handle {
+  display: none;
+}
+.partner-op-table-wrap .ant-table-cell {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.partner-op-table-wrap .ant-table-thead > tr > th {
+  user-select: none;
+}
+
 /* ── Mobile header ─────────────────────────────────────── */
 .ps-mobile-header {
   display: none;

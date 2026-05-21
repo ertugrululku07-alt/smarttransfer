@@ -6056,6 +6056,256 @@ router.delete('/partner/zone-prices/:id', authMiddleware, async (req, res) => {
 
 const uetdsService = require('../services/uetdsService');
 
+// ════════════════════════════════════════════════════════════════════
+// PARTNER NOTIFICATION CHANNEL DEFINITIONS (Email / WhatsApp)
+// Stored under partnerProfile.metadata.notifications. Secrets are
+// AES-encrypted with the same key used for UETDS credentials.
+// ════════════════════════════════════════════════════════════════════
+
+function mapEmailForRead(email) {
+    if (!email) return { enabled: false };
+    return {
+        enabled: !!email.enabled,
+        smtpHost: email.smtpHost || '',
+        smtpPort: email.smtpPort || 587,
+        smtpSecure: !!email.smtpSecure,
+        smtpUser: email.smtpUser || '',
+        hasSmtpPass: !!email.smtpPassEnc,
+        senderEmail: email.senderEmail || '',
+        senderName: email.senderName || '',
+        replyTo: email.replyTo || '',
+        autoSendVoucher: !!email.autoSendVoucher
+    };
+}
+
+function mapWhatsAppForRead(wa) {
+    if (!wa) return { enabled: false, provider: 'META' };
+    return {
+        enabled: !!wa.enabled,
+        provider: wa.provider || 'META',
+        metaPhoneNumberId: wa.metaPhoneNumberId || '',
+        hasMetaAccessToken: !!wa.metaAccessTokenEnc,
+        greenInstanceId: wa.greenInstanceId || '',
+        hasGreenApiToken: !!wa.greenApiTokenEnc,
+        webhookUrl: wa.webhookUrl || '',
+        hasWebhookSecret: !!wa.webhookSecretEnc,
+        defaultCountryCode: wa.defaultCountryCode || '90',
+        autoSendVoucher: !!wa.autoSendVoucher
+    };
+}
+
+function normalizePhoneTr(phone) {
+    if (!phone) return null;
+    let cleaned = String(phone).replace(/[^\d+]/g, '');
+    if (cleaned.startsWith('+')) cleaned = cleaned.slice(1);
+    if (cleaned.startsWith('0')) cleaned = '90' + cleaned.slice(1);
+    if (cleaned.length === 10 && cleaned.startsWith('5')) cleaned = '90' + cleaned;
+    return cleaned;
+}
+
+router.get('/partner/notifications', authMiddleware, async (req, res) => {
+    try {
+        if (req.user.roleType !== 'PARTNER') {
+            return res.status(403).json({ success: false, error: 'Yalnızca partner kullanıcılar erişebilir' });
+        }
+        const userId = req.user.id;
+        const profile = await prisma.partnerProfile.findUnique({ where: { userId } });
+        const metadata = profile?.metadata || {};
+        const notif = metadata.notifications || {};
+        res.json({
+            success: true,
+            data: {
+                email: mapEmailForRead(notif.email),
+                whatsapp: mapWhatsAppForRead(notif.whatsapp)
+            }
+        });
+    } catch (error) {
+        console.error('Get partner notifications error:', error);
+        res.status(500).json({ success: false, error: 'Bildirim ayarları alınamadı' });
+    }
+});
+
+router.put('/partner/notifications', authMiddleware, async (req, res) => {
+    try {
+        if (req.user.roleType !== 'PARTNER') {
+            return res.status(403).json({ success: false, error: 'Yalnızca partner kullanıcılar erişebilir' });
+        }
+        const tenantId = req.tenant?.id || req.user.tenantId;
+        const userId = req.user.id;
+        const { email = {}, whatsapp = {} } = req.body || {};
+
+        const existing = await prisma.partnerProfile.findUnique({ where: { userId } });
+        const metadata = existing?.metadata || {};
+        const prevNotif = metadata.notifications || {};
+        const prevEmail = prevNotif.email || {};
+        const prevWa = prevNotif.whatsapp || {};
+
+        const nextEmail = {
+            enabled: email.enabled === undefined ? !!prevEmail.enabled : !!email.enabled,
+            smtpHost: email.smtpHost ?? prevEmail.smtpHost ?? '',
+            smtpPort: email.smtpPort ? Number(email.smtpPort) : (prevEmail.smtpPort || 587),
+            smtpSecure: email.smtpSecure === undefined ? !!prevEmail.smtpSecure : !!email.smtpSecure,
+            smtpUser: email.smtpUser ?? prevEmail.smtpUser ?? '',
+            smtpPassEnc: email.smtpPass ? uetdsService.encrypt(String(email.smtpPass)) : (prevEmail.smtpPassEnc || null),
+            senderEmail: email.senderEmail ?? prevEmail.senderEmail ?? '',
+            senderName: email.senderName ?? prevEmail.senderName ?? '',
+            replyTo: email.replyTo ?? prevEmail.replyTo ?? '',
+            autoSendVoucher: email.autoSendVoucher === undefined ? !!prevEmail.autoSendVoucher : !!email.autoSendVoucher
+        };
+
+        const nextWa = {
+            enabled: whatsapp.enabled === undefined ? !!prevWa.enabled : !!whatsapp.enabled,
+            provider: (whatsapp.provider || prevWa.provider || 'META').toUpperCase(),
+            metaPhoneNumberId: whatsapp.metaPhoneNumberId ?? prevWa.metaPhoneNumberId ?? '',
+            metaAccessTokenEnc: whatsapp.metaAccessToken ? uetdsService.encrypt(String(whatsapp.metaAccessToken)) : (prevWa.metaAccessTokenEnc || null),
+            greenInstanceId: whatsapp.greenInstanceId ?? prevWa.greenInstanceId ?? '',
+            greenApiTokenEnc: whatsapp.greenApiToken ? uetdsService.encrypt(String(whatsapp.greenApiToken)) : (prevWa.greenApiTokenEnc || null),
+            webhookUrl: whatsapp.webhookUrl ?? prevWa.webhookUrl ?? '',
+            webhookSecretEnc: whatsapp.webhookSecret ? uetdsService.encrypt(String(whatsapp.webhookSecret)) : (prevWa.webhookSecretEnc || null),
+            defaultCountryCode: whatsapp.defaultCountryCode ?? prevWa.defaultCountryCode ?? '90',
+            autoSendVoucher: whatsapp.autoSendVoucher === undefined ? !!prevWa.autoSendVoucher : !!whatsapp.autoSendVoucher
+        };
+
+        const updated = await prisma.partnerProfile.upsert({
+            where: { userId },
+            update: {
+                metadata: { ...metadata, notifications: { email: nextEmail, whatsapp: nextWa } }
+            },
+            create: {
+                tenantId,
+                userId,
+                metadata: { notifications: { email: nextEmail, whatsapp: nextWa } }
+            }
+        });
+
+        const next = updated.metadata?.notifications || {};
+        res.json({
+            success: true,
+            data: {
+                email: mapEmailForRead(next.email),
+                whatsapp: mapWhatsAppForRead(next.whatsapp)
+            }
+        });
+    } catch (error) {
+        console.error('Update partner notifications error:', error);
+        res.status(500).json({ success: false, error: 'Bildirim ayarları kaydedilemedi' });
+    }
+});
+
+router.post('/partner/notifications/test-email', authMiddleware, async (req, res) => {
+    try {
+        if (req.user.roleType !== 'PARTNER') {
+            return res.status(403).json({ success: false, error: 'Yalnızca partner kullanıcılar erişebilir' });
+        }
+        const userId = req.user.id;
+        const { to } = req.body || {};
+        if (!to) return res.status(400).json({ success: false, error: 'Test alıcı e-posta adresi gerekli' });
+
+        const profile = await prisma.partnerProfile.findUnique({ where: { userId } });
+        const email = profile?.metadata?.notifications?.email;
+        if (!email || !email.smtpHost || !email.smtpUser || !email.smtpPassEnc) {
+            return res.status(400).json({ success: false, error: 'SMTP ayarları eksik' });
+        }
+
+        const nodemailer = require('nodemailer');
+        const transporter = nodemailer.createTransport({
+            host: email.smtpHost,
+            port: Number(email.smtpPort) || 587,
+            secure: !!email.smtpSecure || Number(email.smtpPort) === 465,
+            auth: {
+                user: email.smtpUser,
+                pass: uetdsService.decrypt(email.smtpPassEnc)
+            },
+            tls: { rejectUnauthorized: false }
+        });
+
+        const fromName = email.senderName || req.user.fullName || 'Partner';
+        const fromAddr = email.senderEmail || email.smtpUser;
+        await transporter.sendMail({
+            from: `"${fromName}" <${fromAddr}>`,
+            to,
+            replyTo: email.replyTo || undefined,
+            subject: 'SmartTransfer · SMTP Test',
+            text: 'Bu bir test e-postasıdır. Bildirimler başarıyla yapılandırılmıştır.',
+            html: '<p>Bu bir <b>test e-postasıdır</b>. SMTP bağlantınız çalışıyor.</p>'
+        });
+
+        res.json({ success: true, message: `Test e-postası gönderildi: ${to}` });
+    } catch (error) {
+        console.error('Partner test email error:', error);
+        res.status(500).json({ success: false, error: error.message || 'Test e-postası gönderilemedi' });
+    }
+});
+
+router.post('/partner/notifications/test-whatsapp', authMiddleware, async (req, res) => {
+    try {
+        if (req.user.roleType !== 'PARTNER') {
+            return res.status(403).json({ success: false, error: 'Yalnızca partner kullanıcılar erişebilir' });
+        }
+        const userId = req.user.id;
+        const { phone, message: bodyMessage } = req.body || {};
+        if (!phone) return res.status(400).json({ success: false, error: 'Telefon numarası gerekli' });
+
+        const profile = await prisma.partnerProfile.findUnique({ where: { userId } });
+        const wa = profile?.metadata?.notifications?.whatsapp;
+        if (!wa) return res.status(400).json({ success: false, error: 'WhatsApp ayarları yapılandırılmamış' });
+
+        const normalized = normalizePhoneTr(phone);
+        if (!normalized) return res.status(400).json({ success: false, error: 'Geçersiz telefon numarası' });
+
+        const text = bodyMessage || 'Bu bir test mesajıdır. WhatsApp bildirim ayarlarınız doğrulandı.';
+        const provider = (wa.provider || 'META').toUpperCase();
+        const axios = require('axios');
+
+        if (provider === 'META') {
+            if (!wa.metaPhoneNumberId || !wa.metaAccessTokenEnc) {
+                return res.status(400).json({ success: false, error: 'Meta WhatsApp ayarları eksik' });
+            }
+            const token = uetdsService.decrypt(wa.metaAccessTokenEnc);
+            await axios.post(
+                `https://graph.facebook.com/v18.0/${wa.metaPhoneNumberId}/messages`,
+                { messaging_product: 'whatsapp', to: normalized, type: 'text', text: { body: text } },
+                { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, timeout: 15000 }
+            );
+            return res.json({ success: true, message: `Test mesajı gönderildi: ${normalized}` });
+        }
+
+        if (provider === 'GREEN') {
+            if (!wa.greenInstanceId || !wa.greenApiTokenEnc) {
+                return res.status(400).json({ success: false, error: 'Green API ayarları eksik' });
+            }
+            const token = uetdsService.decrypt(wa.greenApiTokenEnc);
+            await axios.post(
+                `https://api.green-api.com/waInstance${wa.greenInstanceId}/sendMessage/${token}`,
+                { chatId: `${normalized}@c.us`, message: text },
+                { timeout: 15000 }
+            );
+            return res.json({ success: true, message: `Test mesajı gönderildi: ${normalized}` });
+        }
+
+        if (provider === 'WEBHOOK') {
+            if (!wa.webhookUrl) {
+                return res.status(400).json({ success: false, error: 'Webhook URL gerekli' });
+            }
+            const secret = wa.webhookSecretEnc ? uetdsService.decrypt(wa.webhookSecretEnc) : null;
+            const headers = { 'Content-Type': 'application/json' };
+            if (secret) headers['X-Webhook-Secret'] = secret;
+            await axios.post(wa.webhookUrl, { phone: normalized, message: text }, { headers, timeout: 15000 });
+            return res.json({ success: true, message: `Test webhook çağrıldı: ${normalized}` });
+        }
+
+        return res.status(400).json({ success: false, error: 'Desteklenmeyen sağlayıcı' });
+    } catch (error) {
+        const apiErr = error.response?.data?.error?.message
+            || error.response?.data?.message
+            || error.response?.data?.error
+            || error.message
+            || 'Test mesajı gönderilemedi';
+        console.error('Partner test whatsapp error:', apiErr);
+        res.status(500).json({ success: false, error: apiErr });
+    }
+});
+
 /**
  * PUT /api/transfer/partner/uetds-credentials
  * Partner saves their own UNet username + password (encrypted).

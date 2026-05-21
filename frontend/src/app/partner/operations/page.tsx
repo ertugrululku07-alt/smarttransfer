@@ -60,13 +60,17 @@ import {
   useSensors,
   type DragEndEvent,
 } from '@dnd-kit/core';
+import { restrictToHorizontalAxis } from '@dnd-kit/modifiers';
 import {
   SortableContext,
   arrayMove,
+  horizontalListSortingStrategy,
   useSortable,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { Resizable } from 'react-resizable';
+import 'react-resizable/css/styles.css';
 import dayjs from 'dayjs';
 import apiClient from '@/lib/api-client';
 import { useSocket } from '@/app/context/SocketContext';
@@ -149,6 +153,7 @@ type ColumnConfig = {
   key: string;
   title: string;
   visible: boolean;
+  width?: number;
 };
 
 const FILTER_PRESETS_STORAGE_KEY = 'partner-operations-filter-presets-v2';
@@ -231,6 +236,63 @@ function openMaps(b: PartnerBooking) {
 function formatPickupTime(value?: string) {
   if (!value) return '-';
   return value;
+}
+
+// ──────────────────────────────────────────────────────────────────
+// RESIZABLE + DRAGGABLE TABLE HEADER
+// ──────────────────────────────────────────────────────────────────
+function DraggableResizableHeader(props: any) {
+  const { onResize, width, columnKey, fixed, children, style, className, ...rest } = props;
+
+  const sortable = useSortable({ id: columnKey || 'noop', disabled: !columnKey || fixed });
+  const dragStyle: React.CSSProperties = {
+    ...(style || {}),
+    transform: CSS.Transform.toString(sortable.transform),
+    transition: sortable.transition,
+    cursor: fixed ? 'default' : 'grab',
+    opacity: sortable.isDragging ? 0.65 : 1,
+    background: sortable.isDragging ? '#eef2ff' : (style?.background as any),
+    zIndex: sortable.isDragging ? 5 : (style?.zIndex as any),
+    userSelect: 'none',
+    position: (style?.position as any) || 'relative',
+  };
+
+  const inner = (
+    <th
+      ref={sortable.setNodeRef}
+      style={dragStyle}
+      className={className}
+      {...sortable.attributes}
+      {...(fixed ? {} : sortable.listeners)}
+      {...rest}
+    >
+      {children}
+    </th>
+  );
+
+  if (!width || fixed) return inner;
+
+  return (
+    <Resizable
+      width={width}
+      height={0}
+      handle={(
+        <span
+          className="partner-op-resize-handle"
+          onClick={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+        />
+      )}
+      onResize={(e: any, data: any) => {
+        e.stopPropagation();
+        onResize?.(data.size.width);
+      }}
+      draggableOpts={{ enableUserSelectHack: false }}
+    >
+      {inner}
+    </Resizable>
+  );
 }
 
 function RowActions({
@@ -478,27 +540,27 @@ export default function PartnerOperationsPage() {
   const [filterPresets, setFilterPresets] = useState<FilterPreset[]>([]);
 
   const defaultColumnConfigs: ColumnConfig[] = [
-    { key: 'index', title: '#', visible: true },
-    { key: 'bookingNumber', title: 'T.KOD', visible: true },
-    { key: 'direction', title: 'YÖN', visible: true },
-    { key: 'agency', title: 'ACENTE', visible: true },
-    { key: 'customer', title: 'AD SOYAD', visible: true },
-    { key: 'pickupTime', title: 'TRF. SAATİ', visible: true },
-    { key: 'flightTime', title: 'UÇUŞ SAATİ', visible: false },
-    { key: 'pickupZone', title: 'A.BÖLGE', visible: true },
-    { key: 'dropoffZone', title: 'V.BÖLGE', visible: true },
-    { key: 'pickupLocation', title: 'ALIŞ NOKTASI', visible: false },
-    { key: 'dropoffLocation', title: 'VARIŞ NOKTASI', visible: false },
-    { key: 'pax', title: 'PAX', visible: true },
-    { key: 'iata', title: 'IATA', visible: true },
-    { key: 'vehicleType', title: 'ARAÇ TİPİ', visible: true },
-    { key: 'driverInline', title: 'ŞOFÖR', visible: true },
-    { key: 'vehicleInline', title: 'ARAÇ', visible: true },
-    { key: 'note', title: 'OP. NOTU', visible: false },
-    { key: 'amount', title: 'TUTAR', visible: true },
-    { key: 'payment', title: 'ÖDEME', visible: false },
-    { key: 'status', title: 'DURUM', visible: true },
-    { key: 'actions', title: 'İŞLEMLER', visible: true },
+    { key: 'index', title: '#', visible: true, width: 44 },
+    { key: 'bookingNumber', title: 'T.KOD', visible: true, width: 110 },
+    { key: 'direction', title: 'YÖN', visible: true, width: 70 },
+    { key: 'agency', title: 'ACENTE', visible: false, width: 100 },
+    { key: 'customer', title: 'AD SOYAD', visible: true, width: 130 },
+    { key: 'pickupTime', title: 'TRF. SAATİ', visible: true, width: 110 },
+    { key: 'flightTime', title: 'UÇUŞ', visible: false, width: 72 },
+    { key: 'pickupZone', title: 'A.BÖLGE', visible: true, width: 88 },
+    { key: 'dropoffZone', title: 'V.BÖLGE', visible: true, width: 88 },
+    { key: 'pickupLocation', title: 'ALIŞ NOKTASI', visible: false, width: 180 },
+    { key: 'dropoffLocation', title: 'VARIŞ NOKTASI', visible: false, width: 180 },
+    { key: 'pax', title: 'PAX', visible: true, width: 50 },
+    { key: 'iata', title: 'IATA', visible: false, width: 60 },
+    { key: 'vehicleType', title: 'ARAÇ TİPİ', visible: false, width: 100 },
+    { key: 'driverInline', title: 'ŞOFÖR', visible: true, width: 150 },
+    { key: 'vehicleInline', title: 'ARAÇ', visible: false, width: 130 },
+    { key: 'note', title: 'OP. NOTU', visible: false, width: 150 },
+    { key: 'amount', title: 'TUTAR', visible: true, width: 100 },
+    { key: 'payment', title: 'ÖDEME', visible: false, width: 84 },
+    { key: 'status', title: 'DURUM', visible: true, width: 116 },
+    { key: 'actions', title: 'İŞLEMLER', visible: true, width: 150 },
   ];
   const [columnConfigs, setColumnConfigs] = useState<ColumnConfig[]>(defaultColumnConfigs);
   const initialLoadDone = useRef(false);
@@ -569,7 +631,7 @@ export default function PartnerOperationsPage() {
           const next: ColumnConfig[] = [];
           parsed.forEach((p: ColumnConfig) => {
             const def = defaultColumnConfigs.find((d) => d.key === p.key);
-            if (def) next.push({ ...def, visible: !!p.visible });
+            if (def) next.push({ ...def, visible: !!p.visible, width: p.width || def.width });
           });
           defaultColumnConfigs.forEach((d) => {
             if (!next.find((n) => n.key === d.key)) next.push(d);
@@ -696,6 +758,34 @@ export default function PartnerOperationsPage() {
       if (oldIndex < 0 || newIndex < 0) return prev;
       return arrayMove(prev, oldIndex, newIndex);
     });
+  };
+
+  const onHeaderDragEnd = (event: DragEndEvent) => {
+    const { active: a, over } = event;
+    if (!over || a.id === over.id) return;
+    setColumnConfigs((prev) => {
+      const visible = prev.filter((c) => c.visible);
+      const oldVisIndex = visible.findIndex((c) => c.key === a.id);
+      const newVisIndex = visible.findIndex((c) => c.key === over.id);
+      if (oldVisIndex < 0 || newVisIndex < 0) return prev;
+      const newVisibleOrder = arrayMove(visible, oldVisIndex, newVisIndex);
+      const newOrder: ColumnConfig[] = [];
+      let visibleIdx = 0;
+      prev.forEach((c) => {
+        if (c.visible) {
+          newOrder.push(newVisibleOrder[visibleIdx++]);
+        } else {
+          newOrder.push(c);
+        }
+      });
+      return newOrder;
+    });
+  };
+
+  const handleColumnResize = (key: string, width: number) => {
+    setColumnConfigs((prev) =>
+      prev.map((cfg) => (cfg.key === key ? { ...cfg, width: Math.max(40, Math.round(width)) } : cfg))
+    );
   };
 
   const resetColumns = () => {
@@ -1322,9 +1412,28 @@ export default function PartnerOperationsPage() {
   };
 
   const columns = useMemo(() => {
-    return columnConfigs.filter((cfg) => cfg.visible).map((cfg) => columnsByKey[cfg.key]).filter(Boolean);
+    return columnConfigs
+      .filter((cfg) => cfg.visible)
+      .map((cfg) => {
+        const base = columnsByKey[cfg.key];
+        if (!base) return null;
+        const isFixed = base.fixed === 'left' || base.fixed === 'right';
+        return {
+          ...base,
+          width: cfg.width || base.width,
+          onHeaderCell: (col: any) => ({
+            columnKey: cfg.key,
+            width: cfg.width || base.width,
+            fixed: isFixed,
+            onResize: (w: number) => handleColumnResize(cfg.key, w),
+          }),
+        };
+      })
+      .filter(Boolean);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [columnConfigs, tab, drivers, vehicles, actionLoading]);
+
+  const visibleKeys = useMemo(() => columnConfigs.filter((c) => c.visible).map((c) => c.key), [columnConfigs]);
 
   // ──────────────────────────────────────────────────────────
   // RENDER
@@ -1486,22 +1595,31 @@ export default function PartnerOperationsPage() {
         </div>
       </div>
 
-      <div className="ps-card">
+      <div className="ps-card partner-op-table-wrap">
         {loading ? (
           <div style={{ textAlign: 'center', padding: 80 }}>
             <Spin size="large" />
           </div>
         ) : (
-          <Table
-            rowKey="id"
-            dataSource={filtered}
-            columns={columns}
-            pagination={{ pageSize: 25, showSizeChanger: true, pageSizeOptions: ['10', '25', '50', '100'], size: 'small' }}
-            scroll={{ x: 'max-content', y: 600 }}
-            size="small"
-            sticky
-            locale={{ emptyText: <Empty description="Kayıt bulunamadı" /> }}
-          />
+          <DndContext
+            sensors={sensors}
+            modifiers={[restrictToHorizontalAxis]}
+            collisionDetection={closestCenter}
+            onDragEnd={onHeaderDragEnd}
+          >
+            <SortableContext items={visibleKeys} strategy={horizontalListSortingStrategy}>
+              <Table
+                rowKey="id"
+                dataSource={filtered}
+                columns={columns}
+                pagination={{ pageSize: 25, showSizeChanger: true, pageSizeOptions: ['10', '25', '50', '100'], size: 'small' }}
+                size="small"
+                tableLayout="fixed"
+                components={{ header: { cell: DraggableResizableHeader } }}
+                locale={{ emptyText: <Empty description="Kayıt bulunamadı" /> }}
+              />
+            </SortableContext>
+          </DndContext>
         )}
       </div>
 

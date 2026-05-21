@@ -11,7 +11,9 @@ import {
     SaveOutlined, SafetyOutlined, FileTextOutlined,
     LockOutlined, TeamOutlined, CalendarOutlined,
     CheckCircleOutlined, PhoneOutlined, MailOutlined,
-    StopOutlined
+    StopOutlined, ApiOutlined, WhatsAppOutlined,
+    SafetyCertificateOutlined, KeyOutlined, ExperimentOutlined,
+    CloseCircleOutlined
 } from '@ant-design/icons';
 import apiClient from '@/lib/api-client';
 import { useAuth } from '@/app/context/AuthContext';
@@ -41,6 +43,25 @@ export default function SettingsPage() {
     const [driverForm] = Form.useForm();
     const [editingDriver, setEditingDriver] = useState<any>(null);
     const [savingDriver, setSavingDriver] = useState(false);
+
+    // Integrations (Tanımlamalar) state
+    const [integrationsLoading, setIntegrationsLoading] = useState(false);
+    const [uetdsProfile, setUetdsProfile] = useState<any>(null);
+    const [uetdsForm] = Form.useForm();
+    const [savingUetds, setSavingUetds] = useState(false);
+    const [testingUetds, setTestingUetds] = useState(false);
+    const [uetdsTestResult, setUetdsTestResult] = useState<{ success: boolean; message: string } | null>(null);
+    const [whatsapp, setWhatsapp] = useState<any>(null);
+    const [whatsappForm] = Form.useForm();
+    const [whatsappProvider, setWhatsappProvider] = useState<'META' | 'GREEN' | 'WEBHOOK'>('META');
+    const [savingWhatsapp, setSavingWhatsapp] = useState(false);
+    const [testingWhatsapp, setTestingWhatsapp] = useState(false);
+    const [whatsappTestModal, setWhatsappTestModal] = useState<{ open: boolean; phone: string }>({ open: false, phone: '' });
+    const [emailCfg, setEmailCfg] = useState<any>(null);
+    const [emailForm] = Form.useForm();
+    const [savingEmail, setSavingEmail] = useState(false);
+    const [testingEmail, setTestingEmail] = useState(false);
+    const [emailTestModal, setEmailTestModal] = useState<{ open: boolean; to: string }>({ open: false, to: '' });
 
     const [documents, setDocuments] = useState([
         { id: 1, name: 'Sürücü Belgesi', status: 'VERIFIED', uploadDate: '2024-01-15' },
@@ -79,7 +100,219 @@ export default function SettingsPage() {
             });
         }
         if (activeTab === 'bank') fetchBankInfo();
+        if (activeTab === 'integrations') fetchIntegrations();
     }, [activeTab, user]);
+
+    const fetchIntegrations = async () => {
+        setIntegrationsLoading(true);
+        try {
+            const [profileRes, notifRes] = await Promise.all([
+                apiClient.get('/api/transfer/partner/profile'),
+                apiClient.get('/api/transfer/partner/notifications').catch(() => ({ data: { success: false } })),
+            ]);
+            if (profileRes.data?.success) {
+                setUetdsProfile(profileRes.data.data);
+                uetdsForm.setFieldsValue({
+                    unetUser: profileRes.data.data.uetdsUnetUser || '',
+                    unetPassword: '',
+                });
+            }
+            if (notifRes.data?.success) {
+                const wa = notifRes.data.data?.whatsapp || {};
+                const em = notifRes.data.data?.email || {};
+                setWhatsapp(wa);
+                setEmailCfg(em);
+                setWhatsappProvider((wa.provider || 'META') as any);
+                whatsappForm.setFieldsValue({
+                    enabled: !!wa.enabled,
+                    provider: wa.provider || 'META',
+                    metaPhoneNumberId: wa.metaPhoneNumberId || '',
+                    metaAccessToken: '',
+                    greenInstanceId: wa.greenInstanceId || '',
+                    greenApiToken: '',
+                    webhookUrl: wa.webhookUrl || '',
+                    webhookSecret: '',
+                    defaultCountryCode: wa.defaultCountryCode || '90',
+                    autoSendVoucher: !!wa.autoSendVoucher,
+                });
+                emailForm.setFieldsValue({
+                    enabled: !!em.enabled,
+                    smtpHost: em.smtpHost || '',
+                    smtpPort: em.smtpPort || 587,
+                    smtpSecure: !!em.smtpSecure,
+                    smtpUser: em.smtpUser || '',
+                    smtpPass: '',
+                    senderEmail: em.senderEmail || '',
+                    senderName: em.senderName || '',
+                    replyTo: em.replyTo || '',
+                    autoSendVoucher: !!em.autoSendVoucher,
+                });
+            }
+        } catch (e) {
+            console.error('Integrations fetch error', e);
+        } finally {
+            setIntegrationsLoading(false);
+        }
+    };
+
+    const handleSaveUetds = async () => {
+        try {
+            const values = await uetdsForm.validateFields();
+            if (!values.unetPassword) {
+                messageApi.warning('Yeni şifre boş bırakılmamalıdır');
+                return;
+            }
+            setSavingUetds(true);
+            setUetdsTestResult(null);
+            const res = await apiClient.put('/api/transfer/partner/uetds-credentials', {
+                unetUser: values.unetUser,
+                unetPassword: values.unetPassword,
+            });
+            if (res.data.success) {
+                messageApi.success('UETDS kimlik bilgileri kaydedildi');
+                uetdsForm.setFieldValue('unetPassword', '');
+                fetchIntegrations();
+            } else {
+                messageApi.error(res.data.error || 'Kaydetme başarısız');
+            }
+        } catch (e: any) {
+            if (e?.errorFields) return;
+            messageApi.error(e?.response?.data?.error || 'Kaydetme başarısız');
+        } finally {
+            setSavingUetds(false);
+        }
+    };
+
+    const handleTestUetds = async () => {
+        setTestingUetds(true);
+        setUetdsTestResult(null);
+        try {
+            const res = await apiClient.post('/api/transfer/partner/uetds-test');
+            setUetdsTestResult({ success: !!res.data.success, message: res.data.message || res.data.error || '-' });
+        } catch (e: any) {
+            setUetdsTestResult({ success: false, message: e?.response?.data?.error || 'Bağlantı testi başarısız' });
+        } finally {
+            setTestingUetds(false);
+        }
+    };
+
+    const handleSaveWhatsapp = async () => {
+        try {
+            const values = await whatsappForm.validateFields();
+            setSavingWhatsapp(true);
+            const payload: any = {
+                enabled: !!values.enabled,
+                provider: values.provider,
+                defaultCountryCode: values.defaultCountryCode,
+                autoSendVoucher: !!values.autoSendVoucher,
+            };
+            if (values.provider === 'META') {
+                payload.metaPhoneNumberId = values.metaPhoneNumberId || '';
+                if (values.metaAccessToken) payload.metaAccessToken = values.metaAccessToken;
+            }
+            if (values.provider === 'GREEN') {
+                payload.greenInstanceId = values.greenInstanceId || '';
+                if (values.greenApiToken) payload.greenApiToken = values.greenApiToken;
+            }
+            if (values.provider === 'WEBHOOK') {
+                payload.webhookUrl = values.webhookUrl || '';
+                if (values.webhookSecret) payload.webhookSecret = values.webhookSecret;
+            }
+            const res = await apiClient.put('/api/transfer/partner/notifications', { whatsapp: payload });
+            if (res.data?.success) {
+                messageApi.success('WhatsApp ayarları kaydedildi');
+                whatsappForm.setFieldValue('metaAccessToken', '');
+                whatsappForm.setFieldValue('greenApiToken', '');
+                whatsappForm.setFieldValue('webhookSecret', '');
+                fetchIntegrations();
+            } else {
+                messageApi.error(res.data?.error || 'Kaydetme başarısız');
+            }
+        } catch (e: any) {
+            if (e?.errorFields) return;
+            messageApi.error(e?.response?.data?.error || 'Kaydetme başarısız');
+        } finally {
+            setSavingWhatsapp(false);
+        }
+    };
+
+    const handleTestWhatsapp = async () => {
+        if (!whatsappTestModal.phone) {
+            messageApi.warning('Telefon numarası gerekli');
+            return;
+        }
+        setTestingWhatsapp(true);
+        try {
+            const res = await apiClient.post('/api/transfer/partner/notifications/test-whatsapp', {
+                phone: whatsappTestModal.phone,
+            });
+            if (res.data?.success) {
+                messageApi.success(res.data.message || 'Test mesajı gönderildi');
+                setWhatsappTestModal({ open: false, phone: '' });
+            } else {
+                messageApi.error(res.data?.error || 'Gönderim başarısız');
+            }
+        } catch (e: any) {
+            messageApi.error(e?.response?.data?.error || 'Gönderim başarısız');
+        } finally {
+            setTestingWhatsapp(false);
+        }
+    };
+
+    const handleSaveEmail = async () => {
+        try {
+            const values = await emailForm.validateFields();
+            setSavingEmail(true);
+            const payload: any = {
+                enabled: !!values.enabled,
+                smtpHost: values.smtpHost,
+                smtpPort: values.smtpPort,
+                smtpSecure: !!values.smtpSecure,
+                smtpUser: values.smtpUser,
+                senderEmail: values.senderEmail,
+                senderName: values.senderName,
+                replyTo: values.replyTo,
+                autoSendVoucher: !!values.autoSendVoucher,
+            };
+            if (values.smtpPass) payload.smtpPass = values.smtpPass;
+            const res = await apiClient.put('/api/transfer/partner/notifications', { email: payload });
+            if (res.data?.success) {
+                messageApi.success('E-posta ayarları kaydedildi');
+                emailForm.setFieldValue('smtpPass', '');
+                fetchIntegrations();
+            } else {
+                messageApi.error(res.data?.error || 'Kaydetme başarısız');
+            }
+        } catch (e: any) {
+            if (e?.errorFields) return;
+            messageApi.error(e?.response?.data?.error || 'Kaydetme başarısız');
+        } finally {
+            setSavingEmail(false);
+        }
+    };
+
+    const handleTestEmail = async () => {
+        if (!emailTestModal.to) {
+            messageApi.warning('Alıcı e-posta adresi gerekli');
+            return;
+        }
+        setTestingEmail(true);
+        try {
+            const res = await apiClient.post('/api/transfer/partner/notifications/test-email', {
+                to: emailTestModal.to,
+            });
+            if (res.data?.success) {
+                messageApi.success(res.data.message || 'Test e-postası gönderildi');
+                setEmailTestModal({ open: false, to: '' });
+            } else {
+                messageApi.error(res.data?.error || 'Gönderim başarısız');
+            }
+        } catch (e: any) {
+            messageApi.error(e?.response?.data?.error || 'Gönderim başarısız');
+        } finally {
+            setTestingEmail(false);
+        }
+    };
 
     const fetchBankInfo = async () => {
         try {
@@ -219,6 +452,7 @@ export default function SettingsPage() {
         { key: 'vehicles', label: 'Araçlarım', icon: <CarOutlined /> },
         { key: 'drivers', label: 'Şoförlerim', icon: <TeamOutlined /> },
         { key: 'bank', label: 'Hesap Bilgileri', icon: <BankOutlined /> },
+        { key: 'integrations', label: 'Tanımlamalar', icon: <ApiOutlined /> },
         { key: 'account', label: 'Hesap & Belgeler', icon: <UserOutlined /> },
     ];
 
@@ -448,6 +682,340 @@ export default function SettingsPage() {
                                             <SaveOutlined /> Bilgileri Kaydet
                                         </button>
                                     </Form>
+                                </div>
+                            )}
+
+                            {/* Integrations Tab (Tanımlamalar) */}
+                            {activeTab === 'integrations' && (
+                                <div>
+                                    <div style={{ marginBottom: 24, padding: '16px 20px', background: '#f8fafc', borderRadius: 14, border: '1px solid #f1f5f9' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#6366f1', fontSize: 15, fontWeight: 700 }}>
+                                            <ApiOutlined style={{ fontSize: 18 }} /> Entegrasyon Tanımlamaları
+                                        </div>
+                                        <p style={{ fontSize: 13, color: '#64748b', margin: '6px 0 0' }}>
+                                            UETDS, WhatsApp ve e-posta bildirim altyapınızı buradan tanımlayın. Hassas bilgiler şifreli saklanır, formda asla geri gösterilmez.
+                                        </p>
+                                    </div>
+
+                                    {integrationsLoading ? (
+                                        <div style={{ textAlign: 'center', padding: 60 }}><Spin size="large" /></div>
+                                    ) : (
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 22 }}>
+                                            {/* UETDS Card */}
+                                            <div style={{ border: '1px solid #f1f5f9', borderRadius: 16, padding: '20px 22px', background: '#fff' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginBottom: 14 }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                                        <div style={{
+                                                            width: 42, height: 42, borderRadius: 12,
+                                                            background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+                                                            color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18,
+                                                        }}>
+                                                            <SafetyCertificateOutlined />
+                                                        </div>
+                                                        <div>
+                                                            <div style={{ fontSize: 15, fontWeight: 800, color: '#0f172a' }}>UETDS Ayarları</div>
+                                                            <div style={{ fontSize: 12, color: '#64748b' }}>U-ETDS UNet kimlik bilgileri ve yetki belgesi</div>
+                                                        </div>
+                                                    </div>
+                                                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                                                        {uetdsProfile?.uetdsEnabled ? (
+                                                            <Tag color="green" style={{ margin: 0 }}>Yönetici tarafından aktif</Tag>
+                                                        ) : (
+                                                            <Tag color="default" style={{ margin: 0 }}>Yönetici onayı bekliyor</Tag>
+                                                        )}
+                                                        {uetdsProfile?.uetdsHasPassword && <Tag color="blue" style={{ margin: 0 }}>Kimlik kayıtlı</Tag>}
+                                                        {uetdsProfile?.uetdsYetkiBelgeNo && <Tag color="purple" style={{ margin: 0 }}>YBN: {uetdsProfile.uetdsYetkiBelgeNo}</Tag>}
+                                                    </div>
+                                                </div>
+
+                                                {!uetdsProfile?.uetdsEnabled && (
+                                                    <Alert
+                                                        showIcon
+                                                        type="warning"
+                                                        style={{ marginBottom: 12, borderRadius: 10 }}
+                                                        message="UETDS yönetici tarafından aktif değil"
+                                                        description="Yetki Belge Numaranız tanımlandığında UETDS bildirimi gönderebilirsiniz."
+                                                    />
+                                                )}
+
+                                                <Form form={uetdsForm} layout="vertical">
+                                                    <Row gutter={12}>
+                                                        <Col xs={24} md={12}>
+                                                            <Form.Item label="UNet Kullanıcı Adı" name="unetUser" rules={[{ required: true, message: 'UNet kullanıcı adı zorunludur' }]}>
+                                                                <Input prefix={<UserOutlined />} placeholder="UNet kullanıcı adı" size="large" style={{ borderRadius: 10 }} />
+                                                            </Form.Item>
+                                                        </Col>
+                                                        <Col xs={24} md={12}>
+                                                            <Form.Item
+                                                                label={<span>UNet Şifresi {uetdsProfile?.uetdsHasPassword && <Tag color="green" style={{ marginLeft: 6 }}>kayıtlı</Tag>}</span>}
+                                                                name="unetPassword"
+                                                            >
+                                                                <Input.Password prefix={<KeyOutlined />} placeholder={uetdsProfile?.uetdsHasPassword ? 'Yenilemek için yeni şifre girin' : 'Şifre girin'} size="large" style={{ borderRadius: 10 }} />
+                                                            </Form.Item>
+                                                        </Col>
+                                                    </Row>
+                                                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                                                        <Button type="primary" onClick={handleSaveUetds} loading={savingUetds} icon={<SaveOutlined />}>
+                                                            Kaydet
+                                                        </Button>
+                                                        <Button onClick={handleTestUetds} loading={testingUetds} icon={<ExperimentOutlined />} disabled={!uetdsProfile?.uetdsHasPassword}>
+                                                            Bağlantıyı Test Et
+                                                        </Button>
+                                                    </div>
+                                                    {uetdsTestResult && (
+                                                        <Alert
+                                                            showIcon
+                                                            style={{ marginTop: 12, borderRadius: 10 }}
+                                                            type={uetdsTestResult.success ? 'success' : 'error'}
+                                                            message={uetdsTestResult.success ? 'Bağlantı başarılı' : 'Bağlantı hatalı'}
+                                                            description={uetdsTestResult.message}
+                                                        />
+                                                    )}
+                                                </Form>
+                                            </div>
+
+                                            {/* WhatsApp Card */}
+                                            <div style={{ border: '1px solid #f1f5f9', borderRadius: 16, padding: '20px 22px', background: '#fff' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginBottom: 14 }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                                        <div style={{
+                                                            width: 42, height: 42, borderRadius: 12,
+                                                            background: 'linear-gradient(135deg, #22c55e, #16a34a)',
+                                                            color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18,
+                                                        }}>
+                                                            <WhatsAppOutlined />
+                                                        </div>
+                                                        <div>
+                                                            <div style={{ fontSize: 15, fontWeight: 800, color: '#0f172a' }}>WhatsApp API Ayarları</div>
+                                                            <div style={{ fontSize: 12, color: '#64748b' }}>Meta Cloud API, Green API veya özel webhook sağlayıcı</div>
+                                                        </div>
+                                                    </div>
+                                                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                                                        {whatsapp?.enabled ? <Tag color="green" style={{ margin: 0 }}>Aktif</Tag> : <Tag color="default" style={{ margin: 0 }}>Pasif</Tag>}
+                                                        <Tag color="blue" style={{ margin: 0 }}>{whatsapp?.provider || 'META'}</Tag>
+                                                    </div>
+                                                </div>
+
+                                                <Form
+                                                    form={whatsappForm}
+                                                    layout="vertical"
+                                                    onValuesChange={(changed) => {
+                                                        if (changed.provider) setWhatsappProvider(changed.provider);
+                                                    }}
+                                                >
+                                                    <Row gutter={12}>
+                                                        <Col xs={24} md={8}>
+                                                            <Form.Item label="Sağlayıcı" name="provider">
+                                                                <Select size="large" style={{ borderRadius: 10 }} options={[
+                                                                    { value: 'META', label: 'Meta Cloud API (Resmi)' },
+                                                                    { value: 'GREEN', label: 'Green API' },
+                                                                    { value: 'WEBHOOK', label: 'Özel Webhook' },
+                                                                ]} />
+                                                            </Form.Item>
+                                                        </Col>
+                                                        <Col xs={12} md={8}>
+                                                            <Form.Item label="Varsayılan Ülke Kodu" name="defaultCountryCode">
+                                                                <Input size="large" placeholder="90" prefix="+" style={{ borderRadius: 10 }} />
+                                                            </Form.Item>
+                                                        </Col>
+                                                        <Col xs={12} md={8}>
+                                                            <Form.Item label="Aktif" name="enabled" valuePropName="checked">
+                                                                <Select size="large" style={{ borderRadius: 10 }} options={[
+                                                                    { value: true, label: 'Açık' },
+                                                                    { value: false, label: 'Kapalı' },
+                                                                ]} />
+                                                            </Form.Item>
+                                                        </Col>
+                                                    </Row>
+
+                                                    {whatsappProvider === 'META' && (
+                                                        <Row gutter={12}>
+                                                            <Col xs={24} md={12}>
+                                                                <Form.Item label="Phone Number ID" name="metaPhoneNumberId">
+                                                                    <Input size="large" placeholder="123456789012345" style={{ borderRadius: 10 }} />
+                                                                </Form.Item>
+                                                            </Col>
+                                                            <Col xs={24} md={12}>
+                                                                <Form.Item
+                                                                    label={<span>Access Token {whatsapp?.hasMetaAccessToken && <Tag color="green" style={{ marginLeft: 6 }}>kayıtlı</Tag>}</span>}
+                                                                    name="metaAccessToken"
+                                                                >
+                                                                    <Input.Password size="large" placeholder={whatsapp?.hasMetaAccessToken ? 'Yenilemek için yeni token' : 'Bearer token'} style={{ borderRadius: 10 }} />
+                                                                </Form.Item>
+                                                            </Col>
+                                                        </Row>
+                                                    )}
+                                                    {whatsappProvider === 'GREEN' && (
+                                                        <Row gutter={12}>
+                                                            <Col xs={24} md={12}>
+                                                                <Form.Item label="Instance ID" name="greenInstanceId">
+                                                                    <Input size="large" placeholder="1101000001" style={{ borderRadius: 10 }} />
+                                                                </Form.Item>
+                                                            </Col>
+                                                            <Col xs={24} md={12}>
+                                                                <Form.Item
+                                                                    label={<span>API Token {whatsapp?.hasGreenApiToken && <Tag color="green" style={{ marginLeft: 6 }}>kayıtlı</Tag>}</span>}
+                                                                    name="greenApiToken"
+                                                                >
+                                                                    <Input.Password size="large" placeholder={whatsapp?.hasGreenApiToken ? 'Yenilemek için yeni token' : 'API token'} style={{ borderRadius: 10 }} />
+                                                                </Form.Item>
+                                                            </Col>
+                                                        </Row>
+                                                    )}
+                                                    {whatsappProvider === 'WEBHOOK' && (
+                                                        <Row gutter={12}>
+                                                            <Col xs={24} md={12}>
+                                                                <Form.Item label="Webhook URL" name="webhookUrl">
+                                                                    <Input size="large" placeholder="https://api.firmaniz.com/whatsapp" style={{ borderRadius: 10 }} />
+                                                                </Form.Item>
+                                                            </Col>
+                                                            <Col xs={24} md={12}>
+                                                                <Form.Item
+                                                                    label={<span>Gizli Anahtar {whatsapp?.hasWebhookSecret && <Tag color="green" style={{ marginLeft: 6 }}>kayıtlı</Tag>}</span>}
+                                                                    name="webhookSecret"
+                                                                >
+                                                                    <Input.Password size="large" placeholder={whatsapp?.hasWebhookSecret ? 'Yenilemek için yeni gizli anahtar' : 'X-Webhook-Secret değeri'} style={{ borderRadius: 10 }} />
+                                                                </Form.Item>
+                                                            </Col>
+                                                        </Row>
+                                                    )}
+
+                                                    <Row gutter={12}>
+                                                        <Col xs={24} md={12}>
+                                                            <Form.Item label="Voucher Otomatik Gönder" name="autoSendVoucher" valuePropName="checked">
+                                                                <Select size="large" style={{ borderRadius: 10 }} options={[
+                                                                    { value: true, label: 'Açık' },
+                                                                    { value: false, label: 'Kapalı' },
+                                                                ]} />
+                                                            </Form.Item>
+                                                        </Col>
+                                                    </Row>
+
+                                                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                                                        <Button type="primary" onClick={handleSaveWhatsapp} loading={savingWhatsapp} icon={<SaveOutlined />}>
+                                                            Kaydet
+                                                        </Button>
+                                                        <Button
+                                                            onClick={() => setWhatsappTestModal({ open: true, phone: '' })}
+                                                            icon={<ExperimentOutlined />}
+                                                            disabled={!whatsapp?.enabled}
+                                                        >
+                                                            Test Mesajı Gönder
+                                                        </Button>
+                                                    </div>
+                                                </Form>
+                                            </div>
+
+                                            {/* Email Card */}
+                                            <div style={{ border: '1px solid #f1f5f9', borderRadius: 16, padding: '20px 22px', background: '#fff' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginBottom: 14 }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                                        <div style={{
+                                                            width: 42, height: 42, borderRadius: 12,
+                                                            background: 'linear-gradient(135deg, #6366f1, #4f46e5)',
+                                                            color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18,
+                                                        }}>
+                                                            <MailOutlined />
+                                                        </div>
+                                                        <div>
+                                                            <div style={{ fontSize: 15, fontWeight: 800, color: '#0f172a' }}>E-posta (SMTP) Ayarları</div>
+                                                            <div style={{ fontSize: 12, color: '#64748b' }}>Voucher ve müşteri bildirimleri için SMTP yapılandırması</div>
+                                                        </div>
+                                                    </div>
+                                                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                                                        {emailCfg?.enabled ? <Tag color="green" style={{ margin: 0 }}>Aktif</Tag> : <Tag color="default" style={{ margin: 0 }}>Pasif</Tag>}
+                                                        {emailCfg?.hasSmtpPass && <Tag color="blue" style={{ margin: 0 }}>Kimlik kayıtlı</Tag>}
+                                                    </div>
+                                                </div>
+
+                                                <Form form={emailForm} layout="vertical">
+                                                    <Row gutter={12}>
+                                                        <Col xs={24} md={12}>
+                                                            <Form.Item label="SMTP Sunucu" name="smtpHost" rules={[{ required: true, message: 'Host zorunlu' }]}>
+                                                                <Input size="large" placeholder="smtp.firma.com" style={{ borderRadius: 10 }} />
+                                                            </Form.Item>
+                                                        </Col>
+                                                        <Col xs={12} md={6}>
+                                                            <Form.Item label="Port" name="smtpPort" rules={[{ required: true }]}>
+                                                                <Input size="large" placeholder="587" style={{ borderRadius: 10 }} />
+                                                            </Form.Item>
+                                                        </Col>
+                                                        <Col xs={12} md={6}>
+                                                            <Form.Item label="SSL/TLS" name="smtpSecure" valuePropName="checked">
+                                                                <Select size="large" style={{ borderRadius: 10 }} options={[
+                                                                    { value: true, label: 'SSL (465)' },
+                                                                    { value: false, label: 'STARTTLS (587)' },
+                                                                ]} />
+                                                            </Form.Item>
+                                                        </Col>
+                                                    </Row>
+                                                    <Row gutter={12}>
+                                                        <Col xs={24} md={12}>
+                                                            <Form.Item label="SMTP Kullanıcı" name="smtpUser" rules={[{ required: true }]}>
+                                                                <Input size="large" placeholder="info@firma.com" style={{ borderRadius: 10 }} />
+                                                            </Form.Item>
+                                                        </Col>
+                                                        <Col xs={24} md={12}>
+                                                            <Form.Item
+                                                                label={<span>SMTP Şifre {emailCfg?.hasSmtpPass && <Tag color="green" style={{ marginLeft: 6 }}>kayıtlı</Tag>}</span>}
+                                                                name="smtpPass"
+                                                            >
+                                                                <Input.Password size="large" placeholder={emailCfg?.hasSmtpPass ? 'Yenilemek için yeni şifre' : 'SMTP şifresi'} style={{ borderRadius: 10 }} />
+                                                            </Form.Item>
+                                                        </Col>
+                                                    </Row>
+                                                    <Row gutter={12}>
+                                                        <Col xs={24} md={12}>
+                                                            <Form.Item label="Gönderen E-posta" name="senderEmail" rules={[{ type: 'email', message: 'Geçerli e-posta girin' }]}>
+                                                                <Input size="large" placeholder="bilgi@firma.com" style={{ borderRadius: 10 }} />
+                                                            </Form.Item>
+                                                        </Col>
+                                                        <Col xs={24} md={12}>
+                                                            <Form.Item label="Gönderen Adı" name="senderName">
+                                                                <Input size="large" placeholder="Firma Adı" style={{ borderRadius: 10 }} />
+                                                            </Form.Item>
+                                                        </Col>
+                                                    </Row>
+                                                    <Row gutter={12}>
+                                                        <Col xs={24} md={12}>
+                                                            <Form.Item label="Yanıt Adresi (Reply-To)" name="replyTo" rules={[{ type: 'email', message: 'Geçerli e-posta girin' }]}>
+                                                                <Input size="large" placeholder="destek@firma.com" style={{ borderRadius: 10 }} />
+                                                            </Form.Item>
+                                                        </Col>
+                                                        <Col xs={24} md={6}>
+                                                            <Form.Item label="Aktif" name="enabled" valuePropName="checked">
+                                                                <Select size="large" style={{ borderRadius: 10 }} options={[
+                                                                    { value: true, label: 'Açık' },
+                                                                    { value: false, label: 'Kapalı' },
+                                                                ]} />
+                                                            </Form.Item>
+                                                        </Col>
+                                                        <Col xs={24} md={6}>
+                                                            <Form.Item label="Voucher Otomatik Gönder" name="autoSendVoucher" valuePropName="checked">
+                                                                <Select size="large" style={{ borderRadius: 10 }} options={[
+                                                                    { value: true, label: 'Açık' },
+                                                                    { value: false, label: 'Kapalı' },
+                                                                ]} />
+                                                            </Form.Item>
+                                                        </Col>
+                                                    </Row>
+
+                                                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                                                        <Button type="primary" onClick={handleSaveEmail} loading={savingEmail} icon={<SaveOutlined />}>
+                                                            Kaydet
+                                                        </Button>
+                                                        <Button
+                                                            onClick={() => setEmailTestModal({ open: true, to: '' })}
+                                                            icon={<ExperimentOutlined />}
+                                                            disabled={!emailCfg?.enabled || !emailCfg?.hasSmtpPass}
+                                                        >
+                                                            Test E-postası Gönder
+                                                        </Button>
+                                                    </div>
+                                                </Form>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             )}
 
@@ -746,6 +1314,52 @@ export default function SettingsPage() {
                             </Form>
                         </div>
                     </Modal>
+                    {/* WhatsApp Test Modal */}
+                    <Modal
+                        open={whatsappTestModal.open}
+                        title="WhatsApp Test Mesajı"
+                        onCancel={() => setWhatsappTestModal({ open: false, phone: '' })}
+                        onOk={handleTestWhatsapp}
+                        confirmLoading={testingWhatsapp}
+                        okText="Gönder"
+                        cancelText="Vazgeç"
+                    >
+                        <p style={{ color: '#64748b', fontSize: 13, marginBottom: 12 }}>
+                            Test mesajı, tanımladığınız sağlayıcı (<b>{whatsapp?.provider || 'META'}</b>) üzerinden hedef numaraya gönderilir.
+                        </p>
+                        <Input
+                            size="large"
+                            prefix={<WhatsAppOutlined style={{ color: '#22c55e' }} />}
+                            placeholder="+90 555 123 45 67"
+                            value={whatsappTestModal.phone}
+                            onChange={(e) => setWhatsappTestModal({ ...whatsappTestModal, phone: e.target.value })}
+                            style={{ borderRadius: 10 }}
+                        />
+                    </Modal>
+
+                    {/* Email Test Modal */}
+                    <Modal
+                        open={emailTestModal.open}
+                        title="SMTP Test E-postası"
+                        onCancel={() => setEmailTestModal({ open: false, to: '' })}
+                        onOk={handleTestEmail}
+                        confirmLoading={testingEmail}
+                        okText="Gönder"
+                        cancelText="Vazgeç"
+                    >
+                        <p style={{ color: '#64748b', fontSize: 13, marginBottom: 12 }}>
+                            Tanımladığınız SMTP sunucusu üzerinden hedef adrese kısa bir test e-postası gönderilir.
+                        </p>
+                        <Input
+                            size="large"
+                            prefix={<MailOutlined style={{ color: '#6366f1' }} />}
+                            placeholder="test@firmaniz.com"
+                            value={emailTestModal.to}
+                            onChange={(e) => setEmailTestModal({ ...emailTestModal, to: e.target.value })}
+                            style={{ borderRadius: 10 }}
+                        />
+                    </Modal>
+
                     {/* Driver Modal */}
                     <Modal
                         open={isDriverModalVisible}
