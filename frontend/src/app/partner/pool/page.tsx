@@ -2,12 +2,14 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Button, Spin, Tabs, Tag } from 'antd';
+import { Button, DatePicker, Empty, Spin, Tabs, Tag, Tooltip } from 'antd';
 import {
   ReloadOutlined, InboxOutlined, CarOutlined, UserOutlined,
-  CalendarOutlined, PhoneOutlined, RightOutlined, TeamOutlined,
+  CalendarOutlined, PhoneOutlined, RightOutlined, TeamOutlined, EnvironmentOutlined,
+  WhatsAppOutlined, MailOutlined, CheckCircleOutlined,
 } from '@ant-design/icons';
 import apiClient from '@/lib/api-client';
+import dayjs, { type Dayjs } from 'dayjs';
 
 function relTime(t: string) {
   const diff = Date.now() - new Date(t).getTime();
@@ -87,40 +89,38 @@ export default function MyTransfersPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [transfers, setTransfers] = useState<any[]>([]);
-  const [poolRuns, setPoolRuns] = useState<any[]>([]);
+  const [shuttleRuns, setShuttleRuns] = useState<any[]>([]);
+  const [shuttleDate, setShuttleDate] = useState<Dayjs>(dayjs());
+  const [drivers, setDrivers] = useState<any[]>([]);
+  const [vehicles, setVehicles] = useState<any[]>([]);
 
   const fetchAll = async () => {
     setLoading(true);
     try {
-      const [activeRes, poolRes] = await Promise.allSettled([
+      const [activeRes, shuttleRes, fleetRes] = await Promise.allSettled([
         apiClient.get('/api/transfer/partner/active-bookings'),
-        apiClient.get('/api/transfer/pool-bookings'),
+        apiClient.get(`/api/transfer/partner/shuttle-runs?date=${shuttleDate.format('YYYY-MM-DD')}`),
+        apiClient.get('/api/transfer/partner/operations/fleet'),
       ]);
-      if (activeRes.status === 'fulfilled' && activeRes.value.data?.success) setTransfers(activeRes.value.data.data || []);
-      if (poolRes.status === 'fulfilled' && poolRes.value.data?.success) {
-        const all = poolRes.value.data.data || [];
-        const runMap: Record<string, any[]> = {};
-        all.forEach((b: any) => {
-          if (b.poolRunKey) {
-            if (!runMap[b.poolRunKey]) runMap[b.poolRunKey] = [];
-            runMap[b.poolRunKey].push(b);
-          }
-        });
-        setPoolRuns(Object.entries(runMap).map(([key, bookings]) => ({
-          poolRunKey: key,
-          routeName: bookings[0]?.poolRunName || 'Shuttle',
-          departureTime: bookings[0]?.poolDepartureTime || '--:--',
-          poolPrice: bookings[0]?.price?.amount || 0,
-          currency: bookings[0]?.price?.currency || 'TRY',
-          bookings,
-        })));
+      if (activeRes.status === 'fulfilled' && activeRes.value.data?.success) {
+        // exclude shuttle bookings from "active" because they appear in shuttle tab
+        const all = activeRes.value.data.data || [];
+        setTransfers(all.filter((b: any) => {
+          const vt = String(b.vehicle?.type || '').toLowerCase();
+          return !vt.includes('shuttle') && !vt.includes('paylaşımlı');
+        }));
+      }
+      if (shuttleRes.status === 'fulfilled' && shuttleRes.value.data?.success) setShuttleRuns(shuttleRes.value.data.data || []);
+      if (fleetRes.status === 'fulfilled' && fleetRes.value.data?.success) {
+        setDrivers(fleetRes.value.data.data?.drivers || []);
+        setVehicles(fleetRes.value.data.data?.vehicles || []);
       }
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => { fetchAll(); }, []);
+  useEffect(() => { fetchAll(); /* eslint-disable-next-line */ }, [shuttleDate]);
 
   return (
     <div>
@@ -163,68 +163,117 @@ export default function MyTransfersPage() {
           },
           {
             key: 'shuttle',
-            label: <span style={{ fontWeight: 600 }}>Shuttle Seferleri {poolRuns.length > 0 && <Tag color="gold" style={{ marginLeft: 4 }}>{poolRuns.length}</Tag>}</span>,
+            label: <span style={{ fontWeight: 600 }}>Shuttle Seferleri {shuttleRuns.length > 0 && <Tag color="gold" style={{ marginLeft: 4 }}>{shuttleRuns.length}</Tag>}</span>,
             children: (
               <>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 10 }}>
+                  <DatePicker value={shuttleDate} onChange={(v) => v && setShuttleDate(v)} format="DD.MM.YYYY" />
+                  <div style={{ display: 'flex', gap: 12, fontSize: 12 }}>
+                    <span><b>{shuttleRuns.reduce((s, r) => s + (r.passengerCount || 0), 0)}</b> yolcu</span>
+                    <span><b>{shuttleRuns.filter((r) => r.allReady).length}/{shuttleRuns.length}</b> hazır</span>
+                  </div>
+                </div>
                 {loading ? (
                   <div style={{ textAlign: 'center', padding: 60 }}><Spin size="large" /></div>
-                ) : poolRuns.length === 0 ? (
+                ) : shuttleRuns.length === 0 ? (
                   <div className="ps-empty">
                     <div className="ps-empty__icon"><InboxOutlined /></div>
                     <p className="ps-empty__title">Shuttle seferi yok</p>
-                    <p className="ps-empty__desc">Havuza atılan shuttle seferleri burada listelenir</p>
+                    <p className="ps-empty__desc">{shuttleDate.format('DD.MM.YYYY')} tarihinde shuttle seferi bulunmuyor</p>
                   </div>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                    {poolRuns.map(run => (
-                      <div key={run.poolRunKey} className="ps-card" style={{ overflow: 'hidden' }}>
-                        <div style={{
-                          display: 'flex', alignItems: 'center', gap: 16,
-                          padding: '16px 20px', borderBottom: '1px solid var(--ps-border)',
-                          background: 'var(--ps-surface-2)',
-                        }}>
-                          <div style={{
-                            border: '2px solid #6366f1', color: '#6366f1', borderRadius: 10,
-                            padding: '6px 14px', textAlign: 'center', fontWeight: 900, fontSize: 20, minWidth: 72,
-                          }}>
-                            {run.departureTime}
-                            <div style={{ fontSize: 9, fontWeight: 700, marginTop: 2, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Uçuş</div>
-                          </div>
-                          <div style={{ flex: 1 }}>
-                            <div style={{ fontWeight: 800, fontSize: 16 }}>{run.routeName}</div>
-                            <div style={{ fontSize: 12, color: 'var(--ps-text-3)', marginTop: 3 }}>
-                              <TeamOutlined style={{ marginRight: 4 }} />{run.bookings.length} yolcu
+                    {shuttleRuns.map((run: any) => {
+                      const t = run.tripType === 'ARV' ? { label: 'GELİŞ', color: 'green' } : run.tripType === 'DEP' ? { label: 'GİDİŞ', color: 'orange' } : { label: 'ARA', color: 'default' };
+                      const driver = drivers.find((d) => d.id === run.driverId);
+                      const vehicle = vehicles.find((v) => v.id === run.vehicleId);
+                      return (
+                        <div key={run.runKey} className="ps-card" style={{ overflow: 'hidden' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '16px 20px', borderBottom: '1px solid var(--ps-border)', background: 'var(--ps-surface-2)', flexWrap: 'wrap' }}>
+                            <div style={{ border: '2px solid #6366f1', color: '#4f46e5', borderRadius: 10, padding: '6px 14px', textAlign: 'center', fontWeight: 900, fontSize: 20, minWidth: 72 }}>
+                              {run.departureTime}
+                              <div style={{ fontSize: 9, fontWeight: 700, marginTop: 2, textTransform: 'uppercase', letterSpacing: '0.08em' }}>SEFER</div>
                             </div>
-                          </div>
-                          <div style={{ textAlign: 'right' }}>
-                            <div style={{ fontSize: 11, color: 'var(--ps-text-3)', marginBottom: 2 }}>Sefer Ücreti</div>
-                            <div style={{ fontWeight: 900, fontSize: 22, color: 'var(--ps-success)' }}>
-                              {Number(run.poolPrice).toLocaleString('tr-TR')} {run.currency}
-                            </div>
-                          </div>
-                        </div>
-                        <div style={{ padding: '12px 20px' }}>
-                          {run.bookings.map((b: any, i: number) => (
-                            <div key={b.id} style={{
-                              display: 'flex', alignItems: 'center', gap: 12,
-                              padding: '10px 0',
-                              borderBottom: i < run.bookings.length - 1 ? '1px dashed var(--ps-border)' : 'none',
-                            }}>
-                              <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'var(--ps-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: 'var(--ps-text-2)', flexShrink: 0 }}>{i + 1}</div>
-                              <div style={{ flex: 1, minWidth: 0 }}>
-                                <div style={{ fontWeight: 700, fontSize: 13 }}>{b.customer?.name}</div>
-                                <div style={{ fontSize: 12, color: 'var(--ps-text-3)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                  {b.pickup?.location} → {b.dropoff?.location}
-                                </div>
+                            <div style={{ flex: 1, minWidth: 200 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                <span style={{ fontWeight: 800, fontSize: 16 }}>{run.routeName}</span>
+                                <Tag color={t.color}>{t.label}</Tag>
+                                {run.allReady ? <Tag color="green"><CheckCircleOutlined /> Hazır</Tag> : run.driverAssigned ? <Tag color="blue">Atandı</Tag> : <Tag>Atanmadı</Tag>}
                               </div>
-                              <Tag color={b.paymentStatus === 'PAID' ? 'success' : 'warning'} style={{ flexShrink: 0 }}>
-                                {b.paymentStatus === 'PAID' ? 'Ödendi' : 'Araçta'}
-                              </Tag>
+                              <div style={{ fontSize: 12, color: 'var(--ps-text-3)', marginTop: 4 }}>
+                                <TeamOutlined style={{ marginRight: 4 }} />{run.passengerCount} yolcu · {run.bookings.length} rezervasyon
+                                {driver && <> · <UserOutlined style={{ marginLeft: 6, marginRight: 4 }} /> {driver.name}</>}
+                                {vehicle && <> · <CarOutlined style={{ marginLeft: 6, marginRight: 4 }} /> {vehicle.plate}</>}
+                              </div>
                             </div>
-                          ))}
+                            <div style={{ textAlign: 'right' }}>
+                              <div style={{ fontSize: 11, color: 'var(--ps-text-3)', marginBottom: 2 }}>Toplam Tutar</div>
+                              <div style={{ fontWeight: 900, fontSize: 22, color: 'var(--ps-success)' }}>
+                                {Number(run.totalAmount || 0).toLocaleString('tr-TR')} {run.currency}
+                              </div>
+                            </div>
+                          </div>
+                          <div style={{ padding: '4px 16px 16px' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                              <thead>
+                                <tr style={{ color: '#64748b', fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                                  <th style={{ textAlign: 'left', padding: '8px 6px', width: 30 }}>#</th>
+                                  <th style={{ textAlign: 'left', padding: '8px 6px' }}>Müşteri</th>
+                                  <th style={{ textAlign: 'left', padding: '8px 6px' }}>Güzergah</th>
+                                  <th style={{ textAlign: 'center', padding: '8px 6px', width: 70 }}>Saat</th>
+                                  <th style={{ textAlign: 'center', padding: '8px 6px', width: 70 }}>Uçuş</th>
+                                  <th style={{ textAlign: 'center', padding: '8px 6px', width: 60 }}>Pax</th>
+                                  <th style={{ textAlign: 'center', padding: '8px 6px', width: 90 }}>Ödeme</th>
+                                  <th style={{ textAlign: 'left', padding: '8px 6px', width: 120 }}>İletişim</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {run.bookings.map((b: any, i: number) => (
+                                  <tr key={b.id} style={{ borderTop: '1px dashed var(--ps-border)' }}>
+                                    <td style={{ padding: '8px 6px', color: '#94a3b8' }}>{i + 1}</td>
+                                    <td style={{ padding: '8px 6px' }}>
+                                      <div style={{ fontWeight: 700 }}>{b.contactName}</div>
+                                      <div style={{ fontSize: 11, color: '#94a3b8' }}>{b.bookingNumber}</div>
+                                    </td>
+                                    <td style={{ padding: '8px 6px', maxWidth: 360 }}>
+                                      <div style={{ fontSize: 11 }}><EnvironmentOutlined style={{ color: '#10b981', marginRight: 4 }} />{b.pickup}</div>
+                                      <div style={{ fontSize: 11, marginTop: 2 }}><EnvironmentOutlined style={{ color: '#ef4444', marginRight: 4 }} />{b.dropoff}</div>
+                                    </td>
+                                    <td style={{ padding: '8px 6px', textAlign: 'center' }}>{dayjs(b.pickupDateTime).format('HH:mm')}</td>
+                                    <td style={{ padding: '8px 6px', textAlign: 'center', fontWeight: 600 }}>{b.flightTime || '-'}</td>
+                                    <td style={{ padding: '8px 6px', textAlign: 'center', fontWeight: 700 }}>{(b.adults || 0) + (b.children || 0)}</td>
+                                    <td style={{ padding: '8px 6px', textAlign: 'center' }}>
+                                      <Tag color={b.paymentStatus === 'PAID' ? 'green' : 'orange'} style={{ fontSize: 10, margin: 0 }}>
+                                        {b.paymentStatus || 'PENDING'}
+                                      </Tag>
+                                    </td>
+                                    <td style={{ padding: '8px 6px' }}>
+                                      <div style={{ display: 'flex', gap: 4 }}>
+                                        {b.contactPhone && (
+                                          <Tooltip title={b.contactPhone}>
+                                            <Button size="small" icon={<PhoneOutlined />} onClick={() => window.open(`tel:${b.contactPhone}`)} />
+                                          </Tooltip>
+                                        )}
+                                        {b.contactPhone && (
+                                          <Tooltip title="WhatsApp">
+                                            <Button size="small" icon={<WhatsAppOutlined style={{ color: '#22c55e' }} />} onClick={() => window.open(`https://wa.me/${String(b.contactPhone || '').replace(/\D/g, '')}`)} />
+                                          </Tooltip>
+                                        )}
+                                        {b.contactEmail && (
+                                          <Tooltip title={b.contactEmail}>
+                                            <Button size="small" icon={<MailOutlined />} onClick={() => window.open(`mailto:${b.contactEmail}`)} />
+                                          </Tooltip>
+                                        )}
+                                      </div>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </>

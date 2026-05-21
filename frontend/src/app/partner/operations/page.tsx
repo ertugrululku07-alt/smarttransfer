@@ -74,6 +74,7 @@ import 'react-resizable/css/styles.css';
 import dayjs from 'dayjs';
 import apiClient from '@/lib/api-client';
 import { useSocket } from '@/app/context/SocketContext';
+import ShuttleRunsSection from './ShuttleRunsSection';
 
 const { Option } = Select;
 const { RangePicker } = DatePicker;
@@ -135,7 +136,7 @@ type PartnerBooking = {
   agencyName?: string;
 };
 
-type TabKey = 'active' | 'pool' | 'completed';
+type TabKey = 'active' | 'pool' | 'shuttle' | 'completed';
 type StatusFilter = 'all' | 'CONFIRMED' | 'DRIVER_ASSIGNED' | 'IN_OPERATION' | 'PASSENGER_PICKED_UP' | 'ON_THE_WAY';
 
 type FilterPreset = {
@@ -1476,6 +1477,7 @@ export default function PartnerOperationsPage() {
               onChange={(v) => setTab(v as TabKey)}
               options={[
                 { label: `Özel (${active.filter((b) => b.operationalStatus !== 'POOL' && b.operationalStatus !== 'IN_POOL').length})`, value: 'active' },
+                { label: 'Shuttle Seferleri', value: 'shuttle' },
                 { label: `Havuz (${active.filter((b) => b.operationalStatus === 'POOL' || b.operationalStatus === 'IN_POOL').length})`, value: 'pool' },
                 { label: `Tamamlanan (${completed.length})`, value: 'completed' },
               ]}
@@ -1595,33 +1597,37 @@ export default function PartnerOperationsPage() {
         </div>
       </div>
 
-      <div className="ps-card partner-op-table-wrap">
-        {loading ? (
-          <div style={{ textAlign: 'center', padding: 80 }}>
-            <Spin size="large" />
-          </div>
-        ) : (
-          <DndContext
-            sensors={sensors}
-            modifiers={[restrictToHorizontalAxis]}
-            collisionDetection={closestCenter}
-            onDragEnd={onHeaderDragEnd}
-          >
-            <SortableContext items={visibleKeys} strategy={horizontalListSortingStrategy}>
-              <Table
-                rowKey="id"
-                dataSource={filtered}
-                columns={columns}
-                pagination={{ pageSize: 25, showSizeChanger: true, pageSizeOptions: ['10', '25', '50', '100'], size: 'small' }}
-                size="small"
-                tableLayout="fixed"
-                components={{ header: { cell: DraggableResizableHeader } }}
-                locale={{ emptyText: <Empty description="Kayıt bulunamadı" /> }}
-              />
-            </SortableContext>
-          </DndContext>
-        )}
-      </div>
+      {tab === 'shuttle' ? (
+        <ShuttleRunsSection />
+      ) : (
+        <div className="ps-card partner-op-table-wrap">
+          {loading ? (
+            <div style={{ textAlign: 'center', padding: 80 }}>
+              <Spin size="large" />
+            </div>
+          ) : (
+            <DndContext
+              sensors={sensors}
+              modifiers={[restrictToHorizontalAxis]}
+              collisionDetection={closestCenter}
+              onDragEnd={onHeaderDragEnd}
+            >
+              <SortableContext items={visibleKeys} strategy={horizontalListSortingStrategy}>
+                <Table
+                  rowKey="id"
+                  dataSource={filtered}
+                  columns={columns}
+                  pagination={{ pageSize: 25, showSizeChanger: true, pageSizeOptions: ['10', '25', '50', '100'], size: 'small' }}
+                  size="small"
+                  tableLayout="fixed"
+                  components={{ header: { cell: DraggableResizableHeader } }}
+                  locale={{ emptyText: <Empty description="Kayıt bulunamadı" /> }}
+                />
+              </SortableContext>
+            </DndContext>
+          )}
+        </div>
+      )}
 
       {/* COLUMNS DRAWER */}
       <Drawer

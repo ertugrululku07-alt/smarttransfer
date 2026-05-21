@@ -2333,6 +2333,329 @@ router.get('/bookings/:id', authMiddleware, async (req, res) => {
  * GET /api/transfer/partner/active-bookings
  * Get active bookings for the logged-in partner
  */
+// ════════════════════════════════════════════════════════════════════
+// PARTNER SHUTTLE OPERATIONS
+// Strict partner isolation: confirmedBy === partner.id
+// ════════════════════════════════════════════════════════════════════
+
+const AIRPORT_KW = ['havaliman', 'havaalan', 'airport', 'ayt', 'gzp'];
+function lc(s) { return String(s || '').toLocaleLowerCase('tr'); }
+function isAirport(s) { const x = lc(s); return AIRPORT_KW.some((k) => x.includes(k)); }
+function partnerTripType(pickup, dropoff) {
+    const pAir = isAirport(pickup);
+    const dAir = isAirport(dropoff);
+    if (pAir && !dAir) return 'ARV';
+    if (!pAir && dAir) return 'DEP';
+    return 'TRF';
+}
+function shortCode(text, fallback = '???') {
+    if (!text) return fallback;
+    const t = lc(text);
+    if (t.includes('ayt') || t.includes('antalya hav')) return 'AYT';
+    if (t.includes('gzp') || t.includes('gazipaşa') || t.includes('gazipasa')) return 'GZP';
+    const m = String(text).match(/[A-Za-zÇĞİÖŞÜçğıöşü]{3,}/);
+    return m ? m[0].substring(0, 4).toUpperCase() : fallback;
+}
+
+function groupShuttleRuns(bookings, hubs) {
+    const runsMap = {};
+    const inferHubCode = (txt) => {
+        const lt = lc(txt);
+        for (const h of hubs || []) {
+            const keys = (h.keywords || '').split(',').map((k) => lc(k).trim()).filter(Boolean);
+            if (h.code) keys.push(lc(h.code));
+            if (h.name) keys.push(lc(h.name));
+            for (const k of keys) {
+                if (k && lt.includes(k)) return { code: (h.code || '').toUpperCase() || shortCode(txt), isAirport: !!h.isAirport || lc(h.name || '').includes('havaliman') };
+            }
+        }
+        return { code: shortCode(txt), isAirport: isAirport(txt) };
+    };
+
+    for (const b of bookings) {
+        const m = b.metadata || {};
+        const masterTime = m.shuttleMasterTime || '';
+        let key, routeName, fromName = m.pickup || '', toName = m.dropoff || '';
+        const tripType = partnerTripType(m.pickup, m.dropoff);
+
+        if (m.manualRunId) {
+            const baseId = String(m.manualRunId).startsWith('MANUAL::') ? m.manualRunId : `MANUAL::${m.manualRunId}`;
+            key = `${baseId}::${tripType}`;
+            routeName = m.manualRunName || 'Manuel Sefer';
+            if (tripType !== 'ARA') routeName = `${routeName} (${tripType})`;
+        } else if (m.shuttleRouteId) {
+            const fromHub = inferHubCode(m.pickup);
+            const toHub = inferHubCode(m.dropoff);
+            const airportCode = tripType === 'DEP' ? toHub.code : fromHub.code;
+            key = `ROUTE::${m.shuttleRouteId}::${airportCode}${masterTime ? '::' + masterTime : ''}`;
+            routeName = `${fromHub.code} - ${toHub.code} ${tripType}${masterTime ? ' (' + masterTime + ')' : ''}`;
+        } else {
+            const fromHub = inferHubCode(m.pickup);
+            const toHub = inferHubCode(m.dropoff);
+            const regionCode = (tripType === 'ARV' ? toHub.code : fromHub.code) || '???';
+            key = `ADHOC::${tripType}::${regionCode}${masterTime ? '::' + masterTime : ''}`;
+            routeName = `Shuttle → ${regionCode} ${tripType}${masterTime ? ' (' + masterTime + ')' : ''}`;
+        }
+
+        if (!runsMap[key]) {
+            runsMap[key] = {
+                runKey: key,
+                shuttleRouteId: m.shuttleRouteId || null,
+                manualRunId: m.manualRunId || null,
+                routeName,
+                fromName,
+                toName,
+                tripType,
+                departureTime: masterTime || null,
+                driverId: null,
+                vehicleId: null,
+                bookings: [],
+            };
+        }
+        if (b.driverId && !runsMap[key].driverId) runsMap[key].driverId = b.driverId;
+        if (m.assignedVehicleId && !runsMap[key].vehicleId) runsMap[key].vehicleId = m.assignedVehicleId;
+        runsMap[key].bookings.push({
+            id: b.id,
+            bookingNumber: b.bookingNumber,
+            contactName: b.contactName,
+            contactPhone: b.contactPhone,
+            contactEmail: b.contactEmail || null,
+            adults: b.adults || 0,
+            children: b.children || 0,
+            infants: b.infants || 0,
+            pickup: m.pickup || '',
+            dropoff: m.dropoff || '',
+            pickupDateTime: b.startDate,
+            status: b.status,
+            operationalStatus: m.operationalStatus || null,
+            paymentStatus: b.paymentStatus || null,
+            paymentMethod: m.paymentMethod || null,
+            driverId: b.driverId || null,
+            assignedVehicleId: m.assignedVehicleId || null,
+            flightNumber: m.flightNumber || null,
+            flightTime: m.flightTime || null,
+            pickupRegionCode: m.pickupRegionCode || null,
+            dropoffRegionCode: m.dropoffRegionCode || null,
+            shuttleSortOrder: m.shuttleSortOrder || null,
+            extraServices: m.extraServices || null,
+            notes: b.specialRequests || m.notes || null,
+            agencyName: m.agencyName || null,
+            total: Number(b.total || 0),
+            currency: b.currency,
+        });
+    }
+
+    // Sort bookings within run by sortOrder/time; compute departureTime if absent
+    Object.values(runsMap).forEach((run) => {
+        run.bookings.sort((a, b) => {
+            const oa = a.shuttleSortOrder != null ? Number(a.shuttleSortOrder) : 999;
+            const ob = b.shuttleSortOrder != null ? Number(b.shuttleSortOrder) : 999;
+            if (oa !== ob) return oa - ob;
+            return new Date(a.pickupDateTime).getTime() - new Date(b.pickupDateTime).getTime();
+        });
+        if (!run.departureTime && run.bookings[0]?.pickupDateTime) {
+            try {
+                const d = new Date(run.bookings[0].pickupDateTime);
+                const tr = new Date(d.getTime() + 3 * 3600 * 1000);
+                run.departureTime = `${String(tr.getUTCHours()).padStart(2, '0')}:${String(tr.getUTCMinutes()).padStart(2, '0')}`;
+            } catch { run.departureTime = '--:--'; }
+        }
+        if (!run.departureTime) run.departureTime = '--:--';
+
+        // Totals
+        run.passengerCount = run.bookings.reduce((s, x) => s + (Number(x.adults) || 0) + (Number(x.children) || 0), 0);
+        run.totalAmount = run.bookings.reduce((s, x) => s + Number(x.total || 0), 0);
+        run.currency = run.bookings[0]?.currency || 'TRY';
+        run.allReady = run.bookings.every((bb) => bb.driverId && bb.assignedVehicleId);
+        run.driverAssigned = run.bookings.some((bb) => bb.driverId);
+    });
+
+    return Object.values(runsMap).sort((a, b) => {
+        const ta = a.departureTime || '99:99';
+        const tb = b.departureTime || '99:99';
+        if (ta !== tb) return ta < tb ? -1 : 1;
+        return (a.routeName || '').localeCompare(b.routeName || '');
+    });
+}
+
+/**
+ * GET /api/transfer/partner/shuttle-runs?date=YYYY-MM-DD
+ * Returns the partner's shuttle bookings grouped into runs (sefers).
+ */
+router.get('/partner/shuttle-runs', authMiddleware, async (req, res) => {
+    try {
+        if (req.user.roleType !== 'PARTNER') return res.status(403).json({ success: false, error: 'Sadece partner' });
+        const userId = req.user.id;
+        const tenantId = req.tenant?.id || req.user.tenantId;
+
+        let datePart = String(req.query.date || '').slice(0, 10);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(datePart)) datePart = new Date().toISOString().slice(0, 10);
+        const TZ = 3 * 3600 * 1000;
+        const dayStart = new Date(new Date(`${datePart}T00:00:00.000Z`).getTime() - TZ);
+        const dayEnd = new Date(new Date(`${datePart}T23:59:59.999Z`).getTime() - TZ);
+
+        const bookings = await prisma.booking.findMany({
+            where: {
+                tenantId,
+                confirmedBy: userId,
+                productType: 'TRANSFER',
+                startDate: { gte: dayStart, lte: dayEnd },
+                status: { notIn: ['CANCELLED', 'COMPLETED', 'PENDING', 'NO_SHOW'] },
+            },
+            orderBy: { startDate: 'asc' },
+        });
+
+        const shuttles = bookings.filter((b) => {
+            const m = b.metadata || {};
+            const vt = lc(m.vehicleType);
+            const tt = lc(m.transferType);
+            return vt.includes('shuttle') || vt.includes('paylaşımlı') || tt === 'shuttle' || m.shuttleRouteId || m.manualRunId;
+        });
+
+        const tenant = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { settings: true } });
+        const hubs = tenant?.settings?.hubs || [];
+
+        const runs = groupShuttleRuns(shuttles, hubs);
+        res.json({ success: true, count: runs.length, data: runs });
+    } catch (error) {
+        console.error('Partner shuttle-runs error:', error);
+        res.status(500).json({ success: false, error: 'Shuttle seferleri alınamadı' });
+    }
+});
+
+/**
+ * PATCH /api/transfer/partner/shuttle-runs/assign
+ * Body: { bookingIds: string[], driverId?: string, vehicleId?: string }
+ * Bulk assign driver/vehicle to all bookings of a run (strict ownership).
+ */
+router.patch('/partner/shuttle-runs/assign', authMiddleware, async (req, res) => {
+    try {
+        if (req.user.roleType !== 'PARTNER') return res.status(403).json({ success: false, error: 'Sadece partner' });
+        const partnerId = req.user.id;
+        const tenantId = req.tenant?.id || req.user.tenantId;
+        const { bookingIds, driverId, vehicleId } = req.body || {};
+        if (!Array.isArray(bookingIds) || !bookingIds.length) {
+            return res.status(400).json({ success: false, error: 'bookingIds gerekli' });
+        }
+        if (driverId === undefined && vehicleId === undefined) {
+            return res.status(400).json({ success: false, error: 'driverId veya vehicleId gerekli' });
+        }
+        if (driverId) {
+            const d = await prisma.user.findFirst({ where: { id: driverId, partnerId, status: 'ACTIVE' } });
+            if (!d) return res.status(400).json({ success: false, error: 'Şoför ekibinizde değil' });
+        }
+        let vehRow = null;
+        if (vehicleId) {
+            vehRow = await prisma.vehicle.findFirst({ where: { id: vehicleId, ownerId: partnerId, tenantId, status: 'ACTIVE' } });
+            if (!vehRow) return res.status(400).json({ success: false, error: 'Araç size ait değil' });
+        }
+        // Verify each booking belongs to partner
+        const bookings = await prisma.booking.findMany({
+            where: { id: { in: bookingIds }, tenantId, confirmedBy: partnerId },
+        });
+        if (bookings.length !== bookingIds.length) {
+            return res.status(403).json({ success: false, error: 'Bazı rezervasyonlar size ait değil' });
+        }
+        // Apply updates
+        const updated = [];
+        for (const b of bookings) {
+            const newMeta = { ...(b.metadata || {}) };
+            if (vehRow) {
+                newMeta.assignedVehicleId = vehRow.id;
+                newMeta.partnerVehicleId = vehRow.id;
+                newMeta.partnerVehiclePlate = vehRow.plateNumber;
+            } else if (vehicleId === null) {
+                newMeta.assignedVehicleId = null;
+                newMeta.partnerVehicleId = null;
+                newMeta.partnerVehiclePlate = null;
+            }
+            if (driverId !== undefined) newMeta.operationalStatus = driverId ? 'DRIVER_ASSIGNED' : (newMeta.operationalStatus || 'CONFIRMED');
+            const u = await prisma.booking.update({
+                where: { id: b.id },
+                data: {
+                    driverId: driverId === undefined ? b.driverId : (driverId || null),
+                    metadata: newMeta,
+                },
+                select: { id: true, driverId: true, metadata: true },
+            });
+            updated.push(u);
+        }
+        try {
+            const io = req.app.get('io');
+            if (io && driverId) io.to(`user:${driverId}`).emit('shuttle:assigned', { count: bookingIds.length });
+        } catch (_) { /* socket optional */ }
+        res.json({ success: true, count: updated.length });
+    } catch (error) {
+        console.error('Partner shuttle assign error:', error);
+        res.status(500).json({ success: false, error: 'Atama yapılamadı' });
+    }
+});
+
+/**
+ * PATCH /api/transfer/partner/shuttle-runs/update
+ * Body: { bookingIds, departureTime?, routeName? }
+ */
+router.patch('/partner/shuttle-runs/update', authMiddleware, async (req, res) => {
+    try {
+        if (req.user.roleType !== 'PARTNER') return res.status(403).json({ success: false, error: 'Sadece partner' });
+        const partnerId = req.user.id;
+        const tenantId = req.tenant?.id || req.user.tenantId;
+        const { bookingIds, departureTime, routeName } = req.body || {};
+        if (!Array.isArray(bookingIds) || !bookingIds.length) {
+            return res.status(400).json({ success: false, error: 'bookingIds gerekli' });
+        }
+        const bookings = await prisma.booking.findMany({
+            where: { id: { in: bookingIds }, tenantId, confirmedBy: partnerId },
+        });
+        if (bookings.length !== bookingIds.length) {
+            return res.status(403).json({ success: false, error: 'Bazı rezervasyonlar size ait değil' });
+        }
+        for (const b of bookings) {
+            const meta = { ...(b.metadata || {}) };
+            if (departureTime !== undefined) meta.shuttleMasterTime = departureTime || null;
+            if (routeName !== undefined) meta.manualRunName = routeName;
+            await prisma.booking.update({ where: { id: b.id }, data: { metadata: meta } });
+        }
+        res.json({ success: true, count: bookings.length });
+    } catch (error) {
+        console.error('Partner shuttle update error:', error);
+        res.status(500).json({ success: false, error: 'Güncelleme yapılamadı' });
+    }
+});
+
+/**
+ * POST /api/transfer/partner/shuttle-runs/sort
+ * Body: { bookingIds: string[] (in desired order) }
+ */
+router.post('/partner/shuttle-runs/sort', authMiddleware, async (req, res) => {
+    try {
+        if (req.user.roleType !== 'PARTNER') return res.status(403).json({ success: false, error: 'Sadece partner' });
+        const partnerId = req.user.id;
+        const tenantId = req.tenant?.id || req.user.tenantId;
+        const { bookingIds } = req.body || {};
+        if (!Array.isArray(bookingIds) || !bookingIds.length) {
+            return res.status(400).json({ success: false, error: 'bookingIds gerekli' });
+        }
+        const bookings = await prisma.booking.findMany({
+            where: { id: { in: bookingIds }, tenantId, confirmedBy: partnerId },
+        });
+        if (bookings.length !== bookingIds.length) {
+            return res.status(403).json({ success: false, error: 'Bazı rezervasyonlar size ait değil' });
+        }
+        for (let i = 0; i < bookingIds.length; i++) {
+            const bId = bookingIds[i];
+            const cur = bookings.find((b) => b.id === bId);
+            if (!cur) continue;
+            const meta = { ...(cur.metadata || {}), shuttleSortOrder: i + 1 };
+            await prisma.booking.update({ where: { id: bId }, data: { metadata: meta } });
+        }
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Partner shuttle sort error:', error);
+        res.status(500).json({ success: false, error: 'Sıralama başarısız' });
+    }
+});
+
 router.get('/partner/active-bookings', authMiddleware, async (req, res) => {
     try {
         const userId = req.user.id;
