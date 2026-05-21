@@ -230,15 +230,16 @@ const PartnerZonesPage: React.FC = () => {
     }, [vehicleTypes, priceMap]);
 
     return (
-        <div style={{ padding: '8px 4px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
+        <div className="partner-page">
+                    <div className="ps-page-header">
                         <div>
-                            <h1 style={{ fontSize: 22, fontWeight: 800, color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
-                                <EnvironmentOutlined style={{ color: '#10b981' }} /> Bölgelerim & Fiyatlarım
+                            <h1 className="ps-page-header__title">
+                                <EnvironmentOutlined style={{ color: '#10b981', marginRight: 8 }} />
+                                Bölgelerim & Fiyatlarım
                             </h1>
-                            <Text type="secondary" style={{ fontSize: 13 }}>
-                                Sistem yöneticisi tarafından size atanan bölgeler için araç tipi bazında fiyat verebilirsiniz.
-                            </Text>
+                            <p className="ps-page-header__subtitle">
+                                Yetkili olduğunuz bölgelerde araç tipi bazlı fiyatlandırma matrisi
+                            </p>
                         </div>
                         <Button icon={<ReloadOutlined />} onClick={loadAll}>Yenile</Button>
                     </div>

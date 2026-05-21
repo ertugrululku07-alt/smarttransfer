@@ -81,6 +81,7 @@ export default function NewPartnerBookingPage() {
       } else if (values.actionType === 'MARKETPLACE') {
         payload.marketplaceStatus = 'PUBLISHED';
         payload.b2bPriceType = values.b2bPriceType;
+        payload.marketplaceBidDurationHours = values.marketplaceBidDurationHours || 24;
         if (values.b2bPriceType === 'FIXED_PRICE') payload.b2bPrice = values.b2bPrice;
       }
 
@@ -300,6 +301,17 @@ export default function NewPartnerBookingPage() {
                           {['EUR', 'USD', 'TRY', 'GBP'].map(c => <Option key={c} value={c}>{c}</Option>)}
                         </Select></Form.Item>
                       } />
+                    </Form.Item>
+                  )}
+                  {b2bPriceType === 'OPEN_BID' && (
+                    <Form.Item
+                      name="marketplaceBidDurationHours"
+                      label="Teklif Süresi (Saat)"
+                      tooltip="Bu süre dolunca yeni teklif alınmaz, mevcut tekliflerden seçim yaparsınız."
+                      initialValue={24}
+                      rules={[{ required: true, message: 'Süre giriniz' }]}
+                    >
+                      <InputNumber min={1} max={168} style={{ width: 200 }} size="large" addonAfter="saat" />
                     </Form.Item>
                   )}
                 </div>

@@ -348,16 +348,16 @@ const PartnerUetdsPage: React.FC = () => {
     const rejectedCount = submissions.filter(s => s.status === 'REJECTED').length;
 
     return (
-        <div style={{ padding: '8px 4px' }}>
-                    {/* Header */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
+        <div className="partner-page">
+                    <div className="ps-page-header">
                         <div>
-                            <h1 style={{ fontSize: 22, fontWeight: 800, color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
-                                <SafetyCertificateOutlined style={{ color: '#10b981' }} /> UETDS Yönetimi
+                            <h1 className="ps-page-header__title">
+                                <SafetyCertificateOutlined style={{ color: '#10b981', marginRight: 8 }} />
+                                UETDS Yönetimi
                             </h1>
-                            <Text type="secondary" style={{ fontSize: 13 }}>
-                                UETDS sefer bildirimleri ve kimlik ayarlarını yönetin.
-                            </Text>
+                            <p className="ps-page-header__subtitle">
+                                Sefer bildirimi, kimlik doğrulama ve gönderim takibi
+                            </p>
                         </div>
                         <Space>
                             <Button icon={<ReloadOutlined />} onClick={loadData}>Yenile</Button>
@@ -365,7 +365,6 @@ const PartnerUetdsPage: React.FC = () => {
                                 type="primary"
                                 icon={<SendOutlined />}
                                 onClick={() => setSubmitModalOpen(true)}
-                                style={{ background: '#10b981', borderColor: '#10b981', borderRadius: 10 }}
                             >
                                 Sefer Bildir
                             </Button>

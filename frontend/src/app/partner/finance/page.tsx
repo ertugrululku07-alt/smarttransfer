@@ -338,25 +338,23 @@ const PartnerFinancePage: React.FC = () => {
     }
 
     return (
-        <div style={{ padding: '8px 4px' }}>
-                    {/* Header */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
+        <div className="partner-page">
+                    <div className="ps-page-header">
                         <div>
-                            <h1 style={{ fontSize: 22, fontWeight: 800, color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
-                                <WalletOutlined style={{ color: '#6366f1' }} /> Muhasebe
+                            <h1 className="ps-page-header__title">
+                                <WalletOutlined style={{ color: '#6366f1', marginRight: 8 }} />
+                                Muhasebe
                             </h1>
-                            <Text type="secondary" style={{ fontSize: 13 }}>Gelir, gider ve finansal takibinizi yonetin</Text>
+                            <p className="ps-page-header__subtitle">Gelir, gider ve finansal takibinizi yönetin</p>
                         </div>
                         <Space wrap>
                             <Button icon={<SyncOutlined spin={syncing} />} onClick={handleSync} loading={syncing}>
                                 Gelirleri Senkronize Et
                             </Button>
-                            <Button icon={<ArrowUpOutlined />} onClick={() => handleAdd('INCOME')}
-                                style={{ background: '#10b981', borderColor: '#10b981', color: '#fff', borderRadius: 10, fontWeight: 700 }}>
+                            <Button type="primary" icon={<ArrowUpOutlined />} onClick={() => handleAdd('INCOME')}>
                                 Gelir Ekle
                             </Button>
-                            <Button icon={<ArrowDownOutlined />} onClick={() => handleAdd('EXPENSE')}
-                                style={{ background: '#ef4444', borderColor: '#ef4444', color: '#fff', borderRadius: 10, fontWeight: 700 }}>
+                            <Button danger icon={<ArrowDownOutlined />} onClick={() => handleAdd('EXPENSE')}>
                                 Gider Ekle
                             </Button>
                         </Space>

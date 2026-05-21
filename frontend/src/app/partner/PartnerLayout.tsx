@@ -38,6 +38,7 @@ interface NavItem {
 const NAV_ITEMS: Omit<NavItem, 'badge'>[] = [
   { key: 'home',         label: 'Dashboard',        icon: <HomeOutlined />,            path: '/partner',               exact: true, section: 'main'    },
   { key: 'pool',         label: 'Transferlerim',     icon: <AppstoreOutlined />,        path: '/partner/pool',                       section: 'main'    },
+  { key: 'operations',   label: 'Operasyon',         icon: <AppstoreOutlined />,        path: '/partner/operations',                 section: 'main'    },
   { key: 'dispatch',     label: 'Canlı Takip',       icon: <CompassOutlined />,         path: '/partner/dispatch',                   section: 'main'    },
   { key: 'new-booking',  label: 'Yeni İş Ekle',      icon: <PlusCircleOutlined />,      path: '/partner/bookings/new',               section: 'main'    },
   { key: 'marketplace',  label: 'Pazar Yeri',        icon: <GlobalOutlined />,          path: '/partner/marketplace',                section: 'main'    },
@@ -51,7 +52,7 @@ const NAV_ITEMS: Omit<NavItem, 'badge'>[] = [
   { key: 'settings',     label: 'Ayarlar',           icon: <SettingOutlined />,         path: '/partner/settings',                   section: 'system'  },
 ];
 
-const BOTTOM_NAV_KEYS = ['home', 'pool', 'drivers', 'finance', 'settings'];
+const BOTTOM_NAV_KEYS = ['home', 'operations', 'drivers', 'finance', 'settings'];
 
 const SECTION_LABELS: Record<string, string> = {
   main:    'Operasyon',

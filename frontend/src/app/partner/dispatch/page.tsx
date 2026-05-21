@@ -180,7 +180,6 @@ const PartnerDispatchPage = () => {
                             </div>
                         ))}
                         <div style={{ flex: 1 }} />
-                        <Badge status={isConnected ? 'success' : 'error'} text={<span style={{ fontSize: 11, color: '#64748b' }}>{isConnected ? 'Canlı Bağlantı' : 'Bağlantı Yok'}</span>} />
                         <Tooltip title="Yenile">
                             <div onClick={fetchDrivers} style={{ cursor: 'pointer', padding: '4px 8px', borderRadius: 6, background: '#f1f5f9' }}>
                                 <ReloadOutlined style={{ fontSize: 13, color: '#64748b' }} />

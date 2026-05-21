@@ -188,21 +188,15 @@ const PartnerVehiclesPage: React.FC = () => {
 
   return (
     <div className="partner-page">
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 24 }}>
+        <div className="ps-page-header">
           <div>
-            <Title level={2} style={{ margin: 0, fontWeight: 700 }}>Filom - Araçlarım</Title>
-            <Text type="secondary">
-              Pazar yerinde iş alırken veya kendi işlerinizi yaparken kullanacağınız araçları buradan yönetebilirsiniz.
-            </Text>
+            <h1 className="ps-page-header__title">Araç Yönetimi</h1>
+            <p className="ps-page-header__subtitle">
+              Filonuzdaki araçları premium kart görünümünde yönetin.
+            </p>
           </div>
-          <Button
-            type="primary"
-            size="large"
-            icon={<PlusOutlined />}
-            onClick={handleNewVehicle}
-            style={{ background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', border: 'none', fontWeight: 600, borderRadius: 8 }}
-          >
-            + Yeni Araç Ekle
+          <Button type="primary" size="large" icon={<PlusOutlined />} onClick={handleNewVehicle}>
+            Yeni Araç Ekle
           </Button>
         </div>
 

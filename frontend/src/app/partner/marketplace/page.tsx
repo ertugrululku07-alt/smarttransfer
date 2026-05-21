@@ -1,229 +1,513 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Button, Modal, Form, InputNumber, Input, message, Spin, Row, Col, Tag,
+  Button,
+  Input,
+  DatePicker,
+  Select,
+  Tabs,
+  Spin,
+  Tag,
+  Modal,
+  Form,
+  InputNumber,
+  message,
+  Tooltip,
 } from 'antd';
 import {
-  GlobalOutlined, EnvironmentOutlined, CalendarOutlined, CarOutlined,
-  DollarOutlined, UserOutlined, ReloadOutlined, CheckCircleOutlined,
+  ReloadOutlined,
+  SearchOutlined,
+  CalendarOutlined,
+  EnvironmentOutlined,
+  UserOutlined,
+  DollarOutlined,
+  CheckCircleOutlined,
+  ClockCircleOutlined,
+  StopOutlined,
 } from '@ant-design/icons';
-import apiClient from '@/lib/api-client';
 import dayjs from 'dayjs';
-import 'dayjs/locale/tr';
+import apiClient from '@/lib/api-client';
 
-dayjs.locale('tr');
+const { RangePicker } = DatePicker;
+const { Option } = Select;
 
-interface Booking {
+type MarketplaceJob = {
   id: string;
   bookingNumber: string;
   startDate: string;
-  metadata: any;
-  adults: number;
-  children: number;
-  infants: number;
-  b2bPriceType: 'FIXED_PRICE' | 'OPEN_BID';
-  b2bPrice: number;
+  b2bPriceType: 'OPEN_BID' | 'FIXED_PRICE';
+  b2bPrice: number | null;
   currency: string;
-  ownerPartnerId: string;
-  ownerPartner: { id: string; fullName: string; partnerProfile?: { companyName?: string } };
-  marketplaceOffers: any[];
+  ownerPartnerId: string | null;
+  ownerPartner?: { id: string; fullName?: string; partnerProfile?: { companyName?: string } };
+  marketplaceOffers?: Array<any>;
+  marketplaceStatus?: string;
+  metadata?: Record<string, any>;
+  adults?: number;
+  children?: number;
+  infants?: number;
+  marketplaceMeta?: {
+    deadlineAt?: string;
+    remainingMs?: number | null;
+    offerCount?: number;
+    highestOfferAmount?: number | null;
+    highestOfferCurrency?: string | null;
+  };
+};
+
+const tr = (n: number) => Number(n || 0).toLocaleString('tr-TR');
+
+function RemainingTime({ iso }: { iso?: string }) {
+  const [left, setLeft] = useState<number>(0);
+  useEffect(() => {
+    if (!iso) return;
+    const tick = () => setLeft(Math.max(0, new Date(iso).getTime() - Date.now()));
+    tick();
+    const timer = setInterval(tick, 1000 * 30);
+    return () => clearInterval(timer);
+  }, [iso]);
+
+  if (!iso) return <span className="ps-badge ps-badge--neutral">Süre yok</span>;
+  if (left <= 0) return <span className="ps-badge ps-badge--danger">Süre doldu</span>;
+
+  const h = Math.floor(left / (1000 * 60 * 60));
+  const m = Math.floor((left % (1000 * 60 * 60)) / (1000 * 60));
+  return (
+    <span className="ps-badge ps-badge--warning">
+      <ClockCircleOutlined style={{ fontSize: 10, marginRight: 4 }} />
+      {h}s {m}dk
+    </span>
+  );
 }
 
 export default function MarketplacePage() {
+  const [partnerId, setPartnerId] = useState<string>('');
+  const [activeTab, setActiveTab] = useState('discover');
   const [loading, setLoading] = useState(false);
-  const [jobs, setJobs] = useState<Booking[]>([]);
-  const [partnerId, setPartnerId] = useState('');
-  const [bidModalVisible, setBidModalVisible] = useState(false);
-  const [selectedJob, setSelectedJob] = useState<Booking | null>(null);
+  const [discover, setDiscover] = useState<MarketplaceJob[]>([]);
+  const [myListings, setMyListings] = useState<MarketplaceJob[]>([]);
+  const [searchFrom, setSearchFrom] = useState('');
+  const [searchTo, setSearchTo] = useState('');
+  const [dateRange, setDateRange] = useState<any>(null);
+  const [sort, setSort] = useState('latest');
+  const [bidModalOpen, setBidModalOpen] = useState(false);
+  const [selectedJob, setSelectedJob] = useState<MarketplaceJob | null>(null);
   const [bidForm] = Form.useForm();
-  const [bidding, setBidding] = useState(false);
+  const [bidLoading, setBidLoading] = useState(false);
 
   useEffect(() => {
-    const stored = localStorage.getItem('user');
-    if (stored) { try { setPartnerId(JSON.parse(stored).id); } catch {} }
-    fetchJobs();
+    try {
+      const stored = localStorage.getItem('user');
+      if (!stored) return;
+      const parsed = JSON.parse(stored);
+      if (parsed?.id) setPartnerId(parsed.id);
+    } catch {
+      /* ignore */
+    }
   }, []);
 
-  const fetchJobs = async () => {
+  const loadDiscover = async () => {
     setLoading(true);
     try {
-      const res = await apiClient.get('/api/transfer/partner/marketplace');
-      if (res.data.success) setJobs(res.data.data || []);
-    } catch { message.error('İlanlar yüklenemedi'); }
-    finally { setLoading(false); }
+      const params = new URLSearchParams();
+      if (searchFrom) params.set('from', searchFrom);
+      if (searchTo) params.set('to', searchTo);
+      if (dateRange?.[0]) params.set('dateFrom', dateRange[0].toISOString());
+      if (dateRange?.[1]) params.set('dateTo', dateRange[1].toISOString());
+      if (sort) params.set('sort', sort);
+      const res = await apiClient.get(`/api/transfer/partner/marketplace?${params.toString()}`);
+      if (res.data?.success) setDiscover(res.data.data || []);
+    } catch {
+      message.error('Pazar yeri ilanları yüklenemedi');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const submitBid = async () => {
+  const loadMyListings = async () => {
+    setLoading(true);
+    try {
+      const res = await apiClient.get('/api/transfer/partner/marketplace/my-listings');
+      if (res.data?.success) setMyListings(res.data.data || []);
+    } catch {
+      message.error('İlanlarım yüklenemedi');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'discover') loadDiscover();
+    else loadMyListings();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
+
+  const handleBid = async () => {
+    if (!selectedJob) return;
     try {
       const values = await bidForm.validateFields();
-      setBidding(true);
-      const res = await apiClient.post(`/api/transfer/partner/marketplace/${selectedJob?.id}/bid`, {
-        amount: values.amount, currency: selectedJob?.currency || 'EUR', notes: values.notes,
+      setBidLoading(true);
+      const res = await apiClient.post(`/api/transfer/partner/marketplace/${selectedJob.id}/bid`, {
+        amount: values.amount,
+        notes: values.notes,
+        currency: selectedJob.currency || 'EUR',
       });
-      if (res.data.success) { message.success('Teklifiniz gönderildi!'); setBidModalVisible(false); fetchJobs(); }
-    } catch (err: any) {
-      if (!err?.errorFields) message.error(err.response?.data?.error || 'Teklif gönderilemedi');
-    } finally { setBidding(false); }
+      if (res.data?.success) {
+        message.success('Teklif kaydedildi');
+        setBidModalOpen(false);
+        loadDiscover();
+      }
+    } catch (e: any) {
+      if (!e?.errorFields) message.error(e?.response?.data?.error || 'Teklif gönderilemedi');
+    } finally {
+      setBidLoading(false);
+    }
   };
 
-  const acceptFixed = (job: Booking) => {
-    Modal.confirm({
-      title: 'Bu işi almak istediğinize emin misiniz?',
-      content: `${job.b2bPrice} ${job.currency} karşılığında doğrudan size atanacaktır.`,
-      okText: 'Evet, İşi Al', cancelText: 'Vazgeç',
-      onOk: async () => {
-        try {
-          const res = await apiClient.post(`/api/transfer/partner/marketplace/${job.id}/accept`);
-          if (res.data.success) { message.success('İş başarıyla alındı!'); fetchJobs(); }
-        } catch (err: any) { message.error(err.response?.data?.error || 'İş alınamadı'); }
-      },
-    });
+  const acceptOpenBidOffer = async (bookingId: string, offerId: string) => {
+    try {
+      const res = await apiClient.post(`/api/transfer/partner/marketplace/${bookingId}/offers/${offerId}/accept`);
+      if (res.data?.success) {
+        message.success('Teklif kabul edildi, iş partnere atandı');
+        loadMyListings();
+      }
+    } catch (e: any) {
+      message.error(e?.response?.data?.error || 'Teklif kabul edilemedi');
+    }
   };
+
+  const closeListing = async (bookingId: string) => {
+    try {
+      const res = await apiClient.post(`/api/transfer/partner/marketplace/${bookingId}/close`);
+      if (res.data?.success) {
+        message.success('İlan kapatıldı');
+        loadMyListings();
+      }
+    } catch (e: any) {
+      message.error(e?.response?.data?.error || 'İlan kapatılamadı');
+    }
+  };
+
+  const discoverCards = useMemo(
+    () =>
+      discover.map((job) => {
+        const pickup = job.metadata?.pickup || '—';
+        const dropoff = job.metadata?.dropoff || '—';
+        const owner = job.ownerPartner?.partnerProfile?.companyName || job.ownerPartner?.fullName || 'Partner';
+        const pax = Number(job.adults || 0) + Number(job.children || 0) + Number(job.infants || 0);
+        const myOffer = job.marketplaceOffers?.find((o: any) => o.status === 'PENDING' && o.partnerId === partnerId);
+        return (
+          <div key={job.id} className="ps-card" style={{ padding: 14 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 13 }}>{job.bookingNumber}</div>
+                <div style={{ fontSize: 11, color: 'var(--ps-text-3)' }}>
+                  <UserOutlined style={{ marginRight: 4 }} />
+                  {owner}
+                </div>
+              </div>
+              {job.b2bPriceType === 'FIXED_PRICE' ? (
+                <span className="ps-badge ps-badge--success">Sabit Fiyat</span>
+              ) : (
+                <span className="ps-badge ps-badge--accent">Açık Artırma</span>
+              )}
+            </div>
+
+            <div style={{ marginTop: 10 }} className="ps-route">
+              <div className="ps-route__line">
+                <div className="ps-route__dot ps-route__dot--from" />
+                <div className="ps-route__connector" />
+                <div className="ps-route__dot ps-route__dot--to" />
+              </div>
+              <div className="ps-route__detail">
+                <div className="ps-route__from">
+                  <div className="ps-route__label">Alış</div>
+                  <div className="ps-route__address">{pickup}</div>
+                </div>
+                <div>
+                  <div className="ps-route__label">Varış</div>
+                  <div className="ps-route__address">{dropoff}</div>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ marginTop: 10, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              <span className="ps-badge ps-badge--neutral">
+                <CalendarOutlined style={{ marginRight: 4, fontSize: 10 }} />
+                {dayjs(job.startDate).format('DD MMM HH:mm')}
+              </span>
+              <span className="ps-badge ps-badge--neutral">{pax} yolcu</span>
+              {job.b2bPriceType === 'OPEN_BID' && <RemainingTime iso={job.metadata?.marketplaceBidDeadlineAt} />}
+            </div>
+
+            <div style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+              <div>
+                {job.b2bPriceType === 'FIXED_PRICE' ? (
+                  <div style={{ fontWeight: 800, fontSize: 18 }}>
+                    {tr(Number(job.b2bPrice || 0))} {job.currency}
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 12, color: 'var(--ps-text-3)' }}>
+                    En yüksek teklif:{' '}
+                    <b>
+                      {job.marketplaceOffers?.[0]
+                        ? `${tr(Number(job.marketplaceOffers[0].amount))} ${job.marketplaceOffers[0].currency}`
+                        : 'Henüz yok'}
+                    </b>
+                  </div>
+                )}
+              </div>
+
+              {job.b2bPriceType === 'FIXED_PRICE' ? (
+                <Button type="primary" onClick={() => apiClient.post(`/api/transfer/partner/marketplace/${job.id}/accept`).then(() => {
+                  message.success('İş alındı');
+                  loadDiscover();
+                }).catch((e) => message.error(e?.response?.data?.error || 'İş alınamadı'))}>
+                  İşi Al
+                </Button>
+              ) : (
+                <Button
+                  type={myOffer ? 'default' : 'primary'}
+                  onClick={() => {
+                    setSelectedJob(job);
+                    bidForm.setFieldsValue({ amount: myOffer ? Number(myOffer.amount) : undefined, notes: myOffer?.notes || '' });
+                    setBidModalOpen(true);
+                  }}
+                >
+                  {myOffer ? 'Teklifimi Güncelle' : 'Teklif Ver'}
+                </Button>
+              )}
+            </div>
+          </div>
+        );
+      }),
+    [discover, bidForm]
+  );
+
+  const myListingCards = useMemo(
+    () =>
+      myListings.map((job) => {
+        const pickup = job.metadata?.pickup || '—';
+        const dropoff = job.metadata?.dropoff || '—';
+        const offers = job.marketplaceOffers || [];
+        const isOpen = job.b2bPriceType === 'OPEN_BID';
+        const canAssign = job.marketplaceStatus === 'PUBLISHED' || job.marketplaceStatus === 'EXPIRED';
+        return (
+          <div key={job.id} className="ps-card" style={{ padding: 14 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 13 }}>{job.bookingNumber}</div>
+                <div style={{ fontSize: 11, color: 'var(--ps-text-3)' }}>
+                  <CalendarOutlined style={{ marginRight: 4 }} />
+                  {dayjs(job.startDate).format('DD MMM YYYY HH:mm')}
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                <span className={`ps-badge ${job.marketplaceStatus === 'ASSIGNED' ? 'ps-badge--success' : job.marketplaceStatus === 'EXPIRED' ? 'ps-badge--danger' : 'ps-badge--accent'}`}>
+                  {job.marketplaceStatus || 'PUBLISHED'}
+                </span>
+                {isOpen && <RemainingTime iso={job.metadata?.marketplaceBidDeadlineAt} />}
+              </div>
+            </div>
+
+            <div style={{ marginTop: 10 }} className="ps-route">
+              <div className="ps-route__line">
+                <div className="ps-route__dot ps-route__dot--from" />
+                <div className="ps-route__connector" />
+                <div className="ps-route__dot ps-route__dot--to" />
+              </div>
+              <div className="ps-route__detail">
+                <div className="ps-route__from">
+                  <div className="ps-route__label">Alış</div>
+                  <div className="ps-route__address">{pickup}</div>
+                </div>
+                <div>
+                  <div className="ps-route__label">Varış</div>
+                  <div className="ps-route__address">{dropoff}</div>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ marginTop: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+              <div style={{ fontSize: 12, color: 'var(--ps-text-3)' }}>
+                {isOpen ? (
+                  <>
+                    Teklif sayısı: <b>{offers.length}</b>{' '}
+                    {offers[0] && (
+                      <>
+                        · En yüksek: <b>{tr(Number(offers[0].amount))} {offers[0].currency}</b>
+                      </>
+                    )}
+                  </>
+                ) : (
+                  <>Sabit fiyat: <b>{tr(Number(job.b2bPrice || 0))} {job.currency}</b></>
+                )}
+              </div>
+              {job.marketplaceStatus === 'PUBLISHED' && (
+                <Button danger icon={<StopOutlined />} onClick={() => closeListing(job.id)}>
+                  İlanı Kapat
+                </Button>
+              )}
+            </div>
+
+            {isOpen && offers.length > 0 && canAssign && (
+              <div style={{ marginTop: 12, borderTop: '1px solid var(--ps-border)', paddingTop: 10 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, gap: 8 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700 }}>Gelen Teklifler</div>
+                  {offers[0] && (
+                    <Button
+                      type="primary"
+                      size="small"
+                      onClick={() => acceptOpenBidOffer(job.id, offers[0].id)}
+                    >
+                      En Yüksek Teklifi Pasla
+                    </Button>
+                  )}
+                </div>
+                <div style={{ display: 'grid', gap: 8 }}>
+                  {offers.map((offer: any) => (
+                    <div key={offer.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, background: 'var(--ps-surface-2)', border: '1px solid var(--ps-border)', borderRadius: 10, padding: '8px 10px' }}>
+                      <div>
+                        <div style={{ fontSize: 12, fontWeight: 600 }}>
+                          {offer.partner?.partnerProfile?.companyName || offer.partner?.fullName || 'Partner'}
+                        </div>
+                        <div style={{ fontSize: 11, color: 'var(--ps-text-3)' }}>
+                          {dayjs(offer.createdAt).format('DD MMM HH:mm')}
+                          {offer.notes ? ` · ${offer.notes}` : ''}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <b style={{ fontSize: 13 }}>{tr(Number(offer.amount))} {offer.currency}</b>
+                        <Button type="primary" size="small" icon={<CheckCircleOutlined />} onClick={() => acceptOpenBidOffer(job.id, offer.id)}>
+                          Pasla
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      }),
+    [myListings]
+  );
 
   return (
     <div>
       <div className="ps-page-header">
         <div>
           <h1 className="ps-page-header__title">B2B Pazar Yeri</h1>
-          <p className="ps-page-header__subtitle">Partner ilanlarını görüntüle, teklif ver veya direkt al</p>
+          <p className="ps-page-header__subtitle">Açık artırma, teklif süresi, tekliflerden seçip işi paslama</p>
         </div>
-        <Button icon={<ReloadOutlined />} onClick={fetchJobs} loading={loading}>Yenile</Button>
+        <Button icon={<ReloadOutlined />} onClick={() => (activeTab === 'discover' ? loadDiscover() : loadMyListings())} loading={loading}>
+          Yenile
+        </Button>
       </div>
 
-      {loading ? (
-        <div style={{ textAlign: 'center', padding: 80 }}><Spin size="large" /></div>
-      ) : jobs.length === 0 ? (
-        <div className="ps-empty">
-          <div className="ps-empty__icon"><GlobalOutlined /></div>
-          <p className="ps-empty__title">Şu an ilan yok</p>
-          <p className="ps-empty__desc">Yeni iş ilanları geldiğinde burada listelenir</p>
-        </div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {jobs.map(job => {
-            const isMyJob = job.ownerPartnerId === partnerId;
-            const hasBid = job.marketplaceOffers?.some((o: any) => o.partnerId === partnerId);
-            const pax = (job.adults || 0) + (job.children || 0);
-
-            return (
-              <div key={job.id} className="ps-card" style={{ overflow: 'hidden' }}>
-                <div style={{ height: 3, background: job.b2bPriceType === 'FIXED_PRICE' ? '#10b981' : '#6366f1' }} />
-                <div style={{ padding: '18px 20px' }}>
-                  {/* Header */}
-                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                        <span style={{ fontWeight: 700, fontSize: 14, color: 'var(--ps-text)' }}>{job.bookingNumber}</span>
-                        <span className={`ps-badge ${job.b2bPriceType === 'FIXED_PRICE' ? 'ps-badge--success' : 'ps-badge--accent'}`}>
-                          {job.b2bPriceType === 'FIXED_PRICE' ? 'Sabit Fiyat' : 'Açık Teklif'}
-                        </span>
-                        {isMyJob && <span className="ps-badge ps-badge--neutral">Sizin İlanınız</span>}
-                      </div>
-                      <div style={{ fontSize: 12, color: 'var(--ps-text-3)' }}>
-                        <UserOutlined style={{ marginRight: 4 }} />{job.ownerPartner?.partnerProfile?.companyName || job.ownerPartner?.fullName}
-                        <span style={{ margin: '0 6px' }}>·</span>
-                        <CalendarOutlined style={{ marginRight: 4 }} />{dayjs(job.startDate).format('DD MMM YYYY HH:mm')}
-                        <span style={{ margin: '0 6px' }}>·</span>
-                        <UserOutlined style={{ marginRight: 4 }} />{pax} yolcu
-                      </div>
-                    </div>
-                    {job.b2bPriceType === 'FIXED_PRICE' && (
-                      <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontSize: 11, color: 'var(--ps-text-3)', marginBottom: 2 }}>Fiyat</div>
-                        <div style={{ fontWeight: 900, fontSize: 22, color: 'var(--ps-text)' }}>
-                          {Number(job.b2bPrice).toLocaleString('tr-TR')} {job.currency}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Route */}
-                  <div className="ps-route" style={{ marginBottom: 16 }}>
-                    <div className="ps-route__line">
-                      <div className="ps-route__dot ps-route__dot--from" />
-                      <div className="ps-route__connector" />
-                      <div className="ps-route__dot ps-route__dot--to" />
-                    </div>
-                    <div className="ps-route__detail">
-                      <div className="ps-route__from">
-                        <div className="ps-route__label">Alış</div>
-                        <div className="ps-route__address">{job.metadata?.pickup || '—'}</div>
-                      </div>
-                      <div>
-                        <div className="ps-route__label">Varış</div>
-                        <div className="ps-route__address">{job.metadata?.dropoff || '—'}</div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Footer */}
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
-                    <div style={{ fontSize: 12, color: 'var(--ps-text-3)' }}>
-                      {job.marketplaceOffers?.length > 0
-                        ? `${job.marketplaceOffers.length} teklif var`
-                        : 'Henüz teklif yok'}
-                    </div>
-                    {!isMyJob && (
-                      <div style={{ display: 'flex', gap: 8 }}>
-                        {job.b2bPriceType === 'OPEN_BID' && (
-                          <Button
-                            type="primary" ghost disabled={hasBid}
-                            icon={<DollarOutlined />}
-                            onClick={() => { setSelectedJob(job); bidForm.resetFields(); setBidModalVisible(true); }}
-                          >
-                            {hasBid ? 'Teklifiniz Gönderildi' : 'Teklif Ver'}
-                          </Button>
-                        )}
-                        {job.b2bPriceType === 'FIXED_PRICE' && (
-                          <Button type="primary" icon={<CheckCircleOutlined />} onClick={() => acceptFixed(job)}>
-                            İşi Al
-                          </Button>
-                        )}
-                      </div>
-                    )}
-                    {isMyJob && (
-                      <span className="ps-badge ps-badge--neutral">Bu ilan size ait</span>
-                    )}
+      <Tabs
+        activeKey={activeTab}
+        onChange={setActiveTab}
+        items={[
+          {
+            key: 'discover',
+            label: 'İş Al',
+            children: (
+              <>
+                <div className="ps-card" style={{ padding: 12, marginBottom: 14 }}>
+                  <div style={{ display: 'grid', gap: 8, gridTemplateColumns: '2fr 2fr 2fr 1fr auto' }}>
+                    <Input
+                      allowClear
+                      prefix={<EnvironmentOutlined style={{ color: '#94a3b8' }} />}
+                      placeholder="Alış lokasyonu (örn: Antalya Havalimanı)"
+                      value={searchFrom}
+                      onChange={(e) => setSearchFrom(e.target.value)}
+                    />
+                    <Input
+                      allowClear
+                      prefix={<EnvironmentOutlined style={{ color: '#94a3b8' }} />}
+                      placeholder="Varış lokasyonu (örn: Alanya)"
+                      value={searchTo}
+                      onChange={(e) => setSearchTo(e.target.value)}
+                    />
+                    <RangePicker
+                      showTime
+                      style={{ width: '100%' }}
+                      value={dateRange}
+                      onChange={(v) => setDateRange(v)}
+                    />
+                    <Select value={sort} onChange={setSort}>
+                      <Option value="latest">En Yeni</Option>
+                      <Option value="date_asc">Tarih (Yakın)</Option>
+                      <Option value="price_desc">Fiyat (Yüksek)</Option>
+                      <Option value="price_asc">Fiyat (Düşük)</Option>
+                    </Select>
+                    <Button type="primary" icon={<SearchOutlined />} onClick={loadDiscover}>
+                      Filtrele
+                    </Button>
                   </div>
                 </div>
+
+                {loading ? (
+                  <div style={{ textAlign: 'center', padding: 60 }}>
+                    <Spin size="large" />
+                  </div>
+                ) : discoverCards.length === 0 ? (
+                  <div className="ps-empty">
+                    <div className="ps-empty__icon">
+                      <SearchOutlined />
+                    </div>
+                    <p className="ps-empty__title">Uygun ilan bulunamadı</p>
+                    <p className="ps-empty__desc">Filtreleri değiştirip tekrar deneyin</p>
+                  </div>
+                ) : (
+                  <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))' }}>{discoverCards}</div>
+                )}
+              </>
+            ),
+          },
+          {
+            key: 'mine',
+            label: 'İlanlarım',
+            children: loading ? (
+              <div style={{ textAlign: 'center', padding: 60 }}>
+                <Spin size="large" />
               </div>
-            );
-          })}
-        </div>
-      )}
+            ) : myListingCards.length === 0 ? (
+              <div className="ps-empty">
+                <div className="ps-empty__icon">
+                  <UserOutlined />
+                </div>
+                <p className="ps-empty__title">İlanınız yok</p>
+                <p className="ps-empty__desc">Yeni iş ekle bölümünden açık artırma ilanı oluşturabilirsiniz</p>
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fill, minmax(420px, 1fr))' }}>{myListingCards}</div>
+            ),
+          },
+        ]}
+      />
 
       <Modal
-        title="Fiyat Teklifi Ver"
-        open={bidModalVisible}
-        onCancel={() => setBidModalVisible(false)}
-        onOk={submitBid}
-        confirmLoading={bidding}
-        okText="Teklifi Gönder"
-        cancelText="İptal"
+        open={bidModalOpen}
+        title="Teklif Ver / Güncelle"
+        onCancel={() => setBidModalOpen(false)}
+        onOk={handleBid}
+        okText="Teklifi Kaydet"
+        confirmLoading={bidLoading}
         centered
       >
-        <p style={{ color: 'var(--ps-text-3)', marginBottom: 20, fontSize: 13 }}>
-          B2B fiyatınızı girin. İlan sahibi en uygun teklifi seçecektir.
-        </p>
         <Form form={bidForm} layout="vertical">
-          <Row gutter={16}>
-            <Col span={16}>
-              <Form.Item name="amount" label="Teklif Tutarı" rules={[{ required: true, message: 'Tutar giriniz' }]}>
-                <InputNumber style={{ width: '100%' }} size="large" min={1} />
-              </Form.Item>
-            </Col>
-            <Col span={8}>
-              <Form.Item label="Para Birimi">
-                <Input value={selectedJob?.currency || 'EUR'} disabled size="large" />
-              </Form.Item>
-            </Col>
-          </Row>
+          <Form.Item name="amount" label={`Teklif Tutarı (${selectedJob?.currency || 'EUR'})`} rules={[{ required: true, message: 'Tutar giriniz' }]}>
+            <InputNumber style={{ width: '100%' }} min={1} />
+          </Form.Item>
           <Form.Item name="notes" label="Not (Opsiyonel)">
-            <Input.TextArea placeholder="Varsa notunuz…" rows={3} />
+            <Input.TextArea rows={3} placeholder="Örn: VIP araç + İngilizce konuşan sürücü" />
           </Form.Item>
         </Form>
       </Modal>
     </div>
   );
 }
+

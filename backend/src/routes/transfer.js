@@ -5526,7 +5526,8 @@ router.post('/partner/bookings', authMiddleware, async (req, res) => {
             // Optional zone hint to apply the partner's own zone price automatically
             partnerZoneId, baseLocation,
             // Marketplace
-            marketplaceStatus, b2bPriceType, b2bPrice
+            marketplaceStatus, b2bPriceType, b2bPrice,
+            marketplaceBidDurationHours, marketplaceBidDeadlineAt
         } = req.body;
 
         if (!passengerName || !pickup || !dropoff || !pickupDateTime) {
@@ -5623,6 +5624,23 @@ router.post('/partner/bookings', authMiddleware, async (req, res) => {
         const totalPax = (Number(adults) || 1) + (Number(children) || 0) + (Number(infants) || 0);
         const startDate = new Date(pickupDateTime);
 
+        const isOpenBidPublished = marketplaceStatus === 'PUBLISHED' && b2bPriceType === 'OPEN_BID';
+        let computedBidDeadlineAt = null;
+        if (isOpenBidPublished) {
+            if (marketplaceBidDeadlineAt) {
+                const parsed = new Date(marketplaceBidDeadlineAt);
+                if (!Number.isNaN(parsed.getTime())) {
+                    computedBidDeadlineAt = parsed.toISOString();
+                }
+            }
+            if (!computedBidDeadlineAt) {
+                const hours = Number(marketplaceBidDurationHours || 24);
+                const safeHours = Number.isFinite(hours) ? Math.min(Math.max(hours, 1), 168) : 24;
+                const deadline = new Date(startDate.getTime() + safeHours * 60 * 60 * 1000);
+                computedBidDeadlineAt = deadline.toISOString();
+            }
+        }
+
         const metadata = {
             pickup,
             dropoff,
@@ -5650,7 +5668,10 @@ router.post('/partner/bookings', authMiddleware, async (req, res) => {
             // Audit / source
             creationSource: 'PARTNER_MANUAL',
             createdByPartnerId: partnerId,
-            operationalStatus: driverId ? 'DRIVER_ASSIGNED' : 'CONFIRMED'
+            operationalStatus: driverId ? 'DRIVER_ASSIGNED' : 'CONFIRMED',
+            marketplaceBidDeadlineAt: computedBidDeadlineAt,
+            marketplaceBidDurationHours: isOpenBidPublished ? Number(marketplaceBidDurationHours || 24) : null,
+            marketplaceAwardRule: isOpenBidPublished ? 'HIGHEST_BID' : null,
         };
 
         const booking = await prisma.booking.create({
@@ -6583,9 +6604,17 @@ router.get('/partner/marketplace', authMiddleware, async (req, res) => {
             return res.status(403).json({ success: false, error: 'Yalnızca partner kullanıcılar erişebilir' });
         }
         const tenantId = req.tenant?.id || req.user.tenantId;
+        const partnerId = req.user.id;
+        const {
+            from = '',
+            to = '',
+            dateFrom = '',
+            dateTo = '',
+            sort = 'latest',
+            includeOwn = '0',
+        } = req.query;
 
-        // PUBLISHED means currently active in the marketplace
-        const bookings = await prisma.booking.findMany({
+        let bookings = await prisma.booking.findMany({
             where: {
                 tenantId,
                 marketplaceStatus: 'PUBLISHED',
@@ -6603,13 +6632,126 @@ router.get('/partner/marketplace', authMiddleware, async (req, res) => {
                     select: { id: true, fullName: true, partnerProfile: { select: { companyName: true } } }
                 }
             },
-            orderBy: { startDate: 'asc' }
+            orderBy: { createdAt: 'desc' }
         });
+
+        // Expire open-bid listings whose deadline has passed.
+        const now = Date.now();
+        const toExpireIds = [];
+        for (const b of bookings) {
+            const deadlineIso = b?.metadata?.marketplaceBidDeadlineAt;
+            if (b.b2bPriceType === 'OPEN_BID' && deadlineIso) {
+                const ms = new Date(deadlineIso).getTime();
+                if (!Number.isNaN(ms) && ms < now) {
+                    toExpireIds.push(b.id);
+                }
+            }
+        }
+        if (toExpireIds.length > 0) {
+            await prisma.booking.updateMany({
+                where: { id: { in: toExpireIds } },
+                data: { marketplaceStatus: 'EXPIRED' },
+            });
+            bookings = bookings.filter((b) => !toExpireIds.includes(b.id));
+        }
+
+        if (includeOwn !== '1') {
+            bookings = bookings.filter((b) => b.ownerPartnerId !== partnerId);
+        }
+
+        // Client-facing filters (metadata based, done in-memory for compatibility)
+        const trLower = (v) => String(v || '').toLocaleLowerCase('tr');
+        if (from) {
+            const q = trLower(from);
+            bookings = bookings.filter((b) => trLower(b?.metadata?.pickup).includes(q));
+        }
+        if (to) {
+            const q = trLower(to);
+            bookings = bookings.filter((b) => trLower(b?.metadata?.dropoff).includes(q));
+        }
+        if (dateFrom) {
+            const fromMs = new Date(String(dateFrom)).getTime();
+            if (!Number.isNaN(fromMs)) bookings = bookings.filter((b) => new Date(b.startDate).getTime() >= fromMs);
+        }
+        if (dateTo) {
+            const toMs = new Date(String(dateTo)).getTime();
+            if (!Number.isNaN(toMs)) bookings = bookings.filter((b) => new Date(b.startDate).getTime() <= toMs);
+        }
+
+        if (sort === 'price_desc') {
+            bookings.sort((a, b) => Number(b.b2bPrice || 0) - Number(a.b2bPrice || 0));
+        } else if (sort === 'price_asc') {
+            bookings.sort((a, b) => Number(a.b2bPrice || 0) - Number(b.b2bPrice || 0));
+        } else if (sort === 'date_asc') {
+            bookings.sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
+        } else {
+            bookings.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        }
 
         res.json({ success: true, data: bookings });
     } catch (error) {
         console.error('Marketplace listing error:', error);
         res.status(500).json({ success: false, error: 'İlanlar listelenemedi' });
+    }
+});
+
+router.get('/partner/marketplace/my-listings', authMiddleware, async (req, res) => {
+    try {
+        if (req.user.roleType !== 'PARTNER') {
+            return res.status(403).json({ success: false, error: 'Yalnızca partner kullanıcılar erişebilir' });
+        }
+        const tenantId = req.tenant?.id || req.user.tenantId;
+        const partnerId = req.user.id;
+        const { status = 'all' } = req.query;
+
+        const where = {
+            tenantId,
+            ownerPartnerId: partnerId,
+            ...(status !== 'all' ? { marketplaceStatus: String(status).toUpperCase() } : {}),
+        };
+
+        const listings = await prisma.booking.findMany({
+            where,
+            include: {
+                marketplaceOffers: {
+                    include: {
+                        partner: {
+                            select: {
+                                id: true,
+                                fullName: true,
+                                phone: true,
+                                partnerProfile: { select: { companyName: true } },
+                            },
+                        },
+                    },
+                    orderBy: { amount: 'desc' },
+                },
+            },
+            orderBy: { createdAt: 'desc' },
+        });
+
+        const now = Date.now();
+        const decorated = listings.map((b) => {
+            const deadlineIso = b?.metadata?.marketplaceBidDeadlineAt || null;
+            const deadlineMs = deadlineIso ? new Date(deadlineIso).getTime() : null;
+            const remainingMs = deadlineMs && !Number.isNaN(deadlineMs) ? Math.max(0, deadlineMs - now) : null;
+            const highestOffer = b.marketplaceOffers?.[0] || null;
+            return {
+                ...b,
+                marketplaceMeta: {
+                    deadlineAt: deadlineIso,
+                    remainingMs,
+                    offerCount: b.marketplaceOffers?.length || 0,
+                    highestOfferAmount: highestOffer ? Number(highestOffer.amount) : null,
+                    highestOfferCurrency: highestOffer?.currency || null,
+                },
+            };
+        });
+
+        res.json({ success: true, data: decorated });
+    } catch (error) {
+        console.error('My marketplace listings error:', error);
+        res.status(500).json({ success: false, error: 'İlanlar getirilemedi' });
     }
 });
 
@@ -6624,7 +6766,7 @@ router.post('/partner/marketplace/:id/bid', authMiddleware, async (req, res) => 
         const { amount, currency, notes } = req.body;
 
         const booking = await prisma.booking.findFirst({
-            where: { id, tenantId, marketplaceStatus: 'PUBLISHED' }
+            where: { id, tenantId, marketplaceStatus: 'PUBLISHED', b2bPriceType: 'OPEN_BID' }
         });
 
         if (!booking) {
@@ -6635,22 +6777,169 @@ router.post('/partner/marketplace/:id/bid', authMiddleware, async (req, res) => 
             return res.status(400).json({ success: false, error: 'Kendi ilanınıza teklif veremezsiniz' });
         }
 
-        const offer = await prisma.marketplaceOffer.create({
-            data: {
-                tenantId,
-                bookingId: id,
-                partnerId: partnerId,
-                amount: Number(amount),
-                currency: currency || 'EUR',
-                notes: notes,
-                status: 'PENDING'
+        const deadlineIso = booking?.metadata?.marketplaceBidDeadlineAt;
+        if (deadlineIso) {
+            const deadlineMs = new Date(deadlineIso).getTime();
+            if (!Number.isNaN(deadlineMs) && deadlineMs < Date.now()) {
+                await prisma.booking.update({ where: { id }, data: { marketplaceStatus: 'EXPIRED' } });
+                return res.status(400).json({ success: false, error: 'Teklif süresi doldu' });
             }
+        }
+
+        // Upsert partner's bid (one active bid per partner per listing)
+        const existing = await prisma.marketplaceOffer.findFirst({
+            where: { bookingId: id, partnerId, status: 'PENDING' },
         });
+        const offer = existing
+            ? await prisma.marketplaceOffer.update({
+                where: { id: existing.id },
+                data: { amount: Number(amount), currency: currency || 'EUR', notes: notes || null },
+            })
+            : await prisma.marketplaceOffer.create({
+                data: {
+                    tenantId,
+                    bookingId: id,
+                    partnerId,
+                    amount: Number(amount),
+                    currency: currency || 'EUR',
+                    notes: notes,
+                    status: 'PENDING',
+                }
+            });
+
+        // Notify listing owner
+        const io = req.app.get('io');
+        if (io && booking.ownerPartnerId) {
+            io.to(`user_${booking.ownerPartnerId}`).emit('marketplace_new_offer', {
+                bookingId: booking.id,
+                bookingNumber: booking.bookingNumber,
+                offerId: offer.id,
+                amount: Number(offer.amount),
+                currency: offer.currency,
+                partnerId,
+            });
+        }
 
         res.json({ success: true, data: offer });
     } catch (error) {
         console.error('Marketplace bid error:', error);
         res.status(500).json({ success: false, error: 'Teklif gönderilemedi' });
+    }
+});
+
+router.post('/partner/marketplace/:id/offers/:offerId/accept', authMiddleware, async (req, res) => {
+    try {
+        if (req.user.roleType !== 'PARTNER') {
+            return res.status(403).json({ success: false, error: 'Yalnızca partner kullanıcılar erişebilir' });
+        }
+        const tenantId = req.tenant?.id || req.user.tenantId;
+        const ownerPartnerId = req.user.id;
+        const { id, offerId } = req.params;
+
+        const booking = await prisma.booking.findFirst({
+            where: {
+                id,
+                tenantId,
+                ownerPartnerId,
+                marketplaceStatus: { in: ['PUBLISHED', 'EXPIRED'] },
+                b2bPriceType: 'OPEN_BID',
+            },
+        });
+        if (!booking) {
+            return res.status(404).json({ success: false, error: 'İlan bulunamadı veya bu işlem için uygun değil' });
+        }
+
+        const offer = await prisma.marketplaceOffer.findFirst({
+            where: { id: offerId, bookingId: id, tenantId, status: 'PENDING' },
+        });
+        if (!offer) {
+            return res.status(404).json({ success: false, error: 'Teklif bulunamadı veya geçersiz' });
+        }
+
+        const result = await prisma.$transaction(async (tx) => {
+            await tx.marketplaceOffer.update({
+                where: { id: offer.id },
+                data: { status: 'ACCEPTED' },
+            });
+            await tx.marketplaceOffer.updateMany({
+                where: { bookingId: id, id: { not: offer.id }, status: 'PENDING' },
+                data: { status: 'REJECTED' },
+            });
+            return tx.booking.update({
+                where: { id },
+                data: {
+                    assignedPartnerId: offer.partnerId,
+                    marketplaceStatus: 'ASSIGNED',
+                    b2bPrice: Number(offer.amount),
+                    currency: offer.currency || booking.currency,
+                    metadata: {
+                        ...(booking.metadata || {}),
+                        marketplaceAcceptedOfferId: offer.id,
+                        marketplaceAcceptedAt: new Date().toISOString(),
+                        marketplaceAcceptedAmount: Number(offer.amount),
+                        marketplaceAcceptedCurrency: offer.currency || booking.currency,
+                    },
+                },
+            });
+        });
+
+        const io = req.app.get('io');
+        if (io) {
+            io.to(`user_${offer.partnerId}`).emit('marketplace_offer_result', {
+                bookingId: id,
+                bookingNumber: booking.bookingNumber,
+                offerId: offer.id,
+                status: 'ACCEPTED',
+            });
+            io.to(`user_${ownerPartnerId}`).emit('booking_marketplace_update', {
+                bookingId: id,
+                bookingNumber: booking.bookingNumber,
+                status: 'ASSIGNED',
+                assignedPartnerId: offer.partnerId,
+                offerId: offer.id,
+                amount: Number(offer.amount),
+                currency: offer.currency,
+            });
+        }
+
+        res.json({ success: true, data: result, message: 'Teklif kabul edildi ve iş partnere atandı' });
+    } catch (error) {
+        console.error('Marketplace offer accept error:', error);
+        res.status(500).json({ success: false, error: 'Teklif kabul edilemedi' });
+    }
+});
+
+router.post('/partner/marketplace/:id/close', authMiddleware, async (req, res) => {
+    try {
+        if (req.user.roleType !== 'PARTNER') {
+            return res.status(403).json({ success: false, error: 'Yalnızca partner kullanıcılar erişebilir' });
+        }
+        const tenantId = req.tenant?.id || req.user.tenantId;
+        const ownerPartnerId = req.user.id;
+        const { id } = req.params;
+
+        const booking = await prisma.booking.findFirst({
+            where: { id, tenantId, ownerPartnerId, marketplaceStatus: 'PUBLISHED' },
+        });
+        if (!booking) {
+            return res.status(404).json({ success: false, error: 'Aktif ilan bulunamadı' });
+        }
+
+        await prisma.$transaction([
+            prisma.booking.update({
+                where: { id },
+                data: { marketplaceStatus: 'CLOSED' },
+            }),
+            prisma.marketplaceOffer.updateMany({
+                where: { bookingId: id, status: 'PENDING' },
+                data: { status: 'WITHDRAWN' },
+            }),
+        ]);
+
+        res.json({ success: true, message: 'İlan kapatıldı' });
+    } catch (error) {
+        console.error('Marketplace close listing error:', error);
+        res.status(500).json({ success: false, error: 'İlan kapatılamadı' });
     }
 });
 

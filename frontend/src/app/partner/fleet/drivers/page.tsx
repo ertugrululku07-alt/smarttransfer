@@ -149,21 +149,15 @@ const PartnerDriversPage: React.FC = () => {
 
   return (
     <div className="partner-page">
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 24 }}>
+        <div className="ps-page-header">
           <div>
-            <Title level={2} style={{ margin: 0, fontWeight: 700 }}>Filom - Sürücülerim</Title>
-            <Text type="secondary">
-              Sisteme kendi şoförlerinizi ekleyin. Şoförler, sürücü uygulamasını kullanarak kendi işlerini veya atadığınız işleri yönetebilir.
-            </Text>
+            <h1 className="ps-page-header__title">Personel Yönetimi</h1>
+            <p className="ps-page-header__subtitle">
+              Sürücüleri ekleyin, filtreleyin ve operasyon durumlarını yönetin.
+            </p>
           </div>
-          <Button
-            type="primary"
-            size="large"
-            icon={<PlusOutlined />}
-            onClick={handleNewDriver}
-            style={{ background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)', border: 'none', fontWeight: 600, borderRadius: 8 }}
-          >
-            + Yeni Sürücü Ekle
+          <Button type="primary" size="large" icon={<PlusOutlined />} onClick={handleNewDriver}>
+            Yeni Sürücü Ekle
           </Button>
         </div>
 

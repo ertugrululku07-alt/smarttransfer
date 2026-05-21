@@ -255,10 +255,12 @@ export default function SettingsPage() {
                     }
                 `}</style>
 
-                <div className="settings-container">
-                    <div style={{ marginBottom: 20 }}>
-                        <h1 style={{ fontSize: 24, fontWeight: 800, color: '#0f172a', margin: 0 }}>⚙️ Ayarlar</h1>
-                        <p style={{ fontSize: 14, color: '#64748b', margin: '4px 0 0' }}>Hesap, araç ve ödeme tercihlerinizi yönetin</p>
+                <div className="settings-container partner-page">
+                    <div className="ps-page-header" style={{ marginBottom: 18 }}>
+                        <div>
+                            <h1 className="ps-page-header__title">Ayarlar</h1>
+                            <p className="ps-page-header__subtitle">Hesap, filonuz, ödeme ve personel ayarları</p>
+                        </div>
                     </div>
 
                     <div className="settings-content">

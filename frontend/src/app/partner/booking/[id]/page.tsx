@@ -91,34 +91,27 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
     const isOperating = (booking.status === 'CONFIRMED' && (booking.operationalStatus === 'IN_OPERATION' || booking.operationalStatus === 'PARTNER_ACCEPTED')) || booking.status === 'ACCEPTED';
 
     return (
-        <>
-        <style jsx global>{`
-                    .booking-detail-container { max-width: 1000px; margin: 0 auto; }
-                    @media (max-width: 768px) {
-                        .booking-detail-container { padding-top: 68px; }
-                    }
-                `}</style>
-
-                <div className="booking-detail-container">
-                    {/* Header */}
-                    <div style={{ display: 'flex', alignItems: 'center', marginBottom: 24, gap: 12, flexWrap: 'wrap' }}>
+        <div className="partner-page" style={{ maxWidth: 1100, margin: '0 auto' }}>
+                <div className="ps-page-header" style={{ marginBottom: 18 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                         <button onClick={() => router.push('/partner')} style={{
-                            width: 40, height: 40, borderRadius: 12, border: '1px solid #e2e8f0',
+                            width: 36, height: 36, borderRadius: 9, border: '1px solid var(--ps-border)',
                             background: '#fff', cursor: 'pointer', display: 'flex',
-                            alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: 16,
+                            alignItems: 'center', justifyContent: 'center', color: 'var(--ps-text-3)',
                         }}>
                             <ArrowLeftOutlined />
                         </button>
-                        <div style={{ flex: 1 }}>
-                            <h1 style={{ fontSize: 20, fontWeight: 800, color: '#0f172a', margin: 0 }}>Rezervasyon Detayı</h1>
-                            <span style={{ fontSize: 13, color: '#94a3b8' }}>#{booking.bookingNumber}</span>
+                        <div>
+                            <h1 className="ps-page-header__title" style={{ margin: 0 }}>Rezervasyon Detayı</h1>
+                            <p className="ps-page-header__subtitle" style={{ marginTop: 2 }}>#{booking.bookingNumber}</p>
                         </div>
-                        <span style={{
-                            padding: '5px 14px', borderRadius: 20, fontSize: 11, fontWeight: 700,
-                            textTransform: 'uppercase', letterSpacing: 0.5,
-                            background: statusBg, color: statusColor,
-                        }}>{statusText}</span>
                     </div>
+                    <span style={{
+                        padding: '5px 14px', borderRadius: 20, fontSize: 11, fontWeight: 700,
+                        textTransform: 'uppercase', letterSpacing: 0.5,
+                        background: statusBg, color: statusColor,
+                    }}>{statusText}</span>
+                </div>
 
                     <Row gutter={[24, 24]}>
                         {/* LEFT */}
@@ -318,6 +311,5 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                         </Col>
                     </Row>
                 </div>
-    </>
     );
 }

@@ -907,3 +907,73 @@
 .partner-root .ant-tooltip {
   z-index: 1060 !important;
 }
+
+/* ── Ant Design global polishing for all partner pages ─── */
+.partner-root .ant-card {
+  border-radius: var(--ps-r-lg) !important;
+  border-color: var(--ps-border) !important;
+  box-shadow: var(--ps-shadow-xs) !important;
+}
+
+.partner-root .ant-card-head {
+  min-height: 52px !important;
+  border-bottom-color: var(--ps-border) !important;
+}
+
+.partner-root .ant-card-head-title {
+  font-size: 14px !important;
+  font-weight: 700 !important;
+  color: var(--ps-text) !important;
+}
+
+.partner-root .ant-table-wrapper .ant-table {
+  border: 1px solid var(--ps-border);
+  border-radius: var(--ps-r-md);
+  overflow: hidden;
+}
+
+.partner-root .ant-table-thead > tr > th {
+  background: #f8fafc !important;
+  color: var(--ps-text-2) !important;
+  font-size: 12px !important;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.partner-root .ant-table-tbody > tr > td {
+  border-bottom-color: #eef2f7 !important;
+}
+
+.partner-root .ant-tabs-nav::before {
+  border-bottom-color: var(--ps-border) !important;
+}
+
+.partner-root .ant-tabs-tab {
+  font-weight: 600 !important;
+}
+
+.partner-root .ant-btn {
+  border-radius: 8px !important;
+  font-weight: 600;
+}
+
+.partner-root .ant-btn-primary {
+  box-shadow: 0 4px 12px var(--ps-accent-glow);
+}
+
+.partner-root .ant-input,
+.partner-root .ant-input-affix-wrapper,
+.partner-root .ant-select-selector,
+.partner-root .ant-picker {
+  border-radius: 8px !important;
+}
+
+@media (max-width: 768px) {
+  .partner-root .ant-table-wrapper {
+    overflow-x: auto;
+  }
+  .partner-root .ant-modal {
+    max-width: calc(100vw - 24px) !important;
+    margin: 12px auto !important;
+  }
+}
