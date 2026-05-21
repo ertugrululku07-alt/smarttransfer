@@ -55,12 +55,17 @@ function Kpi({ icon, label, value, sub, color }: { icon: React.ReactNode; label:
 export default function FinanceDashboardPage() {
   const [data, setData] = useState<Dashboard | null>(null);
   const [loading, setLoading] = useState(true);
+  const [fx, setFx] = useState<{ updatedAt: string; rates: { code: string; forexBuying: number | null; forexSelling: number | null }[] } | null>(null);
 
   const load = async () => {
     setLoading(true);
     try {
-      const res = await apiClient.get('/api/partner-accounting/dashboard');
-      if (res.data?.success) setData(res.data.data);
+      const [d, f] = await Promise.allSettled([
+        apiClient.get('/api/partner-accounting/dashboard'),
+        apiClient.get('/api/partner-accounting/fx/rates'),
+      ]);
+      if (d.status === 'fulfilled' && d.value.data?.success) setData(d.value.data.data);
+      if (f.status === 'fulfilled' && f.value.data?.success) setFx(f.value.data.data);
     } finally {
       setLoading(false);
     }
@@ -80,6 +85,26 @@ export default function FinanceDashboardPage() {
         <Kpi icon={<WalletOutlined />} label="Kasa Akışı (Ay)" value={fmt(data.kpis.netCashFlow)} sub={`+${fmt(data.kpis.cashIn)} / -${fmt(data.kpis.cashOut)}`} color="#0ea5e9" />
         <Kpi icon={<TeamOutlined />} label="Ödenmemiş Bordro" value={fmt(data.kpis.unpaidPayroll)} sub={`${data.kpis.unpaidPayrollCount} kayıt`} color="#f59e0b" />
       </div>
+
+      {fx && fx.rates?.length > 0 && (
+        <div className="ps-card" style={{ padding: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+            <div style={{ fontWeight: 700, color: '#0f172a' }}>TCMB Döviz Kurları</div>
+            <span style={{ fontSize: 11, color: '#94a3b8' }}>Güncelleme: {dayjs(fx.updatedAt).format('DD.MM.YYYY HH:mm')}</span>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10 }}>
+            {fx.rates.map((r) => (
+              <div key={r.code} style={{ border: '1px solid #e2e8f0', borderRadius: 10, padding: '8px 12px' }}>
+                <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600 }}>{r.code}/TRY</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2 }}>
+                  <span style={{ color: '#10b981', fontWeight: 700, fontSize: 13 }}>Alış {Number(r.forexBuying || 0).toFixed(4)}</span>
+                  <span style={{ color: '#ef4444', fontWeight: 700, fontSize: 13 }}>Satış {Number(r.forexSelling || 0).toFixed(4)}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {data.overdueInvoices.length > 0 && (
         <div className="ps-card" style={{ padding: 14, borderLeft: '4px solid #ef4444' }}>

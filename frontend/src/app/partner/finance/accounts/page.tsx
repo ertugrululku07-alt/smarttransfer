@@ -5,10 +5,25 @@ import {
   Button, Card, Form, Input, Modal, Select, Space, Table, Tag, Tooltip, message,
 } from 'antd';
 import {
-  BankOutlined, PlusOutlined, EditOutlined, DeleteOutlined, FileSearchOutlined, SearchOutlined,
+  BankOutlined, PlusOutlined, EditOutlined, DeleteOutlined, FileSearchOutlined, SearchOutlined, DownloadOutlined,
 } from '@ant-design/icons';
 import Link from 'next/link';
 import apiClient from '@/lib/api-client';
+import { API_URL } from '@/lib/config';
+
+function exportResource(resource: string, name: string) {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+  fetch(`${API_URL}/api/partner-accounting/exports/${resource}`, { headers: { Authorization: `Bearer ${token}` } })
+    .then((r) => r.blob())
+    .then((blob) => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${name}-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+}
 
 const TYPES = [
   { value: 'CUSTOMER', label: 'Müşteri' },
@@ -120,6 +135,7 @@ export default function FinanceAccountsPage() {
           <Space>
             <Input.Search placeholder="Ara: ad, kod, vkn" allowClear value={search} onChange={(e)=>setSearch(e.target.value)} onSearch={onSearch} style={{ width: 240 }} />
             <Select placeholder="Tüm tipler" allowClear style={{ width: 160 }} value={typeFilter} onChange={(v)=>{ setTypeFilter(v); setTimeout(load, 0); }} options={TYPES} />
+            <Button icon={<DownloadOutlined />} onClick={() => exportResource('accounts', 'cariler')}>CSV</Button>
             <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>Yeni Cari</Button>
           </Space>
         }

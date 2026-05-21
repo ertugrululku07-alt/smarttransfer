@@ -2,9 +2,10 @@
 
 import React, { useEffect, useState } from 'react';
 import { Button, Card, DatePicker, Form, Input, Modal, Select, Space, Table, Tag, message } from 'antd';
-import { CalendarOutlined, PlusOutlined, CheckCircleOutlined, CloseCircleOutlined, DeleteOutlined } from '@ant-design/icons';
+import { CalendarOutlined, PlusOutlined, CheckCircleOutlined, CloseCircleOutlined, DeleteOutlined, DownloadOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import apiClient from '@/lib/api-client';
+import { exportResource } from '../exportHelper';
 
 const TYPES = [
   { value: 'ANNUAL', label: 'Yıllık İzin' },
@@ -97,6 +98,7 @@ export default function LeavesPage() {
         extra={
           <Space>
             <Select placeholder="Tüm durumlar" allowClear style={{ width: 150 }} value={status} onChange={(v)=>{ setStatus(v); setTimeout(load, 0); }} options={Object.keys(STATUS_LABELS).map(k=>({ value: k, label: STATUS_LABELS[k] }))} />
+            <Button icon={<DownloadOutlined />} onClick={() => exportResource('leaves', 'izinler')}>CSV</Button>
             <Button type="primary" icon={<PlusOutlined />} onClick={() => { form.resetFields(); setModalOpen(true); }}>Yeni İzin</Button>
           </Space>
         }

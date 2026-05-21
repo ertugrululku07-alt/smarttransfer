@@ -2,9 +2,10 @@
 
 import React, { useEffect, useState } from 'react';
 import { Button, Card, DatePicker, Form, Input, InputNumber, Modal, Select, Space, Table, Tag, message } from 'antd';
-import { PlusOutlined, WalletOutlined, DeleteOutlined } from '@ant-design/icons';
+import { PlusOutlined, WalletOutlined, DeleteOutlined, DownloadOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import apiClient from '@/lib/api-client';
+import { exportResource } from '../exportHelper';
 
 function fmt(v: number, c = 'TRY') {
   return `${Number(v || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${c}`;
@@ -79,7 +80,12 @@ export default function CashPage() {
   return (
     <>
       <Card title={<span><WalletOutlined style={{ marginRight: 8, color: '#6366f1' }} /> Kasa & Banka</span>} size="small"
-        extra={<Button type="primary" icon={<PlusOutlined />} onClick={() => { form.resetFields(); setModalOpen(true); }}>Yeni Kayıt</Button>}
+        extra={
+          <Space>
+            <Button icon={<DownloadOutlined />} onClick={() => exportResource('cash', 'kasa-banka')}>CSV</Button>
+            <Button type="primary" icon={<PlusOutlined />} onClick={() => { form.resetFields(); setModalOpen(true); }}>Yeni Kayıt</Button>
+          </Space>
+        }
       >
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10, marginBottom: 12 }}>
           {accounts.map((a) => (

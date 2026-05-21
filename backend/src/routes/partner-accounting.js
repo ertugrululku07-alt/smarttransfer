@@ -13,6 +13,8 @@ const express = require('express');
 const router = express.Router();
 const prisma = require('../lib/prisma');
 const { authMiddleware } = require('../middleware/auth');
+const uetdsService = require('../services/uetdsService');
+const axios = require('axios');
 
 // ─────────────────────────────────────────────────────────────────
 // Helpers
@@ -1496,6 +1498,537 @@ router.post('/collections/:id/confirm', authMiddleware, async (req, res) => {
     } catch (error) {
         console.error('Collection confirm error:', error);
         res.status(500).json({ success: false, error: 'Onaylanamadı' });
+    }
+});
+
+// ─────────────────────────────────────────────────────────────────
+// INVOICE PDF / PRINT (server-rendered HTML)
+// ─────────────────────────────────────────────────────────────────
+function buildInvoiceHtml({ invoice, items, partner, profile }) {
+    const fmt = (v, c) => `${Number(v || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${c || 'TRY'}`;
+    const escape = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+    const kindMap = { STANDARD: 'Kağıt Fatura', EFATURA: 'e-Fatura', EARCHIVE: 'e-Arşiv', EWAYBILL: 'e-İrsaliye', EXPENSE_RCPT: 'Masraf Fişi' };
+    const typeMap = { SALES: 'Satış Faturası', PURCHASE: 'Alış Faturası', EXPENSE: 'Masraf', RETURN_SALES: 'Satış İade', RETURN_PURCHASE: 'Alış İade' };
+    const company = profile?.companyName || partner?.fullName || '';
+    const companyTax = profile?.taxNumber ? `${profile.taxNumber}${profile.taxOffice ? ' / ' + profile.taxOffice : ''}` : '';
+    const companyAddr = profile?.address || '';
+    const companyContact = [profile?.contactEmail, profile?.contactPhone].filter(Boolean).join(' · ');
+
+    const rows = items.map((it, i) => `
+      <tr>
+        <td class="num">${i + 1}</td>
+        <td>${escape(it.description)}</td>
+        <td class="num">${Number(it.quantity).toLocaleString('tr-TR', { maximumFractionDigits: 3 })}</td>
+        <td>${escape(it.unit || '')}</td>
+        <td class="num">${fmt(it.unitPrice, invoice.currency)}</td>
+        <td class="num">${Number(it.discountRate).toFixed(2)}%</td>
+        <td class="num">${Number(it.taxRate).toFixed(0)}%</td>
+        <td class="num strong">${fmt(it.total, invoice.currency)}</td>
+      </tr>`).join('');
+
+    return `<!doctype html><html lang="tr"><head><meta charset="utf-8">
+<title>${escape(invoice.invoiceNo)}</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: 'Helvetica Neue', Arial, sans-serif; color: #1e293b; margin: 0; background: #f8fafc; }
+  .wrap { max-width: 820px; margin: 20px auto; background: #fff; padding: 36px 40px; box-shadow: 0 8px 24px rgba(0,0,0,0.06); border-radius: 12px; }
+  .head { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #6366f1; padding-bottom: 18px; }
+  .head .seller { font-size: 13px; line-height: 1.45; }
+  .head .seller h1 { font-size: 22px; margin: 0 0 6px; color: #0f172a; }
+  .head .meta { text-align: right; font-size: 12px; line-height: 1.55; }
+  .head .meta .num { font-size: 16px; font-weight: 700; color: #4f46e5; letter-spacing: 0.5px; }
+  .badges span { display: inline-block; padding: 2px 8px; border-radius: 8px; font-size: 11px; font-weight: 700; margin-left: 6px; }
+  .b-blue { background: #eef2ff; color: #4338ca; }
+  .b-purple { background: #faf5ff; color: #7c3aed; }
+  .b-amber { background: #fef3c7; color: #92400e; }
+  .b-green { background: #ecfdf5; color: #047857; }
+  .b-red { background: #fef2f2; color: #b91c1c; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; margin: 22px 0 14px; }
+  .card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px 16px; }
+  .card h3 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; margin: 0 0 8px; }
+  .card .row { font-size: 13px; margin-top: 3px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 14px; font-size: 12.5px; }
+  th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid #e2e8f0; }
+  th { background: #f1f5f9; font-weight: 600; color: #475569; font-size: 11px; text-transform: uppercase; }
+  td.num, th.num { text-align: right; }
+  td.strong { font-weight: 700; }
+  .totals { display: flex; justify-content: flex-end; margin-top: 14px; }
+  .totals table { width: 320px; }
+  .totals td { padding: 6px 8px; border: none; font-size: 13px; }
+  .totals tr.grand td { font-size: 16px; font-weight: 800; color: #0f172a; border-top: 2px solid #6366f1; padding-top: 10px; }
+  .foot { margin-top: 28px; padding-top: 14px; border-top: 1px dashed #cbd5e1; font-size: 11px; color: #64748b; line-height: 1.6; }
+  .btn-print { position: fixed; right: 16px; top: 16px; background: #4f46e5; color:#fff; padding: 8px 14px; border-radius: 8px; font-weight: 700; border: none; cursor: pointer; box-shadow: 0 4px 12px rgba(99,102,241,0.3); }
+  @media print { .btn-print { display: none; } body { background: #fff; } .wrap { box-shadow: none; margin: 0; max-width: none; } }
+</style></head><body>
+<button class="btn-print" onclick="window.print()">Yazdır / PDF</button>
+<div class="wrap">
+  <div class="head">
+    <div class="seller">
+      <h1>${escape(company)}</h1>
+      ${companyTax ? `<div>VKN/TCKN: <b>${escape(companyTax)}</b></div>` : ''}
+      ${companyAddr ? `<div>${escape(companyAddr)}</div>` : ''}
+      ${companyContact ? `<div>${escape(companyContact)}</div>` : ''}
+    </div>
+    <div class="meta">
+      <div class="num">${escape(invoice.invoiceNo)}</div>
+      <div>${typeMap[invoice.type] || invoice.type}</div>
+      <div class="badges">
+        <span class="b-blue">${kindMap[invoice.kind] || invoice.kind}</span>
+        <span class="${invoice.status === 'PAID' ? 'b-green' : invoice.status === 'CANCELLED' || invoice.status === 'REJECTED' ? 'b-red' : 'b-amber'}">${invoice.status}</span>
+      </div>
+      <div style="margin-top:8px;">Düzenleme: <b>${new Date(invoice.issueDate).toLocaleDateString('tr-TR')}</b></div>
+      ${invoice.dueDate ? `<div>Vade: <b>${new Date(invoice.dueDate).toLocaleDateString('tr-TR')}</b></div>` : ''}
+      ${invoice.eInvoiceUuid ? `<div>UUID: <code style="font-size:10px;">${escape(invoice.eInvoiceUuid)}</code></div>` : ''}
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h3>Cari</h3>
+      <div class="row" style="font-weight:700;">${escape(invoice.counterpartyName || '-')}</div>
+      ${invoice.counterpartyTaxNumber ? `<div class="row">VKN/TCKN: ${escape(invoice.counterpartyTaxNumber)}</div>` : ''}
+      ${invoice.counterpartyTaxOffice ? `<div class="row">Vergi Dairesi: ${escape(invoice.counterpartyTaxOffice)}</div>` : ''}
+      ${invoice.counterpartyAddress ? `<div class="row">${escape(invoice.counterpartyAddress)}</div>` : ''}
+      ${invoice.counterpartyEmail ? `<div class="row">${escape(invoice.counterpartyEmail)}</div>` : ''}
+      ${invoice.counterpartyPhone ? `<div class="row">${escape(invoice.counterpartyPhone)}</div>` : ''}
+    </div>
+    <div class="card">
+      <h3>Ödeme</h3>
+      <div class="row">Para Birimi: <b>${escape(invoice.currency)}</b></div>
+      ${invoice.scenario ? `<div class="row">Senaryo: ${escape(invoice.scenario)}</div>` : ''}
+      <div class="row">Ödenen: <b style="color:#10b981;">${fmt(invoice.paidTotal, invoice.currency)}</b></div>
+      <div class="row">Kalan: <b style="color:${Number(invoice.grandTotal) - Number(invoice.paidTotal) > 0 ? '#ef4444' : '#64748b'};">${fmt(Number(invoice.grandTotal) - Number(invoice.paidTotal), invoice.currency)}</b></div>
+    </div>
+  </div>
+
+  <table>
+    <thead><tr>
+      <th class="num">#</th><th>Açıklama</th><th class="num">Miktar</th><th>Birim</th>
+      <th class="num">B. Fiyat</th><th class="num">İsk %</th><th class="num">KDV %</th><th class="num">Tutar</th>
+    </tr></thead>
+    <tbody>${rows || '<tr><td colspan="8" style="text-align:center;color:#94a3b8;padding:24px;">Kalem yok</td></tr>'}</tbody>
+  </table>
+
+  <div class="totals">
+    <table>
+      <tr><td>Ara Toplam</td><td class="num">${fmt(invoice.subtotal, invoice.currency)}</td></tr>
+      ${Number(invoice.discountTotal) > 0 ? `<tr><td>İskonto</td><td class="num" style="color:#ef4444;">-${fmt(invoice.discountTotal, invoice.currency)}</td></tr>` : ''}
+      <tr><td>KDV</td><td class="num">${fmt(invoice.taxTotal, invoice.currency)}</td></tr>
+      ${Number(invoice.withholdingTotal) > 0 ? `<tr><td>Tevkifat</td><td class="num" style="color:#ef4444;">-${fmt(invoice.withholdingTotal, invoice.currency)}</td></tr>` : ''}
+      <tr class="grand"><td>Genel Toplam</td><td class="num">${fmt(invoice.grandTotal, invoice.currency)}</td></tr>
+    </table>
+  </div>
+
+  ${invoice.notes ? `<div class="foot"><b>Notlar:</b> ${escape(invoice.notes)}</div>` : ''}
+  <div class="foot" style="text-align:center;">Bu belge ${new Date().toLocaleString('tr-TR')} tarihinde SmartTransfer üzerinden üretilmiştir.</div>
+</div></body></html>`;
+}
+
+router.get('/invoices/:id/pdf', authMiddleware, async (req, res) => {
+    const scope = ensurePartner(req, res);
+    if (!scope) return;
+    try {
+        const invoice = await prisma.partnerInvoice.findFirst({
+            where: { id: req.params.id, tenantId: scope.tenantId, partnerId: scope.partnerId },
+            include: { items: { orderBy: { lineNo: 'asc' } } },
+        });
+        if (!invoice) return res.status(404).send('Fatura bulunamadı');
+        const profile = await prisma.partnerProfile.findUnique({ where: { userId: scope.partnerId } });
+        const partner = await prisma.user.findUnique({ where: { id: scope.partnerId } });
+        const html = buildInvoiceHtml({ invoice, items: invoice.items, partner, profile });
+        res.set('Content-Type', 'text/html; charset=utf-8');
+        res.send(html);
+    } catch (error) {
+        console.error('Invoice PDF error:', error);
+        res.status(500).send('Hata');
+    }
+});
+
+// ─────────────────────────────────────────────────────────────────
+// SEND INVOICE via partner's configured channels
+// ─────────────────────────────────────────────────────────────────
+function getInvoiceLink(req, invoiceId) {
+    const proto = req.headers['x-forwarded-proto'] || req.protocol || 'https';
+    const host = req.headers['x-forwarded-host'] || req.get('host');
+    return `${proto}://${host}/api/partner-accounting/invoices/${invoiceId}/pdf`;
+}
+
+router.post('/invoices/:id/send-email', authMiddleware, async (req, res) => {
+    const scope = ensurePartner(req, res);
+    if (!scope) return;
+    try {
+        const invoice = await prisma.partnerInvoice.findFirst({
+            where: { id: req.params.id, tenantId: scope.tenantId, partnerId: scope.partnerId },
+            include: { items: { orderBy: { lineNo: 'asc' } } },
+        });
+        if (!invoice) return res.status(404).json({ success: false, error: 'Fatura bulunamadı' });
+        const to = req.body?.to || invoice.counterpartyEmail;
+        if (!to) return res.status(400).json({ success: false, error: 'Alıcı e-posta yok' });
+
+        const profile = await prisma.partnerProfile.findUnique({ where: { userId: scope.partnerId } });
+        const email = profile?.metadata?.notifications?.email;
+        if (!email || !email.smtpHost || !email.smtpUser || !email.smtpPassEnc) {
+            return res.status(400).json({ success: false, error: 'SMTP ayarları eksik (Tanımlamalar)' });
+        }
+
+        const partner = await prisma.user.findUnique({ where: { id: scope.partnerId } });
+        const html = buildInvoiceHtml({ invoice, items: invoice.items, partner, profile });
+
+        const nodemailer = require('nodemailer');
+        const transporter = nodemailer.createTransport({
+            host: email.smtpHost,
+            port: Number(email.smtpPort) || 587,
+            secure: !!email.smtpSecure || Number(email.smtpPort) === 465,
+            auth: { user: email.smtpUser, pass: uetdsService.decrypt(email.smtpPassEnc) },
+            tls: { rejectUnauthorized: false },
+        });
+
+        const fromName = email.senderName || profile?.companyName || partner?.fullName || 'Partner';
+        const fromAddr = email.senderEmail || email.smtpUser;
+        const subject = req.body?.subject || `Fatura ${invoice.invoiceNo} · ${profile?.companyName || partner?.fullName || ''}`;
+        const message = req.body?.message
+            ? `<p>${String(req.body.message).replace(/</g, '&lt;').replace(/\n/g, '<br>')}</p>`
+            : '';
+
+        await transporter.sendMail({
+            from: `"${fromName}" <${fromAddr}>`,
+            to,
+            replyTo: email.replyTo || undefined,
+            subject,
+            html: `${message}${html}`,
+        });
+
+        res.json({ success: true, message: `E-posta gönderildi: ${to}` });
+    } catch (error) {
+        console.error('Invoice send-email error:', error);
+        res.status(500).json({ success: false, error: error.message || 'E-posta gönderilemedi' });
+    }
+});
+
+router.post('/invoices/:id/send-whatsapp', authMiddleware, async (req, res) => {
+    const scope = ensurePartner(req, res);
+    if (!scope) return;
+    try {
+        const invoice = await prisma.partnerInvoice.findFirst({
+            where: { id: req.params.id, tenantId: scope.tenantId, partnerId: scope.partnerId },
+        });
+        if (!invoice) return res.status(404).json({ success: false, error: 'Fatura bulunamadı' });
+        const phone = req.body?.phone || invoice.counterpartyPhone;
+        if (!phone) return res.status(400).json({ success: false, error: 'Telefon numarası yok' });
+
+        const profile = await prisma.partnerProfile.findUnique({ where: { userId: scope.partnerId } });
+        const wa = profile?.metadata?.notifications?.whatsapp;
+        if (!wa || !wa.enabled) return res.status(400).json({ success: false, error: 'WhatsApp ayarları aktif değil' });
+
+        const normalized = (() => {
+            let c = String(phone).replace(/[^\d+]/g, '');
+            if (c.startsWith('+')) c = c.slice(1);
+            if (c.startsWith('0')) c = '90' + c.slice(1);
+            if (c.length === 10 && c.startsWith('5')) c = '90' + c;
+            return c;
+        })();
+
+        const link = getInvoiceLink(req, invoice.id);
+        const total = `${Number(invoice.grandTotal).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ${invoice.currency}`;
+        const text = req.body?.message
+            || `Sayın ${invoice.counterpartyName || ''}, ${invoice.invoiceNo} numaralı faturanız hazırlanmıştır. Toplam: ${total}. Görüntüle: ${link}`;
+
+        const provider = (wa.provider || 'META').toUpperCase();
+        if (provider === 'META') {
+            if (!wa.metaPhoneNumberId || !wa.metaAccessTokenEnc) {
+                return res.status(400).json({ success: false, error: 'Meta WhatsApp ayarları eksik' });
+            }
+            const token = uetdsService.decrypt(wa.metaAccessTokenEnc);
+            await axios.post(
+                `https://graph.facebook.com/v18.0/${wa.metaPhoneNumberId}/messages`,
+                { messaging_product: 'whatsapp', to: normalized, type: 'text', text: { body: text } },
+                { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, timeout: 15000 }
+            );
+        } else if (provider === 'GREEN') {
+            if (!wa.greenInstanceId || !wa.greenApiTokenEnc) {
+                return res.status(400).json({ success: false, error: 'Green API ayarları eksik' });
+            }
+            const token = uetdsService.decrypt(wa.greenApiTokenEnc);
+            await axios.post(
+                `https://api.green-api.com/waInstance${wa.greenInstanceId}/sendMessage/${token}`,
+                { chatId: `${normalized}@c.us`, message: text },
+                { timeout: 15000 }
+            );
+        } else if (provider === 'WEBHOOK') {
+            if (!wa.webhookUrl) return res.status(400).json({ success: false, error: 'Webhook URL gerekli' });
+            const secret = wa.webhookSecretEnc ? uetdsService.decrypt(wa.webhookSecretEnc) : null;
+            const headers = { 'Content-Type': 'application/json' };
+            if (secret) headers['X-Webhook-Secret'] = secret;
+            await axios.post(wa.webhookUrl, { phone: normalized, message: text, invoiceId: invoice.id, invoiceLink: link }, { headers, timeout: 15000 });
+        } else {
+            return res.status(400).json({ success: false, error: 'Sağlayıcı desteklenmiyor' });
+        }
+        res.json({ success: true, message: `WhatsApp gönderildi: ${normalized}` });
+    } catch (error) {
+        const apiErr = error.response?.data?.error?.message || error.response?.data?.error || error.message;
+        console.error('Invoice send-whatsapp error:', apiErr);
+        res.status(500).json({ success: false, error: apiErr });
+    }
+});
+
+// ─────────────────────────────────────────────────────────────────
+// BOOKING → INVOICE bridge
+// ─────────────────────────────────────────────────────────────────
+router.get('/invoices/booking-candidates', authMiddleware, async (req, res) => {
+    const scope = ensurePartner(req, res);
+    if (!scope) return;
+    try {
+        // Partner-owned completed bookings (confirmedBy partner)
+        const bookings = await prisma.booking.findMany({
+            where: {
+                tenantId: scope.tenantId,
+                confirmedBy: scope.partnerId,
+                productType: 'TRANSFER',
+                status: 'COMPLETED',
+            },
+            orderBy: { updatedAt: 'desc' },
+            take: 200,
+        });
+
+        // Exclude ones that already have a partner invoice via metadata.partnerInvoiceId
+        const invoicedBookingIds = await prisma.partnerInvoice.findMany({
+            where: { tenantId: scope.tenantId, partnerId: scope.partnerId, metadata: { path: ['bookingId'], not: null } },
+            select: { metadata: true },
+        });
+        const usedSet = new Set(invoicedBookingIds.map((i) => i.metadata?.bookingId).filter(Boolean));
+
+        const data = bookings
+            .filter((b) => !usedSet.has(b.id))
+            .map((b) => ({
+                id: b.id,
+                bookingNumber: b.bookingNumber,
+                customerName: b.contactName,
+                phone: b.contactPhone,
+                email: b.contactEmail,
+                pickup: b.metadata?.pickup,
+                dropoff: b.metadata?.dropoff,
+                date: b.startDate,
+                total: Number(b.total || 0),
+                currency: b.currency,
+                pax: b.adults,
+                vehicleType: b.metadata?.vehicleType,
+            }));
+        res.json({ success: true, data });
+    } catch (error) {
+        console.error('Booking candidates error:', error);
+        res.status(500).json({ success: false, error: 'Aday rezervasyonlar alınamadı' });
+    }
+});
+
+router.post('/invoices/from-booking', authMiddleware, async (req, res) => {
+    const scope = ensurePartner(req, res);
+    if (!scope) return;
+    try {
+        const { bookingId, kind = 'EARCHIVE', taxRate = 20, accountId } = req.body || {};
+        if (!bookingId) return res.status(400).json({ success: false, error: 'bookingId gerekli' });
+        const booking = await prisma.booking.findFirst({
+            where: { id: bookingId, tenantId: scope.tenantId, confirmedBy: scope.partnerId, productType: 'TRANSFER' },
+        });
+        if (!booking) return res.status(404).json({ success: false, error: 'Rezervasyon bulunamadı veya size ait değil' });
+
+        // Compute base price excluding tax
+        const total = Number(booking.total || 0);
+        const grossWithTax = total;
+        const taxBase = round2(grossWithTax / (1 + Number(taxRate) / 100));
+        const taxAmount = round2(grossWithTax - taxBase);
+        const description = `Transfer hizmeti · ${booking.metadata?.pickup || ''} → ${booking.metadata?.dropoff || ''} · ${new Date(booking.startDate).toLocaleDateString('tr-TR')}`;
+
+        const invoiceNo = await nextInvoiceNo(scope, 'SALES');
+        const account = accountId
+            ? await prisma.partnerAccount.findFirst({ where: { id: accountId, tenantId: scope.tenantId, partnerId: scope.partnerId } })
+            : null;
+
+        const invoice = await prisma.partnerInvoice.create({
+            data: {
+                tenantId: scope.tenantId,
+                partnerId: scope.partnerId,
+                invoiceNo,
+                type: 'SALES',
+                kind,
+                status: 'DRAFT',
+                accountId: account?.id || null,
+                counterpartyName: account?.name || booking.contactName,
+                counterpartyTaxNumber: account?.taxNumber || null,
+                counterpartyTaxOffice: account?.taxOffice || null,
+                counterpartyAddress: account?.address || null,
+                counterpartyEmail: account?.email || booking.contactEmail,
+                counterpartyPhone: account?.phone || booking.contactPhone,
+                issueDate: new Date(),
+                currency: booking.currency || 'TRY',
+                subtotal: taxBase,
+                taxTotal: taxAmount,
+                grandTotal: grossWithTax,
+                paidTotal: 0,
+                eInvoiceScenario: kind === 'EFATURA' ? 'COMMERCIAL' : 'EARCHIVE',
+                metadata: { bookingId: booking.id, bookingNumber: booking.bookingNumber },
+                createdById: scope.partnerId,
+                items: {
+                    create: [{
+                        lineNo: 1,
+                        description,
+                        quantity: 1,
+                        unit: 'ADET',
+                        unitPrice: taxBase,
+                        discountRate: 0,
+                        taxRate: Number(taxRate),
+                        withholdingRate: 0,
+                        subtotal: taxBase,
+                        discount: 0,
+                        taxBase,
+                        taxAmount,
+                        withholding: 0,
+                        total: grossWithTax,
+                    }],
+                },
+            },
+            include: { items: true },
+        });
+
+        res.json({ success: true, data: invoice });
+    } catch (error) {
+        console.error('From-booking invoice error:', error);
+        res.status(500).json({ success: false, error: 'Fatura oluşturulamadı' });
+    }
+});
+
+// ─────────────────────────────────────────────────────────────────
+// TCMB FX RATES (cached)
+// ─────────────────────────────────────────────────────────────────
+let _fxCache = { at: 0, data: null };
+router.get('/fx/rates', authMiddleware, async (req, res) => {
+    const scope = ensurePartner(req, res);
+    if (!scope) return;
+    try {
+        const now = Date.now();
+        if (_fxCache.data && now - _fxCache.at < 30 * 60 * 1000) {
+            return res.json({ success: true, data: _fxCache.data, cached: true });
+        }
+        const r = await axios.get('https://www.tcmb.gov.tr/kurlar/today.xml', { timeout: 12000 });
+        const xml = r.data;
+        // Lightweight XML parsing for the rates we care about
+        const pickRate = (code) => {
+            const block = xml.match(new RegExp(`<Currency[^>]+CurrencyCode="${code}"[\\s\\S]*?</Currency>`));
+            if (!block) return null;
+            const fb = (k) => {
+                const m = block[0].match(new RegExp(`<${k}>([^<]+)</${k}>`));
+                return m ? Number(m[1].replace(',', '.')) : null;
+            };
+            return { code, forexBuying: fb('ForexBuying'), forexSelling: fb('ForexSelling'), banknoteBuying: fb('BanknoteBuying'), banknoteSelling: fb('BanknoteSelling') };
+        };
+        const data = {
+            updatedAt: new Date().toISOString(),
+            rates: ['USD', 'EUR', 'GBP', 'CHF', 'JPY'].map(pickRate).filter(Boolean),
+        };
+        _fxCache = { at: now, data };
+        res.json({ success: true, data });
+    } catch (error) {
+        console.error('TCMB FX error:', error.message);
+        res.status(500).json({ success: false, error: 'Döviz kuru alınamadı' });
+    }
+});
+
+// ─────────────────────────────────────────────────────────────────
+// CSV EXPORT — universal
+// ─────────────────────────────────────────────────────────────────
+function csvOf(rows, columns) {
+    const esc = (v) => `"${String(v == null ? '' : v).replace(/"/g, '""')}"`;
+    const header = columns.map((c) => esc(c.label)).join(',');
+    const body = rows.map((r) => columns.map((c) => esc(typeof c.value === 'function' ? c.value(r) : r[c.value])).join(',')).join('\n');
+    return `${header}\n${body}`;
+}
+
+function sendCsv(res, filename, csv) {
+    res.set('Content-Type', 'text/csv; charset=utf-8');
+    res.set('Content-Disposition', `attachment; filename="${filename}-${new Date().toISOString().slice(0, 10)}.csv"`);
+    // BOM for Excel UTF-8
+    res.send('\uFEFF' + csv);
+}
+
+router.get('/exports/:resource', authMiddleware, async (req, res) => {
+    const scope = ensurePartner(req, res);
+    if (!scope) return;
+    try {
+        const where = { tenantId: scope.tenantId, partnerId: scope.partnerId };
+        const r = req.params.resource;
+        if (r === 'accounts') {
+            const rows = await prisma.partnerAccount.findMany({ where, orderBy: { name: 'asc' } });
+            return sendCsv(res, 'cariler', csvOf(rows, [
+                { label: 'Kod', value: 'code' }, { label: 'Ad', value: 'name' }, { label: 'Tip', value: 'type' },
+                { label: 'VKN/TCKN', value: 'taxNumber' }, { label: 'Vergi Dairesi', value: 'taxOffice' },
+                { label: 'Telefon', value: 'phone' }, { label: 'E-Posta', value: 'email' },
+                { label: 'Borç', value: 'debit' }, { label: 'Alacak', value: 'credit' }, { label: 'Bakiye', value: 'balance' },
+                { label: 'Para Birimi', value: 'currency' }, { label: 'Aktif', value: 'isActive' },
+            ]));
+        }
+        if (r === 'invoices') {
+            const rows = await prisma.partnerInvoice.findMany({ where, orderBy: { issueDate: 'desc' } });
+            return sendCsv(res, 'faturalar', csvOf(rows, [
+                { label: 'No', value: 'invoiceNo' }, { label: 'Tarih', value: (x) => new Date(x.issueDate).toISOString().slice(0, 10) },
+                { label: 'Tip', value: 'type' }, { label: 'Tür', value: 'kind' }, { label: 'Durum', value: 'status' },
+                { label: 'Cari', value: 'counterpartyName' }, { label: 'VKN', value: 'counterpartyTaxNumber' },
+                { label: 'Ara Toplam', value: 'subtotal' }, { label: 'KDV', value: 'taxTotal' },
+                { label: 'Toplam', value: 'grandTotal' }, { label: 'Ödenen', value: 'paidTotal' },
+                { label: 'Para Birimi', value: 'currency' },
+            ]));
+        }
+        if (r === 'cash') {
+            const rows = await prisma.partnerCashEntry.findMany({ where, orderBy: { date: 'desc' } });
+            return sendCsv(res, 'kasa-banka', csvOf(rows, [
+                { label: 'Tarih', value: (x) => new Date(x.date).toISOString() },
+                { label: 'Hesap', value: 'accountKey' }, { label: 'Tip', value: 'accountType' },
+                { label: 'Yön', value: 'direction' }, { label: 'Tutar', value: 'amount' },
+                { label: 'Para Birimi', value: 'currency' }, { label: 'Açıklama', value: 'description' },
+            ]));
+        }
+        if (r === 'collections') {
+            const rows = await prisma.partnerDriverCollection.findMany({ where, orderBy: { date: 'desc' } });
+            return sendCsv(res, 'sofor-tahsilatlari', csvOf(rows, [
+                { label: 'Tarih', value: (x) => new Date(x.date).toISOString() },
+                { label: 'Şoför ID', value: 'driverId' }, { label: 'Tutar', value: 'amount' },
+                { label: 'Para Birimi', value: 'currency' }, { label: 'Yöntem', value: 'method' },
+                { label: 'Durum', value: 'status' }, { label: 'Not', value: 'notes' },
+            ]));
+        }
+        if (r === 'employees') {
+            const rows = await prisma.partnerEmployee.findMany({ where, orderBy: { firstName: 'asc' } });
+            return sendCsv(res, 'personel', csvOf(rows, [
+                { label: 'Ad', value: 'firstName' }, { label: 'Soyad', value: 'lastName' }, { label: 'TCKN', value: 'identityNo' },
+                { label: 'Görev', value: 'jobTitle' }, { label: 'Departman', value: 'department' },
+                { label: 'Telefon', value: 'phone' }, { label: 'E-Posta', value: 'email' },
+                { label: 'İşe Giriş', value: (x) => x.hireDate ? new Date(x.hireDate).toISOString().slice(0, 10) : '' },
+                { label: 'Maaş', value: 'baseSalary' }, { label: 'IBAN', value: 'iban' }, { label: 'Banka', value: 'bankName' },
+                { label: 'SGK No', value: 'sgkNumber' }, { label: 'Durum', value: 'status' },
+            ]));
+        }
+        if (r === 'payroll') {
+            const rows = await prisma.partnerPayrollEntry.findMany({ where, orderBy: { date: 'desc' }, include: { employee: true } });
+            return sendCsv(res, 'hakedis-maas', csvOf(rows, [
+                { label: 'Tarih', value: (x) => new Date(x.date).toISOString().slice(0, 10) },
+                { label: 'Personel', value: (x) => `${x.employee?.firstName || ''} ${x.employee?.lastName || ''}`.trim() },
+                { label: 'Tür', value: 'type' }, { label: 'Dönem', value: (x) => x.periodYear ? `${x.periodMonth}/${x.periodYear}` : '' },
+                { label: 'Tutar', value: 'amount' }, { label: 'Para Birimi', value: 'currency' },
+                { label: 'Ödendi', value: 'paid' }, { label: 'Açıklama', value: 'description' },
+            ]));
+        }
+        if (r === 'leaves') {
+            const rows = await prisma.partnerLeave.findMany({ where, orderBy: { startDate: 'desc' }, include: { employee: true } });
+            return sendCsv(res, 'izinler', csvOf(rows, [
+                { label: 'Personel', value: (x) => `${x.employee?.firstName || ''} ${x.employee?.lastName || ''}`.trim() },
+                { label: 'Tür', value: 'type' },
+                { label: 'Başlangıç', value: (x) => new Date(x.startDate).toISOString().slice(0, 10) },
+                { label: 'Bitiş', value: (x) => new Date(x.endDate).toISOString().slice(0, 10) },
+                { label: 'Gün', value: 'days' }, { label: 'Durum', value: 'status' }, { label: 'Sebep', value: 'reason' },
+            ]));
+        }
+        res.status(400).json({ success: false, error: 'Desteklenmeyen kaynak' });
+    } catch (error) {
+        console.error('CSV export error:', error);
+        res.status(500).json({ success: false, error: 'Export başarısız' });
     }
 });
 

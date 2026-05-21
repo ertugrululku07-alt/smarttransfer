@@ -6,8 +6,10 @@ import {
 } from 'antd';
 import {
   PlusOutlined, EditOutlined, DeleteOutlined, FileTextOutlined, CheckCircleOutlined,
-  DollarOutlined, SendOutlined, CloseCircleOutlined,
+  DollarOutlined, SendOutlined, CloseCircleOutlined, PrinterOutlined, MailOutlined,
+  WhatsAppOutlined, DownloadOutlined, LinkOutlined,
 } from '@ant-design/icons';
+import { API_URL } from '@/lib/config';
 import dayjs from 'dayjs';
 import apiClient from '@/lib/api-client';
 
@@ -48,6 +50,8 @@ export default function InvoicesPage() {
   const [form] = Form.useForm();
   const [saving, setSaving] = useState(false);
   const [payModal, setPayModal] = useState<{ open: boolean; row?: any; amount: number; method: string }>({ open: false, amount: 0, method: 'CASH' });
+  const [sendModal, setSendModal] = useState<{ open: boolean; row?: any; channel: 'email' | 'whatsapp'; to: string; message: string }>({ open: false, channel: 'email', to: '', message: '' });
+  const [fromBookingModal, setFromBookingModal] = useState<{ open: boolean; loading: boolean; rows: any[]; selected?: any; kind: string; taxRate: number }>({ open: false, loading: false, rows: [], kind: 'EARCHIVE', taxRate: 20 });
 
   const load = async () => {
     setLoading(true);
@@ -145,6 +149,87 @@ export default function InvoicesPage() {
     } catch (e: any) { message.error(e?.response?.data?.error || 'Hata'); }
   };
 
+  const openPdf = (row: any) => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    // Open authenticated PDF in a new window via fetch + blob
+    fetch(`${API_URL}/api/partner-accounting/invoices/${row.id}/pdf`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.text())
+      .then((html) => {
+        const w = window.open('', '_blank');
+        if (w) { w.document.write(html); w.document.close(); }
+      })
+      .catch(() => message.error('PDF açılamadı'));
+  };
+
+  const openSend = (row: any, channel: 'email' | 'whatsapp') => {
+    setSendModal({
+      open: true,
+      row,
+      channel,
+      to: channel === 'email' ? (row.counterpartyEmail || '') : (row.counterpartyPhone || ''),
+      message: '',
+    });
+  };
+
+  const doSend = async () => {
+    if (!sendModal.row) return;
+    if (!sendModal.to) { message.warning(sendModal.channel === 'email' ? 'E-posta gerekli' : 'Telefon gerekli'); return; }
+    try {
+      const url = sendModal.channel === 'email'
+        ? `/api/partner-accounting/invoices/${sendModal.row.id}/send-email`
+        : `/api/partner-accounting/invoices/${sendModal.row.id}/send-whatsapp`;
+      const payload: any = { message: sendModal.message || undefined };
+      if (sendModal.channel === 'email') payload.to = sendModal.to;
+      else payload.phone = sendModal.to;
+      const res = await apiClient.post(url, payload);
+      if (res.data?.success) {
+        message.success(res.data.message || 'Gönderildi');
+        setSendModal({ open: false, channel: 'email', to: '', message: '' });
+      } else message.error(res.data?.error || 'Hata');
+    } catch (e: any) { message.error(e?.response?.data?.error || 'Hata'); }
+  };
+
+  const openFromBooking = async () => {
+    setFromBookingModal({ open: true, loading: true, rows: [], kind: 'EARCHIVE', taxRate: 20 });
+    try {
+      const res = await apiClient.get('/api/partner-accounting/invoices/booking-candidates');
+      if (res.data?.success) setFromBookingModal({ open: true, loading: false, rows: res.data.data || [], kind: 'EARCHIVE', taxRate: 20 });
+    } catch { setFromBookingModal({ open: true, loading: false, rows: [], kind: 'EARCHIVE', taxRate: 20 }); }
+  };
+
+  const doFromBooking = async () => {
+    if (!fromBookingModal.selected) { message.warning('Rezervasyon seçin'); return; }
+    try {
+      const res = await apiClient.post('/api/partner-accounting/invoices/from-booking', {
+        bookingId: fromBookingModal.selected.id,
+        kind: fromBookingModal.kind,
+        taxRate: fromBookingModal.taxRate,
+      });
+      if (res.data?.success) {
+        message.success('Fatura taslağı oluşturuldu');
+        setFromBookingModal({ open: false, loading: false, rows: [], kind: 'EARCHIVE', taxRate: 20 });
+        load();
+      }
+    } catch (e: any) { message.error(e?.response?.data?.error || 'Hata'); }
+  };
+
+  const exportCsv = () => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    fetch(`${API_URL}/api/partner-accounting/exports/invoices`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => r.blob())
+      .then((blob) => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `faturalar-${new Date().toISOString().slice(0, 10)}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+      })
+      .catch(() => message.error('Export başarısız'));
+  };
+
   const onPay = async () => {
     if (!payModal.row) return;
     if (!(payModal.amount > 0)) { message.warning('Tutar > 0 olmalı'); return; }
@@ -178,8 +263,11 @@ export default function InvoicesPage() {
     { title: 'Toplam', dataIndex: 'grandTotal', width: 140, align: 'right', render: (v: number, r: any) => <b>{fmt(Number(v), r.currency)}</b> },
     { title: 'Ödenen', dataIndex: 'paidTotal', width: 120, align: 'right', render: (v: number, r: any) => <span style={{ color: '#10b981' }}>{fmt(Number(v), r.currency)}</span> },
     { title: 'Durum', dataIndex: 'status', width: 130, render: (v: string) => <Tag color={STATUS_COLOR[v] || 'default'}>{STATUS_LABELS[v] || v}</Tag> },
-    { title: '', width: 220, fixed: 'right', render: (_: any, r: any) => (
+    { title: '', width: 280, fixed: 'right', render: (_: any, r: any) => (
       <Space size={4}>
+        <Tooltip title="PDF / Yazdır"><Button size="small" icon={<PrinterOutlined />} onClick={() => openPdf(r)} /></Tooltip>
+        <Tooltip title="E-posta Gönder"><Button size="small" icon={<MailOutlined />} onClick={() => openSend(r, 'email')} /></Tooltip>
+        <Tooltip title="WhatsApp Gönder"><Button size="small" icon={<WhatsAppOutlined style={{ color: '#16a34a' }} />} onClick={() => openSend(r, 'whatsapp')} /></Tooltip>
         {r.status === 'DRAFT' && <>
           <Tooltip title="Onayla"><Button size="small" type="primary" icon={<CheckCircleOutlined />} onClick={() => onStatus(r.id, 'APPROVED')} /></Tooltip>
           <Tooltip title="Düzenle"><Button size="small" icon={<EditOutlined />} onClick={() => openEdit(r)} /></Tooltip>
@@ -208,6 +296,8 @@ export default function InvoicesPage() {
             <Input.Search placeholder="Ara" allowClear value={search} onChange={(e)=>setSearch(e.target.value)} onSearch={load} style={{ width: 180 }} />
             <Select placeholder="Tip" allowClear style={{ width: 150 }} value={typeFilter} onChange={(v)=>{ setTypeFilter(v); setTimeout(load, 0); }} options={TYPES} />
             <Select placeholder="Durum" allowClear style={{ width: 140 }} value={statusFilter} onChange={(v)=>{ setStatusFilter(v); setTimeout(load, 0); }} options={Object.keys(STATUS_LABELS).map(k=>({ value: k, label: STATUS_LABELS[k] }))} />
+            <Button icon={<DownloadOutlined />} onClick={exportCsv}>CSV</Button>
+            <Button icon={<LinkOutlined />} onClick={openFromBooking}>Rezervasyondan Oluştur</Button>
             <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>Yeni Fatura</Button>
           </Space>
         }
@@ -295,6 +385,89 @@ export default function InvoicesPage() {
             )}
           </Form.List>
         </Form>
+      </Modal>
+
+      <Modal
+        title={sendModal.row ? `${sendModal.channel === 'email' ? 'E-posta' : 'WhatsApp'} Gönder · ${sendModal.row.invoiceNo}` : 'Gönder'}
+        open={sendModal.open}
+        onCancel={() => setSendModal({ open: false, channel: 'email', to: '', message: '' })}
+        onOk={doSend}
+        okText="Gönder"
+        cancelText="Vazgeç"
+      >
+        <Space direction="vertical" style={{ width: '100%' }} size={10}>
+          <Input
+            prefix={sendModal.channel === 'email' ? <MailOutlined /> : <WhatsAppOutlined style={{ color: '#16a34a' }} />}
+            placeholder={sendModal.channel === 'email' ? 'alici@firma.com' : '+90 555 ...'}
+            value={sendModal.to}
+            onChange={(e) => setSendModal({ ...sendModal, to: e.target.value })}
+          />
+          <Input.TextArea
+            rows={3}
+            placeholder="Ek mesaj (opsiyonel)"
+            value={sendModal.message}
+            onChange={(e) => setSendModal({ ...sendModal, message: e.target.value })}
+          />
+          <div style={{ background: '#f8fafc', padding: 10, borderRadius: 8, fontSize: 12, color: '#64748b' }}>
+            {sendModal.channel === 'email'
+              ? 'Tanımlamalar > E-posta SMTP üzerinden fatura HTML olarak gönderilir.'
+              : 'Tanımlamalar > WhatsApp sağlayıcınız üzerinden link içeren mesaj gönderilir.'}
+          </div>
+        </Space>
+      </Modal>
+
+      <Modal
+        title="Rezervasyondan Fatura Oluştur"
+        open={fromBookingModal.open}
+        onCancel={() => setFromBookingModal({ ...fromBookingModal, open: false })}
+        onOk={doFromBooking}
+        okText="Fatura Oluştur"
+        cancelText="Vazgeç"
+        width={780}
+        confirmLoading={fromBookingModal.loading}
+      >
+        <Space direction="vertical" style={{ width: '100%' }} size={10}>
+          <Space wrap>
+            <Select
+              value={fromBookingModal.kind}
+              onChange={(v) => setFromBookingModal({ ...fromBookingModal, kind: v })}
+              options={KINDS}
+              style={{ width: 200 }}
+            />
+            <Select
+              value={fromBookingModal.taxRate}
+              onChange={(v) => setFromBookingModal({ ...fromBookingModal, taxRate: v })}
+              options={[
+                { value: 0, label: 'KDV: %0' },
+                { value: 1, label: 'KDV: %1' },
+                { value: 10, label: 'KDV: %10' },
+                { value: 20, label: 'KDV: %20' },
+              ]}
+              style={{ width: 140 }}
+            />
+            <span style={{ color: '#64748b', fontSize: 12 }}>
+              Aday: {fromBookingModal.rows.length} rezervasyon
+            </span>
+          </Space>
+          <Table
+            rowKey="id"
+            size="small"
+            dataSource={fromBookingModal.rows}
+            pagination={{ pageSize: 8, size: 'small' }}
+            rowSelection={{
+              type: 'radio',
+              selectedRowKeys: fromBookingModal.selected ? [fromBookingModal.selected.id] : [],
+              onChange: (_, rows) => setFromBookingModal({ ...fromBookingModal, selected: rows[0] }),
+            }}
+            columns={[
+              { title: 'T.KOD', dataIndex: 'bookingNumber', width: 130 },
+              { title: 'Tarih', dataIndex: 'date', width: 110, render: (v: string) => dayjs(v).format('DD.MM.YYYY') },
+              { title: 'Müşteri', dataIndex: 'customerName' },
+              { title: 'Güzergah', render: (_: any, r: any) => <span style={{ fontSize: 11 }}>{r.pickup} → {r.dropoff}</span> },
+              { title: 'Tutar', dataIndex: 'total', width: 120, align: 'right', render: (v: number, r: any) => <b>{fmt(Number(v), r.currency)}</b> },
+            ]}
+          />
+        </Space>
       </Modal>
 
       <Modal
