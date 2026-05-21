@@ -127,7 +127,9 @@ class UetdsRestService {
     // --- High-level Wrapper for Dynamic Matching ---
 
     async submitDynamicTrip({ credentials, reservation, vehicleData, driverData, passengers }) {
-        const { kod, email, parola } = credentials;
+        const kod = credentials.kod || credentials.firmaKodu;
+        const email = credentials.email || credentials.username;
+        const parola = credentials.parola || credentials.password;
         
         // 1. Login
         const jeton = await this.giris({ kod, email, parola });
