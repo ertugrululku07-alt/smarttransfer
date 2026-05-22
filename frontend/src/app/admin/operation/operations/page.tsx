@@ -203,6 +203,7 @@ export default function OperationsPage() {
     const [sosDetailModal, setSosDetailModal] = useState<any | null>(null);
     const [sosResolveNote, setSosResolveNote] = useState('');
     const [sosResolving, setSosResolving] = useState(false);
+    const [sosMapModal, setSosMapModal] = useState<{ lat: number; lng: number; address?: string } | null>(null);
     const [alertPanelOpen, setAlertPanelOpen] = useState(false);
     // ── Draggable alert bell position ──
     const [alertBellPos, setAlertBellPos] = useState<{ x: number; y: number }>({ x: -1, y: 16 });
@@ -6696,9 +6697,12 @@ export default function OperationsPage() {
                                     </>)}
                                     {sosDetailModal.lat && sosDetailModal.lng && (<>
                                         <span style={{ color: '#94a3b8', fontWeight: 600 }}>Konum:</span>
-                                        <a href={`https://www.google.com/maps?q=${sosDetailModal.lat},${sosDetailModal.lng}`} target="_blank" rel="noreferrer" style={{ color: '#6366f1', fontWeight: 700 }}>
-                                            📍 {sosDetailModal.lat.toFixed(5)}, {sosDetailModal.lng.toFixed(5)} (Haritada Aç)
-                                        </a>
+                                        <span
+                                            onClick={() => setSosMapModal({ lat: sosDetailModal.lat, lng: sosDetailModal.lng, address: sosDetailModal.address })}
+                                            style={{ color: '#6366f1', fontWeight: 700, cursor: 'pointer', textDecoration: 'underline' }}
+                                        >
+                                            📍 {sosDetailModal.lat.toFixed(5)}, {sosDetailModal.lng.toFixed(5)} (Haritada Göster)
+                                        </span>
                                     </>)}
                                 </div>
                                 {sosDetailModal.status === 'ACTIVE' && (
@@ -6718,6 +6722,57 @@ export default function OperationsPage() {
                                         <div style={{ fontSize: 13, color: '#334155', background: '#f8fafc', padding: '8px 12px', borderRadius: 6, border: '1px solid #e2e8f0' }}>{sosDetailModal.resolvedNote}</div>
                                     </div>
                                 )}
+                            </div>
+                        )}
+                    </Modal>
+
+                    {/* ══════ SOS MAP MODAL ══════ */}
+                    <Modal
+                        open={!!sosMapModal}
+                        onCancel={() => setSosMapModal(null)}
+                        title={
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <span style={{ fontSize: 18 }}>📍</span>
+                                <span style={{ fontWeight: 700 }}>Acil Durum Konumu</span>
+                            </div>
+                        }
+                        width={700}
+                        footer={
+                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                <a
+                                    href={sosMapModal ? `https://www.google.com/maps?q=${sosMapModal.lat},${sosMapModal.lng}` : '#'}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    style={{ fontSize: 12, color: '#6366f1' }}
+                                >
+                                    Google Maps'te Aç ↗
+                                </a>
+                                <Button onClick={() => setSosMapModal(null)}>Kapat</Button>
+                            </div>
+                        }
+                        destroyOnClose
+                    >
+                        {sosMapModal && (
+                            <div>
+                                {sosMapModal.address && (
+                                    <div style={{ marginBottom: 10, fontSize: 13, color: '#475569', fontWeight: 600 }}>
+                                        📌 {sosMapModal.address}
+                                    </div>
+                                )}
+                                <div style={{ borderRadius: 12, overflow: 'hidden', border: '1px solid #e2e8f0' }}>
+                                    <iframe
+                                        src={`https://www.google.com/maps?q=${sosMapModal.lat},${sosMapModal.lng}&z=15&output=embed`}
+                                        width="100%"
+                                        height="400"
+                                        style={{ border: 0 }}
+                                        allowFullScreen
+                                        loading="lazy"
+                                        referrerPolicy="no-referrer-when-downgrade"
+                                    />
+                                </div>
+                                <div style={{ marginTop: 8, fontSize: 11, color: '#94a3b8', textAlign: 'center' }}>
+                                    {sosMapModal.lat.toFixed(6)}, {sosMapModal.lng.toFixed(6)}
+                                </div>
                             </div>
                         )}
                     </Modal>
