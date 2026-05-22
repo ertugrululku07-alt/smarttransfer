@@ -315,12 +315,26 @@ router.post('/uetds-submit', authMiddleware, async (req, res) => {
         const {
             bookingId, vehiclePlate,
             driverTc, driverFirstName, driverLastName, driverGender, driverPhone,
+            passengers: passengersInput,
+            // Legacy single-passenger fields (backward compat)
             passengerTc, passengerFirstName, passengerLastName, passengerGender, passengerPhone, passengerNationality,
             baslangicIl, baslangicIlce, bitisIl, bitisIlce
         } = req.body;
 
         if (!bookingId || !vehiclePlate) {
             return res.status(400).json({ success: false, error: 'Rezervasyon ve araç plakası zorunludur' });
+        }
+
+        // Normalize passengers: prefer array, fallback to legacy single fields
+        let passengers = [];
+        if (Array.isArray(passengersInput) && passengersInput.length > 0) {
+            passengers = passengersInput;
+        } else if (passengerFirstName || passengerLastName) {
+            passengers = [{
+                tcNo: passengerTc || '', firstName: passengerFirstName || 'Yolcu',
+                lastName: passengerLastName || 'Soyadı', phone: passengerPhone || '',
+                nationality: passengerNationality || 'TR', gender: passengerGender || '1', type: 'adult'
+            }];
         }
 
         const tenant = await prisma.tenant.findUnique({ where: { id: req.user.tenantId } });
@@ -358,6 +372,8 @@ router.post('/uetds-submit', authMiddleware, async (req, res) => {
         const estDurationMs = meta.durationMin ? meta.durationMin * 60 * 1000 : 2 * 60 * 60 * 1000;
         const bitisTarih = new Date(new Date(baslangicTarih).getTime() + estDurationMs);
 
+        console.log(`[UETDS Submit] bookingId=${bookingId}, provider=${provider}, passengers=${passengers.length}, vehicle=${vehiclePlate}`);
+
         let seferResult;
 
         if (provider === 'UETDS_NET') {
@@ -371,14 +387,14 @@ router.post('/uetds-submit', authMiddleware, async (req, res) => {
             };
             const vehicleData = { plate: vehiclePlate };
             const driverData = { tcNo: driverTc || '11111111111', phone: driverPhone || '' };
-            const passengers = [{
-                firstName: passengerFirstName || 'Yolcu', lastName: passengerLastName || 'Yolcu',
-                documentNo: passengerTc || '11111111111', nationality: passengerNationality || 'TR',
-                gender: passengerGender || '1', phone: passengerPhone || ''
-            }];
+            const restPassengers = passengers.map(p => ({
+                firstName: p.firstName || 'Yolcu', lastName: p.lastName || 'Soyadı',
+                documentNo: p.tcNo || p.passportNo || '11111111111',
+                nationality: p.nationality || 'TR', gender: p.gender || '1', phone: p.phone || ''
+            }));
             try {
-                const submitRes = await uetdsRestService.submitDynamicTrip({ credentials, reservation, vehicleData, driverData, passengers });
-                seferResult = { success: true, uetdsSeferId: submitRes.sefer_referans_no, refNo: submitRes.iletisim_referans_no, errorMessage: null, rawRequest: JSON.stringify({ reservation, vehicleData, driverData, passengers }), rawResponse: JSON.stringify(submitRes) };
+                const submitRes = await uetdsRestService.submitDynamicTrip({ credentials, reservation, vehicleData, driverData, passengers: restPassengers });
+                seferResult = { success: true, uetdsSeferId: submitRes.sefer_referans_no, refNo: submitRes.iletisim_referans_no, errorMessage: null, rawRequest: JSON.stringify({ reservation, vehicleData, driverData, passengers: restPassengers }), rawResponse: JSON.stringify(submitRes) };
             } catch (err) {
                 seferResult = { success: false, errorMessage: err.message, rawRequest: '', rawResponse: JSON.stringify(err.response?.data || err.message) };
             }
@@ -393,7 +409,7 @@ router.post('/uetds-submit', authMiddleware, async (req, res) => {
         const submission = await prisma.uetdsSubmission.create({
             data: {
                 tenantId: req.user.tenantId, 
-                partnerId: booking.partnerId || req.user.id, // Fallback to admin user if no partner
+                partnerId: booking.partnerId || req.user.id,
                 bookingId,
                 vehicleId: meta.assignedVehicleId || null, 
                 driverId: booking.driverId || null,
@@ -401,7 +417,7 @@ router.post('/uetds-submit', authMiddleware, async (req, res) => {
                 uetdsRefNo: seferResult.refNo || null,
                 status: seferResult.success ? 'SENT' : 'REJECTED', 
                 errorMessage: seferResult.errorMessage || null,
-                request: { sefer: seferResult.rawRequest?.substring(0, 2000) }, 
+                request: { sefer: seferResult.rawRequest?.substring(0, 2000), passengerCount: passengers.length }, 
                 response: { sefer: seferResult.rawResponse?.substring(0, 2000) },
                 submittedAt: seferResult.success ? new Date() : null,
             }
@@ -411,21 +427,67 @@ router.post('/uetds-submit', authMiddleware, async (req, res) => {
             return res.status(400).json({ success: false, error: seferResult.errorMessage || 'Sefer bildirimi başarısız', data: submission });
         }
 
-        let yolcuResult = null, personelResult = null;
+        // Submit ALL passengers via yolcuEkle (SOAP providers only)
+        const yolcuResults = [];
+        let personelResult = null;
         if (provider !== 'UETDS_NET') {
             const uetdsService = require('../services/uetdsService');
-            if (passengerFirstName && passengerLastName) {
-                yolcuResult = await uetdsService.yolcuEkle(credentials, seferResult.uetdsSeferId, { tcKimlikNo: passengerTc || '', adi: passengerFirstName, soyadi: passengerLastName, cinsiyet: passengerGender || '1', uyruk: passengerNationality || 'TC', telefon: passengerPhone || '' });
-                await prisma.uetdsSubmission.update({ where: { id: submission.id }, data: { response: { sefer: seferResult.rawResponse?.substring(0, 2000), yolcu: yolcuResult.rawResponse?.substring(0, 1000) } }});
+
+            // Add each passenger
+            for (let i = 0; i < passengers.length; i++) {
+                const p = passengers[i];
+                if (p.firstName || p.lastName) {
+                    try {
+                        const yResult = await uetdsService.yolcuEkle(credentials, seferResult.uetdsSeferId, {
+                            tcKimlikNo: p.tcNo || p.passportNo || '',
+                            adi: p.firstName || 'Yolcu',
+                            soyadi: p.lastName || 'Soyadı',
+                            cinsiyet: p.gender || '1',
+                            uyruk: p.nationality || 'TC',
+                            telefon: p.phone || ''
+                        });
+                        yolcuResults.push({ index: i, name: `${p.firstName} ${p.lastName}`, success: yResult.success, error: yResult.errorMessage || null });
+                        console.log(`[UETDS Submit] Yolcu ${i+1}/${passengers.length}: ${p.firstName} ${p.lastName} → ${yResult.success ? 'OK' : yResult.errorMessage}`);
+                    } catch (yErr) {
+                        yolcuResults.push({ index: i, name: `${p.firstName} ${p.lastName}`, success: false, error: yErr.message });
+                        console.error(`[UETDS Submit] Yolcu ${i+1} error:`, yErr.message);
+                    }
+                }
             }
+
+            // Update submission with all passenger results
+            await prisma.uetdsSubmission.update({
+                where: { id: submission.id },
+                data: {
+                    response: {
+                        sefer: seferResult.rawResponse?.substring(0, 2000),
+                        yolcuCount: yolcuResults.length,
+                        yolcuResults: yolcuResults.map(y => ({ name: y.name, success: y.success, error: y.error }))
+                    }
+                }
+            });
+
+            // Add driver as personnel
             if (driverTc && driverFirstName && driverLastName) {
-                personelResult = await uetdsService.personelEkle(credentials, seferResult.uetdsSeferId, { tcKimlikNo: driverTc, adi: driverFirstName, soyadi: driverLastName, cinsiyet: driverGender || '1', telefonNo: driverPhone || '', gorevTuru: '1' });
+                personelResult = await uetdsService.personelEkle(credentials, seferResult.uetdsSeferId, {
+                    tcKimlikNo: driverTc, adi: driverFirstName, soyadi: driverLastName,
+                    cinsiyet: driverGender || '1', telefonNo: driverPhone || '', gorevTuru: '1'
+                });
             }
         }
 
+        const successCount = yolcuResults.filter(y => y.success).length;
         res.json({
             success: true,
-            data: { ...submission, uetdsSeferId: seferResult.uetdsSeferId, yolcuSuccess: yolcuResult?.success ?? null, personelSuccess: personelResult?.success ?? null }
+            data: {
+                ...submission,
+                uetdsSeferId: seferResult.uetdsSeferId,
+                yolcuResults,
+                yolcuSuccess: successCount === passengers.length,
+                yolcuCount: passengers.length,
+                yolcuSuccessCount: successCount,
+                personelSuccess: personelResult?.success ?? null
+            }
         });
     } catch (error) {
         console.error('Admin UETDS submit error:', error);

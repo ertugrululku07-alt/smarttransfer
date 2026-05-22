@@ -692,22 +692,63 @@ export default function OperationsPage() {
     const handleAdminUetdsSubmit = async (booking: any) => {
         const hide = message.loading('UETDS\'ye gönderiliyor...', 0);
         try {
+            // Build passengers list from passengerDetails
+            const passengerDetails = booking.metadata?.passengerDetails || [];
+            const passengers: any[] = [];
+
+            // Main contact is always the first passenger
+            const mainContactName = booking.contactName || booking.customer?.name || '';
+            const mainNameParts = mainContactName.trim().split(/\s+/);
+            const mainFirstName = mainNameParts.slice(0, -1).join(' ') || mainNameParts[0] || 'Yolcu';
+            const mainLastName = mainNameParts.length > 1 ? mainNameParts[mainNameParts.length - 1] : 'Soyadı';
+
+            passengers.push({
+                tcNo: booking.customer?.tcNo || passengerDetails[0]?.tcNo || passengerDetails[0]?.passportNo || '',
+                firstName: passengerDetails[0]?.firstName || mainFirstName,
+                lastName: passengerDetails[0]?.lastName || mainLastName,
+                phone: booking.contactPhone || booking.customer?.phone || passengerDetails[0]?.phone || '',
+                nationality: passengerDetails[0]?.nationality || passengerDetails[0]?.country || booking.metadata?.nationality || 'TR',
+                gender: passengerDetails[0]?.gender || '1',
+                type: 'adult',
+            });
+
+            // Add remaining passengers from passengerDetails (skip first as it's the main contact)
+            if (passengerDetails.length > 1) {
+                for (let i = 1; i < passengerDetails.length; i++) {
+                    const p = passengerDetails[i];
+                    const pName = p.name || p.fullName || `${p.firstName || ''} ${p.lastName || ''}`.trim();
+                    const pNameParts = pName.trim().split(/\s+/);
+                    passengers.push({
+                        tcNo: p.tcNo || p.passportNo || p.documentNo || '',
+                        firstName: p.firstName || pNameParts.slice(0, -1).join(' ') || pNameParts[0] || '',
+                        lastName: p.lastName || (pNameParts.length > 1 ? pNameParts[pNameParts.length - 1] : ''),
+                        phone: p.phone || p.telephone || '',
+                        nationality: p.nationality || p.country || 'TR',
+                        gender: p.gender || '1',
+                        type: p.type || 'adult',
+                    });
+                }
+            }
+
             const body = {
                 bookingId: booking.id,
                 vehiclePlate: booking.vehicle?.plateNumber || booking.metadata?.vehiclePlate || booking.assignedVehicle?.plateNumber || '07TEST07',
                 driverTc: booking.driver?.tcNo || booking.metadata?.driverTc || '11111111111',
                 driverFirstName: booking.driver?.firstName || booking.metadata?.driverFirstName || 'Şoför',
                 driverLastName: booking.driver?.lastName || booking.metadata?.driverLastName || 'Soyadı',
-                passengerTc: booking.customer?.tcNo || '11111111111',
-                passengerFirstName: booking.contactName || booking.customer?.name || 'Yolcu',
-                passengerLastName: booking.customer?.surname || 'Soyadı',
-                baslangicIl: booking.pickup?.city || 'Antalya',
-                bitisIl: booking.dropoff?.city || 'Antalya',
+                driverPhone: booking.driver?.phone || booking.metadata?.driverPhone || '',
+                driverGender: booking.driver?.gender || '1',
+                passengers,
+                baslangicIl: booking.pickup?.city || booking.metadata?.pickupCity || 'Antalya',
+                baslangicIlce: booking.pickup?.district || booking.metadata?.pickupDistrict || '',
+                bitisIl: booking.dropoff?.city || booking.metadata?.dropoffCity || 'Antalya',
+                bitisIlce: booking.dropoff?.district || booking.metadata?.dropoffDistrict || '',
             };
             const res = await apiClient.post('/api/tenant/uetds-submit', body);
             if (res.data.success) {
-                message.success('UETDS Bildirimi Başarılı! Sefer ID: ' + res.data.data.uetdsSeferId);
-                fetchBookings(); // Refresh status
+                const yolcuCount = res.data.data?.yolcuResults?.length || 1;
+                message.success(`UETDS Bildirimi Başarılı! Sefer ID: ${res.data.data.uetdsSeferId} — ${yolcuCount} yolcu bildirildi`);
+                fetchBookings();
             } else {
                 message.error('Hata: ' + res.data.error);
             }
