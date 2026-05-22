@@ -1,8 +1,10 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Button, Card, DatePicker, Empty, Select, Space, Spin, Tag, message } from 'antd';
-import { FilePdfOutlined, ReloadOutlined, CarOutlined } from '@ant-design/icons';
+import {
+  Alert, Button, Card, DatePicker, Empty, Form, Input, InputNumber, Modal, Select, Space, Spin, Switch, Tag, TimePicker, message,
+} from 'antd';
+import { FilePdfOutlined, MailOutlined, ReloadOutlined, CarOutlined, SettingOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import dynamic from 'next/dynamic';
 import apiClient, { API_URL } from '@/lib/api-client';
@@ -16,13 +18,35 @@ export default function FleetReportsPage() {
   const [speedLimit, setSpeedLimit] = useState(120);
   const [report, setReport] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [configOpen, setConfigOpen] = useState(false);
+  const [configSaving, setConfigSaving] = useState(false);
+  const [emailTo, setEmailTo] = useState('');
+  const [autoConfig, setAutoConfig] = useState<any>({
+    autoEmail: false,
+    recipients: [],
+    speedLimit: 120,
+    sendHour: 20,
+    sendMinute: 0,
+    includeAllVehicles: true,
+    vehicleIds: [],
+    minPointCount: 5,
+  });
+  const [configForm] = Form.useForm();
 
   useEffect(() => {
-    apiClient.get('/api/partner-fleet/vehicles').then((r) => {
-      if (r.data?.success) {
-        const list = r.data.data || [];
+    Promise.all([
+      apiClient.get('/api/partner-fleet/vehicles'),
+      apiClient.get('/api/partner-fleet/driving-report/config'),
+    ]).then(([veh, cfg]) => {
+      if (veh.data?.success) {
+        const list = veh.data.data || [];
         setVehicles(list);
         if (list[0]) setVehicleId(list[0].id);
+      }
+      if (cfg.data?.success) {
+        setAutoConfig(cfg.data.data);
+        if (cfg.data.data.recipients?.[0]) setEmailTo(cfg.data.data.recipients[0]);
       }
     });
   }, []);
@@ -62,13 +86,86 @@ export default function FleetReportsPage() {
       .catch(() => message.error('PDF açılamadı'));
   };
 
+  const sendEmail = async () => {
+    if (!vehicleId) return message.warning('Araç seçin');
+    setSending(true);
+    try {
+      const r = await apiClient.post('/api/partner-fleet/driving-report/send-email', {
+        vehicleId,
+        date: date.format('YYYY-MM-DD'),
+        speedLimit,
+        to: emailTo || undefined,
+        recipients: emailTo ? [emailTo] : autoConfig.recipients,
+      });
+      if (r.data?.success) message.success(`E-posta gönderildi: ${r.data.data.to?.join(', ')}`);
+      else message.error(r.data?.error || 'Gönderilemedi');
+    } catch (e: any) {
+      message.error(e?.response?.data?.error || 'SMTP hatası — Ayarlar > Tanımlamalar');
+    } finally { setSending(false); }
+  };
+
+  const openConfig = () => {
+    configForm.setFieldsValue({
+      ...autoConfig,
+      recipientsText: (autoConfig.recipients || []).join(', '),
+      sendTime: dayjs().hour(autoConfig.sendHour || 20).minute(autoConfig.sendMinute || 0),
+    });
+    setConfigOpen(true);
+  };
+
+  const saveConfig = async () => {
+    setConfigSaving(true);
+    try {
+      const v = await configForm.validateFields();
+      const recipients = String(v.recipientsText || '')
+        .split(/[,;]/)
+        .map((s: string) => s.trim())
+        .filter(Boolean);
+      const sendTime = v.sendTime || dayjs().hour(20).minute(0);
+      const payload = {
+        autoEmail: !!v.autoEmail,
+        recipients,
+        speedLimit: v.speedLimit || 120,
+        sendHour: sendTime.hour(),
+        sendMinute: sendTime.minute(),
+        includeAllVehicles: v.includeAllVehicles !== false,
+        vehicleIds: v.vehicleIds || [],
+        minPointCount: v.minPointCount || 5,
+      };
+      const r = await apiClient.put('/api/partner-fleet/driving-report/config', payload);
+      if (r.data?.success) {
+        setAutoConfig(r.data.data);
+        if (recipients[0]) setEmailTo(recipients[0]);
+        message.success('Otomatik rapor ayarları kaydedildi');
+        setConfigOpen(false);
+      }
+    } catch (e: any) {
+      if (e?.errorFields) return;
+      message.error(e?.response?.data?.error || 'Kaydedilemedi');
+    } finally { setConfigSaving(false); }
+  };
+
   const rep = report?.report;
   const grade = rep?.grade;
 
   return (
     <div style={{ display: 'grid', gap: 14 }}>
+      {autoConfig.autoEmail && (
+        <Alert
+          showIcon
+          type="success"
+          message={`Otomatik günlük rapor aktif — her gün ${String(autoConfig.sendHour || 20).padStart(2, '0')}:${String(autoConfig.sendMinute || 0).padStart(2, '0')} · ${autoConfig.recipients?.length || 0} alıcı`}
+          description="Telemetri verisi olan araçlar için HTML sürüş raporu e-posta ile gönderilir. SMTP: Ayarlar > Tanımlamalar."
+        />
+      )}
+
       <Card size="small" title={<span><FilePdfOutlined style={{ marginRight: 8, color: '#6366f1' }} /> Günlük Sürüş Raporu</span>}
-        extra={<Button icon={<ReloadOutlined />} onClick={loadReport} loading={loading}>Hesapla</Button>}
+        extra={
+          <Space wrap>
+            <Button icon={<SettingOutlined />} onClick={openConfig}>Otomatik E-posta</Button>
+            <Button icon={<ReloadOutlined />} onClick={loadReport} loading={loading}>Hesapla</Button>
+          </Space>
+        }
       >
         <Space wrap style={{ marginBottom: 14 }}>
           <Select style={{ width: 220 }} showSearch optionFilterProp="label" value={vehicleId} onChange={setVehicleId}
@@ -76,7 +173,9 @@ export default function FleetReportsPage() {
           <DatePicker value={date} onChange={(d) => d && setDate(d)} format="DD.MM.YYYY" />
           <Select style={{ width: 160 }} value={speedLimit} onChange={setSpeedLimit}
             options={[90, 100, 110, 120, 130].map((v) => ({ value: v, label: `Hız limiti ${v} km/sa` }))} />
+          <Input style={{ width: 220 }} placeholder="E-posta alıcı" value={emailTo} onChange={(e) => setEmailTo(e.target.value)} prefix={<MailOutlined />} />
           <Button type="primary" icon={<FilePdfOutlined />} onClick={openPdf} disabled={!rep}>PDF / Yazdır</Button>
+          <Button icon={<MailOutlined />} onClick={sendEmail} loading={sending} disabled={!rep}>E-posta Gönder</Button>
         </Space>
 
         {loading ? <div style={{ padding: 40, textAlign: 'center' }}><Spin /></div> : !rep ? (
@@ -111,6 +210,41 @@ export default function FleetReportsPage() {
           </>
         )}
       </Card>
+
+      <Modal
+        title={<span><SettingOutlined /> Otomatik Günlük Rapor Ayarları</span>}
+        open={configOpen}
+        onCancel={() => setConfigOpen(false)}
+        onOk={saveConfig}
+        confirmLoading={configSaving}
+        okText="Kaydet"
+        cancelText="Vazgeç"
+        width={560}
+      >
+        <Alert showIcon type="info" style={{ marginBottom: 12 }}
+          message="Belirlediğiniz saatte tüm araçlar (veya seçili araçlar) için sürüş raporu otomatik e-posta ile gönderilir."
+          description="SMTP ayarlarının Tanımlamalar sekmesinde yapılandırılmış olması gerekir." />
+        <Form form={configForm} layout="vertical">
+          <Form.Item label="Otomatik e-posta" name="autoEmail" valuePropName="checked"><Switch /></Form.Item>
+          <Form.Item label="Alıcılar (virgülle ayırın)" name="recipientsText" rules={[{ required: true, message: 'En az bir alıcı' }]}>
+            <Input placeholder="filo@sirket.com, operasyon@sirket.com" />
+          </Form.Item>
+          <Space wrap style={{ width: '100%' }}>
+            <Form.Item label="Gönderim saati" name="sendTime"><TimePicker format="HH:mm" /></Form.Item>
+            <Form.Item label="Varsayılan hız limiti" name="speedLimit"><InputNumber min={60} max={200} addonAfter="km/sa" /></Form.Item>
+            <Form.Item label="Min. telemetri noktası" name="minPointCount" help="Bu sayının altında rapor gönderilmez"><InputNumber min={1} max={100} /></Form.Item>
+          </Space>
+          <Form.Item label="Tüm filo" name="includeAllVehicles" valuePropName="checked"><Switch checkedChildren="Tümü" unCheckedChildren="Seçili" /></Form.Item>
+          <Form.Item noStyle shouldUpdate={(p, c) => p.includeAllVehicles !== c.includeAllVehicles}>
+            {({ getFieldValue }) => !getFieldValue('includeAllVehicles') && (
+              <Form.Item label="Rapor gönderilecek araçlar" name="vehicleIds">
+                <Select mode="multiple" showSearch optionFilterProp="label"
+                  options={vehicles.map((v: any) => ({ value: v.id, label: v.plate }))} />
+              </Form.Item>
+            )}
+          </Form.Item>
+        </Form>
+      </Modal>
     </div>
   );
 }

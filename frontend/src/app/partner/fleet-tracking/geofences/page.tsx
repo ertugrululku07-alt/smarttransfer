@@ -2,21 +2,32 @@
 
 import React, { useEffect, useState } from 'react';
 import {
-  Alert, Button, Card, Empty, Form, Input, InputNumber, Modal, Select, Space, Spin, Switch, Table, Tag, message,
+  Alert, Button, Card, Empty, Form, Input, Modal, Select, Space, Spin, Switch, Table, Tag, message,
 } from 'antd';
 import { PlusOutlined, DeleteOutlined, EditOutlined, ReloadOutlined, WarningOutlined, BorderOutlined } from '@ant-design/icons';
 import dynamic from 'next/dynamic';
 import dayjs from 'dayjs';
 import apiClient from '@/lib/api-client';
 import type { FleetGeofence } from '../FleetLiveMap';
+import type { GeofenceDrawValue } from '../FleetGeofenceDrawer';
 
 const FleetLiveMap = dynamic(() => import('../FleetLiveMap'), { ssr: false, loading: () => <Spin /> });
+const FleetGeofenceDrawer = dynamic(() => import('../FleetGeofenceDrawer'), { ssr: false, loading: () => <Spin /> });
 
 const ALERT_OPTIONS = [
   { value: 'EXIT', label: 'Çıkışta uyar' },
   { value: 'ENTER', label: 'Girişte uyar' },
   { value: 'BOTH', label: 'Giriş + Çıkış' },
 ];
+
+const DEFAULT_DRAW: GeofenceDrawValue = {
+  type: 'CIRCLE',
+  centerLat: 36.8969,
+  centerLng: 30.7133,
+  radiusM: 1000,
+  polygon: [],
+  color: '#6366f1',
+};
 
 export default function FleetGeofencesPage() {
   const [geofences, setGeofences] = useState<any[]>([]);
@@ -25,6 +36,7 @@ export default function FleetGeofencesPage() {
   const [summary, setSummary] = useState({ activeCount: 0, recentViolations: 0 });
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState<{ open: boolean; edit?: any }>({ open: false });
+  const [drawValue, setDrawValue] = useState<GeofenceDrawValue>(DEFAULT_DRAW);
   const [form] = Form.useForm();
   const type = Form.useWatch('type', form);
 
@@ -46,33 +58,69 @@ export default function FleetGeofencesPage() {
 
   useEffect(() => { load(); }, []);
 
+  useEffect(() => {
+    if (!modal.open) return;
+    setDrawValue((prev) => ({
+      ...prev,
+      type: type || 'CIRCLE',
+      color: form.getFieldValue('color') || prev.color,
+    }));
+  }, [type, modal.open, form]);
+
   const openCreate = () => {
     form.resetFields();
-    form.setFieldsValue({ type: 'CIRCLE', alertOn: 'EXIT', radiusM: 1000, color: '#6366f1', isActive: true });
+    form.setFieldsValue({ type: 'CIRCLE', alertOn: 'EXIT', color: '#6366f1', isActive: true });
+    setDrawValue(DEFAULT_DRAW);
     setModal({ open: true });
   };
 
   const openEdit = (row: any) => {
     form.setFieldsValue({
       ...row,
-      polygon: row.polygon ? JSON.stringify(row.polygon) : undefined,
       vehicleIds: Array.isArray(row.vehicleIds) ? row.vehicleIds : undefined,
     });
+    setDrawValue({
+      type: row.type,
+      centerLat: row.centerLat ?? DEFAULT_DRAW.centerLat,
+      centerLng: row.centerLng ?? DEFAULT_DRAW.centerLng,
+      radiusM: row.radiusM ?? DEFAULT_DRAW.radiusM,
+      polygon: Array.isArray(row.polygon) ? row.polygon : [],
+      color: row.color || '#6366f1',
+    });
     setModal({ open: true, edit: row });
+  };
+
+  const onDrawChange = (v: GeofenceDrawValue) => {
+    setDrawValue(v);
+    form.setFieldsValue({
+      type: v.type,
+      centerLat: v.centerLat,
+      centerLng: v.centerLng,
+      radiusM: v.radiusM,
+      polygon: v.polygon,
+      color: v.color,
+    });
   };
 
   const onSave = async () => {
     try {
       const v = await form.validateFields();
-      let polygon = v.polygon;
-      if (v.type === 'POLYGON' && typeof polygon === 'string') {
-        polygon = JSON.parse(polygon);
-      }
       const payload = {
-        ...v,
-        polygon,
+        name: v.name,
+        type: drawValue.type,
+        centerLat: drawValue.type === 'CIRCLE' ? drawValue.centerLat : null,
+        centerLng: drawValue.type === 'CIRCLE' ? drawValue.centerLng : null,
+        radiusM: drawValue.type === 'CIRCLE' ? drawValue.radiusM : null,
+        polygon: drawValue.type === 'POLYGON' ? drawValue.polygon : null,
+        alertOn: v.alertOn,
         vehicleIds: v.vehicleIds?.length ? v.vehicleIds : null,
+        color: v.color || drawValue.color,
+        isActive: v.isActive !== false,
       };
+      if (drawValue.type === 'POLYGON' && (!drawValue.polygon || drawValue.polygon.length < 3)) {
+        message.warning('Poligon en az 3 nokta içermeli');
+        return;
+      }
       if (modal.edit) {
         await apiClient.patch(`/api/partner-fleet/geofences/${modal.edit.id}`, payload);
         message.success('Güncellendi');
@@ -104,7 +152,7 @@ export default function FleetGeofencesPage() {
   return (
     <div style={{ display: 'grid', gap: 14 }}>
       <Card size="small" title={<span><BorderOutlined style={{ marginRight: 8, color: '#ef4444' }} /> Geofence Bölgeleri</span>}
-        extra={<Space><Button icon={<ReloadOutlined />} onClick={load}>Yenile</Button><Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>Yeni Bölge</Button></Space>}
+        extra={<Space><Button icon={<ReloadOutlined />} onClick={load}>Yenile</Button><Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>Haritada Çiz</Button></Space>}
       >
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10, marginBottom: 14 }}>
           <div className="ps-kpi"><div className="ps-kpi__label">Aktif Bölge</div><div className="ps-kpi__value">{summary.activeCount}</div></div>
@@ -112,14 +160,14 @@ export default function FleetGeofencesPage() {
         </div>
 
         <Alert showIcon type="info" style={{ marginBottom: 12 }}
-          message="Araç tanımlı bölge dışına çıktığında (veya girdiğinde) otomatik ihlal kaydı oluşur."
-          description="Telemetri verisi geldiğinde sistem anlık kontrol yapar. E-posta/WhatsApp bildirimi için Ayarlar > Tanımlamalar bölümünü kullanın." />
+          message="Harita üzerinde tıklayarak daire veya poligon bölge çizebilirsiniz."
+          description="Daire modunda merkeze tıklayın ve yarıçapı kaydırın. Poligon modunda köşe noktalarını tıklayın, en az 3 noktadan sonra Tamamla." />
 
         {mapGeofences.length > 0 && (
           <FleetLiveMap markers={[]} geofences={mapGeofences} height={320} />
         )}
 
-        {geofences.length === 0 ? <Empty description="Henüz geofence tanımlanmamış" /> : (
+        {geofences.length === 0 ? <Empty description="Henüz geofence tanımlanmamış — Haritada Çiz ile başlayın" /> : (
           <Table rowKey="id" size="small" style={{ marginTop: 14 }} pagination={{ pageSize: 10, size: 'small' }} dataSource={geofences}
             columns={[
               { title: 'Ad', dataIndex: 'name', render: (n: string, r: any) => <span><span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 999, background: r.color || '#6366f1', marginRight: 8 }} />{n}</span> },
@@ -153,33 +201,37 @@ export default function FleetGeofencesPage() {
         )}
       </Card>
 
-      <Modal title={modal.edit ? 'Geofence Düzenle' : 'Yeni Geofence'} open={modal.open} onCancel={() => setModal({ open: false })} onOk={onSave} okText="Kaydet" cancelText="Vazgeç" width={560}>
+      <Modal
+        title={modal.edit ? 'Geofence Düzenle' : 'Haritada Geofence Çiz'}
+        open={modal.open}
+        onCancel={() => setModal({ open: false })}
+        onOk={onSave}
+        okText="Kaydet"
+        cancelText="Vazgeç"
+        width={720}
+        destroyOnClose
+      >
         <Form form={form} layout="vertical">
           <Form.Item label="Bölge Adı" name="name" rules={[{ required: true }]}><Input placeholder="Depo · Antalya Merkez" /></Form.Item>
           <Form.Item label="Tip" name="type" rules={[{ required: true }]}>
-            <Select options={[{ value: 'CIRCLE', label: 'Daire (merkez + yarıçap)' }, { value: 'POLYGON', label: 'Poligon (koordinat listesi)' }]} />
+            <Select
+              options={[{ value: 'CIRCLE', label: 'Daire — haritaya tıkla' }, { value: 'POLYGON', label: 'Poligon — köşe noktaları ekle' }]}
+              onChange={(t) => setDrawValue((prev) => ({ ...prev, type: t }))}
+            />
           </Form.Item>
-          {type === 'CIRCLE' && (
-            <>
-              <Space style={{ width: '100%' }} align="start">
-                <Form.Item label="Merkez Enlem" name="centerLat" rules={[{ required: true }]} style={{ flex: 1 }}><InputNumber style={{ width: '100%' }} step={0.0001} placeholder="36.8969" /></Form.Item>
-                <Form.Item label="Merkez Boylam" name="centerLng" rules={[{ required: true }]} style={{ flex: 1 }}><InputNumber style={{ width: '100%' }} step={0.0001} placeholder="30.7133" /></Form.Item>
-              </Space>
-              <Form.Item label="Yarıçap (metre)" name="radiusM" rules={[{ required: true }]}><InputNumber min={50} style={{ width: '100%' }} /></Form.Item>
-            </>
-          )}
-          {type === 'POLYGON' && (
-            <Form.Item label="Poligon Koordinatları (JSON)" name="polygon" rules={[{ required: true }]}
-              help='Örn: [[36.89,30.71],[36.90,30.72],[36.88,30.73]]'>
-              <Input.TextArea rows={4} placeholder="[[lat,lng],[lat,lng],...]" />
-            </Form.Item>
-          )}
-          <Form.Item label="Uyarı Tipi" name="alertOn"><Select options={ALERT_OPTIONS} /></Form.Item>
+
+          <FleetGeofenceDrawer
+            value={{ ...drawValue, type: type || drawValue.type }}
+            onChange={onDrawChange}
+            height={360}
+          />
+
+          <Form.Item label="Uyarı Tipi" name="alertOn" style={{ marginTop: 12 }}><Select options={ALERT_OPTIONS} /></Form.Item>
           <Form.Item label="Belirli Araçlar (boş = tüm filo)" name="vehicleIds">
             <Select mode="multiple" allowClear showSearch optionFilterProp="label" options={vehicles.map((v: any) => ({ value: v.id, label: v.plate }))} />
           </Form.Item>
           <Space style={{ width: '100%' }}>
-            <Form.Item label="Renk" name="color"><Input type="color" style={{ width: 80, padding: 2 }} /></Form.Item>
+            <Form.Item label="Renk" name="color"><Input type="color" style={{ width: 80, padding: 2 }} onChange={(e) => setDrawValue((p) => ({ ...p, color: e.target.value }))} /></Form.Item>
             <Form.Item label="Aktif" name="isActive" valuePropName="checked"><Switch /></Form.Item>
           </Space>
         </Form>

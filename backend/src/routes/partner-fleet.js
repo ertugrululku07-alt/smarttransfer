@@ -26,6 +26,12 @@ const {
     gradeFromScore,
     buildDrivingReportHtml,
 } = require('../services/fleetTelemetryService');
+const uetdsService = require('../services/uetdsService');
+const {
+    buildDrivingReport,
+    normalizeFleetReportConfig,
+    sendDrivingReportEmail,
+} = require('../services/fleetReportService');
 
 function ensurePartner(req, res) {
     if (req.user?.roleType !== 'PARTNER') {
@@ -1420,49 +1426,66 @@ router.get('/geofences/summary', authMiddleware, async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────
-// DRIVING REPORT — Günlük sürüş raporu + PDF
+// DRIVING REPORT — Günlük sürüş raporu + PDF + e-posta
 // ─────────────────────────────────────────────────────────────────
-async function buildDrivingReport(scope, vehicleId, dateStr, speedLimit) {
-    const veh = await ensureVehicleOwnership(scope, vehicleId);
-    if (!veh) return null;
-    const day = dateStr ? new Date(String(dateStr)) : new Date();
-    const start = new Date(day);
-    start.setHours(0, 0, 0, 0);
-    const end = new Date(day);
-    end.setHours(23, 59, 59, 999);
+router.get('/driving-report/config', authMiddleware, async (req, res) => {
+    const scope = ensurePartner(req, res);
+    if (!scope) return;
+    try {
+        const profile = await prisma.partnerProfile.findUnique({ where: { userId: scope.partnerId } });
+        const cfg = normalizeFleetReportConfig(profile?.metadata?.fleetReports);
+        res.json({ success: true, data: cfg });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Ayarlar alınamadı' });
+    }
+});
 
-    const [telemetry, fuelEntries] = await Promise.all([
-        prisma.partnerVehicleTelemetry.findMany({
-            where: {
-                tenantId: scope.tenantId,
-                partnerId: scope.partnerId,
-                vehicleId: veh.id,
-                timestamp: { gte: start, lte: end },
-            },
-            orderBy: { timestamp: 'asc' },
-        }),
-        prisma.partnerVehicleFuelEntry.findMany({
-            where: {
-                tenantId: scope.tenantId,
-                partnerId: scope.partnerId,
-                vehicleId: veh.id,
-                date: { gte: start, lte: end },
-            },
-        }),
-    ]);
+router.put('/driving-report/config', authMiddleware, async (req, res) => {
+    const scope = ensurePartner(req, res);
+    if (!scope) return;
+    try {
+        const profile = await prisma.partnerProfile.findUnique({ where: { userId: scope.partnerId } });
+        const current = normalizeFleetReportConfig(profile?.metadata?.fleetReports);
+        const b = req.body || {};
+        const next = normalizeFleetReportConfig({
+            ...current,
+            ...b,
+            recipients: b.recipients ?? current.recipients,
+            vehicleIds: b.vehicleIds ?? current.vehicleIds,
+        });
+        const meta = { ...(profile?.metadata || {}), fleetReports: next };
+        await prisma.partnerProfile.upsert({
+            where: { userId: scope.partnerId },
+            create: { tenantId: scope.tenantId, userId: scope.partnerId, metadata: meta },
+            update: { metadata: meta },
+        });
+        res.json({ success: true, data: next });
+    } catch (error) {
+        console.error('driving report config error:', error);
+        res.status(500).json({ success: false, error: 'Ayarlar kaydedilemedi' });
+    }
+});
 
-    const report = analyzeDrivingTelemetry(telemetry, { speedLimit: speedLimit || 120 });
-    report.fuelLiters = fuelEntries.reduce((s, f) => s + Number(f.liters || 0), 0);
-    report.fuelTotal = fuelEntries.reduce((s, f) => s + Number(f.total || 0), 0);
-    report.fuelCount = fuelEntries.length;
-    report.grade = gradeFromScore(report.score);
-    report.date = start.toISOString().slice(0, 10);
-
-    return {
-        vehicle: { id: veh.id, plate: veh.plateNumber, brand: veh.brand, model: veh.model },
-        report,
-    };
-}
+router.post('/driving-report/send-email', authMiddleware, async (req, res) => {
+    const scope = ensurePartner(req, res);
+    if (!scope) return;
+    try {
+        const { vehicleId, date, to, speedLimit, recipients } = req.body || {};
+        if (!vehicleId) return res.status(400).json({ success: false, error: 'vehicleId gerekli' });
+        const r = await sendDrivingReportEmail(prisma, uetdsService, scope, {
+            vehicleId: String(vehicleId),
+            date,
+            to,
+            speedLimit: Number(speedLimit) || 120,
+            recipients: Array.isArray(recipients) ? recipients : undefined,
+        });
+        if (!r.ok) return res.status(400).json({ success: false, error: r.error || 'Gönderilemedi' });
+        res.json({ success: true, data: { to: r.to, subject: r.subject } });
+    } catch (error) {
+        console.error('driving report email error:', error);
+        res.status(500).json({ success: false, error: 'E-posta gönderilemedi' });
+    }
+});
 
 router.get('/driving-report', authMiddleware, async (req, res) => {
     const scope = ensurePartner(req, res);
@@ -1470,7 +1493,7 @@ router.get('/driving-report', authMiddleware, async (req, res) => {
     try {
         const { vehicleId, date, speedLimit } = req.query;
         if (!vehicleId) return res.status(400).json({ success: false, error: 'vehicleId gerekli' });
-        const result = await buildDrivingReport(scope, String(vehicleId), date, Number(speedLimit) || 120);
+        const result = await buildDrivingReport(prisma, scope, String(vehicleId), date, Number(speedLimit) || 120);
         if (!result) return res.status(404).json({ success: false, error: 'Araç bulunamadı' });
         res.json({ success: true, data: result });
     } catch (error) {
@@ -1485,7 +1508,7 @@ router.get('/driving-report/pdf', authMiddleware, async (req, res) => {
     try {
         const { vehicleId, date, speedLimit } = req.query;
         if (!vehicleId) return res.status(400).send('vehicleId gerekli');
-        const result = await buildDrivingReport(scope, String(vehicleId), date, Number(speedLimit) || 120);
+        const result = await buildDrivingReport(prisma, scope, String(vehicleId), date, Number(speedLimit) || 120);
         if (!result) return res.status(404).send('Araç bulunamadı');
         const [profile, partner] = await Promise.all([
             prisma.partnerProfile.findUnique({ where: { userId: scope.partnerId } }),

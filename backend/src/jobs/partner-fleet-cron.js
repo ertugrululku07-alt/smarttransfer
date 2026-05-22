@@ -14,6 +14,7 @@ const cron = require('node-cron');
 const prisma = require('../lib/prisma');
 const uetdsService = require('../services/uetdsService');
 const axios = require('axios');
+const { normalizeFleetReportConfig, runAutoDrivingReportsForPartner } = require('../services/fleetReportService');
 
 const DAY = 86400000;
 
@@ -282,12 +283,69 @@ async function runFleetReminders() {
     console.log(`[FleetCron] Done. Channels sent: ${totalSent} across ${byPartner.size} partners.`);
 }
 
+async function runAutoDrivingReports() {
+    const now = new Date();
+    const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'Europe/Istanbul',
+        hour: 'numeric',
+        minute: 'numeric',
+        hour12: false,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+    }).formatToParts(now);
+    const get = (type) => parts.find((p) => p.type === type)?.value;
+    const hour = Number(get('hour'));
+    const minute = Number(get('minute'));
+    const dateStr = `${get('year')}-${get('month')}-${get('day')}`;
+
+    if (minute !== 0) return;
+
+    console.log(`[FleetCron] Checking auto driving reports (${hour}:00 · ${dateStr})...`);
+
+    const profiles = await prisma.partnerProfile.findMany({
+        where: { metadata: { not: null } },
+        select: { userId: true, tenantId: true, metadata: true },
+    });
+
+    let totalSent = 0;
+    for (const p of profiles) {
+        const cfg = normalizeFleetReportConfig(p.metadata?.fleetReports);
+        if (!cfg.autoEmail) continue;
+        if (cfg.sendHour !== hour) continue;
+        if (cfg.lastSentDate === dateStr) continue;
+
+        const partner = await prisma.user.findUnique({ where: { id: p.userId }, select: { id: true, tenantId: true, roleType: true } });
+        if (!partner || partner.roleType !== 'PARTNER') continue;
+
+        try {
+            const r = await runAutoDrivingReportsForPartner(
+                prisma,
+                uetdsService,
+                partner.id,
+                partner.tenantId || p.tenantId,
+                dateStr,
+            );
+            totalSent += r.sent || 0;
+        } catch (e) {
+            console.warn(`[FleetCron] auto driving report ${p.userId}:`, e.message);
+        }
+    }
+    if (totalSent > 0) console.log(`[FleetCron] Auto driving reports sent: ${totalSent}`);
+}
+
 function start() {
-    // Daily 09:00 Europe/Istanbul (run AFTER accounting cron at same time? safe — different DB rows)
+    // Daily 09:05 Europe/Istanbul — insurance / inspection / maintenance reminders
     cron.schedule('5 9 * * *', () => {
         runFleetReminders().catch((e) => console.error('[FleetCron] error:', e));
     }, { timezone: 'Europe/Istanbul' });
-    console.log('[FleetCron] Partner fleet jobs scheduled (09:05 Europe/Istanbul).');
+
+    // Hourly — auto driving report emails at partner-configured hour
+    cron.schedule('0 * * * *', () => {
+        runAutoDrivingReports().catch((e) => console.error('[FleetCron] driving report error:', e));
+    }, { timezone: 'Europe/Istanbul' });
+
+    console.log('[FleetCron] Partner fleet jobs scheduled (09:05 reminders + hourly driving reports).');
 }
 
-module.exports = { start, runFleetReminders };
+module.exports = { start, runFleetReminders, runAutoDrivingReports };
