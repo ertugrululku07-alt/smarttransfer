@@ -17,6 +17,15 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs-extra');
 const crypto = require('crypto');
+const {
+    isInsideGeofence,
+    geofenceAppliesToVehicle,
+    shouldAlert,
+    analyzeDrivingTelemetry,
+    computeBehaviorScore,
+    gradeFromScore,
+    buildDrivingReportHtml,
+} = require('../services/fleetTelemetryService');
 
 function ensurePartner(req, res) {
     if (req.user?.roleType !== 'PARTNER') {
@@ -1113,6 +1122,16 @@ router.post('/telemetry/ingest', async (req, res) => {
                 },
             });
             inserted++;
+            if (e.lat != null && e.lng != null) {
+                await processGeofenceForPoint(
+                    { tenantId: device.tenantId, partnerId: device.partnerId },
+                    veh.id,
+                    Number(e.lat),
+                    Number(e.lng),
+                    e.speed != null ? Number(e.speed) : null,
+                    e.timestamp ? new Date(e.timestamp) : new Date(),
+                ).catch((err) => console.warn('geofence check error:', err.message));
+            }
             if (e.odometer && (!latestOdometer || Number(e.odometer) > latestOdometer)) latestOdometer = Number(e.odometer);
             // Update vehicle currentKm
             if (e.odometer) {
@@ -1130,6 +1149,64 @@ router.post('/telemetry/ingest', async (req, res) => {
         res.status(500).json({ success: false, error: 'Veri kaydedilemedi' });
     }
 });
+
+async function processGeofenceForPoint(scope, vehicleId, lat, lng, speed, timestamp) {
+    if (lat == null || lng == null) return [];
+    const geofences = await prisma.partnerFleetGeofence.findMany({
+        where: { tenantId: scope.tenantId, partnerId: scope.partnerId, isActive: true },
+    });
+    const violations = [];
+    for (const gf of geofences) {
+        if (!geofenceAppliesToVehicle(gf, vehicleId)) continue;
+        const inside = isInsideGeofence(gf, lat, lng);
+        let state = await prisma.partnerFleetGeofenceState.findUnique({
+            where: { geofenceId_vehicleId: { geofenceId: gf.id, vehicleId } },
+        });
+        if (!state) {
+            state = await prisma.partnerFleetGeofenceState.create({
+                data: {
+                    tenantId: scope.tenantId,
+                    partnerId: scope.partnerId,
+                    geofenceId: gf.id,
+                    vehicleId,
+                    isInside: inside,
+                },
+            });
+            if (inside && shouldAlert(gf, 'ENTER')) {
+                violations.push({ gf, eventType: 'ENTER' });
+            }
+            continue;
+        }
+        if (state.isInside === inside) continue;
+        const eventType = inside ? 'ENTER' : 'EXIT';
+        if (!shouldAlert(gf, eventType)) {
+            await prisma.partnerFleetGeofenceState.update({
+                where: { id: state.id },
+                data: { isInside: inside },
+            });
+            continue;
+        }
+        const v = await prisma.partnerFleetGeofenceViolation.create({
+            data: {
+                tenantId: scope.tenantId,
+                partnerId: scope.partnerId,
+                geofenceId: gf.id,
+                vehicleId,
+                eventType,
+                lat,
+                lng,
+                speed: speed != null ? Number(speed) : null,
+                timestamp: timestamp ? new Date(timestamp) : new Date(),
+            },
+        });
+        await prisma.partnerFleetGeofenceState.update({
+            where: { id: state.id },
+            data: { isInside: inside },
+        });
+        violations.push({ gf, eventType, violation: v });
+    }
+    return violations;
+}
 
 router.get('/telemetry/live', authMiddleware, async (req, res) => {
     const scope = ensurePartner(req, res);
@@ -1182,6 +1259,395 @@ router.get('/telemetry/history', authMiddleware, async (req, res) => {
         res.json({ success: true, data: rows });
     } catch (error) {
         res.status(500).json({ success: false, error: 'Tarihçe alınamadı' });
+    }
+});
+
+// ─────────────────────────────────────────────────────────────────
+// GEOFENCE — Bölge tanımları & ihlaller
+// ─────────────────────────────────────────────────────────────────
+router.get('/geofences', authMiddleware, async (req, res) => {
+    const scope = ensurePartner(req, res);
+    if (!scope) return;
+    try {
+        const rows = await prisma.partnerFleetGeofence.findMany({
+            where: { tenantId: scope.tenantId, partnerId: scope.partnerId },
+            orderBy: { createdAt: 'desc' },
+        });
+        res.json({ success: true, data: rows });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Geofence listesi alınamadı' });
+    }
+});
+
+router.post('/geofences', authMiddleware, async (req, res) => {
+    const scope = ensurePartner(req, res);
+    if (!scope) return;
+    try {
+        const b = req.body || {};
+        if (!b.name || !b.type) return res.status(400).json({ success: false, error: 'Ad ve tip gerekli' });
+        if (b.type === 'CIRCLE' && (b.centerLat == null || b.centerLng == null || !b.radiusM)) {
+            return res.status(400).json({ success: false, error: 'Daire için merkez ve yarıçap gerekli' });
+        }
+        if (b.type === 'POLYGON' && (!Array.isArray(b.polygon) || b.polygon.length < 3)) {
+            return res.status(400).json({ success: false, error: 'Poligon en az 3 nokta içermeli' });
+        }
+        const data = await prisma.partnerFleetGeofence.create({
+            data: {
+                tenantId: scope.tenantId,
+                partnerId: scope.partnerId,
+                name: String(b.name),
+                type: b.type,
+                centerLat: b.centerLat != null ? Number(b.centerLat) : null,
+                centerLng: b.centerLng != null ? Number(b.centerLng) : null,
+                radiusM: b.radiusM != null ? Number(b.radiusM) : null,
+                polygon: b.polygon || null,
+                alertOn: b.alertOn || 'EXIT',
+                vehicleIds: b.vehicleIds || null,
+                color: b.color || '#6366f1',
+                isActive: b.isActive !== false,
+                metadata: b.metadata || null,
+            },
+        });
+        res.json({ success: true, data });
+    } catch (error) {
+        console.error('geofence create error:', error);
+        res.status(500).json({ success: false, error: 'Geofence oluşturulamadı' });
+    }
+});
+
+router.patch('/geofences/:id', authMiddleware, async (req, res) => {
+    const scope = ensurePartner(req, res);
+    if (!scope) return;
+    try {
+        const existing = await prisma.partnerFleetGeofence.findFirst({
+            where: { id: req.params.id, tenantId: scope.tenantId, partnerId: scope.partnerId },
+        });
+        if (!existing) return res.status(404).json({ success: false, error: 'Bulunamadı' });
+        const b = req.body || {};
+        const data = await prisma.partnerFleetGeofence.update({
+            where: { id: existing.id },
+            data: {
+                name: b.name ?? existing.name,
+                type: b.type ?? existing.type,
+                centerLat: b.centerLat != null ? Number(b.centerLat) : existing.centerLat,
+                centerLng: b.centerLng != null ? Number(b.centerLng) : existing.centerLng,
+                radiusM: b.radiusM != null ? Number(b.radiusM) : existing.radiusM,
+                polygon: b.polygon ?? existing.polygon,
+                alertOn: b.alertOn ?? existing.alertOn,
+                vehicleIds: b.vehicleIds ?? existing.vehicleIds,
+                color: b.color ?? existing.color,
+                isActive: b.isActive ?? existing.isActive,
+                metadata: b.metadata ?? existing.metadata,
+            },
+        });
+        res.json({ success: true, data });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Güncellenemedi' });
+    }
+});
+
+router.delete('/geofences/:id', authMiddleware, async (req, res) => {
+    const scope = ensurePartner(req, res);
+    if (!scope) return;
+    try {
+        const existing = await prisma.partnerFleetGeofence.findFirst({
+            where: { id: req.params.id, tenantId: scope.tenantId, partnerId: scope.partnerId },
+        });
+        if (!existing) return res.status(404).json({ success: false, error: 'Bulunamadı' });
+        await prisma.partnerFleetGeofenceViolation.deleteMany({ where: { geofenceId: existing.id } });
+        await prisma.partnerFleetGeofenceState.deleteMany({ where: { geofenceId: existing.id } });
+        await prisma.partnerFleetGeofence.delete({ where: { id: existing.id } });
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Silinemedi' });
+    }
+});
+
+router.get('/geofences/violations', authMiddleware, async (req, res) => {
+    const scope = ensurePartner(req, res);
+    if (!scope) return;
+    try {
+        const { vehicleId, geofenceId, from, to, limit } = req.query;
+        const where = { tenantId: scope.tenantId, partnerId: scope.partnerId };
+        if (vehicleId) where.vehicleId = String(vehicleId);
+        if (geofenceId) where.geofenceId = String(geofenceId);
+        if (from || to) where.timestamp = {};
+        if (from) where.timestamp.gte = new Date(String(from));
+        if (to) where.timestamp.lte = new Date(String(to));
+        const rows = await prisma.partnerFleetGeofenceViolation.findMany({
+            where,
+            orderBy: { timestamp: 'desc' },
+            take: Math.min(500, Number(limit) || 100),
+        });
+        const gfIds = [...new Set(rows.map((r) => r.geofenceId))];
+        const vehIds = [...new Set(rows.map((r) => r.vehicleId))];
+        const [gfs, vehs] = await Promise.all([
+            prisma.partnerFleetGeofence.findMany({ where: { id: { in: gfIds } } }),
+            prisma.vehicle.findMany({ where: { id: { in: vehIds } } }),
+        ]);
+        const gfMap = new Map(gfs.map((g) => [g.id, g]));
+        const vehMap = new Map(vehs.map((v) => [v.id, { plate: v.plateNumber, brand: v.brand, model: v.model }]));
+        res.json({
+            success: true,
+            data: rows.map((r) => ({
+                ...r,
+                geofence: gfMap.get(r.geofenceId) ? { id: r.geofenceId, name: gfMap.get(r.geofenceId).name } : null,
+                vehicle: vehMap.get(r.vehicleId) || null,
+            })),
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'İhlaller alınamadı' });
+    }
+});
+
+router.get('/geofences/summary', authMiddleware, async (req, res) => {
+    const scope = ensurePartner(req, res);
+    if (!scope) return;
+    try {
+        const since = new Date(Date.now() - 7 * 86400000);
+        const [activeCount, recentViolations] = await Promise.all([
+            prisma.partnerFleetGeofence.count({
+                where: { tenantId: scope.tenantId, partnerId: scope.partnerId, isActive: true },
+            }),
+            prisma.partnerFleetGeofenceViolation.count({
+                where: { tenantId: scope.tenantId, partnerId: scope.partnerId, timestamp: { gte: since } },
+            }),
+        ]);
+        res.json({ success: true, data: { activeCount, recentViolations } });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Özet alınamadı' });
+    }
+});
+
+// ─────────────────────────────────────────────────────────────────
+// DRIVING REPORT — Günlük sürüş raporu + PDF
+// ─────────────────────────────────────────────────────────────────
+async function buildDrivingReport(scope, vehicleId, dateStr, speedLimit) {
+    const veh = await ensureVehicleOwnership(scope, vehicleId);
+    if (!veh) return null;
+    const day = dateStr ? new Date(String(dateStr)) : new Date();
+    const start = new Date(day);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(day);
+    end.setHours(23, 59, 59, 999);
+
+    const [telemetry, fuelEntries] = await Promise.all([
+        prisma.partnerVehicleTelemetry.findMany({
+            where: {
+                tenantId: scope.tenantId,
+                partnerId: scope.partnerId,
+                vehicleId: veh.id,
+                timestamp: { gte: start, lte: end },
+            },
+            orderBy: { timestamp: 'asc' },
+        }),
+        prisma.partnerVehicleFuelEntry.findMany({
+            where: {
+                tenantId: scope.tenantId,
+                partnerId: scope.partnerId,
+                vehicleId: veh.id,
+                date: { gte: start, lte: end },
+            },
+        }),
+    ]);
+
+    const report = analyzeDrivingTelemetry(telemetry, { speedLimit: speedLimit || 120 });
+    report.fuelLiters = fuelEntries.reduce((s, f) => s + Number(f.liters || 0), 0);
+    report.fuelTotal = fuelEntries.reduce((s, f) => s + Number(f.total || 0), 0);
+    report.fuelCount = fuelEntries.length;
+    report.grade = gradeFromScore(report.score);
+    report.date = start.toISOString().slice(0, 10);
+
+    return {
+        vehicle: { id: veh.id, plate: veh.plateNumber, brand: veh.brand, model: veh.model },
+        report,
+    };
+}
+
+router.get('/driving-report', authMiddleware, async (req, res) => {
+    const scope = ensurePartner(req, res);
+    if (!scope) return;
+    try {
+        const { vehicleId, date, speedLimit } = req.query;
+        if (!vehicleId) return res.status(400).json({ success: false, error: 'vehicleId gerekli' });
+        const result = await buildDrivingReport(scope, String(vehicleId), date, Number(speedLimit) || 120);
+        if (!result) return res.status(404).json({ success: false, error: 'Araç bulunamadı' });
+        res.json({ success: true, data: result });
+    } catch (error) {
+        console.error('driving report error:', error);
+        res.status(500).json({ success: false, error: 'Rapor üretilemedi' });
+    }
+});
+
+router.get('/driving-report/pdf', authMiddleware, async (req, res) => {
+    const scope = ensurePartner(req, res);
+    if (!scope) return;
+    try {
+        const { vehicleId, date, speedLimit } = req.query;
+        if (!vehicleId) return res.status(400).send('vehicleId gerekli');
+        const result = await buildDrivingReport(scope, String(vehicleId), date, Number(speedLimit) || 120);
+        if (!result) return res.status(404).send('Araç bulunamadı');
+        const [profile, partner] = await Promise.all([
+            prisma.partnerProfile.findUnique({ where: { userId: scope.partnerId } }),
+            prisma.user.findUnique({ where: { id: scope.partnerId } }),
+        ]);
+        const dateLabel = result.report.date
+            ? new Date(result.report.date).toLocaleDateString('tr-TR')
+            : new Date().toLocaleDateString('tr-TR');
+        const html = buildDrivingReportHtml({
+            report: result.report,
+            vehicle: result.vehicle,
+            partner,
+            profile,
+            dateLabel,
+        });
+        res.set('Content-Type', 'text/html; charset=utf-8');
+        res.send(html);
+    } catch (error) {
+        console.error('driving report pdf error:', error);
+        res.status(500).send('Hata');
+    }
+});
+
+// ─────────────────────────────────────────────────────────────────
+// DRIVER BEHAVIOR — Sürücü davranış skoru
+// ─────────────────────────────────────────────────────────────────
+router.get('/driver-behavior', authMiddleware, async (req, res) => {
+    const scope = ensurePartner(req, res);
+    if (!scope) return;
+    try {
+        const days = Math.max(1, Math.min(90, Number(req.query.days) || 30));
+        const speedLimit = Number(req.query.speedLimit) || 120;
+        const since = new Date(Date.now() - days * 86400000);
+
+        const rows = await prisma.partnerVehicleTelemetry.findMany({
+            where: {
+                tenantId: scope.tenantId,
+                partnerId: scope.partnerId,
+                timestamp: { gte: since },
+            },
+            orderBy: { timestamp: 'asc' },
+        });
+
+        const vehicles = await prisma.vehicle.findMany({
+            where: { ownerId: scope.partnerId, tenantId: scope.tenantId },
+        });
+        const vehMap = new Map(vehicles.map((v) => [v.id, { plate: v.plateNumber, brand: v.brand, model: v.model }]));
+
+        const byVehicle = new Map();
+        for (const r of rows) {
+            if (!byVehicle.has(r.vehicleId)) byVehicle.set(r.vehicleId, []);
+            byVehicle.get(r.vehicleId).push(r);
+        }
+
+        const vehicleScores = [];
+        for (const [vehicleId, pts] of byVehicle.entries()) {
+            const analysis = analyzeDrivingTelemetry(pts, { speedLimit });
+            vehicleScores.push({
+                vehicleId,
+                vehicle: vehMap.get(vehicleId) || null,
+                ...analysis,
+                grade: gradeFromScore(analysis.score),
+            });
+        }
+        vehicleScores.sort((a, b) => b.score - a.score);
+
+        const byDriver = new Map();
+        for (const r of rows) {
+            const key = r.driverId || `veh:${r.vehicleId}`;
+            if (!byDriver.has(key)) byDriver.set(key, []);
+            byDriver.get(key).push(r);
+        }
+
+        const driverIds = [...new Set(rows.filter((r) => r.driverId).map((r) => r.driverId))];
+        const drivers = driverIds.length
+            ? await prisma.user.findMany({ where: { id: { in: driverIds } }, select: { id: true, firstName: true, lastName: true, phone: true } })
+            : [];
+        const driverMap = new Map(drivers.map((d) => [d.id, d]));
+
+        const driverScores = [];
+        for (const [key, pts] of byDriver.entries()) {
+            const analysis = analyzeDrivingTelemetry(pts, { speedLimit });
+            const isDriver = !String(key).startsWith('veh:');
+            driverScores.push({
+                driverId: isDriver ? key : null,
+                driver: isDriver ? driverMap.get(key) || null : null,
+                vehicleId: isDriver ? null : String(key).replace('veh:', ''),
+                vehicle: isDriver ? null : vehMap.get(String(key).replace('veh:', '')) || null,
+                label: isDriver
+                    ? `${driverMap.get(key)?.firstName || ''} ${driverMap.get(key)?.lastName || ''}`.trim() || key
+                    : `Araç · ${vehMap.get(String(key).replace('veh:', ''))?.plate || key}`,
+                ...analysis,
+                grade: gradeFromScore(analysis.score),
+            });
+        }
+        driverScores.sort((a, b) => b.score - a.score);
+
+        const fleetScore = vehicleScores.length
+            ? Math.round(vehicleScores.reduce((s, v) => s + v.score, 0) / vehicleScores.length)
+            : 100;
+
+        res.json({
+            success: true,
+            data: {
+                period: { days, since, speedLimit },
+                fleetScore,
+                fleetGrade: gradeFromScore(fleetScore),
+                vehicleScores,
+                driverScores,
+            },
+        });
+    } catch (error) {
+        console.error('driver behavior error:', error);
+        res.status(500).json({ success: false, error: 'Davranış analizi üretilemedi' });
+    }
+});
+
+router.get('/telemetry/map-data', authMiddleware, async (req, res) => {
+    const scope = ensurePartner(req, res);
+    if (!scope) return;
+    try {
+        const [liveRes, geofences] = await Promise.all([
+            prisma.partnerVehicleTelemetry.findMany({
+                where: {
+                    tenantId: scope.tenantId,
+                    partnerId: scope.partnerId,
+                    timestamp: { gte: new Date(Date.now() - 24 * 3600 * 1000) },
+                },
+                orderBy: { timestamp: 'desc' },
+            }),
+            prisma.partnerFleetGeofence.findMany({
+                where: { tenantId: scope.tenantId, partnerId: scope.partnerId, isActive: true },
+            }),
+        ]);
+        const lastByVehicle = new Map();
+        for (const r of liveRes) {
+            if (!lastByVehicle.has(r.vehicleId)) lastByVehicle.set(r.vehicleId, r);
+        }
+        const vehicles = await prisma.vehicle.findMany({
+            where: { ownerId: scope.partnerId, tenantId: scope.tenantId },
+        });
+        const markers = vehicles.map((v) => {
+            const t = lastByVehicle.get(v.id);
+            const mins = t ? Math.floor((Date.now() - new Date(t.timestamp).getTime()) / 60000) : null;
+            return {
+                id: v.id,
+                plate: v.plateNumber,
+                brand: v.brand,
+                model: v.model,
+                status: !t ? 'offline' : mins < 5 ? 'live' : mins < 60 ? 'recent' : 'offline',
+                lat: t?.lat,
+                lng: t?.lng,
+                speed: t?.speed,
+                heading: t?.heading,
+                timestamp: t?.timestamp,
+                minutesAgo: mins,
+            };
+        }).filter((m) => m.lat != null && m.lng != null);
+
+        res.json({ success: true, data: { markers, geofences } });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Harita verisi alınamadı' });
     }
 });
 

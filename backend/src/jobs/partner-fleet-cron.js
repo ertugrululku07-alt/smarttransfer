@@ -234,6 +234,51 @@ async function runFleetReminders() {
             console.error(`[FleetCron] partner ${partnerId} dispatch error:`, e.message);
         }
     }
+
+    // Geofence violations — notify unnotified events from last 24h
+    const since24h = new Date(now.getTime() - 24 * 3600 * 1000);
+    const geoViolations = await prisma.partnerFleetGeofenceViolation.findMany({
+        where: { timestamp: { gte: since24h }, notifiedAt: null },
+        orderBy: { timestamp: 'desc' },
+        take: 200,
+    });
+    if (geoViolations.length) {
+        const gfIds = [...new Set(geoViolations.map((v) => v.geofenceId))];
+        const vehIds = [...new Set(geoViolations.map((v) => v.vehicleId))];
+        const [gfs, vehs] = await Promise.all([
+            prisma.partnerFleetGeofence.findMany({ where: { id: { in: gfIds } } }),
+            prisma.vehicle.findMany({ where: { id: { in: vehIds } } }),
+        ]);
+        const gfMap = new Map(gfs.map((g) => [g.id, g]));
+        const vehMap2 = new Map(vehs.map((v) => [v.id, v.plateNumber]));
+        const geoByPartner = new Map();
+        for (const v of geoViolations) {
+            if (!geoByPartner.has(v.partnerId)) geoByPartner.set(v.partnerId, []);
+            const gf = gfMap.get(v.geofenceId);
+            geoByPartner.get(v.partnerId).push({
+                icon: v.eventType === 'EXIT' ? '🚨' : '📍',
+                title: 'Geofence İhlali',
+                vehicleLabel: vehMap2.get(v.vehicleId) || v.vehicleId,
+                message: `${gf?.name || 'Bölge'} · ${v.eventType === 'EXIT' ? 'ÇIKIŞ' : 'GİRİŞ'} · ${new Date(v.timestamp).toLocaleString('tr-TR')}`,
+                violationId: v.id,
+            });
+        }
+        for (const [partnerId, alerts] of geoByPartner.entries()) {
+            try {
+                const n = await dispatchPartnerAlerts(partnerId, alerts);
+                if (n > 0) {
+                    await prisma.partnerFleetGeofenceViolation.updateMany({
+                        where: { id: { in: alerts.map((a) => a.violationId) } },
+                        data: { notifiedAt: now },
+                    });
+                    totalSent += n;
+                }
+            } catch (e) {
+                console.warn(`[FleetCron] geofence notify ${partnerId}:`, e.message);
+            }
+        }
+    }
+
     console.log(`[FleetCron] Done. Channels sent: ${totalSent} across ${byPartner.size} partners.`);
 }
 

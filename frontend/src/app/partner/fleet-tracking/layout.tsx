@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 import { Badge } from 'antd';
 import {
   AppstoreOutlined, SafetyOutlined, FireOutlined, AuditOutlined, ToolOutlined, CarOutlined,
-  BarChartOutlined, AimOutlined,
+  BarChartOutlined, AimOutlined, BorderOutlined, FileTextOutlined, TrophyOutlined,
 } from '@ant-design/icons';
 import apiClient from '@/lib/api-client';
 
@@ -17,22 +17,32 @@ const NAV = [
   { key: 'inspection', label: 'Araç Muayene',  href: '/partner/fleet-tracking/inspection',  icon: <AuditOutlined />,    alertKey: 'inspection' },
   { key: 'maintenance',label: 'Bakım & Onarım', href: '/partner/fleet-tracking/maintenance', icon: <ToolOutlined />,    alertKey: 'maintenance' },
   { key: 'live',       label: 'Canlı Takip (GPS)', href: '/partner/fleet-tracking/live',     icon: <AimOutlined />,      alertKey: null },
+  { key: 'geofences',  label: 'Geofence Alarmları', href: '/partner/fleet-tracking/geofences', icon: <BorderOutlined />,  alertKey: 'geofence' },
+  { key: 'reports',    label: 'Sürüş Raporları',    href: '/partner/fleet-tracking/reports',   icon: <FileTextOutlined />, alertKey: null },
+  { key: 'behavior',   label: 'Davranış Skoru',     href: '/partner/fleet-tracking/behavior',  icon: <TrophyOutlined />,   alertKey: null },
   { key: 'analytics',  label: 'Maliyet Analizi',  href: '/partner/fleet-tracking/analytics', icon: <BarChartOutlined />, alertKey: null },
 ];
 
 export default function FleetTrackingLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() || '';
-  const [alerts, setAlerts] = useState<{ insurance: number; inspection: number; maintenance: number }>({ insurance: 0, inspection: 0, maintenance: 0 });
+  const [alerts, setAlerts] = useState<{ insurance: number; inspection: number; maintenance: number; geofence: number }>({ insurance: 0, inspection: 0, maintenance: 0, geofence: 0 });
 
   useEffect(() => {
-    apiClient.get('/api/partner-fleet/dashboard').then((r) => {
-      if (r.data?.success) {
-        const k = r.data.data.kpis;
-        setAlerts({
+    Promise.all([
+      apiClient.get('/api/partner-fleet/dashboard'),
+      apiClient.get('/api/partner-fleet/geofences/summary'),
+    ]).then(([dash, geo]) => {
+      if (dash.data?.success) {
+        const k = dash.data.data.kpis;
+        setAlerts((prev) => ({
+          ...prev,
           insurance: (k.insurancesExpiringSoonCount || 0) + (k.insurancesExpiredCount || 0),
           inspection: (k.inspectionsExpiringSoonCount || 0) + (k.inspectionsExpiredCount || 0),
           maintenance: (k.upcomingMaintenanceCount || 0) + (k.kmOverdueCount || 0),
-        });
+        }));
+      }
+      if (geo.data?.success) {
+        setAlerts((prev) => ({ ...prev, geofence: geo.data.data.recentViolations || 0 }));
       }
     }).catch(() => {});
   }, [pathname]);

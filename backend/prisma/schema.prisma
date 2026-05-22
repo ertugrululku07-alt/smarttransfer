@@ -3216,6 +3216,71 @@ model PartnerDeviceKey {
   @@index([tenantId, partnerId])
 }
 
+enum PartnerGeofenceType {
+  CIRCLE
+  POLYGON
+}
+
+enum PartnerGeofenceAlert {
+  ENTER
+  EXIT
+  BOTH
+}
+
+model PartnerFleetGeofence {
+  id         String               @id @default(uuid())
+  tenantId   String
+  partnerId  String
+  name       String
+  type       PartnerGeofenceType
+  centerLat  Float?
+  centerLng  Float?
+  radiusM    Int?
+  polygon    Json?
+  alertOn    PartnerGeofenceAlert   @default(EXIT)
+  vehicleIds Json?
+  color      String?
+  isActive   Boolean              @default(true)
+  metadata   Json?
+  createdAt  DateTime             @default(now())
+  updatedAt  DateTime             @updatedAt
+
+  @@index([tenantId, partnerId])
+  @@index([partnerId, isActive])
+}
+
+model PartnerFleetGeofenceState {
+  id         String   @id @default(uuid())
+  tenantId   String
+  partnerId  String
+  geofenceId String
+  vehicleId  String
+  isInside   Boolean  @default(false)
+  updatedAt  DateTime @updatedAt
+
+  @@unique([geofenceId, vehicleId])
+  @@index([tenantId, partnerId])
+}
+
+model PartnerFleetGeofenceViolation {
+  id         String   @id @default(uuid())
+  tenantId   String
+  partnerId  String
+  geofenceId String
+  vehicleId  String
+  eventType  String
+  lat        Float?
+  lng        Float?
+  speed      Float?
+  timestamp  DateTime @default(now())
+  notifiedAt DateTime?
+  metadata   Json?
+
+  @@index([tenantId, partnerId, timestamp])
+  @@index([geofenceId, vehicleId])
+  @@index([partnerId, vehicleId, timestamp])
+}
+
 model PartnerDriverCollection {
   id          String                         @id @default(uuid())
   tenantId    String
