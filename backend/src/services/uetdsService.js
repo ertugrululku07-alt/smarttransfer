@@ -280,6 +280,8 @@ async function personelEkle(credentials, uetdsSeferId, personel) {
  *  a 'BASARILI' or auth-specific error reveals credential validity)
  */
 async function testCredentials(credentials) {
+    console.log(`[UETDS SOAP] testCredentials: username=${credentials.username}, serviceUrl=${credentials.serviceUrl || DEFAULT_SERVICE_URL}`);
+    
     const bodyXml = `
         <uet:seferEkle>
             <uet:wsuser>
@@ -297,26 +299,36 @@ async function testCredentials(credentials) {
     const envelope = buildSoapEnvelope(credentials.username, credentials.password, bodyXml);
     const result = await callSoap(credentials.serviceUrl, 'seferEkle', envelope);
 
+    console.log(`[UETDS SOAP] testCredentials response: status=${result.status}, success=${result.success}, error=${result.error || 'none'}`);
+    if (result.data) {
+        const rawStr = typeof result.data === 'string' ? result.data.substring(0, 500) : JSON.stringify(result.data).substring(0, 500);
+        console.log(`[UETDS SOAP] testCredentials response body (first 500 chars): ${rawStr}`);
+    }
+
     // Check for auth failures
     const raw = typeof result.data === 'string' ? result.data : '';
     const isAuthError = raw.includes('Authentication') || raw.includes('Unauthorized') ||
-        raw.includes('InvalidSecurity') || raw.includes('Kimlik doğrulama');
+        raw.includes('InvalidSecurity') || raw.includes('Kimlik doğrulama') ||
+        raw.includes('InvalidSecurityToken') || raw.includes('FailedAuthentication') ||
+        raw.includes('Security header') || raw.includes('wsse:FailedCheck');
 
     if (isAuthError) {
         return { success: false, error: 'Kullanıcı adı veya şifre hatalı' };
     }
 
-    // If we get a field validation error, auth passed!
+    // If we get a field validation error or any non-auth SOAP response, auth passed!
     const isValidationError = raw.includes('zorunlu') || raw.includes('hatalı') ||
-        raw.includes('plaka') || raw.includes('BASARISIZ') || raw.includes('Fault');
+        raw.includes('plaka') || raw.includes('BASARISIZ') || raw.includes('Fault') ||
+        raw.includes('sonucKodu') || raw.includes('sonucMesaji') || raw.includes('Envelope');
 
     if (result.success || isValidationError) {
         return { success: true, message: 'Bağlantı başarılı — kimlik doğrulandı' };
     }
 
+    // Connection error (network, timeout, etc.)
     return {
         success: false,
-        error: extractSoapFault(result.data) || result.error || 'Bağlantı kurulamadı',
+        error: extractSoapFault(result.data) || result.error || 'Bağlantı kurulamadı — Sunucu yanıt vermedi',
     };
 }
 

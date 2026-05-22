@@ -148,7 +148,7 @@ export default function DefinitionsPage() {
     // UETDS Settings
     const [uetdsSettings, setUetdsSettings] = useState<{
         enabled: boolean;
-        provider: 'OFFICIAL' | 'UETDS_NET';
+        provider: 'OFFICIAL' | 'UETDS_NET' | 'TURKIYE_GOV';
         username: string;
         password: string;
         firmaKodu: string;
@@ -1299,6 +1299,7 @@ export default function DefinitionsPage() {
                                         options={[
                                             { value: 'OFFICIAL', label: '🏛️ U-NET Resmi API' },
                                             { value: 'UETDS_NET', label: '⚡ UETDS.net (3. Parti)' },
+                                            { value: 'TURKIYE_GOV', label: '🇹🇷 T.C. Resmi UETDS (servis.turkiye.gov.tr)' },
                                         ]}
                                     />
                                 </div>

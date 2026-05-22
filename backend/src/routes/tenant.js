@@ -268,10 +268,19 @@ router.post('/test-uetds', authMiddleware, async (req, res) => {
         let result;
         if (provider === 'UETDS_NET') {
             const uetdsRestService = require('../services/uetdsRestService');
-            // If environment is 'test', we might want to use a specific test token or URL, 
-            // but the api.uetds.net docs say just use 'demo' credentials.
             result = await uetdsRestService.testCredentials({
                 firmaKodu, username, password
+            });
+        } else if (provider === 'TURKIYE_GOV') {
+            const uetdsService = require('../services/uetdsService');
+            // Official T.C. UETDS SOAP service at servis.turkiye.gov.tr
+            // Tarifesiz Yolcu (uetdsarizi) = Unscheduled/Vehicle-assigned transport (D2 belgesi)
+            const serviceUrl = environment === 'production'
+                ? 'https://servis.turkiye.gov.tr/services/g2g/kdgm/uetdsarizi'
+                : 'https://servis.turkiye.gov.tr/services/g2g/kdgm/test/uetdsarizi';
+            console.log(`[UETDS TURKIYE_GOV] Testing credentials: username=${username}, env=${environment}, url=${serviceUrl}`);
+            result = await uetdsService.testCredentials({
+                username, password, yetkiBelgeNo: '', serviceUrl
             });
         } else {
             const uetdsService = require('../services/uetdsService');
@@ -329,12 +338,19 @@ router.post('/uetds-submit', authMiddleware, async (req, res) => {
         if (!booking) return res.status(404).json({ success: false, error: 'Rezervasyon bulunamadı' });
 
         const provider = uetdsSettings.provider || 'OFFICIAL';
+        const env = uetdsSettings.environment || 'production';
+        let serviceUrl = null;
+        if (provider === 'TURKIYE_GOV') {
+            serviceUrl = env === 'production'
+                ? 'https://servis.turkiye.gov.tr/services/g2g/kdgm/uetdsarizi'
+                : 'https://servis.turkiye.gov.tr/services/g2g/kdgm/test/uetdsarizi';
+        }
         const credentials = {
             username: uetdsSettings.username,
             password: uetdsSettings.password,
             firmaKodu: uetdsSettings.firmaKodu,
             yetkiBelgeNo: uetdsSettings.yetkiBelgesiNo || uetdsSettings.firmaKodu,
-            serviceUrl: null
+            serviceUrl
         };
 
         const meta = booking.metadata || {};

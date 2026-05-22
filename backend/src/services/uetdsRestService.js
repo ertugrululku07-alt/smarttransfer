@@ -41,10 +41,12 @@ class UetdsRestService {
      * Returns a 15-character token or throws an error.
      */
     async giris({ kod, email, parola }) {
+        console.log(`[UETDS.net] giris attempt: kod=${kod}, email=${email}, parola=${parola ? '***' : 'EMPTY'}`);
         const responseText = await this._post('/giris', { kod, email, parola });
+        console.log(`[UETDS.net] giris response: "${responseText}" (length=${String(responseText).trim().length})`);
         const token = String(responseText).trim();
         if (token.length !== 15) {
-            throw new Error('Geçersiz kullanıcı bilgileri veya hatalı yanıt (Jeton alınamadı).');
+            throw new Error(`Geçersiz kullanıcı bilgileri veya hatalı yanıt (Jeton alınamadı). API yanıtı: "${token}"`);
         }
         return token;
     }
