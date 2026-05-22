@@ -11,13 +11,54 @@ const router = express.Router();
 /**
  * POST /api/payment/init
  * Initialize a payment transaction
+ * Supports both authenticated (booking page) and retry (fail page) flows
  */
-router.post('/init', authMiddleware, async (req, res) => {
+router.post('/init', async (req, res) => {
+    // Optional auth: try to extract user from token if present
     try {
-        const { amount, currency, provider, user, basket, orderId } = req.body;
+        const token = req.headers.authorization?.split(' ')[1];
+        if (token) {
+            const jwt = require('jsonwebtoken');
+            const decoded = jwt.verify(token, process.env.JWT_SECRET || 'smarttransfer_secret_key');
+            req.user = decoded;
+        }
+    } catch { /* no auth — continue as guest */ }
 
-        // Validation
-        if (!amount) return res.status(400).json({ error: 'Tutar zorunludur' });
+    try {
+        let { amount, currency, provider, user, basket, orderId } = req.body;
+
+        // Determine tenantId from auth or from booking lookup
+        let tenantId = req.user?.tenantId;
+
+        // Retry flow: look up booking to get amount and tenantId
+        if ((!amount || amount === 0) && orderId) {
+            const booking = await prisma.booking.findUnique({
+                where: { bookingNumber: orderId }
+            });
+            if (!booking) return res.status(404).json({ success: false, error: 'Rezervasyon bulunamadı' });
+            amount = parseFloat(booking.total);
+            currency = currency || booking.currency || 'TRY';
+            tenantId = booking.tenantId;
+            if (!user) {
+                user = {
+                    email: booking.contactEmail || 'guest@example.com',
+                    name: booking.contactName || 'Müşteri',
+                    phone: booking.contactPhone || '',
+                    address: 'Transfer Rezervasyonu'
+                };
+            }
+            if (!basket || basket.length === 0 || (basket[0] && basket[0].price === 0)) {
+                basket = [{ name: 'Transfer Hizmeti', price: amount, category: 'Transfer' }];
+            }
+        }
+
+        if (!tenantId) {
+            // Try from tenant middleware (public routes)
+            tenantId = req.tenant?.id;
+        }
+
+        if (!tenantId) return res.status(400).json({ success: false, error: 'Tenant belirlenemedi' });
+        if (!amount) return res.status(400).json({ success: false, error: 'Tutar zorunludur' });
 
         // Prepare params
         const paymentParams = {
@@ -25,19 +66,19 @@ router.post('/init', authMiddleware, async (req, res) => {
             currency: currency || 'TRY',
             provider, // optional
             orderId: orderId || `ORD-${Date.now()}`,
-            userIp: req.headers['x-forwarded-for'] || req.connection.remoteAddress,
+            userIp: req.headers['x-forwarded-for'] || req.connection?.remoteAddress,
             user: user || {
-                email: req.user.email,
-                name: req.user.name || 'Test User',
-                phone: req.user.phone,
-                address: 'Test Adres'
+                email: req.user?.email || 'guest@example.com',
+                name: req.user?.name || 'Müşteri',
+                phone: req.user?.phone,
+                address: 'Transfer Rezervasyonu'
             },
             basket: basket || [
-                { name: 'Test Ürün', price: amount, category: 'General' }
+                { name: 'Transfer Hizmeti', price: amount, category: 'Transfer' }
             ]
         };
 
-        const result = await PaymentService.initializePayment(req.user.tenantId, paymentParams);
+        const result = await PaymentService.initializePayment(tenantId, paymentParams);
 
         if (result.success) {
             res.json({
@@ -351,7 +392,7 @@ router.post('/callback/nestpay', async (req, res) => {
                 }
             });
 
-            return res.redirect(failRedirect + `?error=${encodeURIComponent(errorMsg)}`);
+            return res.redirect(failRedirect + `?error=${encodeURIComponent(errorMsg)}&oid=${encodeURIComponent(bookingNumber)}`);
         }
     } catch (err) {
         console.error('[NestPay Callback] Exception:', err);

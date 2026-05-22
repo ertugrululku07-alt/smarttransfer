@@ -89,6 +89,64 @@ router.get('/settings', async (req, res) => {
 
 
 /**
+ * GET /api/tenant/payment-methods
+ * Public endpoint — returns which payment methods are available for the booking page
+ * No auth required. Returns only non-sensitive info.
+ */
+router.get('/payment-methods', async (req, res) => {
+    try {
+        const tenant = await prisma.tenant.findUnique({
+            where: { id: req.tenant.id },
+            select: { paymentProviders: true }
+        });
+
+        const providers = tenant?.paymentProviders || {};
+
+        // Check if any online credit card provider is enabled
+        const paytrEnabled = providers.paytr?.enabled === true;
+        const iyzicoEnabled = providers.iyzico?.enabled === true;
+        const banks = providers.banks || {};
+        const bankPosEnabled = Object.values(banks).some((b) => b.enabled === true);
+        const onlineCreditCard = paytrEnabled || iyzicoEnabled || bankPosEnabled;
+
+        // Get bank accounts for Havale/EFT
+        const bankAccounts = await prisma.bank.findMany({
+            where: { tenantId: req.tenant.id, status: true },
+            include: {
+                accounts: {
+                    select: {
+                        id: true,
+                        accountName: true,
+                        iban: true,
+                        currency: true,
+                        branchName: true,
+                    }
+                }
+            }
+        });
+
+        const hasBankAccounts = bankAccounts.some(b => b.accounts.length > 0);
+
+        res.json({
+            success: true,
+            data: {
+                cashEnabled: true, // Always available
+                bankTransferEnabled: hasBankAccounts,
+                onlineCreditCardEnabled: onlineCreditCard,
+                bankAccounts: hasBankAccounts ? bankAccounts.map(b => ({
+                    bankName: b.name,
+                    bankCode: b.code,
+                    accounts: b.accounts
+                })) : [],
+            }
+        });
+    } catch (error) {
+        console.error('Get payment methods error:', error);
+        res.status(500).json({ success: false, error: 'Ödeme yöntemleri alınamadı' });
+    }
+});
+
+/**
  * PUT /api/tenant/settings
  * Update tenant settings (Admin only)
  */

@@ -107,6 +107,21 @@ const TransferBookingContent: React.FC = () => {
     const [bookingSuccess, setBookingSuccess] = useState(false);
     const [bookingNumber, setBookingNumber] = useState<string | null>(null);
 
+    // Payment methods availability
+    const [paymentMethods, setPaymentMethods] = useState<{
+        cashEnabled: boolean;
+        bankTransferEnabled: boolean;
+        onlineCreditCardEnabled: boolean;
+        bankAccounts: Array<{ bankName: string; bankCode: string; accounts: Array<{ id: string; accountName: string; iban: string; currency: string; branchName: string }> }>;
+    }>({ cashEnabled: true, bankTransferEnabled: false, onlineCreditCardEnabled: false, bankAccounts: [] });
+
+    // Payment flow state
+    const [paymentHtml, setPaymentHtml] = useState<string | null>(null);
+    const [paymentFailed, setPaymentFailed] = useState(false);
+    const [paymentError, setPaymentError] = useState('');
+    const [pendingBookingNumber, setPendingBookingNumber] = useState<string | null>(null);
+    const [paymentMethod, setPaymentMethod] = useState<string>('cash');
+
     // Coupon
     const [couponCode, setCouponCode] = useState('');
     const [couponResult, setCouponResult] = useState<{ discount: number; name: string; code: string; newTotal: number; campaignId: string } | null>(null);
@@ -172,6 +187,18 @@ const TransferBookingContent: React.FC = () => {
     const handleDistanceCalculated = (distance: string, duration: string) => {
         setTripStats({ distance, duration });
     };
+
+    // Fetch available payment methods
+    useEffect(() => {
+        (async () => {
+            try {
+                const res = await apiClient.get('/api/tenant/payment-methods');
+                if (res.data.success) {
+                    setPaymentMethods(res.data.data);
+                }
+            } catch { /* silently fail — defaults are safe */ }
+        })();
+    }, []);
 
     useEffect(() => {
         if (!vehicleId) {
@@ -618,9 +645,49 @@ const TransferBookingContent: React.FC = () => {
             const res = await apiClient.post('/api/transfer/book', payload);
 
             if (res.data.success) {
-                setBookingSuccess(true);
-                setBookingNumber(res.data.data.bookingNumber);
-                message.success('Rezervasyonunuz başarıyla oluşturuldu!');
+                const bNumber = res.data.data.bookingNumber;
+                setBookingNumber(bNumber);
+
+                if (resolvedPaymentMethod === 'CREDIT_CARD') {
+                    // Initiate online payment
+                    setPendingBookingNumber(bNumber);
+                    try {
+                        const payRes = await apiClient.post('/api/payment/init', {
+                            amount: couponResult ? grandTotal - couponResult.discount : grandTotal,
+                            currency: selectedCurrency,
+                            orderId: bNumber,
+                            user: {
+                                email: values.email,
+                                name: values.fullName,
+                                phone: `${values.prefix || '+90'} ${values.phone}`,
+                                address: 'Transfer Rezervasyonu'
+                            },
+                            basket: [{ name: 'Transfer Hizmeti', price: couponResult ? grandTotal - couponResult.discount : grandTotal, category: 'Transfer' }]
+                        });
+
+                        if (payRes.data.success && payRes.data.data.html) {
+                            if (payRes.data.data.redirectForm) {
+                                // NestPay 3D: full page redirect
+                                const w = window.open('', '_self');
+                                if (w) w.document.write(payRes.data.data.html);
+                            } else {
+                                // PayTR/iyzico: iframe
+                                setPaymentHtml(payRes.data.data.html);
+                            }
+                        } else {
+                            setPaymentFailed(true);
+                            setPaymentError(payRes.data.error || 'Ödeme başlatılamadı');
+                        }
+                    } catch (payErr: any) {
+                        setPaymentFailed(true);
+                        setPaymentError(payErr.response?.data?.error || 'Ödeme sistemi hatası');
+                    }
+                } else {
+                    // cash or bank_transfer — show success directly
+                    setPaymentMethod(resolvedPaymentMethod);
+                    setBookingSuccess(true);
+                    message.success('Rezervasyonunuz başarıyla oluşturuldu!');
+                }
                 window.scrollTo(0, 0);
             }
         } catch (err: any) {
@@ -631,6 +698,111 @@ const TransferBookingContent: React.FC = () => {
         }
     };
 
+    // Retry payment for failed credit card payments
+    const retryPayment = async () => {
+        if (!pendingBookingNumber) return;
+        setLoading(true);
+        setPaymentFailed(false);
+        setPaymentError('');
+        try {
+            const values = form.getFieldsValue();
+            const payRes = await apiClient.post('/api/payment/init', {
+                amount: couponResult ? grandTotal - couponResult.discount : grandTotal,
+                currency: selectedCurrency,
+                orderId: pendingBookingNumber,
+                user: {
+                    email: values.email,
+                    name: values.fullName,
+                    phone: `${values.prefix || '+90'} ${values.phone}`,
+                    address: 'Transfer Rezervasyonu'
+                },
+                basket: [{ name: 'Transfer Hizmeti', price: couponResult ? grandTotal - couponResult.discount : grandTotal, category: 'Transfer' }]
+            });
+
+            if (payRes.data.success && payRes.data.data.html) {
+                if (payRes.data.data.redirectForm) {
+                    const w = window.open('', '_self');
+                    if (w) w.document.write(payRes.data.data.html);
+                } else {
+                    setPaymentHtml(payRes.data.data.html);
+                }
+            } else {
+                setPaymentFailed(true);
+                setPaymentError(payRes.data.error || 'Ödeme başlatılamadı');
+            }
+        } catch (err: any) {
+            setPaymentFailed(true);
+            setPaymentError(err.response?.data?.error || 'Ödeme sistemi hatası');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+
+    // ── Payment iframe view (PayTR/iyzico) ──
+    if (paymentHtml && !paymentFailed) {
+        return (
+            <Layout style={{ minHeight: '100vh', background: '#fff' }}>
+                <TopBar />
+                <Content style={{ padding: '24px', maxWidth: 800, margin: '0 auto' }}>
+                    <Card style={{ borderRadius: 12 }}>
+                        <Title level={4} style={{ marginBottom: 16, textAlign: 'center' }}>
+                            <CreditCardOutlined style={{ marginRight: 8 }} />
+                            Online Ödeme
+                        </Title>
+                        <Text type="secondary" style={{ display: 'block', textAlign: 'center', marginBottom: 16 }}>
+                            Rezervasyon No: {bookingNumber}
+                        </Text>
+                        <div dangerouslySetInnerHTML={{ __html: paymentHtml }} />
+                    </Card>
+                </Content>
+            </Layout>
+        );
+    }
+
+    // ── Payment failed view with retry ──
+    if (paymentFailed) {
+        return (
+            <Layout style={{ minHeight: '100vh', background: '#fff' }}>
+                <TopBar />
+                <Content style={{ padding: '48px 24px', maxWidth: 600, margin: '0 auto' }}>
+                    <Result
+                        status="error"
+                        title="Ödeme Alınamadı"
+                        subTitle={paymentError || 'Kredi kartınızdan çekim yapılamadı. Lütfen tekrar deneyin.'}
+                        extra={[
+                            <Button type="primary" key="retry" size="large" loading={loading} onClick={retryPayment}
+                                style={{ background: '#6366f1', border: 'none' }}>
+                                Tekrar Dene
+                            </Button>,
+                            <Button key="home" size="large" onClick={() => router.push('/')}>
+                                Anasayfaya Dön
+                            </Button>,
+                        ]}
+                    >
+                        <div style={{ padding: '16px 0' }}>
+                            <Alert
+                                type="warning"
+                                showIcon
+                                message="Rezervasyonunuz oluşturuldu ancak ödeme alınamadı."
+                                description={
+                                    <div>
+                                        <p style={{ margin: '8px 0' }}>Rezervasyon No: <strong>{pendingBookingNumber}</strong></p>
+                                        <p style={{ margin: '8px 0', color: '#64748b' }}>Olası nedenler:</p>
+                                        <ul style={{ paddingLeft: 20, color: '#64748b' }}>
+                                            <li>Yetersiz bakiye veya limit</li>
+                                            <li>Hatalı SMS (3D Secure) şifresi</li>
+                                            <li>Kartın internet alışverişine kapalı olması</li>
+                                        </ul>
+                                    </div>
+                                }
+                            />
+                        </div>
+                    </Result>
+                </Content>
+            </Layout>
+        );
+    }
 
     if (bookingSuccess) {
         return (
@@ -742,6 +914,42 @@ const TransferBookingContent: React.FC = () => {
                             }
                             return null;
                         })()}
+
+                        {/* Bank Transfer Details */}
+                        {paymentMethod === 'BANK_TRANSFER' && paymentMethods.bankAccounts.length > 0 && (
+                            <div style={{ marginTop: 24, padding: '20px 24px', background: '#fffbe6', border: '1px solid #ffe58f', borderRadius: 10, textAlign: 'left' }}>
+                                <Title level={5} style={{ marginTop: 0, color: '#d48806', marginBottom: 12 }}>
+                                    <CreditCardOutlined style={{ marginRight: 8 }} />
+                                    Havale / EFT Bilgileri
+                                </Title>
+                                <Text style={{ display: 'block', marginBottom: 12, color: '#8c6d1f' }}>
+                                    Aşağıdaki hesap bilgilerinden birine tutarı gönderebilirsiniz. Açıklama kısmına <strong>{bookingNumber}</strong> yazmayı unutmayın.
+                                </Text>
+                                {paymentMethods.bankAccounts.map((bank, bi) => (
+                                    <div key={bi} style={{ marginBottom: 12 }}>
+                                        {bank.accounts.map((acc, ai) => (
+                                            <div key={ai} style={{
+                                                background: '#fff', borderRadius: 8, padding: '12px 16px',
+                                                border: '1px solid #f0e6c0', marginBottom: 8
+                                            }}>
+                                                <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4 }}>
+                                                    {bank.bankName} — {acc.accountName}
+                                                    <Tag color="gold" style={{ marginLeft: 8 }}>{acc.currency}</Tag>
+                                                </div>
+                                                <div style={{ fontFamily: 'monospace', fontSize: 14, letterSpacing: 1, color: '#1a1a1a' }}>
+                                                    IBAN: {acc.iban}
+                                                </div>
+                                                {acc.branchName && (
+                                                    <div style={{ fontSize: 12, color: '#8c8c8c', marginTop: 2 }}>
+                                                        Şube: {acc.branchName}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </Result>
                 </Content>
             </Layout>
@@ -1169,16 +1377,19 @@ const TransferBookingContent: React.FC = () => {
                                                     <Text type="secondary">(Rezervasyon anında ödeme alınmaz)</Text>
                                                 </div>
                                             </Radio>
-                                            <Radio value="bank" disabled>
+                                            <Radio value="bank" disabled={!paymentMethods.bankTransferEnabled}>
                                                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                                                     <Text>Havale / EFT</Text>
-                                                    <Tag style={{ marginLeft: 8 }}>Yakında</Tag>
+                                                    {!paymentMethods.bankTransferEnabled && <Tag style={{ marginLeft: 8 }}>Yakında</Tag>}
                                                 </div>
                                             </Radio>
-                                            <Radio value="credit_card" disabled>
+                                            <Radio value="credit_card" disabled={!paymentMethods.onlineCreditCardEnabled}>
                                                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                                                     <Text>Online Kredi Kartı</Text>
-                                                    <Tag style={{ marginLeft: 8 }}>Yakında</Tag>
+                                                    {paymentMethods.onlineCreditCardEnabled
+                                                        ? <Tag color="green" style={{ marginLeft: 8 }}>3D Secure</Tag>
+                                                        : <Tag style={{ marginLeft: 8 }}>Yakında</Tag>
+                                                    }
                                                 </div>
                                             </Radio>
                                         </div>

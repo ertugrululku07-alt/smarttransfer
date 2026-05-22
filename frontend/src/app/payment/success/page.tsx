@@ -1,11 +1,16 @@
 'use client';
 
-import { Result, Button, Card } from 'antd';
-import { useRouter } from 'next/navigation';
+import { Result, Button, Card, Typography } from 'antd';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { CheckCircleFilled } from '@ant-design/icons';
+import { Suspense } from 'react';
 
-export default function PaymentSuccessPage() {
+const { Text } = Typography;
+
+function PaymentSuccessContent() {
     const router = useRouter();
+    const searchParams = useSearchParams();
+    const oid = searchParams.get('oid');
 
     return (
         <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f0f2f5', padding: 20 }}>
@@ -14,17 +19,30 @@ export default function PaymentSuccessPage() {
                     icon={<CheckCircleFilled style={{ color: '#52c41a' }} />}
                     status="success"
                     title="Ödeme İşlemi Başarılı!"
-                    subTitle="Kredi kartı işleminiz başarıyla tamamlandı. Rezervasyonunuz onaylanmıştır."
+                    subTitle={
+                        <div>
+                            <div>Kredi kartı işleminiz başarıyla tamamlandı. Rezervasyonunuz onaylanmıştır.</div>
+                            {oid && <div style={{ marginTop: 8 }}><Text strong>Rezervasyon No: {oid}</Text></div>}
+                        </div>
+                    }
                     extra={[
-                        <Button type="primary" size="large" key="console" onClick={() => router.push('/agency/transfers')} style={{ borderRadius: 8 }}>
-                            Rezervasyonlarıma Git
+                        <Button type="primary" size="large" key="home" onClick={() => router.push('/')} style={{ borderRadius: 8 }}>
+                            Anasayfaya Dön
                         </Button>,
-                        <Button key="buy" size="large" onClick={() => router.push('/agency/transfers/new')} style={{ borderRadius: 8 }}>
-                            Yeni Transfer Oluştur
+                        <Button key="account" size="large" onClick={() => router.push('/login')} style={{ borderRadius: 8 }}>
+                            Hesabıma Git
                         </Button>,
                     ]}
                 />
             </Card>
         </div>
+    );
+}
+
+export default function PaymentSuccessPage() {
+    return (
+        <Suspense fallback={<div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Yükleniyor...</div>}>
+            <PaymentSuccessContent />
+        </Suspense>
     );
 }
