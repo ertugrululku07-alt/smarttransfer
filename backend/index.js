@@ -124,6 +124,13 @@ app.use('/api/transfer', tenantMiddleware, transferRoutes);
 const partnerAccountingRoutes = require('./src/routes/partner-accounting');
 app.use('/api/partner-accounting', tenantMiddleware, partnerAccountingRoutes);
 
+// Partner fleet tracking (multi-tenant, partner-isolated)
+const partnerFleetRoutes = require('./src/routes/partner-fleet');
+app.use('/api/partner-fleet', tenantMiddleware, partnerFleetRoutes);
+
+// Partner fleet cron jobs (insurance/inspection/maintenance reminders)
+try { require('./src/jobs/partner-fleet-cron').start(); } catch (e) { console.warn('Fleet cron startup failed:', e.message); }
+
 // Partner accounting cron jobs (overdue invoice email reminders)
 try { require('./src/jobs/partner-accounting-cron').start(); } catch (e) { console.warn('Cron startup failed:', e.message); }
 

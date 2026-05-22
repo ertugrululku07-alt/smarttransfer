@@ -2932,6 +2932,290 @@ model PartnerBudget {
   @@index([tenantId, partnerId])
 }
 
+// ════════════════════════════════════════════════════════════════════
+// PARTNER FLEET TRACKING — Vehicle insurance / inspection / maintenance / fuel
+// All tables enforce { tenantId, partnerId } isolation.
+// ════════════════════════════════════════════════════════════════════
+
+enum PartnerInsuranceType {
+  TRAFIK           // Trafik Sigortası (Zorunlu)
+  KASKO            // Kasko
+  ZMSS             // Zorunlu Mali Sorumluluk (Karayolu Taşımacılık)
+  IMSS             // İhtiyari Mali Sorumluluk
+  COVERAGE         // Kapsamlı diğer
+  HEALTH_DRIVER    // Şoför sağlık sigortası
+}
+
+enum PartnerInsuranceStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+  PENDING
+}
+
+model PartnerVehicleInsurance {
+  id        String   @id @default(uuid())
+  tenantId  String
+  partnerId String
+
+  vehicleId String
+  type      PartnerInsuranceType
+  status    PartnerInsuranceStatus @default(ACTIVE)
+
+  policyNo  String?
+  company   String?
+  agentName String?
+  agentPhone String?
+  agentEmail String?
+
+  startDate DateTime
+  endDate   DateTime
+  premium   Decimal? @db.Decimal(12, 2)
+  currency  String   @default("TRY")
+
+  documentUrl String?
+  notes      String?
+  metadata   Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdById String?
+
+  @@index([tenantId, partnerId])
+  @@index([partnerId, vehicleId])
+  @@index([partnerId, endDate])
+  @@index([partnerId, type, status])
+}
+
+enum PartnerInspectionType {
+  TUV               // Genel araç muayenesi
+  EMISSION          // Egzoz emisyon
+  TACHOGRAPH        // Takograf
+  EXHAUST           // Egzoz kontrolü
+  WEIGHT            // Tartı
+  OTHER
+}
+
+enum PartnerInspectionResult {
+  PASSED
+  PASSED_WITH_DEFECT     // Hafif kusurla geçti
+  FAILED
+  PENDING
+}
+
+model PartnerVehicleInspection {
+  id        String  @id @default(uuid())
+  tenantId  String
+  partnerId String
+
+  vehicleId String
+  type      PartnerInspectionType
+  result    PartnerInspectionResult @default(PENDING)
+
+  inspectionDate DateTime
+  expiryDate     DateTime?            // bir sonraki muayene için son tarih
+  stationName    String?
+  stationCity    String?
+  reportNo       String?
+  cost           Decimal? @db.Decimal(12, 2)
+  currency       String   @default("TRY")
+  kmAtInspection Int?
+
+  documentUrl String?
+  notes      String?
+  metadata   Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdById String?
+
+  @@index([tenantId, partnerId])
+  @@index([partnerId, vehicleId])
+  @@index([partnerId, expiryDate])
+  @@index([partnerId, type])
+}
+
+enum PartnerMaintenanceType {
+  PERIODIC        // Periyodik bakım
+  REPAIR          // Onarım
+  OIL_CHANGE      // Yağ değişimi
+  TIRE_CHANGE     // Lastik değişimi
+  BRAKE           // Fren
+  BATTERY         // Akü
+  AIR_FILTER      // Hava filtresi
+  COOLANT         // Antifriz
+  TIMING_BELT     // Triger / kayış
+  AC              // Klima
+  BODY            // Kaporta / boya
+  ELECTRICAL      // Elektrik
+  TRANSMISSION    // Şanzıman
+  WASH            // Yıkama / temizlik
+  ACCESSORY       // Aksesuar
+  WARRANTY        // Garanti
+  OTHER
+}
+
+model PartnerVehicleMaintenance {
+  id        String   @id @default(uuid())
+  tenantId  String
+  partnerId String
+
+  vehicleId String
+  type      PartnerMaintenanceType
+  description String?
+
+  serviceDate DateTime
+  kmAtService Int?
+  nextKm      Int?
+  nextDate    DateTime?
+
+  vendor      String?
+  vendorPhone String?
+  invoiceNo   String?
+
+  cost        Decimal? @db.Decimal(12, 2)
+  laborCost   Decimal? @db.Decimal(12, 2)
+  partsCost   Decimal? @db.Decimal(12, 2)
+  currency    String   @default("TRY")
+
+  partsList   Json?    // [{ name, qty, cost }]
+
+  documentUrl String?
+  notes      String?
+  metadata   Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdById String?
+
+  @@index([tenantId, partnerId])
+  @@index([partnerId, vehicleId])
+  @@index([partnerId, serviceDate])
+  @@index([partnerId, nextDate])
+  @@index([partnerId, type])
+}
+
+enum PartnerFuelType {
+  DIESEL
+  GASOLINE
+  LPG
+  CNG
+  ELECTRIC
+  HYBRID
+  ADBLUE     // Adblue (yardımcı sıvı)
+}
+
+enum PartnerFuelPaymentMethod {
+  CASH
+  CARD
+  CORPORATE_CARD
+  FUEL_VOUCHER
+  BANK_TRANSFER
+}
+
+model PartnerVehicleFuelEntry {
+  id        String   @id @default(uuid())
+  tenantId  String
+  partnerId String
+
+  vehicleId String
+  driverId  String?
+
+  date     DateTime
+  fuelType PartnerFuelType @default(DIESEL)
+
+  liters    Decimal? @db.Decimal(10, 2)
+  unitPrice Decimal? @db.Decimal(10, 4)
+  total     Decimal  @db.Decimal(12, 2)
+  currency  String   @default("TRY")
+
+  km          Int?           // o anki km
+  kmSincePrev Int?           // bir önceki kayıttan bu yana fark
+  consumption Decimal? @db.Decimal(6, 2)   // L/100km (otomatik)
+
+  stationName String?
+  stationCity String?
+  receiptNo   String?
+  paymentMethod PartnerFuelPaymentMethod @default(CASH)
+
+  documentUrl String?
+  notes      String?
+  metadata   Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdById String?
+
+  @@index([tenantId, partnerId])
+  @@index([partnerId, vehicleId, date])
+  @@index([partnerId, date])
+  @@index([partnerId, fuelType])
+}
+
+model PartnerVehicleDocument {
+  id        String   @id @default(uuid())
+  tenantId  String
+  partnerId String
+
+  vehicleId String
+  category  String   // RUHSAT | YETKI_BELGESI | K_BELGESI | TAKOGRAF | DIGER
+  name      String
+  fileUrl   String?
+  documentNo String?
+  issuedAt   DateTime?
+  expiryDate DateTime?
+  notes      String?
+  metadata   Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId, partnerId])
+  @@index([partnerId, vehicleId])
+  @@index([partnerId, expiryDate])
+}
+
+model PartnerVehicleTelemetry {
+  id        String   @id @default(uuid())
+  tenantId  String
+  partnerId String
+
+  vehicleId String
+  driverId  String?
+
+  timestamp DateTime @default(now())
+  lat       Float?
+  lng       Float?
+  heading   Float?
+  speed     Float?
+  odometer  Int?
+  fuelLevel Float?      // %
+  engineStatus String?  // ON | OFF | IDLE
+  batteryLevel Float?
+  externalDeviceId String?
+  payload   Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([tenantId, partnerId])
+  @@index([partnerId, vehicleId, timestamp])
+}
+
+model PartnerDeviceKey {
+  id        String   @id @default(uuid())
+  tenantId  String
+  partnerId String
+  name      String
+  apiKeyHash String   @unique
+  vehicleId String?     // bound to a vehicle (optional)
+  lastSeenAt DateTime?
+  isActive  Boolean @default(true)
+  metadata  Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([tenantId, partnerId])
+}
+
 model PartnerDriverCollection {
   id          String                         @id @default(uuid())
   tenantId    String

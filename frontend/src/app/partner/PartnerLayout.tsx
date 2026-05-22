@@ -47,6 +47,7 @@ const NAV_ITEMS: Omit<NavItem, 'badge'>[] = [
   { key: 'marketplace',  label: 'Pazar Yeri',        icon: <GlobalOutlined />,          path: '/partner/marketplace',                section: 'main'    },
   { key: 'completed',    label: 'Tamamlanmış',       icon: <CheckCircleOutlined />,     path: '/partner/completed',                  section: 'main'    },
   { key: 'vehicles',     label: 'Araçlarım',         icon: <CarOutlined />,             path: '/partner/fleet/vehicles',             section: 'fleet'   },
+  { key: 'vehtrack',     label: 'Araç Takip',        icon: <CarOutlined />,             path: '/partner/fleet-tracking',             section: 'fleet'   },
   { key: 'drivers',      label: 'Sürücülerim',       icon: <UserOutlined />,            path: '/partner/fleet/drivers',              section: 'fleet'   },
   { key: 'zones',        label: 'Bölgeler & Fiyat',  icon: <EnvironmentOutlined />,     path: '/partner/zones',                      section: 'fleet'   },
   { key: 'uetds',        label: 'UETDS',             icon: <SafetyCertificateOutlined />,path: '/partner/uetds',                     section: 'fleet'   },
