@@ -232,12 +232,12 @@ router.post('/test-email', authMiddleware, async (req, res) => {
         if (req.user.roleType !== 'TENANT_ADMIN' && req.user.roleType !== 'SUPER_ADMIN') {
             return res.status(403).json({ success: false, error: 'Permission denied' });
         }
-        const { toEmail } = req.body;
+        const { toEmail, emailSettings } = req.body;
         if (!toEmail) {
             return res.status(400).json({ success: false, error: 'toEmail gerekli' });
         }
         const { sendTestEmail } = require('../lib/emailService');
-        const result = await sendTestEmail(req.user.tenantId, toEmail);
+        const result = await sendTestEmail(req.user.tenantId, toEmail, emailSettings);
         if (result.success) {
             res.json({ success: true, message: 'Test e-postası gönderildi' });
         } else {

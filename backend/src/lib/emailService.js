@@ -159,9 +159,31 @@ async function sendBookingVoucher(tenantId, booking) {
 /**
  * Send a test email to verify SMTP settings
  */
-async function sendTestEmail(tenantId, toEmail) {
+async function sendTestEmail(tenantId, toEmail, settingsOverride = null) {
     try {
-        const { transporter, emailSettings } = await getTransporter(tenantId);
+        let transporter, emailSettings;
+        if (settingsOverride) {
+            emailSettings = settingsOverride;
+            if (!emailSettings.smtpHost || !emailSettings.smtpUser || !emailSettings.smtpPass) {
+                throw new Error('E-posta ayarları eksik. SMTP Sunucu, Kullanıcı Adı ve Şifre girin.');
+            }
+            transporter = nodemailer.createTransport({
+                host: emailSettings.smtpHost,
+                port: Number(emailSettings.smtpPort) || 587,
+                secure: emailSettings.smtpSecure === true || emailSettings.smtpPort === 465,
+                auth: {
+                    user: emailSettings.smtpUser,
+                    pass: emailSettings.smtpPass,
+                },
+                tls: {
+                    rejectUnauthorized: false
+                }
+            });
+        } else {
+            const res = await getTransporter(tenantId);
+            transporter = res.transporter;
+            emailSettings = res.emailSettings;
+        }
 
         const tenant = await prisma.tenant.findUnique({
             where: { id: tenantId },

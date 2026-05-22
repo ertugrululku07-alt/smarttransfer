@@ -286,7 +286,10 @@ export default function DefinitionsPage() {
         }
         try {
             setEmailTesting(true);
-            const res = await apiClient.post('/api/tenant/test-email', { toEmail: testEmail });
+            const res = await apiClient.post('/api/tenant/test-email', { 
+                toEmail: testEmail,
+                emailSettings: emailSettings 
+            });
             if (res.data.success) {
                 message.success(`Test e-postası ${testEmail} adresine gönderildi!`);
             } else {
