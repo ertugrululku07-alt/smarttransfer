@@ -2611,5 +2611,240 @@ router.put('/admin-sos/:id/resolve', authMiddleware, async (req, res) => {
     }
 });
 
+// POST /api/driver/admin-sos/:id/reassign
+// Auto-find an available vehicle/driver and reassign the broken driver's active bookings
+router.post('/admin-sos/:id/reassign', authMiddleware, async (req, res) => {
+    try {
+        if (!['TENANT_ADMIN', 'SUPER_ADMIN', 'TENANT_STAFF', 'OPERATION'].includes(req.user.roleType) &&
+            !['TENANT_ADMIN', 'SUPER_ADMIN', 'OPERATION'].includes(req.user.roleCode)) {
+            return res.status(403).json({ success: false, error: 'Forbidden' });
+        }
+        const { id } = req.params;
+        const tenantId = req.user.tenantId;
+
+        // 1. Find the SOS alert to get driverId
+        const tenant = await prisma.tenant.findUnique({
+            where: { id: tenantId },
+            select: { settings: true }
+        });
+        const alerts = Array.isArray(tenant?.settings?.sosAlerts) ? tenant.settings.sosAlerts : [];
+        const alert = alerts.find(a => a.id === id);
+        if (!alert) return res.status(404).json({ success: false, error: 'SOS bildirimi bulunamadı' });
+
+        const brokenDriverId = alert.driverId;
+
+        // 2. Find the broken driver's active bookings (today and upcoming, not completed/cancelled)
+        const now = new Date();
+        const todayStart = new Date(now); todayStart.setHours(0, 0, 0, 0);
+        const todayEnd = new Date(now); todayEnd.setHours(23, 59, 59, 999);
+
+        const brokenDriverBookings = await prisma.booking.findMany({
+            where: {
+                tenantId,
+                driverId: brokenDriverId,
+                startDate: { gte: todayStart, lte: todayEnd },
+                status: { notIn: ['CANCELLED', 'COMPLETED', 'NO_SHOW'] }
+            },
+            orderBy: { startDate: 'asc' }
+        });
+
+        if (brokenDriverBookings.length === 0) {
+            return res.status(404).json({ success: false, error: 'Arızalı şoförün aktif transferi bulunamadı' });
+        }
+
+        // 3. Get all drivers (excluding the broken one)
+        const allDrivers = await prisma.user.findMany({
+            where: {
+                tenantId,
+                id: { not: brokenDriverId },
+                status: 'ACTIVE',
+                role: { type: { in: ['DRIVER'] } }
+            },
+            select: { id: true, fullName: true, pushToken: true, metadata: true, phone: true }
+        });
+
+        if (allDrivers.length === 0) {
+            return res.status(404).json({ success: false, error: 'Uygun şoför bulunamadı' });
+        }
+
+        // 4. Get all today's bookings to check conflicts
+        const allTodayBookings = await prisma.booking.findMany({
+            where: {
+                tenantId,
+                startDate: { gte: todayStart, lte: todayEnd },
+                status: { notIn: ['CANCELLED', 'NO_SHOW'] },
+                driverId: { not: null }
+            }
+        });
+
+        // 5. For each broken booking, find the best available driver
+        const REST_MINUTES = 30;
+        const reassignments = [];
+
+        for (const booking of brokenDriverBookings) {
+            const bookingStart = new Date(booking.startDate);
+            const bookingDuration = (booking.metadata?.estimatedDurationMinutes || 120) + REST_MINUTES;
+            const bookingEnd = new Date(bookingStart.getTime() + bookingDuration * 60000);
+
+            let bestDriver = null;
+
+            for (const driver of allDrivers) {
+                // Skip if already reassigned in this batch
+                if (reassignments.find(r => r.driverId === driver.id && r.bookingId !== booking.id)) continue;
+
+                // Check if this driver has any conflicting bookings
+                const driverBookings = allTodayBookings.filter(b => b.driverId === driver.id && b.id !== booking.id);
+                const hasConflict = driverBookings.some(b => {
+                    const bStart = new Date(b.startDate);
+                    const bDur = (b.metadata?.estimatedDurationMinutes || 120) + REST_MINUTES;
+                    const bEnd = new Date(bStart.getTime() + bDur * 60000);
+                    return bookingStart < bEnd && bStart < bookingEnd;
+                });
+
+                if (!hasConflict) {
+                    // Prefer drivers with fewer bookings today (least busy)
+                    const load = driverBookings.length;
+                    if (!bestDriver || load < bestDriver.load) {
+                        bestDriver = { ...driver, load };
+                    }
+                }
+            }
+
+            if (bestDriver) {
+                reassignments.push({
+                    bookingId: booking.id,
+                    bookingNumber: booking.bookingNumber,
+                    driverId: bestDriver.id,
+                    driverName: bestDriver.fullName,
+                    pickup: booking.metadata?.pickup || '',
+                    startDate: booking.startDate
+                });
+            }
+        }
+
+        if (reassignments.length === 0) {
+            return res.status(404).json({ success: false, error: 'Uygun boş şoför bulunamadı. Tüm şoförler meşgul.' });
+        }
+
+        // 6. Perform the reassignments
+        const io = req.app.get('io');
+        const results = [];
+
+        for (const r of reassignments) {
+            // Auto-resolve vehicle for the new driver
+            let resolvedVehicleId = null;
+            const allVehicles = await prisma.vehicle.findMany({ where: { tenantId }, select: { id: true, plateNumber: true, metadata: true } });
+            const personnel = await prisma.personnel.findFirst({ where: { userId: r.driverId }, select: { id: true } });
+            const cleanId = (val) => val ? val.replace(/[-\s]/g, '').toLowerCase() : '';
+            const targetUser = cleanId(r.driverId);
+            const targetStaff = personnel ? cleanId(personnel.id) : null;
+            const matchedVehicle = allVehicles.find(v => {
+                const vDriver = cleanId(v.metadata?.driverId);
+                return (targetUser && vDriver === targetUser) || (targetStaff && vDriver === targetStaff);
+            });
+            if (matchedVehicle) resolvedVehicleId = matchedVehicle.id;
+
+            // Update booking
+            const updatedMeta = {
+                ...(await prisma.booking.findUnique({ where: { id: r.bookingId }, select: { metadata: true } }))?.metadata || {},
+                ...(resolvedVehicleId ? { assignedVehicleId: resolvedVehicleId } : {}),
+                sosReassigned: true,
+                sosReassignedAt: new Date().toISOString(),
+                sosReassignedFrom: brokenDriverId,
+                sosAlertId: id
+            };
+
+            const updated = await prisma.booking.update({
+                where: { id: r.bookingId },
+                data: {
+                    driverId: r.driverId,
+                    metadata: updatedMeta
+                }
+            });
+
+            // 7. Notify old driver (unassigned)
+            if (io) {
+                io.to(`user_${brokenDriverId}`).emit('operation_unassigned', { bookingId: r.bookingId });
+            }
+
+            // 8. Notify new driver via socket
+            if (io) {
+                io.to(`user_${r.driverId}`).emit('operation_assigned', {
+                    bookingId: r.bookingId,
+                    bookingNumber: r.bookingNumber,
+                    pickup: r.pickup,
+                    start: r.startDate,
+                    emergency: true
+                });
+            }
+
+            // 9. Send Expo Push Notification with EMERGENCY priority
+            try {
+                const driver = await prisma.user.findUnique({ where: { id: r.driverId }, select: { pushToken: true, metadata: true } });
+                let driverMeta = driver?.metadata || {};
+                if (typeof driverMeta === 'string') try { driverMeta = JSON.parse(driverMeta); } catch (e) { driverMeta = {}; }
+                const pushToken = driver?.pushToken || driverMeta?.expoPushToken;
+
+                if (pushToken && pushToken.startsWith('ExponentPushToken')) {
+                    const pickupStr = r.pickup || 'Belirtilmemiş';
+                    const dateStr = r.startDate
+                        ? new Date(r.startDate).toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })
+                        : '';
+
+                    await fetch('https://exp.host/--/api/v2/push/send', {
+                        method: 'POST',
+                        headers: {
+                            'Accept': 'application/json',
+                            'Accept-Encoding': 'gzip, deflate',
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            to: pushToken,
+                            sound: 'default',
+                            title: '🚨 ACİL: Yeni İş Atandı!',
+                            body: `Acil araç değişimi! ${pickupStr} • ${dateStr}`,
+                            data: {
+                                bookingId: r.bookingId,
+                                bookingNumber: r.bookingNumber,
+                                type: 'emergencyAssigned',
+                                pickup: pickupStr,
+                                start: r.startDate,
+                                emergency: true
+                            },
+                            priority: 'high',
+                            channelId: 'emergency'
+                        })
+                    });
+                }
+            } catch (pushErr) {
+                console.error('Emergency push error (non-fatal):', pushErr.message);
+            }
+
+            results.push({
+                bookingId: r.bookingId,
+                bookingNumber: r.bookingNumber,
+                newDriverId: r.driverId,
+                newDriverName: r.driverName,
+                vehicleId: resolvedVehicleId,
+                vehiclePlate: matchedVehicle?.plateNumber || null
+            });
+        }
+
+        // 10. Emit admin refresh
+        if (io) {
+            io.to('admin_monitoring').emit('booking_status_update', { action: 'sos_reassign' });
+        }
+
+        res.json({
+            success: true,
+            message: `${results.length} transfer başarıyla yeni şoföre atandı`,
+            data: results
+        });
+    } catch (error) {
+        console.error('SOS reassign error:', error);
+        res.status(500).json({ success: false, error: 'Otomatik atama yapılamadı: ' + error.message });
+    }
+});
+
 module.exports = router;
 

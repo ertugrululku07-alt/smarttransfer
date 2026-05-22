@@ -1774,6 +1774,8 @@ export default function OperationsPage() {
         })();
     }, []);
 
+    const [sosReassigning, setSosReassigning] = useState(false);
+
     const handleResolveSos = async () => {
         if (!sosDetailModal) return;
         setSosResolving(true);
@@ -1790,6 +1792,28 @@ export default function OperationsPage() {
             message.error('Kapatılamadı: ' + (e?.response?.data?.error || e.message));
         } finally {
             setSosResolving(false);
+        }
+    };
+
+    const handleSosReassign = async () => {
+        if (!sosDetailModal) return;
+        setSosReassigning(true);
+        try {
+            const res = await apiClient.post(`/api/driver/admin-sos/${sosDetailModal.id}/reassign`);
+            if (res.data.success) {
+                const results = res.data.data || [];
+                const names = results.map((r: any) => `${r.bookingNumber} → ${r.newDriverName} (${r.vehiclePlate || 'Araç yok'})`).join('\n');
+                message.success({
+                    content: `${res.data.message}`,
+                    duration: 5
+                });
+                // Refresh bookings list
+                fetchBookings();
+            }
+        } catch (e: any) {
+            message.error(e?.response?.data?.error || 'Otomatik atama yapılamadı');
+        } finally {
+            setSosReassigning(false);
         }
     };
 
@@ -6622,6 +6646,15 @@ export default function OperationsPage() {
                             sosDetailModal?.status === 'ACTIVE' ? (
                                 <Space>
                                     <Button onClick={() => { setSosDetailModal(null); setSosResolveNote(''); }}>Kapat</Button>
+                                    <Button
+                                        type="primary"
+                                        style={{ background: '#f59e0b', borderColor: '#f59e0b' }}
+                                        onClick={handleSosReassign}
+                                        loading={sosReassigning}
+                                        icon={<CarOutlined />}
+                                    >
+                                        Araç Ata
+                                    </Button>
                                     <Button type="primary" danger onClick={handleResolveSos} loading={sosResolving}>
                                         Çözüldü Olarak İşaretle
                                     </Button>
