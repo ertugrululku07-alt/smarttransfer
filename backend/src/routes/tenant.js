@@ -779,6 +779,17 @@ router.get('/payment-providers', authMiddleware, async (req, res) => {
         const maskedProviders = {};
 
         for (const [key, config] of Object.entries(providers)) {
+            if (key === 'banks' && typeof config === 'object') {
+                // Handle banks sub-object: { bankId: { storeKey, ... }, ... }
+                maskedProviders.banks = {};
+                for (const [bankId, bankConfig] of Object.entries(config)) {
+                    maskedProviders.banks[bankId] = { ...bankConfig };
+                    if (maskedProviders.banks[bankId].storeKey) {
+                        maskedProviders.banks[bankId].storeKey = '••••••••' + String(maskedProviders.banks[bankId].storeKey).slice(-4);
+                    }
+                }
+                continue;
+            }
             maskedProviders[key] = { ...config };
             // Mask secret keys
             if (maskedProviders[key].secretKey) {
@@ -806,8 +817,25 @@ router.put('/payment-providers', authMiddleware, async (req, res) => {
             return res.status(403).json({ success: false, error: 'Permission denied' });
         }
 
-        const { provider, config } = req.body;
-        // provider: 'paytr' | 'iyzico'
+        const { provider, config, action, bankId } = req.body;
+
+        // Handle bank deletion
+        if (action === 'delete_bank' && bankId) {
+            const currentTenant = await prisma.tenant.findUnique({
+                where: { id: req.user.tenantId },
+                select: { paymentProviders: true }
+            });
+            const currentProviders = currentTenant?.paymentProviders || {};
+            const banks = { ...(currentProviders.banks || {}) };
+            delete banks[bankId];
+            await prisma.tenant.update({
+                where: { id: req.user.tenantId },
+                data: { paymentProviders: { ...currentProviders, banks } }
+            });
+            return res.json({ success: true, message: 'Banka POS yapılandırması silindi' });
+        }
+
+        // provider: 'paytr' | 'iyzico' | 'bank_<bankId>'
         if (!provider || !config) {
             return res.status(400).json({ success: false, error: 'provider ve config zorunludur' });
         }
@@ -820,29 +848,55 @@ router.put('/payment-providers', authMiddleware, async (req, res) => {
 
         const currentProviders = currentTenant?.paymentProviders || {};
 
-        // Masked fields: if the incoming value starts with '••••', keep old value
-        const oldConfig = currentProviders[provider] || {};
-        const mergedConfig = { ...oldConfig };
+        if (provider.startsWith('bank_')) {
+            // Bank POS — store under providers.banks[bankId]
+            const bId = provider.replace('bank_', '');
+            const banks = { ...(currentProviders.banks || {}) };
+            const oldBankConfig = banks[bId] || {};
+            const mergedConfig = { ...oldBankConfig };
 
-        for (const [key, val] of Object.entries(config)) {
-            if (typeof val === 'string' && val.startsWith('••••••••')) {
-                mergedConfig[key] = oldConfig[key]; // keep old
-            } else {
-                mergedConfig[key] = val;
+            for (const [key, val] of Object.entries(config)) {
+                if (typeof val === 'string' && val.startsWith('••••••••')) {
+                    mergedConfig[key] = oldBankConfig[key];
+                } else {
+                    mergedConfig[key] = val;
+                }
             }
+
+            mergedConfig.id = bId; // Ensure ID is stored
+            banks[bId] = mergedConfig;
+
+            await prisma.tenant.update({
+                where: { id: req.user.tenantId },
+                data: { paymentProviders: { ...currentProviders, banks } }
+            });
+
+            res.json({ success: true, message: `${config.name || bId} ayarları kaydedildi` });
+        } else {
+            // PayTR / iyzico
+            const oldConfig = currentProviders[provider] || {};
+            const mergedConfig = { ...oldConfig };
+
+            for (const [key, val] of Object.entries(config)) {
+                if (typeof val === 'string' && val.startsWith('••••••••')) {
+                    mergedConfig[key] = oldConfig[key];
+                } else {
+                    mergedConfig[key] = val;
+                }
+            }
+
+            const updatedProviders = {
+                ...currentProviders,
+                [provider]: mergedConfig
+            };
+
+            await prisma.tenant.update({
+                where: { id: req.user.tenantId },
+                data: { paymentProviders: updatedProviders }
+            });
+
+            res.json({ success: true, message: `${provider} ayarları kaydedildi` });
         }
-
-        const updatedProviders = {
-            ...currentProviders,
-            [provider]: mergedConfig
-        };
-
-        await prisma.tenant.update({
-            where: { id: req.user.tenantId },
-            data: { paymentProviders: updatedProviders }
-        });
-
-        res.json({ success: true, message: `${provider} ayarları kaydedildi` });
     } catch (error) {
         console.error('Update payment providers error:', error);
         res.status(500).json({ success: false, error: 'Failed to update payment providers' });

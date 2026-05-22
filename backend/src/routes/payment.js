@@ -241,4 +241,122 @@ router.post('/callback/iyzico', async (req, res) => {
     }
 });
 
+/**
+ * POST /api/payment/callback/nestpay
+ * NestPay (EST/Asseco) 3D Secure Callback — Ziraat, İşbank, Akbank, etc.
+ */
+router.post('/callback/nestpay', async (req, res) => {
+    const { tenantId, bankId } = req.query;
+    const callbackData = req.body;
+
+    console.log(`[NestPay Callback] tenantId=${tenantId}, bankId=${bankId}, oid=${callbackData.oid}, mdStatus=${callbackData.mdStatus}`);
+
+    if (!tenantId) return res.status(400).send('Eksik parametre: tenantId');
+
+    try {
+        // 1. Get Tenant & Bank Config
+        const tenant = await prisma.tenant.findUnique({
+            where: { id: tenantId },
+            select: { paymentProviders: true }
+        });
+
+        if (!tenant) {
+            console.error('[NestPay Callback] Tenant not found:', tenantId);
+            return res.status(400).send('Tenant bulunamadı');
+        }
+
+        const banks = tenant.paymentProviders?.banks || {};
+        const bankConfig = banks[bankId];
+
+        if (!bankConfig) {
+            console.error('[NestPay Callback] Bank config not found:', bankId);
+            return res.status(400).send('Banka yapılandırması bulunamadı');
+        }
+
+        const successRedirect = bankConfig.successUrl || `${process.env.FRONTEND_URL || 'http://localhost:3000'}/payment/success`;
+        const failRedirect = bankConfig.failUrl || `${process.env.FRONTEND_URL || 'http://localhost:3000'}/payment/fail`;
+
+        // 2. Verify Hash
+        const NestPayProvider = require('../services/payment/providers/nestpay');
+        const hashValid = NestPayProvider.verifyCallbackHash(callbackData, bankConfig.storeKey);
+
+        if (!hashValid) {
+            console.error('[NestPay Callback] Hash verification failed for oid:', callbackData.oid);
+            return res.redirect(failRedirect + '?error=hash_mismatch');
+        }
+
+        // 3. Check 3D Status
+        // mdStatus: 1 = Full 3D verification, 2/3/4 = Attempted, 5 = Validation error, 0/others = Failed
+        const mdStatus = callbackData.mdStatus;
+        const isSuccess = ['1', '2', '3', '4'].includes(mdStatus) && callbackData.Response === 'Approved';
+
+        // 4. Find Booking
+        const bookingNumber = callbackData.oid;
+        const booking = await prisma.booking.findUnique({
+            where: { bookingNumber }
+        });
+
+        if (!booking) {
+            console.error('[NestPay Callback] Booking not found:', bookingNumber);
+            return res.redirect(failRedirect + '?error=booking_not_found');
+        }
+
+        // 5. Process Result
+        if (isSuccess) {
+            await prisma.$transaction(async (tx) => {
+                await tx.booking.update({
+                    where: { id: booking.id },
+                    data: {
+                        status: 'CONFIRMED',
+                        paymentStatus: 'PAID',
+                        paidAmount: booking.total,
+                        metadata: {
+                            ...(booking.metadata || {}),
+                            paymentProvider: `bank_${bankId}`,
+                            bankName: bankConfig.name || bankId,
+                            transId: callbackData.TransId || '',
+                            authCode: callbackData.AuthCode || '',
+                            mdStatus: mdStatus,
+                        }
+                    }
+                });
+
+                if (booking.agencyId) {
+                    const profit = parseFloat(booking.total) - parseFloat(booking.subtotal);
+                    if (profit > 0) {
+                        await tx.agency.update({
+                            where: { id: booking.agencyId },
+                            data: { balance: { increment: profit }, credit: { increment: profit } }
+                        });
+                    }
+                }
+            });
+
+            console.log(`[NestPay Callback] Payment SUCCESS: ${bookingNumber}, TransId: ${callbackData.TransId}`);
+            return res.redirect(successRedirect + `?oid=${bookingNumber}`);
+        } else {
+            const errorMsg = callbackData.ErrMsg || callbackData.mdErrorMsg || 'Ödeme başarısız';
+            console.error(`[NestPay Callback] Payment FAILED: ${bookingNumber}, mdStatus=${mdStatus}, error=${errorMsg}`);
+
+            await prisma.booking.update({
+                where: { id: booking.id },
+                data: {
+                    status: 'PENDING',
+                    paymentStatus: 'FAILED',
+                    metadata: {
+                        ...(booking.metadata || {}),
+                        paymentError: errorMsg,
+                        paymentProvider: `bank_${bankId}`,
+                    }
+                }
+            });
+
+            return res.redirect(failRedirect + `?error=${encodeURIComponent(errorMsg)}`);
+        }
+    } catch (err) {
+        console.error('[NestPay Callback] Exception:', err);
+        return res.status(500).send('Ödeme işlemi sırasında hata oluştu');
+    }
+});
+
 module.exports = router;

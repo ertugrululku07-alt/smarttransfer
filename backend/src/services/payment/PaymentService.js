@@ -1,5 +1,6 @@
 const PayTRProvider = require('./providers/paytr');
 const IyzicoProvider = require('./providers/iyzico');
+const NestPayProvider = require('./providers/nestpay');
 
 const prisma = require('../../lib/prisma');
 
@@ -22,32 +23,55 @@ class PaymentService {
         if (!activeProvider) {
             if (providers.paytr && providers.paytr.enabled) activeProvider = 'paytr';
             else if (providers.iyzico && providers.iyzico.enabled) activeProvider = 'iyzico';
+            else {
+                // Check bank POS providers (bank_*)
+                const banks = providers.banks || {};
+                for (const [bankId, bankConfig] of Object.entries(banks)) {
+                    if (bankConfig.enabled) {
+                        activeProvider = `bank_${bankId}`;
+                        break;
+                    }
+                }
+            }
         }
 
         if (!activeProvider) {
             throw new Error('Aktif bir ödeme sağlayıcı bulunamadı.');
         }
 
-        const config = providers[activeProvider];
+        // 2. Resolve config
+        let config;
+        if (activeProvider.startsWith('bank_')) {
+            const bankId = activeProvider.replace('bank_', '');
+            const banks = providers.banks || {};
+            config = banks[bankId];
+            if (!config) throw new Error(`Banka POS yapılandırması bulunamadı: ${bankId}`);
+        } else {
+            config = providers[activeProvider];
+        }
 
         if (!config || !config.enabled) {
             throw new Error(`${activeProvider} aktif değil veya yapılandırılmamış.`);
         }
 
-        // 2. Instantiate Provider
+        // 3. Instantiate Provider
         let paymentProvider;
-        switch (activeProvider) {
-            case 'paytr':
-                paymentProvider = new PayTRProvider(config);
-                break;
-            case 'iyzico':
-                paymentProvider = new IyzicoProvider(config);
-                break;
-            default:
-                throw new Error('Desteklenmeyen ödeme sağlayıcı: ' + activeProvider);
+        if (activeProvider.startsWith('bank_')) {
+            paymentProvider = new NestPayProvider(config);
+        } else {
+            switch (activeProvider) {
+                case 'paytr':
+                    paymentProvider = new PayTRProvider(config);
+                    break;
+                case 'iyzico':
+                    paymentProvider = new IyzicoProvider(config);
+                    break;
+                default:
+                    throw new Error('Desteklenmeyen ödeme sağlayıcı: ' + activeProvider);
+            }
         }
 
-        // 3. Initialize Payment
+        // 4. Initialize Payment
         return await paymentProvider.initializePayment(params, tenantId);
     }
 }
