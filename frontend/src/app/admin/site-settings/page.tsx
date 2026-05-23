@@ -161,6 +161,11 @@ const SiteSettingsPage: React.FC = () => {
     });
     const [contactSaving, setContactSaving] = useState(false);
 
+    // Track page state
+    const [trackPage, setTrackPage] = useState({ heroImage: '' });
+    const [trackPageImgUploading, setTrackPageImgUploading] = useState(false);
+    const [trackPageSaving, setTrackPageSaving] = useState(false);
+
     // Fetch settings on load
     useEffect(() => {
         fetchSettings();
@@ -222,6 +227,9 @@ const SiteSettingsPage: React.FC = () => {
                 }
                 if (settings.customTheme) {
                     setCustomTheme(settings.customTheme);
+                }
+                if (settings.trackPage) {
+                    setTrackPage(prev => ({ ...prev, ...settings.trackPage }));
                 }
                 if (settings.contactPage) {
                     const cp = { ...settings.contactPage };
@@ -610,6 +618,35 @@ const SiteSettingsPage: React.FC = () => {
             message.error('Tema güncellenemedi');
         } finally {
             setThemeSaving(false);
+        }
+    };
+
+    const handleTrackPageImageUpload = async (file: File) => {
+        try {
+            setTrackPageImgUploading(true);
+            const formData = new FormData();
+            formData.append('file', file);
+            const res = await apiClient.post('/api/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+            if (res.data.success) {
+                setTrackPage(prev => ({ ...prev, heroImage: res.data.data.url }));
+                message.success('Görsel yüklendi');
+            }
+        } catch {
+            message.error('Görsel yüklenemedi');
+        } finally {
+            setTrackPageImgUploading(false);
+        }
+    };
+
+    const handleSaveTrackPage = async () => {
+        try {
+            setTrackPageSaving(true);
+            const res = await apiClient.put('/api/tenant/settings', { trackPage });
+            if (res.data.success) message.success('Rezervasyon sayfası görseli kaydedildi');
+        } catch {
+            message.error('Kaydedilemedi');
+        } finally {
+            setTrackPageSaving(false);
         }
     };
 
@@ -1166,6 +1203,42 @@ const SiteSettingsPage: React.FC = () => {
             ),
             children: (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+                        <Card title="Rezervasyon Sorgula Sayfası — Hero Görseli" variant="borderless" extra={
+                        <Button type="primary" icon={<SaveOutlined />} loading={trackPageSaving} onClick={handleSaveTrackPage}>Kaydet</Button>
+                    }>
+                        <Text type="secondary" style={{ display: 'block', marginBottom: 16 }}>
+                            Rezervasyon sorgulama sayfasının üst hero bölümünde gösterilecek arka plan görselini yükleyin.
+                        </Text>
+                        <Row gutter={16} align="middle">
+                            <Col xs={24} md={16}>
+                                <Form.Item label="Hero Arka Plan Görseli" style={{ marginBottom: 0 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                                        <Upload showUploadList={false} accept="image/*" beforeUpload={(file) => { handleTrackPageImageUpload(file); return false; }}>
+                                            <Button icon={<UploadOutlined />} loading={trackPageImgUploading}>Görsel Yükle</Button>
+                                        </Upload>
+                                        <Input
+                                            value={trackPage.heroImage}
+                                            onChange={e => setTrackPage(prev => ({ ...prev, heroImage: e.target.value }))}
+                                            placeholder="https://... veya yükle"
+                                            style={{ flex: 1, minWidth: 200 }}
+                                            allowClear
+                                        />
+                                    </div>
+                                </Form.Item>
+                            </Col>
+                            <Col xs={24} md={8}>
+                                {trackPage.heroImage && (
+                                    <div style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', border: '1px solid #e5e7eb', maxHeight: 120 }}>
+                                        <img src={trackPage.heroImage.startsWith('http') ? trackPage.heroImage : getImageUrl(trackPage.heroImage)} alt="" style={{ width: '100%', height: 120, objectFit: 'cover', display: 'block' }} />
+                                        <div style={{ position: 'absolute', inset: 0, background: 'rgba(15,23,42,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                            <Text style={{ color: '#fff', fontSize: 11, fontWeight: 700 }}>Hero Önİzleme</Text>
+                                        </div>
+                                    </div>
+                                )}
+                            </Col>
+                        </Row>
+                    </Card>
+
                     <Card title="Hero Bölümü (Ana Sayfa Üst Banner)" variant="borderless">
                         <Text type="secondary" style={{ display: 'block', marginBottom: 16 }}>
                             Ana sayfanın en üstünde görünen başlık ve alt yazıyı düzenleyin. Bu alanlar &quot;Özel Tema&quot; sekmesindeki başlık/alt başlık alanları ile aynı veriyi kullanır.

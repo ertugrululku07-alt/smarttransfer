@@ -13,7 +13,7 @@ import {
     ArrowRightOutlined, SafetyCertificateOutlined, StarOutlined,
 } from '@ant-design/icons';
 import { useRouter, useSearchParams } from 'next/navigation';
-import apiClient from '@/lib/api-client';
+import apiClient, { getImageUrl } from '@/lib/api-client';
 import TopBar from '@/app/components/TopBar';
 import SiteFooter from '@/app/components/SiteFooter';
 import { useTheme } from '@/app/context/ThemeContext';
@@ -48,6 +48,16 @@ function TrackContent() {
     const { theme } = useTheme();
     const [form] = Form.useForm();
     const [searching, setSearching] = useState(false);
+    const [trackHeroImage, setTrackHeroImage] = useState<string>('');
+
+    useEffect(() => {
+        apiClient.get('/api/tenant/info').then(res => {
+            if (res.data.success) {
+                const img = res.data.data?.tenant?.settings?.trackPage?.heroImage;
+                if (img) setTrackHeroImage(img);
+            }
+        }).catch(() => {});
+    }, []);
     const [booking, setBooking] = useState<any | null>(null);
     const [verifyEmail, setVerifyEmail] = useState<string>('');
     const [verifyPhone4, setVerifyPhone4] = useState<string>('');
@@ -158,76 +168,54 @@ function TrackContent() {
 
             {/* Hero / Search bar */}
             <div style={{
-                background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #0f172a 100%)',
-                padding: '80px 16px 56px',
+                ...(trackHeroImage
+                    ? { backgroundImage: `url(${getImageUrl(trackHeroImage)})`, backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }
+                    : { background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #0f172a 100%)' }
+                ),
                 position: 'relative',
                 overflow: 'hidden',
             }}>
+                {/* Dark overlay */}
+                <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, rgba(15,23,42,0.72) 0%, rgba(15,23,42,0.55) 100%)' }} />
                 <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg, transparent, ${theme.sectionAccent}55, transparent)` }} />
-                <div style={{ position: 'absolute', bottom: '-10%', left: '-5%', width: 320, height: 320, borderRadius: '50%', background: `${theme.sectionAccent}06`, pointerEvents: 'none' }} />
-                <div style={{ maxWidth: 1200, margin: '0 auto' }}>
-                    <Row align="middle" gutter={[48, 40]}>
-                        {/* Left: text + form */}
-                        <Col xs={24} lg={14}>
-                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(251,191,36,0.12)', border: '1px solid rgba(251,191,36,0.3)', color: '#fbbf24', padding: '5px 18px', borderRadius: 100, fontSize: 12, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 20 }}>
-                                <SafetyCertificateOutlined /> Rezervasyon Takip
-                            </div>
-                            <Title level={1} style={{ color: '#fff', fontFamily: 'var(--font-playfair, Georgia, serif)', fontSize: 'clamp(1.8rem, 4vw, 2.8rem)', marginBottom: 12, fontWeight: 700 }}>
-                                Rezervasyonunuzu Sorgulayın
-                            </Title>
-                            <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 16, display: 'block', marginBottom: 36, fontWeight: 300, lineHeight: 1.7 }}>
-                                Rezervasyon numaranız ve e-posta / telefon bilginizle transferinizin anlık durumunu takip edin.
-                            </Text>
 
-                            {/* Search Card */}
-                            <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 24, padding: '28px 24px', backdropFilter: 'blur(20px)' }}>
-                                <Form form={form} layout="vertical" onFinish={handleSearch}>
-                                    <Row gutter={[12, 0]}>
-                                        <Col xs={24} sm={11}>
-                                            <Form.Item name="bookingNumber" label={<Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, fontWeight: 600 }}>Rezervasyon Numarası</Text>} rules={[{ required: true, message: 'Rezervasyon no girin' }]} style={{ marginBottom: 16 }}>
-                                                <Input placeholder="ÖRN: TR-20260501-1234" style={inputStyle} prefix={<CheckCircleOutlined style={{ color: theme.sectionAccent }} />} allowClear />
-                                            </Form.Item>
-                                        </Col>
-                                        <Col xs={24} sm={9}>
-                                            <Form.Item name="identifier" label={<Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, fontWeight: 600 }}>E-posta veya Tel. Son 4 Hane</Text>} rules={[{ required: true, message: 'E-posta / telefon girin' }]} style={{ marginBottom: 16 }} tooltip="Rezervasyon yaparken kullandığınız e-posta veya telefonun son 4 rakamı">
-                                                <Input placeholder="ornek@email.com veya 4567" style={inputStyle} prefix={<UserOutlined style={{ color: '#94a3b8' }} />} allowClear />
-                                            </Form.Item>
-                                        </Col>
-                                        <Col xs={24} sm={4} style={{ display: 'flex', alignItems: 'flex-end', paddingBottom: 16 }}>
-                                            <Button
-                                                type="primary" htmlType="submit" icon={<SearchOutlined />}
-                                                loading={searching} block
-                                                style={{ height: 52, borderRadius: 12, background: theme.buttonGradient, border: 'none', fontWeight: 700, fontSize: 15, boxShadow: theme.buttonShadow }}
-                                            >
-                                                Sorgula
-                                            </Button>
-                                        </Col>
-                                    </Row>
-                                </Form>
-                            </div>
-                        </Col>
+                <div style={{ position: 'relative', zIndex: 1, maxWidth: 780, margin: '0 auto', padding: 'clamp(80px, 10vw, 120px) 24px clamp(60px, 8vw, 90px)', textAlign: 'center' }}>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(251,191,36,0.12)', border: '1px solid rgba(251,191,36,0.3)', color: '#fbbf24', padding: '5px 18px', borderRadius: 100, fontSize: 12, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 20 }}>
+                        <SafetyCertificateOutlined /> Rezervasyon Takip
+                    </div>
+                    <Title level={1} style={{ color: '#fff', fontFamily: 'var(--font-playfair, Georgia, serif)', fontSize: 'clamp(1.8rem, 4vw, 3rem)', marginBottom: 12, fontWeight: 700 }}>
+                        Rezervasyonunuzu Sorgulayın
+                    </Title>
+                    <Text style={{ color: 'rgba(255,255,255,0.65)', fontSize: 16, display: 'block', marginBottom: 40, fontWeight: 300, lineHeight: 1.7 }}>
+                        Rezervasyon numaranız ve e-posta / telefon bilginizle transferinizin anlık durumunu takip edin.
+                    </Text>
 
-                        {/* Right: hero image */}
-                        <Col xs={0} lg={10} style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                            <div style={{ position: 'relative', width: '100%', maxWidth: 420 }}>
-                                <div style={{ position: 'absolute', inset: -12, borderRadius: 32, background: `linear-gradient(135deg, ${theme.sectionAccent}18, transparent)`, border: `1px solid ${theme.sectionAccent}20` }} />
-                                <img
-                                    src="/reservation-hero.jpg"
-                                    alt="Rezervasyon Takip"
-                                    style={{
-                                        width: '100%',
-                                        borderRadius: 24,
-                                        boxShadow: '0 32px 80px rgba(0,0,0,0.5), 0 8px 24px rgba(0,0,0,0.3)',
-                                        display: 'block',
-                                        position: 'relative',
-                                        zIndex: 1,
-                                        transform: 'perspective(1000px) rotateY(-4deg) rotateX(2deg)',
-                                    }}
-                                />
-                                <div style={{ position: 'absolute', bottom: -20, left: '50%', transform: 'translateX(-50%)', width: '70%', height: 40, background: `${theme.primaryColor}33`, filter: 'blur(20px)', borderRadius: '50%' }} />
-                            </div>
-                        </Col>
-                    </Row>
+                    {/* Search Card */}
+                    <div style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 24, padding: '32px 28px', backdropFilter: 'blur(20px)' }}>
+                        <Form form={form} layout="vertical" onFinish={handleSearch}>
+                            <Row gutter={[16, 0]}>
+                                <Col xs={24} sm={10}>
+                                    <Form.Item name="bookingNumber" label={<Text style={{ color: 'rgba(255,255,255,0.75)', fontSize: 13, fontWeight: 600 }}>Rezervasyon Numarası</Text>} rules={[{ required: true, message: 'Rezervasyon no girin' }]} style={{ marginBottom: 16 }}>
+                                        <Input placeholder="ÖRN: TR-20260501-1234" style={inputStyle} prefix={<CheckCircleOutlined style={{ color: theme.sectionAccent }} />} allowClear />
+                                    </Form.Item>
+                                </Col>
+                                <Col xs={24} sm={10}>
+                                    <Form.Item name="identifier" label={<Text style={{ color: 'rgba(255,255,255,0.75)', fontSize: 13, fontWeight: 600 }}>E-posta veya Tel. Son 4 Hane</Text>} rules={[{ required: true, message: 'E-posta / telefon girin' }]} style={{ marginBottom: 16 }} tooltip="Rezervasyon yaparken kullandığınız e-posta veya telefonun son 4 rakamı">
+                                        <Input placeholder="ornek@email.com veya 4567" style={inputStyle} prefix={<UserOutlined style={{ color: '#94a3b8' }} />} allowClear />
+                                    </Form.Item>
+                                </Col>
+                                <Col xs={24} sm={4} style={{ display: 'flex', alignItems: 'flex-end', paddingBottom: 16 }}>
+                                    <Button
+                                        type="primary" htmlType="submit" icon={<SearchOutlined />}
+                                        loading={searching} block
+                                        style={{ height: 52, borderRadius: 12, background: theme.buttonGradient, border: 'none', fontWeight: 700, fontSize: 15, boxShadow: theme.buttonShadow }}
+                                    >
+                                        Sorgula
+                                    </Button>
+                                </Col>
+                            </Row>
+                        </Form>
+                    </div>
                 </div>
             </div>
 
