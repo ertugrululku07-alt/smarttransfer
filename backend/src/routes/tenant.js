@@ -153,7 +153,7 @@ router.get('/payment-methods', async (req, res) => {
  */
 router.put('/settings', authMiddleware, async (req, res) => {
     try {
-        const { googleMaps, heroBackground, definitions, salaryPaymentDay, hubs, siteTheme, branding, homepageSections, homepageFaq, homepageStats, homepageRoutes, homepageFeatures, customTheme, timeDefinitions, socialMedia, emailSettings, emailTemplate, whatsappSettings, driverSettings, flightTracking, operationSettings, uetdsSettings } = req.body;
+        const { googleMaps, heroBackground, definitions, salaryPaymentDay, hubs, siteTheme, branding, homepageSections, homepageFaq, homepageStats, homepageRoutes, homepageFeatures, customTheme, timeDefinitions, socialMedia, emailSettings, emailTemplate, whatsappSettings, driverSettings, flightTracking, operationSettings, uetdsSettings, contactPage } = req.body;
 
         // Check permission
         if (req.user.roleType !== 'TENANT_ADMIN' && req.user.roleType !== 'SUPER_ADMIN') {
@@ -231,7 +231,8 @@ router.put('/settings', authMiddleware, async (req, res) => {
             uetdsSettings: uetdsSettings ? {
                 ...currentSettings.uetdsSettings,
                 ...uetdsSettings
-            } : currentSettings.uetdsSettings
+            } : currentSettings.uetdsSettings,
+            contactPage: contactPage !== undefined ? contactPage : currentSettings.contactPage
         };
 
         const updatedTenant = await prisma.tenant.update({
@@ -973,6 +974,80 @@ router.put('/payment-providers', authMiddleware, async (req, res) => {
     } catch (error) {
         console.error('Update payment providers error:', error);
         res.status(500).json({ success: false, error: 'Failed to update payment providers' });
+    }
+});
+
+/**
+ * POST /api/tenant/contact
+ * Public contact form submission
+ */
+router.post('/contact', async (req, res) => {
+    try {
+        const { name, email, phone, subject, message: msgBody } = req.body;
+        if (!name || !email || !subject || !msgBody) {
+            return res.status(400).json({ success: false, error: 'Ad, e-posta, konu ve mesaj alanları zorunludur' });
+        }
+
+        const tenantId = req.tenant?.id;
+        if (!tenantId) {
+            return res.status(400).json({ success: false, error: 'Tenant context missing' });
+        }
+
+        // Store in ContactMessage table (or generic JSON storage in tenant settings)
+        // For simplicity, we store in a lightweight JSON array in tenant metadata
+        // Production: use a dedicated ContactMessage model
+        const msg = {
+            id: `msg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+            name,
+            email,
+            phone: phone || '',
+            subject,
+            message: msgBody,
+            status: 'unread',
+            createdAt: new Date().toISOString()
+        };
+
+        // Append to tenant's contactMessages array in settings
+        const tenant = await prisma.tenant.findUnique({
+            where: { id: tenantId },
+            select: { settings: true }
+        });
+        const settings = tenant?.settings || {};
+        const messages = Array.isArray(settings.contactMessages) ? settings.contactMessages : [];
+        messages.unshift(msg);
+        // Keep max 500 messages
+        if (messages.length > 500) messages.length = 500;
+
+        await prisma.tenant.update({
+            where: { id: tenantId },
+            data: { settings: { ...settings, contactMessages: messages } }
+        });
+
+        res.json({ success: true, message: 'Mesajınız başarıyla gönderildi' });
+    } catch (error) {
+        console.error('Contact form error:', error);
+        res.status(500).json({ success: false, error: 'Mesaj gönderilemedi' });
+    }
+});
+
+/**
+ * GET /api/tenant/contact-messages
+ * Admin: list contact form messages
+ */
+router.get('/contact-messages', authMiddleware, async (req, res) => {
+    try {
+        if (req.user.roleType !== 'TENANT_ADMIN' && req.user.roleType !== 'SUPER_ADMIN') {
+            return res.status(403).json({ success: false, error: 'Permission denied' });
+        }
+        const tenant = await prisma.tenant.findUnique({
+            where: { id: req.user.tenantId },
+            select: { settings: true }
+        });
+        const messages = tenant?.settings?.contactMessages || [];
+        res.json({ success: true, data: { messages } });
+    } catch (error) {
+        console.error('Get contact messages error:', error);
+        res.status(500).json({ success: false, error: 'Failed to load messages' });
     }
 });
 

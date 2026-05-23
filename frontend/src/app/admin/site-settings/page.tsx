@@ -34,7 +34,9 @@ import {
     ArrowDownOutlined,
     EyeOutlined,
     EyeInvisibleOutlined,
-    FileTextOutlined
+    FileTextOutlined,
+    PhoneOutlined,
+    GlobalOutlined
 } from '@ant-design/icons';
 import Upload from 'antd/es/upload';
 import { THEMES } from '@/app/context/ThemeContext';
@@ -126,6 +128,28 @@ const SiteSettingsPage: React.FC = () => {
     });
     const [customThemeSaving, setCustomThemeSaving] = useState(false);
 
+    // Contact page state
+    const [contactPage, setContactPage] = useState({
+        heroTitle: 'Bizimle İletişime Geçin',
+        heroSubtitle: 'Sorularınız, önerileriniz veya iş birliği talepleriniz için aşağıdaki kanallardan bize ulaşabilirsiniz.',
+        phone: '',
+        phoneHours: 'Hafta içi 09:00 - 18:00',
+        email: '',
+        emailNote: '7/24 e-posta desteği',
+        address: '',
+        workingHours: ['Pzt - Cmt: 09:00 - 19:00', 'Pazar: 10:00 - 16:00'],
+        branches: [] as { name: string; badge: string; address: string; phone: string; hours: string; mapEmbedUrl: string }[],
+        mainMapUrl: '',
+        formSubjects: [
+            { value: 'genel', label: 'Genel Bilgi' },
+            { value: 'destek', label: 'Teknik Destek' },
+            { value: 'isbirligi', label: 'İş Birliği' },
+            { value: 'sikayet', label: 'Şikayet / Öneri' },
+            { value: 'diger', label: 'Diğer' },
+        ],
+    });
+    const [contactSaving, setContactSaving] = useState(false);
+
     // Fetch settings on load
     useEffect(() => {
         fetchSettings();
@@ -181,6 +205,9 @@ const SiteSettingsPage: React.FC = () => {
                 }
                 if (settings.customTheme) {
                     setCustomTheme(settings.customTheme);
+                }
+                if (settings.contactPage) {
+                    setContactPage(prev => ({ ...prev, ...settings.contactPage }));
                 }
             }
         } catch (error) {
@@ -512,6 +539,65 @@ const SiteSettingsPage: React.FC = () => {
         } finally {
             setThemeSaving(false);
         }
+    };
+
+    const handleSaveContact = async () => {
+        try {
+            setContactSaving(true);
+            const res = await apiClient.put('/api/tenant/settings', { contactPage });
+            if (res.data.success) {
+                message.success('İletişim sayfası ayarları güncellendi');
+            }
+        } catch (error) {
+            console.error('Save contact error:', error);
+            message.error('İletişim ayarları kaydedilemedi');
+        } finally {
+            setContactSaving(false);
+        }
+    };
+
+    const addBranch = () => {
+        setContactPage(prev => ({
+            ...prev,
+            branches: [...prev.branches, { name: '', badge: '', address: '', phone: '', hours: '', mapEmbedUrl: '' }]
+        }));
+    };
+
+    const updateBranch = (idx: number, field: string, value: string) => {
+        setContactPage(prev => {
+            const branches = [...prev.branches];
+            branches[idx] = { ...branches[idx], [field]: value };
+            return { ...prev, branches };
+        });
+    };
+
+    const removeBranch = (idx: number) => {
+        setContactPage(prev => ({
+            ...prev,
+            branches: prev.branches.filter((_, i) => i !== idx)
+        }));
+    };
+
+    const addFormSubject = () => {
+        setContactPage(prev => ({
+            ...prev,
+            formSubjects: [...prev.formSubjects, { value: '', label: '' }]
+        }));
+    };
+
+    const updateFormSubject = (idx: number, field: string, value: string) => {
+        setContactPage(prev => {
+            const subjects = [...prev.formSubjects];
+            subjects[idx] = { ...subjects[idx], [field]: value };
+            return { ...prev, formSubjects: subjects };
+        });
+    };
+
+    const removeFormSubject = (idx: number) => {
+        setContactPage(prev => ({
+            ...prev,
+            formSubjects: prev.formSubjects.filter((_, i) => i !== idx)
+        }));
     };
 
     const tabItems = [
@@ -1303,6 +1389,175 @@ const SiteSettingsPage: React.FC = () => {
                         </Form.Item>
                     </Form>
                 </Card>
+            ),
+        },
+        {
+            key: 'contact',
+            label: (
+                <span>
+                    <PhoneOutlined />
+                    İletişim Sayfası
+                </span>
+            ),
+            children: (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+                    <Card title="İletişim Sayfası Ayarları" variant="borderless" extra={
+                        <Button type="primary" icon={<SaveOutlined />} loading={contactSaving} onClick={handleSaveContact}>
+                            Tümünü Kaydet
+                        </Button>
+                    }>
+                        <Text type="secondary" style={{ display: 'block', marginBottom: 20 }}>
+                            İletişim sayfasında gösterilecek tüm bilgileri buradan yönetebilirsiniz. Değişiklikler kaydettikten sonra <a href="/contact" target="_blank">/contact</a> sayfasında görünecektir.
+                        </Text>
+
+                        <Title level={5} style={{ marginBottom: 12, marginTop: 24 }}>Sayfa Başlığı</Title>
+                        <Row gutter={[16, 16]}>
+                            <Col xs={24} md={12}>
+                                <Form.Item label="Ana Başlık" style={{ marginBottom: 12 }}>
+                                    <Input value={contactPage.heroTitle} onChange={e => setContactPage(p => ({ ...p, heroTitle: e.target.value }))} placeholder="Bizimle İletişime Geçin" />
+                                </Form.Item>
+                            </Col>
+                            <Col xs={24} md={12}>
+                                <Form.Item label="Alt Başlık" style={{ marginBottom: 12 }}>
+                                    <Input value={contactPage.heroSubtitle} onChange={e => setContactPage(p => ({ ...p, heroSubtitle: e.target.value }))} placeholder="Sorularınız için..." />
+                                </Form.Item>
+                            </Col>
+                        </Row>
+
+                        <Title level={5} style={{ marginBottom: 12, marginTop: 24 }}>İletişim Bilgileri</Title>
+                        <Row gutter={[16, 16]}>
+                            <Col xs={24} md={8}>
+                                <Form.Item label="Telefon" style={{ marginBottom: 12 }}>
+                                    <Input value={contactPage.phone} onChange={e => setContactPage(p => ({ ...p, phone: e.target.value }))} placeholder="0850 123 45 67" />
+                                </Form.Item>
+                            </Col>
+                            <Col xs={24} md={8}>
+                                <Form.Item label="Telefon Saatleri" style={{ marginBottom: 12 }}>
+                                    <Input value={contactPage.phoneHours} onChange={e => setContactPage(p => ({ ...p, phoneHours: e.target.value }))} placeholder="Hafta içi 09:00 - 18:00" />
+                                </Form.Item>
+                            </Col>
+                            <Col xs={24} md={8}>
+                                <Form.Item label="E-posta" style={{ marginBottom: 12 }}>
+                                    <Input value={contactPage.email} onChange={e => setContactPage(p => ({ ...p, email: e.target.value }))} placeholder="info@sirketiniz.com" />
+                                </Form.Item>
+                            </Col>
+                            <Col xs={24} md={8}>
+                                <Form.Item label="E-posta Notu" style={{ marginBottom: 12 }}>
+                                    <Input value={contactPage.emailNote} onChange={e => setContactPage(p => ({ ...p, emailNote: e.target.value }))} placeholder="7/24 e-posta desteği" />
+                                </Form.Item>
+                            </Col>
+                            <Col xs={24} md={16}>
+                                <Form.Item label="Merkez Ofis Adresi" style={{ marginBottom: 12 }}>
+                                    <Input value={contactPage.address} onChange={e => setContactPage(p => ({ ...p, address: e.target.value }))} placeholder="Atatürk Mah. Cumhuriyet Cad. No:123..." />
+                                </Form.Item>
+                            </Col>
+                        </Row>
+
+                        <Title level={5} style={{ marginBottom: 12, marginTop: 16 }}>Çalışma Saatleri</Title>
+                        <Text type="secondary" style={{ display: 'block', marginBottom: 8, fontSize: 12 }}>Her satır ayrı bir çalışma saati olarak gösterilir.</Text>
+                        {contactPage.workingHours.map((h, i) => (
+                            <Space key={i} style={{ display: 'flex', marginBottom: 8 }}>
+                                <Input
+                                    value={h}
+                                    onChange={e => {
+                                        const wh = [...contactPage.workingHours];
+                                        wh[i] = e.target.value;
+                                        setContactPage(p => ({ ...p, workingHours: wh }));
+                                    }}
+                                    placeholder="Pzt - Cmt: 09:00 - 19:00"
+                                    style={{ width: 300 }}
+                                />
+                                <Button danger icon={<DeleteOutlined />} onClick={() => setContactPage(p => ({ ...p, workingHours: p.workingHours.filter((_, idx) => idx !== i) }))} />
+                            </Space>
+                        ))}
+                        <Button type="dashed" icon={<PlusOutlined />} onClick={() => setContactPage(p => ({ ...p, workingHours: [...p.workingHours, ''] }))} size="small">
+                            Satır Ekle
+                        </Button>
+
+                        <Title level={5} style={{ marginBottom: 12, marginTop: 24 }}>Ana Harita (Google Maps Embed)</Title>
+                        <Form.Item label="Harita Embed URL" extra="Google Maps → Paylaş → Haritayı yerleştir → iframe src URL'sini yapıştırın" style={{ marginBottom: 0 }}>
+                            <Input value={contactPage.mainMapUrl} onChange={e => setContactPage(p => ({ ...p, mainMapUrl: e.target.value }))} placeholder="https://www.google.com/maps/embed?pb=..." />
+                        </Form.Item>
+                    </Card>
+
+                    <Card title="Şubeler" variant="borderless" extra={
+                        <Button icon={<PlusOutlined />} onClick={addBranch}>Şube Ekle</Button>
+                    }>
+                        <Text type="secondary" style={{ display: 'block', marginBottom: 16 }}>
+                            İletişim sayfasında harita ile birlikte gösterilecek şubelerinizi ekleyin.
+                        </Text>
+                        {contactPage.branches.length === 0 && (
+                            <div style={{ textAlign: 'center', padding: '40px 0', color: '#999' }}>
+                                <EnvironmentOutlined style={{ fontSize: 32, marginBottom: 8 }} />
+                                <br />
+                                <Text type="secondary">Henüz şube eklenmemiş. "Şube Ekle" butonuna tıklayın.</Text>
+                            </div>
+                        )}
+                        {contactPage.branches.map((branch, idx) => (
+                            <Card
+                                key={idx}
+                                size="small"
+                                style={{ marginBottom: 16, background: '#fafafa' }}
+                                title={`Şube ${idx + 1}${branch.name ? ': ' + branch.name : ''}`}
+                                extra={<Button danger size="small" icon={<DeleteOutlined />} onClick={() => removeBranch(idx)}>Sil</Button>}
+                            >
+                                <Row gutter={[12, 12]}>
+                                    <Col xs={24} md={8}>
+                                        <Form.Item label="Şube Adı" style={{ marginBottom: 8 }}>
+                                            <Input value={branch.name} onChange={e => updateBranch(idx, 'name', e.target.value)} placeholder="İstanbul - Şişli" />
+                                        </Form.Item>
+                                    </Col>
+                                    <Col xs={24} md={8}>
+                                        <Form.Item label="Etiket / Badge" style={{ marginBottom: 8 }}>
+                                            <Input value={branch.badge} onChange={e => updateBranch(idx, 'badge', e.target.value)} placeholder="Merkez Şube" />
+                                        </Form.Item>
+                                    </Col>
+                                    <Col xs={24} md={8}>
+                                        <Form.Item label="Telefon" style={{ marginBottom: 8 }}>
+                                            <Input value={branch.phone} onChange={e => updateBranch(idx, 'phone', e.target.value)} placeholder="0212 123 45 67" />
+                                        </Form.Item>
+                                    </Col>
+                                    <Col xs={24} md={12}>
+                                        <Form.Item label="Adres" style={{ marginBottom: 8 }}>
+                                            <Input value={branch.address} onChange={e => updateBranch(idx, 'address', e.target.value)} placeholder="Atatürk Mah. Cumhuriyet Cad. No:123" />
+                                        </Form.Item>
+                                    </Col>
+                                    <Col xs={24} md={12}>
+                                        <Form.Item label="Çalışma Saatleri" style={{ marginBottom: 8 }}>
+                                            <Input value={branch.hours} onChange={e => updateBranch(idx, 'hours', e.target.value)} placeholder="Her gün 09:00 - 19:00" />
+                                        </Form.Item>
+                                    </Col>
+                                    <Col xs={24}>
+                                        <Form.Item label="Google Maps Embed URL" extra="Google Maps → Paylaş → Haritayı yerleştir → iframe src URL'si" style={{ marginBottom: 8 }}>
+                                            <Input value={branch.mapEmbedUrl} onChange={e => updateBranch(idx, 'mapEmbedUrl', e.target.value)} placeholder="https://www.google.com/maps/embed?pb=..." />
+                                        </Form.Item>
+                                    </Col>
+                                </Row>
+                            </Card>
+                        ))}
+                    </Card>
+
+                    <Card title="İletişim Formu Konuları" variant="borderless" extra={
+                        <Button icon={<PlusOutlined />} onClick={addFormSubject} size="small">Konu Ekle</Button>
+                    }>
+                        <Text type="secondary" style={{ display: 'block', marginBottom: 12 }}>
+                            Ziyaretçilerin iletişim formunda seçebileceği konu başlıklarını belirleyin.
+                        </Text>
+                        {contactPage.formSubjects.map((subj, idx) => (
+                            <Space key={idx} style={{ display: 'flex', marginBottom: 8 }}>
+                                <Input value={subj.value} onChange={e => updateFormSubject(idx, 'value', e.target.value)} placeholder="Anahtar (örn: destek)" style={{ width: 150 }} />
+                                <Input value={subj.label} onChange={e => updateFormSubject(idx, 'label', e.target.value)} placeholder="Görünen isim (örn: Teknik Destek)" style={{ width: 250 }} />
+                                <Button danger icon={<DeleteOutlined />} onClick={() => removeFormSubject(idx)} />
+                            </Space>
+                        ))}
+                    </Card>
+
+                    <div style={{ textAlign: 'right' }}>
+                        <Button type="primary" size="large" icon={<SaveOutlined />} loading={contactSaving} onClick={handleSaveContact}>
+                            İletişim Sayfasını Kaydet
+                        </Button>
+                    </div>
+                </div>
             ),
         },
     ];

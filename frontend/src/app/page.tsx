@@ -1159,7 +1159,7 @@ const HomePage: React.FC = () => {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <a href="/" style={{ color: 'rgba(255,255,255,0.55)', textDecoration: 'none', fontSize: 13 }}>{t('footer.home')}</a>
                 <a href="/sayfa/hakkimizda" style={{ color: 'rgba(255,255,255,0.55)', textDecoration: 'none', fontSize: 13 }}>{t('footer.about')}</a>
-                <a href="/sayfa/iletisim" style={{ color: 'rgba(255,255,255,0.55)', textDecoration: 'none', fontSize: 13 }}>{t('footer.contact')}</a>
+                <a href="/contact" style={{ color: 'rgba(255,255,255,0.55)', textDecoration: 'none', fontSize: 13 }}>{t('footer.contact')}</a>
                 <a href="/sayfa/seyahat-rehberi" style={{ color: 'rgba(255,255,255,0.55)', textDecoration: 'none', fontSize: 13 }}>{t('footer.travelGuide')}</a>
               </div>
             </Col>
