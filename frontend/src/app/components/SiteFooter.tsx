@@ -26,11 +26,14 @@ const SiteFooter: React.FC = () => {
     const { theme } = useTheme();
     const { t } = useLanguage();
     const [socialMedia, setSocialMedia] = useState<Record<string, string>>({});
+    const [tursab, setTursab] = useState<{ enabled: boolean; belgeNo: string; verificationUrl: string }>({ enabled: false, belgeNo: '', verificationUrl: '' });
 
     useEffect(() => {
         apiClient.get('/api/tenant/info').then(res => {
             if (res.data.success) {
-                setSocialMedia(res.data.data.tenant.settings?.socialMedia || {});
+                const settings = res.data.data.tenant.settings || {};
+                setSocialMedia(settings.socialMedia || {});
+                if (settings.tursab) setTursab(settings.tursab);
             }
         }).catch(() => {});
     }, []);
@@ -97,6 +100,27 @@ const SiteFooter: React.FC = () => {
                         </div>
                     </Col>
                 </Row>
+                {/* TÜRSAB Badge */}
+                {tursab.enabled && tursab.belgeNo && (
+                    <div style={{ borderTop: '1px solid rgba(255,255,255,0.07)', padding: '20px 0' }}>
+                        <a
+                            href={tursab.verificationUrl || 'https://www.tursab.org.tr/tr/dds'}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: 12, background: '#fff', borderRadius: 10, padding: '10px 18px', textDecoration: 'none', transition: 'all 0.3s', border: '2px solid #e5e7eb' }}
+                        >
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                                <span style={{ fontWeight: 900, fontSize: 16, color: '#dc2626', letterSpacing: 2, lineHeight: 1 }}>TÜRSAB</span>
+                                <span style={{ fontSize: 7, color: '#666', fontWeight: 600, letterSpacing: 0.5, marginTop: 2 }}>DİJİTAL DOĞRULAMA</span>
+                            </div>
+                            <div style={{ width: 1, height: 32, background: '#e5e7eb' }} />
+                            <div>
+                                <div style={{ fontSize: 10, color: '#888' }}>Belge No</div>
+                                <div style={{ fontSize: 18, fontWeight: 800, color: '#0f172a', lineHeight: 1 }}>{tursab.belgeNo}</div>
+                            </div>
+                        </a>
+                    </div>
+                )}
                 <div style={{ borderTop: '1px solid rgba(255,255,255,0.07)', padding: '20px 0 28px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
                     <Text style={{ color: 'rgba(255,255,255,0.32)', fontSize: 13 }}>&copy; {new Date().getFullYear()} {branding.companyName}. {t('footer.rights')}</Text>
                     <div style={{ display: 'flex', gap: 10 }}>

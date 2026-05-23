@@ -36,7 +36,9 @@ import {
     EyeInvisibleOutlined,
     FileTextOutlined,
     PhoneOutlined,
-    GlobalOutlined
+    GlobalOutlined,
+    SafetyCertificateOutlined,
+    StarOutlined
 } from '@ant-design/icons';
 import Upload from 'antd/es/upload';
 import { THEMES } from '@/app/context/ThemeContext';
@@ -115,6 +117,14 @@ const SiteSettingsPage: React.FC = () => {
         { title: 'Geniş Kapsama Alanı', desc: 'Havalimanı, otel ve şehirler arası geniş hizmet ağı.', color: '#13c2c2' },
         { title: 'Müşteri Memnuniyeti', desc: 'Yüksek müşteri memnuniyeti ile kaliteli hizmet.', color: '#eb2f96' },
     ]);
+    const [testimonialItems, setTestimonialItems] = useState<{ name: string; text: string; rating: number; city: string }[]>([
+        { name: 'Ahmet Y.', text: 'Harika bir transfer deneyimi yaşadık. Şoförümüz çok ilgili ve araç tertemizdi.', rating: 5, city: 'İstanbul' },
+        { name: 'Maria S.', text: 'Zamanında geldiler, çok profesyonel bir hizmet aldık. Kesinlikle tavsiye ederim!', rating: 5, city: 'Berlin' },
+        { name: 'Fatma K.', text: 'Fiyat-performans açısından en iyi transfer hizmeti. Bir daha kullanacağım.', rating: 5, city: 'Ankara' },
+    ]);
+    const [tursab, setTursab] = useState({ enabled: false, belgeNo: '', verificationUrl: '' });
+    const [tursabSaving, setTursabSaving] = useState(false);
+    const [routeImgUploading, setRouteImgUploading] = useState<number | null>(null);
     const [contentSaving, setContentSaving] = useState(false);
 
     // Custom theme state
@@ -204,6 +214,12 @@ const SiteSettingsPage: React.FC = () => {
                 if (settings.homepageFeatures?.length > 0) {
                     setFeatureItems(settings.homepageFeatures);
                 }
+                if (settings.homepageTestimonials?.length > 0) {
+                    setTestimonialItems(settings.homepageTestimonials);
+                }
+                if (settings.tursab) {
+                    setTursab(prev => ({ ...prev, ...settings.tursab }));
+                }
                 if (settings.customTheme) {
                     setCustomTheme(settings.customTheme);
                 }
@@ -238,6 +254,7 @@ const SiteSettingsPage: React.FC = () => {
                 homepageStats: statsItems,
                 homepageRoutes: routeItems,
                 homepageFeatures: featureItems,
+                homepageTestimonials: testimonialItems,
             });
             if (res.data.success) {
                 message.success('İçerikler güncellendi');
@@ -323,6 +340,49 @@ const SiteSettingsPage: React.FC = () => {
 
     const removeFeatureItem = (idx: number) => {
         setFeatureItems(featureItems.filter((_, i) => i !== idx));
+    };
+
+    const addTestimonialItem = () => {
+        setTestimonialItems([...testimonialItems, { name: '', text: '', rating: 5, city: '' }]);
+    };
+
+    const updateTestimonialItem = (idx: number, field: 'name' | 'text' | 'rating' | 'city', value: any) => {
+        const arr = [...testimonialItems];
+        arr[idx] = { ...arr[idx], [field]: value };
+        setTestimonialItems(arr);
+    };
+
+    const removeTestimonialItem = (idx: number) => {
+        setTestimonialItems(testimonialItems.filter((_, i) => i !== idx));
+    };
+
+    const handleSaveTursab = async () => {
+        try {
+            setTursabSaving(true);
+            const res = await apiClient.put('/api/tenant/settings', { tursab });
+            if (res.data.success) message.success('TÜRSAB ayarları kaydedildi');
+        } catch (error) {
+            message.error('TÜRSAB ayarları kaydedilemedi');
+        } finally {
+            setTursabSaving(false);
+        }
+    };
+
+    const handleRouteImageUpload = async (file: File, idx: number) => {
+        try {
+            setRouteImgUploading(idx);
+            const formData = new FormData();
+            formData.append('file', file);
+            const res = await apiClient.post('/api/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+            if (res.data.success) {
+                updateRouteItem(idx, 'img', res.data.data.url);
+                message.success('Görsel yüklendi');
+            }
+        } catch {
+            message.error('Görsel yüklenemedi');
+        } finally {
+            setRouteImgUploading(null);
+        }
     };
 
     const handleSaveGoogleMaps = async () => {
@@ -1106,6 +1166,36 @@ const SiteSettingsPage: React.FC = () => {
             ),
             children: (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+                    <Card title="Hero Bölümü (Ana Sayfa Üst Banner)" variant="borderless">
+                        <Text type="secondary" style={{ display: 'block', marginBottom: 16 }}>
+                            Ana sayfanın en üstünde görünen başlık ve alt yazıyı düzenleyin. Bu alanlar &quot;Özel Tema&quot; sekmesindeki başlık/alt başlık alanları ile aynı veriyi kullanır.
+                        </Text>
+                        <Row gutter={16}>
+                            <Col xs={24} md={12}>
+                                <Form.Item label="Hero Başlık" extra="Ör: Güvenilir Transfer Hizmeti">
+                                    <Input
+                                        value={customTheme.heroTitle}
+                                        onChange={e => setCustomTheme(prev => ({ ...prev, heroTitle: e.target.value }))}
+                                        placeholder="Güvenilir Transfer Hizmeti"
+                                    />
+                                </Form.Item>
+                            </Col>
+                            <Col xs={24} md={12}>
+                                <Form.Item label="Hero Alt Yazı" extra="Ör: Havalimanı transferinden şehirler arası...">
+                                    <Input.TextArea
+                                        value={customTheme.heroSubtitle}
+                                        onChange={e => setCustomTheme(prev => ({ ...prev, heroSubtitle: e.target.value }))}
+                                        placeholder="Havalimanı transferinden şehirler arası ulaşıma..."
+                                        rows={2}
+                                    />
+                                </Form.Item>
+                            </Col>
+                        </Row>
+                        <Button type="primary" icon={<SaveOutlined />} onClick={handleSaveCustomTheme} loading={customThemeSaving}>
+                            Hero Başlıklarını Kaydet
+                        </Button>
+                    </Card>
+
                     <Card title="Sıkça Sorulan Sorular (SSS)" variant="borderless" extra={
                         <Button icon={<PlusOutlined />} onClick={addFaqItem}>SSS Ekle</Button>
                     }>
@@ -1192,12 +1282,18 @@ const SiteSettingsPage: React.FC = () => {
                                             <Col span={2} style={{ display: 'flex', alignItems: 'flex-end' }}>
                                                 <Button danger icon={<DeleteOutlined />} size="small" onClick={() => removeRouteItem(idx)} />
                                             </Col>
-                                            <Col span={12}>
-                                                <Form.Item label="Görsel URL" style={{ marginBottom: 0 }}>
-                                                    <Input value={route.img} onChange={e => updateRouteItem(idx, 'img', e.target.value)} placeholder="https://..." />
+                                            <Col span={16}>
+                                                <Form.Item label="Görsel" style={{ marginBottom: 0 }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                                        <Upload showUploadList={false} accept="image/*" beforeUpload={(file) => { handleRouteImageUpload(file, idx); return false; }}>
+                                                            <Button icon={<UploadOutlined />} size="small" loading={routeImgUploading === idx}>Yükle</Button>
+                                                        </Upload>
+                                                        {route.img && <img src={route.img.startsWith('http') ? route.img : getImageUrl(route.img)} alt="" style={{ height: 40, width: 60, objectFit: 'cover', borderRadius: 6, border: '1px solid #e5e7eb' }} />}
+                                                        <Input value={route.img} onChange={e => updateRouteItem(idx, 'img', e.target.value)} placeholder="https://... veya yükle" size="small" style={{ flex: 1, minWidth: 120 }} />
+                                                    </div>
                                                 </Form.Item>
                                             </Col>
-                                            <Col span={12}>
+                                            <Col span={8}>
                                                 <Form.Item label="Fiyat (EUR)" style={{ marginBottom: 0 }}>
                                                     <Input value={route.price} onChange={e => updateRouteItem(idx, 'price', e.target.value)} placeholder="35" />
                                                 </Form.Item>
@@ -1255,12 +1351,128 @@ const SiteSettingsPage: React.FC = () => {
                         )}
                     </Card>
 
+                    <Card title="Müşteri Yorumları" variant="borderless" extra={
+                        <Button icon={<PlusOutlined />} onClick={addTestimonialItem}>Yorum Ekle</Button>
+                    }>
+                        <Text type="secondary" style={{ display: 'block', marginBottom: 16 }}>
+                            Ana sayfadaki &quot;Müşteri Yorumları&quot; bölümünde gösterilecek referansları yönetin.
+                        </Text>
+                        <Row gutter={[16, 16]}>
+                            {testimonialItems.map((item, idx) => (
+                                <Col xs={24} md={8} key={idx}>
+                                    <Card size="small" style={{ background: '#fafafa' }}>
+                                        <Row gutter={[8, 8]}>
+                                            <Col span={12}>
+                                                <Form.Item label="İsim" style={{ marginBottom: 8 }}>
+                                                    <Input value={item.name} onChange={e => updateTestimonialItem(idx, 'name', e.target.value)} placeholder="Ahmet Y." />
+                                                </Form.Item>
+                                            </Col>
+                                            <Col span={12}>
+                                                <Form.Item label="Şehir" style={{ marginBottom: 8 }}>
+                                                    <Input value={item.city} onChange={e => updateTestimonialItem(idx, 'city', e.target.value)} placeholder="İstanbul" />
+                                                </Form.Item>
+                                            </Col>
+                                            <Col span={24}>
+                                                <Form.Item label="Yorum Metni" style={{ marginBottom: 8 }}>
+                                                    <Input.TextArea value={item.text} onChange={e => updateTestimonialItem(idx, 'text', e.target.value)} rows={3} placeholder="Transfer deneyiminiz hakkında..." />
+                                                </Form.Item>
+                                            </Col>
+                                            <Col span={12}>
+                                                <Form.Item label="Puan" style={{ marginBottom: 0 }}>
+                                                    <div style={{ display: 'flex', gap: 4 }}>
+                                                        {[1, 2, 3, 4, 5].map(r => (
+                                                            <StarOutlined
+                                                                key={r}
+                                                                onClick={() => updateTestimonialItem(idx, 'rating', r)}
+                                                                style={{ fontSize: 18, color: r <= item.rating ? '#fbbf24' : '#d9d9d9', cursor: 'pointer' }}
+                                                            />
+                                                        ))}
+                                                    </div>
+                                                </Form.Item>
+                                            </Col>
+                                            <Col span={12} style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'flex-end' }}>
+                                                <Button danger icon={<DeleteOutlined />} size="small" onClick={() => removeTestimonialItem(idx)}>Sil</Button>
+                                            </Col>
+                                        </Row>
+                                    </Card>
+                                </Col>
+                            ))}
+                        </Row>
+                        {testimonialItems.length === 0 && (
+                            <Text type="secondary" style={{ textAlign: 'center', padding: 24 }}>Henüz yorum eklenmemiş. &quot;Yorum Ekle&quot; butonu ile ekleyin.</Text>
+                        )}
+                    </Card>
+
                     <div style={{ textAlign: 'right' }}>
                         <Button type="primary" size="large" icon={<SaveOutlined />} onClick={handleSaveContent} loading={contentSaving}>
                             Tüm İçerikleri Kaydet
                         </Button>
                     </div>
                 </div>
+            ),
+        },
+        {
+            key: 'tursab',
+            label: (
+                <span>
+                    <SafetyCertificateOutlined />
+                    Tanımlar / TÜRSAB
+                </span>
+            ),
+            children: (
+                <Card title="TÜRSAB Dijital Doğrulama Sistemi" variant="borderless" extra={
+                    <Button type="primary" icon={<SaveOutlined />} loading={tursabSaving} onClick={handleSaveTursab}>
+                        Kaydet
+                    </Button>
+                }>
+                    <Text type="secondary" style={{ display: 'block', marginBottom: 20 }}>
+                        TÜRSAB dijital doğrulama badge&apos;ini footer&apos;da göstermek için aşağıdaki bilgileri doldurun.
+                        Badge sadece &quot;Aktif&quot; olduğunda görünür.
+                    </Text>
+                    <Form layout="vertical">
+                        <Form.Item label="TÜRSAB Badge Durumu">
+                            <Switch
+                                checked={tursab.enabled}
+                                onChange={checked => setTursab(prev => ({ ...prev, enabled: checked }))}
+                                checkedChildren="Aktif"
+                                unCheckedChildren="Pasif"
+                            />
+                        </Form.Item>
+                        <Row gutter={16}>
+                            <Col xs={24} md={8}>
+                                <Form.Item label="Belge No" extra="TÜRSAB kayıt belge numaranız">
+                                    <Input
+                                        value={tursab.belgeNo}
+                                        onChange={e => setTursab(prev => ({ ...prev, belgeNo: e.target.value }))}
+                                        placeholder="10728"
+                                    />
+                                </Form.Item>
+                            </Col>
+                            <Col xs={24} md={16}>
+                                <Form.Item label="Doğrulama URL" extra="TÜRSAB dijital doğrulama bağlantı adresi">
+                                    <Input
+                                        value={tursab.verificationUrl}
+                                        onChange={e => setTursab(prev => ({ ...prev, verificationUrl: e.target.value }))}
+                                        placeholder="https://www.tursab.org.tr/tr/dds"
+                                    />
+                                </Form.Item>
+                            </Col>
+                        </Row>
+                        {tursab.enabled && tursab.belgeNo && (
+                            <div style={{ padding: 20, background: '#fafafa', borderRadius: 12, border: '1px solid #e5e7eb', maxWidth: 340 }}>
+                                <Text strong style={{ display: 'block', marginBottom: 8 }}>Önizleme:</Text>
+                                <div style={{ background: '#fff', border: '2px solid #e5e7eb', borderRadius: 8, padding: 12, display: 'flex', alignItems: 'center', gap: 12 }}>
+                                    <SafetyCertificateOutlined style={{ fontSize: 28, color: '#dc2626' }} />
+                                    <div>
+                                        <div style={{ fontWeight: 700, fontSize: 13, color: '#dc2626', letterSpacing: 1 }}>TÜRSAB</div>
+                                        <div style={{ fontSize: 10, color: '#666', lineHeight: 1.3 }}>Dijital Doğrulama Sistemi</div>
+                                        <div style={{ fontSize: 11, marginTop: 2 }}>Belge No: <strong>{tursab.belgeNo}</strong></div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </Form>
+                </Card>
             ),
         },
         {
