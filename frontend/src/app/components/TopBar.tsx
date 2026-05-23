@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { Button, Space, Typography, Select, Drawer } from 'antd';
-import { MenuOutlined, UserOutlined, PhoneOutlined } from '@ant-design/icons';
+import React, { useState, useEffect, useRef } from 'react';
+import { Button, Space, Typography, Drawer } from 'antd';
+import { MenuOutlined, UserOutlined, CaretDownOutlined } from '@ant-design/icons';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../context/AuthContext';
 import { useCurrency } from '../context/CurrencyContext';
@@ -14,7 +14,6 @@ import axios from 'axios';
 import { API_URL, getImageUrl } from '@/lib/api-client';
 
 const { Text } = Typography;
-const { Option } = Select;
 
 
 const TENANT_SLUG = (process.env.NEXT_PUBLIC_TENANT_SLUG || 'smarttravel-demo').replace(/[\r\n]+/g, '').trim();
@@ -35,11 +34,24 @@ const TopBar: React.FC = () => {
   const [scrolled, setScrolled] = useState(false);
   const [menuPages, setMenuPages] = useState<NavPage[]>([]);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [langOpen, setLangOpen] = useState(false);
+  const [currOpen, setCurrOpen] = useState(false);
+  const langRef = useRef<HTMLDivElement>(null);
+  const currRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const handleScroll = () => setScrolled(window.scrollY > 50);
+    const handleScroll = () => setScrolled(window.scrollY > 40);
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (langRef.current && !langRef.current.contains(e.target as Node)) setLangOpen(false);
+      if (currRef.current && !currRef.current.contains(e.target as Node)) setCurrOpen(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   useEffect(() => {
@@ -98,24 +110,53 @@ const TopBar: React.FC = () => {
     whiteSpace: 'nowrap',
   };
 
+  const pillStyle: React.CSSProperties = {
+    background: scrolled ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.12)',
+    border: '1px solid rgba(255,255,255,0.2)',
+    color: '#fff',
+    borderRadius: 8,
+    padding: '5px 12px',
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 6,
+    transition: 'all 0.2s',
+    userSelect: 'none' as const,
+    position: 'relative' as const,
+    whiteSpace: 'nowrap' as const,
+  };
+
   return (
     <>
+      <style>{`
+        .tb-pill:hover { background: rgba(255,255,255,0.2) !important; border-color: rgba(255,255,255,0.35) !important; }
+        .tb-dropdown { position: absolute; top: calc(100% + 8px); right: 0; background: #0f172a; border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; min-width: 150px; overflow: hidden; box-shadow: 0 20px 50px rgba(0,0,0,0.5); z-index: 9999; animation: tbDropFade 0.15s ease; }
+        .tb-dropdown-item { padding: 10px 16px; color: rgba(255,255,255,0.75); font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 10px; transition: all 0.15s; }
+        .tb-dropdown-item:hover { background: rgba(255,255,255,0.07); color: #fff; }
+        .tb-dropdown-item.tb-active { color: ${theme.sectionAccent}; font-weight: 700; }
+        @keyframes tbDropFade { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
+      `}</style>
       <div
         style={{
           width: '100%',
-          padding: scrolled ? '10px 32px' : '14px 32px',
+          padding: scrolled ? '10px 32px' : '16px 32px',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          background: scrolled ? 'rgba(15, 23, 42, 0.97)' : 'rgba(15, 23, 42, 0.85)',
-          backdropFilter: 'blur(12px)',
+          background: scrolled ? 'rgba(15,23,42,0.97)' : 'transparent',
+          backdropFilter: scrolled ? 'blur(16px)' : 'none',
+          WebkitBackdropFilter: scrolled ? 'blur(16px)' : 'none',
           color: 'white',
-          position: 'sticky',
+          position: 'fixed',
           top: 0,
+          left: 0,
+          right: 0,
           zIndex: 1000,
-          transition: 'all 0.3s ease',
-          boxShadow: scrolled ? '0 4px 20px rgba(0,0,0,0.15)' : 'none',
-          borderBottom: scrolled ? 'none' : '1px solid rgba(255,255,255,0.08)',
+          transition: 'all 0.4s ease',
+          boxShadow: scrolled ? '0 4px 24px rgba(0,0,0,0.25)' : 'none',
+          borderBottom: scrolled ? '1px solid rgba(255,255,255,0.06)' : 'none',
         }}
       >
         {/* Logo + Desktop Navigation grouped on the left */}
@@ -166,53 +207,52 @@ const TopBar: React.FC = () => {
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           {(!authLoading && !currencyLoading) && (
             <>
-              {/* Language Selector */}
-              <Select
-                value={locale}
-                onChange={(val: SupportedLocale) => setLocale(val)}
-                style={{ width: 80, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: '6px' }}
-                size="small"
-                variant="borderless"
-                styles={{ popup: { root: { zIndex: 9999, minWidth: 120 } } }}
-                optionLabelProp="label"
-              >
-                {supportedLocales.map(lc => (
-                  <Option
-                    key={lc}
-                    value={lc}
-                    label={<span style={{ color: 'white', fontWeight: 600, fontSize: 13 }}>{localeLabels[lc].flag} {lc.toUpperCase()}</span>}
-                  >
-                    <Space>
-                      <span>{localeLabels[lc].flag}</span>
-                      <span>{localeLabels[lc].label}</span>
-                    </Space>
-                  </Option>
-                ))}
-              </Select>
+              {/* Language Pill */}
+              <div ref={langRef} style={{ position: 'relative' }}>
+                <div className="tb-pill" style={pillStyle} onClick={() => { setLangOpen(o => !o); setCurrOpen(false); }}>
+                  <span>{localeLabels[locale]?.flag}</span>
+                  <span>{locale.toUpperCase()}</span>
+                  <CaretDownOutlined style={{ fontSize: 10, opacity: 0.7, transform: langOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+                </div>
+                {langOpen && (
+                  <div className="tb-dropdown">
+                    {supportedLocales.map(lc => (
+                      <div
+                        key={lc}
+                        className={`tb-dropdown-item${locale === lc ? ' tb-active' : ''}`}
+                        onClick={() => { setLocale(lc); setLangOpen(false); }}
+                      >
+                        <span>{localeLabels[lc].flag}</span>
+                        <span>{localeLabels[lc].label}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
 
+              {/* Currency Pill */}
               {currencies.length > 0 && (
-                <Select
-                  value={selectedCurrency}
-                  onChange={setCurrency}
-                  style={{ width: 100, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: '6px' }}
-                  size="small"
-                  variant="borderless"
-                  styles={{ popup: { root: { zIndex: 9999, minWidth: 120 } } }}
-                  optionLabelProp="label"
-                >
-                  {currencies.map(c => (
-                    <Option
-                      key={c.code}
-                      value={c.code}
-                      label={<span style={{ color: 'white', fontWeight: 600, fontSize: 13 }}>{c.symbol} {c.code}</span>}
-                    >
-                      <Space>
-                        <span style={{ fontWeight: 'bold' }}>{c.symbol}</span>
-                        <span>{c.code}</span>
-                      </Space>
-                    </Option>
-                  ))}
-                </Select>
+                <div ref={currRef} style={{ position: 'relative' }}>
+                  <div className="tb-pill" style={pillStyle} onClick={() => { setCurrOpen(o => !o); setLangOpen(false); }}>
+                    <span>{currencies.find(c => c.code === selectedCurrency)?.symbol || selectedCurrency}</span>
+                    <span>{selectedCurrency}</span>
+                    <CaretDownOutlined style={{ fontSize: 10, opacity: 0.7, transform: currOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+                  </div>
+                  {currOpen && (
+                    <div className="tb-dropdown">
+                      {currencies.map(c => (
+                        <div
+                          key={c.code}
+                          className={`tb-dropdown-item${selectedCurrency === c.code ? ' tb-active' : ''}`}
+                          onClick={() => { setCurrency(c.code); setCurrOpen(false); }}
+                        >
+                          <span style={{ fontWeight: 700, width: 20, textAlign: 'center' }}>{c.symbol}</span>
+                          <span>{c.code}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               )}
 
               {user ? (
@@ -310,21 +350,15 @@ const TopBar: React.FC = () => {
 
           {/* Mobile Language Selector */}
           <div style={{ padding: '10px 0', borderBottom: '1px solid #f0f0f0' }}>
-            <Select
+            <select
               value={locale}
-              onChange={(val: SupportedLocale) => setLocale(val)}
-              style={{ width: '100%' }}
-              size="large"
+              onChange={e => setLocale(e.target.value as SupportedLocale)}
+              style={{ width: '100%', height: 44, borderRadius: 10, border: '1px solid #e5e7eb', fontSize: 14, padding: '0 12px', background: '#fff', color: '#111827' }}
             >
               {supportedLocales.map(lc => (
-                <Option key={lc} value={lc}>
-                  <Space>
-                    <span>{localeLabels[lc].flag}</span>
-                    <span>{localeLabels[lc].label}</span>
-                  </Space>
-                </Option>
+                <option key={lc} value={lc}>{localeLabels[lc].flag} {localeLabels[lc].label}</option>
               ))}
-            </Select>
+            </select>
           </div>
 
           {/* Mobile auth actions */}
