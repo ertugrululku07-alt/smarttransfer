@@ -69,6 +69,7 @@ const SiteSettingsPage: React.FC = () => {
     });
     const [brandingSaving, setBrandingSaving] = useState(false);
     const [logoUploading, setLogoUploading] = useState(false);
+    const [heroImageUploading, setHeroImageUploading] = useState(false);
 
     // Homepage sections state
     const ALL_SECTIONS: { key: string; label: string; desc: string }[] = [
@@ -388,6 +389,32 @@ const SiteSettingsPage: React.FC = () => {
             message.error('Görsel silinemedi');
             fetchSettings();
         }
+    };
+
+    const handleHeroImageUpload = async (file: File) => {
+        try {
+            setHeroImageUploading(true);
+            const formData = new FormData();
+            formData.append('file', file);
+            const res = await apiClient.post('/api/upload', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            if (res.data.success) {
+                const imageUrl = res.data.data.url;
+                const updatedImages = [...heroImages, imageUrl];
+                setHeroImages(updatedImages);
+                const saveRes = await apiClient.put('/api/tenant/hero-images', { images: updatedImages });
+                if (saveRes.data.success) {
+                    message.success('Görsel yüklendi ve eklendi');
+                }
+            }
+        } catch (error) {
+            console.error('Hero image upload error:', error);
+            message.error('Görsel yüklenemedi');
+        } finally {
+            setHeroImageUploading(false);
+        }
+        return false;
     };
 
     const handleSaveBranding = async () => {
@@ -766,15 +793,36 @@ const SiteSettingsPage: React.FC = () => {
                     ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', width: '100%' }}>
                             <Card title="Yeni Görsel Ekle" variant="borderless">
-                                <Space.Compact style={{ width: '100%' }}>
-                                    <Input
-                                        placeholder="Görsel URL (https://...)"
-                                        value={newImageUrl}
-                                        onChange={(e) => setNewImageUrl(e.target.value)}
-                                        onPressEnter={handleAddImage}
-                                    />
-                                    <Button type="primary" onClick={handleAddImage} icon={<PlusOutlined />}>Ekle</Button>
-                                </Space.Compact>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                                    <div>
+                                        <Text type="secondary" style={{ display: 'block', marginBottom: 8, fontSize: 13 }}>
+                                            Bilgisayarınızdan görsel yükleyin:
+                                        </Text>
+                                        <Upload
+                                            accept="image/*"
+                                            showUploadList={false}
+                                            beforeUpload={(file) => { handleHeroImageUpload(file); return false; }}
+                                        >
+                                            <Button icon={<UploadOutlined />} loading={heroImageUploading} size="large" type="primary">
+                                                {heroImageUploading ? 'Yükleniyor...' : 'Görsel Yükle'}
+                                            </Button>
+                                        </Upload>
+                                    </div>
+                                    <div>
+                                        <Text type="secondary" style={{ display: 'block', marginBottom: 8, fontSize: 13 }}>
+                                            Veya URL ile ekleyin:
+                                        </Text>
+                                        <Space.Compact style={{ width: '100%' }}>
+                                            <Input
+                                                placeholder="Görsel URL (https://...)"
+                                                value={newImageUrl}
+                                                onChange={(e) => setNewImageUrl(e.target.value)}
+                                                onPressEnter={handleAddImage}
+                                            />
+                                            <Button type="primary" onClick={handleAddImage} icon={<PlusOutlined />}>Ekle</Button>
+                                        </Space.Compact>
+                                    </div>
+                                </div>
                             </Card>
 
                             <Card title="Mevcut Görseller" variant="borderless">
@@ -785,7 +833,7 @@ const SiteSettingsPage: React.FC = () => {
                                                 cover={
                                                     <div style={{ height: 200, overflow: 'hidden' }}>
                                                         <Image
-                                                            src={url}
+                                                            src={getImageUrl(url) || url}
                                                             alt={`Hero ${index}`}
                                                             style={{ objectFit: 'cover', width: '100%', height: '100%' }}
                                                         />

@@ -771,13 +771,14 @@ const HomePage: React.FC = () => {
         {/* ─── HERO ─── */}
         {heroBackground.type === 'video' && heroBackground.videoUrl ? (
           <div style={{ position: 'relative', minHeight: 'clamp(600px, 85vh, 800px)', overflow: 'hidden' }}>
-            <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 0, pointerEvents: 'none' }}>
+            <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 0 }}>
               <iframe
                 width="100%" height="100%"
-                src={`https://www.youtube.com/embed/${heroBackground.videoUrl}?autoplay=1&mute=1&controls=0&loop=1&playlist=${heroBackground.videoUrl}&showinfo=0&rel=0&iv_load_policy=3&disablekb=1&vq=hd1080`}
+                src={`https://www.youtube-nocookie.com/embed/${heroBackground.videoUrl}?autoplay=1&mute=1&controls=0&loop=1&playlist=${heroBackground.videoUrl}&showinfo=0&rel=0&iv_load_policy=3&disablekb=1&playsinline=1&enablejsapi=1&modestbranding=1`}
                 title="Background Video" frameBorder="0"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                style={{ width: '100vw', height: '56.25vw', minHeight: '100%', minWidth: '177.77vh', position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', pointerEvents: 'none' }}
+                allow="autoplay; fullscreen; encrypted-media"
+                allowFullScreen
+                style={{ width: '100vw', height: '56.25vw', minHeight: '100%', minWidth: '177.77vh', position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', border: 'none' }}
               />
               <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', background: theme.heroOverlay, zIndex: 1 }} />
             </div>
@@ -790,7 +791,7 @@ const HomePage: React.FC = () => {
                 <div key={index}>
                   <div style={{
                     minHeight: 'clamp(600px, 85vh, 800px)',
-                    backgroundImage: `url(${img})`, backgroundSize: 'cover', backgroundPosition: 'center',
+                    backgroundImage: `url(${getImageUrl(img) || img})`, backgroundSize: 'cover', backgroundPosition: 'center',
                   }}>
                     <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', background: theme.heroOverlay }} />
                   </div>
