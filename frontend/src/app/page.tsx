@@ -375,257 +375,232 @@ const HomePage: React.FC = () => {
 
   // ─── HOURLY SEARCH FORM ───
   const hourlySearchForm = (
-    <div>
-      <Row gutter={[12, 16]}>
-        <Col xs={24} md={8}>
-          <Text strong style={{ display: 'block', marginBottom: 8, color: theme.labelColor, fontSize: 14 }}>
-            <EnvironmentOutlined style={{ color: theme.primaryColor }} /> Başlangıç Konumu
-          </Text>
-          <DynamicLocationSearchInput
-            size="large"
-            placeholder="Adres, havalimanı, otel, ..."
-            value={hourlyPickup}
-            onChange={setHourlyPickup}
-            onSelect={(val, lat, lng) => { setHourlyPickup(val); if (lat && lng) setHourlyPickupLocation({ lat, lng }); }}
-            onMapClick={() => { setMapModalType('pickup'); setMapModalVisible(true); }}
-            country={googleMapsSettings.country || 'tr,cy'}
-            style={{ borderRadius: 12 }}
-          />
-        </Col>
-        <Col xs={12} md={5}>
-          <Text strong style={{ display: 'block', marginBottom: 8, color: theme.labelColor, fontSize: 14 }}>
-            <CalendarOutlined style={{ color: theme.primaryColor }} /> Kalkış Tarihi
-          </Text>
-          <DatePicker
-            size="large" style={{ width: '100%', borderRadius: 12 }}
-            format="DD.MM.YYYY" placeholder="Tarih Seç"
-            value={hourlyDate} onChange={setHourlyDate}
-            disabledDate={(c) => c && c < dayjs().startOf('day')}
-          />
-        </Col>
-        <Col xs={12} md={4}>
-          <Text strong style={{ display: 'block', marginBottom: 8, color: theme.labelColor, fontSize: 14 }}>
-            <ClockCircleOutlined style={{ color: theme.primaryColor }} /> Saat
-          </Text>
-          <TimePicker
-            size="large" style={{ width: '100%', borderRadius: 12 }}
-            format="HH:mm" minuteStep={5}
-            value={hourlyTime} onChange={setHourlyTime}
-            needConfirm={false} showNow={false}
-          />
-        </Col>
-        <Col xs={12} md={4}>
-          <Text strong style={{ display: 'block', marginBottom: 8, color: theme.labelColor, fontSize: 14 }}>
-            <ClockCircleOutlined style={{ color: theme.primaryColor }} /> Kiralama Süresi
-          </Text>
-          <Select
-            size="large" style={{ width: '100%', borderRadius: 12 }}
-            value={hourlyHours} onChange={setHourlyHours}
-            options={[1,2,3,4,5,6,8,10,12].map(h => ({ value: h, label: `${h} Saat` }))}
-          />
-        </Col>
-        <Col xs={12} md={3} style={{ display: 'flex', alignItems: 'flex-end' }}>
-          <Button
-            type="primary" block size="large" icon={<SearchOutlined />}
-            onClick={handleHourlySearch}
-            style={{
-              height: 40, fontWeight: 700,
-              background: theme.buttonGradient, border: 'none',
-              boxShadow: theme.buttonShadow, borderRadius: 12, color: '#fff',
-            }}
-          >
-            Ara
-          </Button>
-        </Col>
-      </Row>
+    <div className="st-rental-row">
+      <div className="st-rental-field st-rental-field-location">
+        <div className="st-detail-label">
+          <EnvironmentOutlined className="st-detail-label-icon" />
+          Başlangıç Konumu
+        </div>
+        <DynamicLocationSearchInput
+          size="middle"
+          placeholder="Adres, havalimanı, otel, ..."
+          value={hourlyPickup}
+          onChange={setHourlyPickup}
+          onSelect={(val, lat, lng) => { setHourlyPickup(val); if (lat && lng) setHourlyPickupLocation({ lat, lng }); }}
+          onMapClick={() => { setMapModalType('pickup'); setMapModalVisible(true); }}
+          country={googleMapsSettings.country || 'tr,cy'}
+          style={{ borderRadius: 10 }}
+        />
+      </div>
+      <div className="st-rental-field st-rental-field-date">
+        <div className="st-detail-label">
+          <CalendarOutlined className="st-detail-label-icon" />
+          Kalkış Tarihi
+        </div>
+        <DatePicker
+          size="middle" style={{ width: '100%', borderRadius: 10 }}
+          format="DD.MM.YYYY" placeholder="Tarih Seç"
+          value={hourlyDate} onChange={setHourlyDate}
+          disabledDate={(c) => c && c < dayjs().startOf('day')}
+        />
+      </div>
+      <div className="st-rental-field st-rental-field-time">
+        <div className="st-detail-label">
+          <ClockCircleOutlined className="st-detail-label-icon" />
+          Saat
+        </div>
+        <TimePicker
+          size="middle" style={{ width: '100%', borderRadius: 10 }}
+          format="HH:mm" minuteStep={5}
+          value={hourlyTime} onChange={setHourlyTime}
+          needConfirm={false} showNow={false}
+        />
+      </div>
+      <div className="st-rental-field st-rental-field-duration">
+        <div className="st-detail-label">
+          <ClockCircleOutlined className="st-detail-label-icon" />
+          Süre
+        </div>
+        <Select
+          size="middle" style={{ width: '100%' }}
+          value={hourlyHours} onChange={setHourlyHours}
+          options={[1,2,3,4,5,6,8,10,12].map(h => ({ value: h, label: `${h} Saat` }))}
+        />
+      </div>
+      <Button
+        type="primary" icon={<SearchOutlined />}
+        onClick={handleHourlySearch}
+        className="st-rental-search-btn"
+        style={{
+          height: 32, fontWeight: 600, fontSize: 13,
+          background: '#111827', border: 'none', borderRadius: 10,
+          boxShadow: '0 2px 8px rgba(17,24,39,0.15)',
+        }}
+      >
+        Ara
+      </Button>
     </div>
   );
 
   // ─── TRANSFER SEARCH FORM ───
   const transferSearchForm = (
     <div>
-      <div style={{ position: 'relative' }}>
-        <Row gutter={[40, 16]}>
-          <Col xs={24} md={12}>
-            <Text strong style={{ display: 'block', marginBottom: 8, color: theme.labelColor, fontSize: 14 }}>
-              <EnvironmentOutlined style={{ color: theme.primaryColor }} /> {t('search.from')}
-            </Text>
+      {/* Route Section */}
+      <div style={{ marginBottom: 18 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, padding: '0 2px' }}>
+          <span className="st-detail-label">
+            <EnvironmentOutlined className="st-detail-label-icon" /> {t('search.from')}
+          </span>
+          <span className="st-detail-label">
+            <EnvironmentOutlined className="st-detail-label-icon" /> {t('search.to')}
+          </span>
+        </div>
+        <div className="st-route-inputs">
+          <div style={{ flex: 1 }}>
             <DynamicLocationSearchInput
-              size="large"
+              size="middle"
               placeholder={t('search.fromPlaceholder')}
               value={pickup}
               onChange={setPickup}
               onSelect={(val, lat, lng) => { setPickup(val); if (lat && lng) setPickupLocation({ lat, lng }); }}
               onMapClick={() => openMapModal('pickup')}
               country={googleMapsSettings.country || 'tr,cy'}
-              style={{ borderRadius: 12 }}
+              style={{ borderRadius: 10 }}
             />
-          </Col>
-          <Col xs={24} md={12}>
-            <Text strong style={{ display: 'block', marginBottom: 8, color: theme.labelColor, fontSize: 14 }}>
-              <EnvironmentOutlined style={{ color: theme.accentColor }} /> {t('search.to')}
-            </Text>
+          </div>
+          <button
+            type="button"
+            aria-label="Yerleri değiştir"
+            title="Yerleri değiştir"
+            onClick={handleSwapLocations}
+            className="st-swap-btn"
+          >
+            <SwapOutlined style={{ fontSize: 10 }} />
+          </button>
+          <div style={{ flex: 1 }}>
             <DynamicLocationSearchInput
-              size="large"
+              size="middle"
               placeholder={t('search.toPlaceholder')}
               value={dropoff}
               onChange={setDropoff}
               onSelect={(val, lat, lng) => { setDropoff(val); if (lat && lng) setDropoffLocation({ lat, lng }); }}
               onMapClick={() => openMapModal('dropoff')}
               country={googleMapsSettings.country || 'tr,cy'}
-              style={{ borderRadius: 12 }}
+              style={{ borderRadius: 10 }}
             />
-          </Col>
-        </Row>
-        {/* Swap Locations Button — pinned to the vertical center of the inputs (skips the label height above) */}
-        <button
-          type="button"
-          aria-label="Yerleri değiştir"
-          title="Yerleri değiştir"
-          onClick={handleSwapLocations}
-          className="swap-locations-btn"
-          style={{
-            position: 'absolute',
-            left: '50%',
-            // Pin the button center to the input's vertical middle (input ≈ 40px → 20px above row bottom).
-            // With translateY(50%), bottom:20px places the center exactly at 20px above the row bottom.
-            bottom: 20,
-            transform: 'translate(-50%, 50%)',
-            width: 36,
-            height: 36,
-            borderRadius: '50%',
-            border: '3px solid #fff',
-            background: theme.buttonGradient || 'linear-gradient(135deg, #f97316, #ea580c)',
-            color: '#fff',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            boxShadow: '0 4px 14px rgba(0,0,0,0.18)',
-            zIndex: 5,
-            transition: 'transform 0.3s ease, box-shadow 0.2s ease',
-          }}
-          onMouseEnter={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.transform = 'translate(-50%, 50%) rotate(180deg) scale(1.08)';
-            (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 6px 20px rgba(0,0,0,0.25)';
-          }}
-          onMouseLeave={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.transform = 'translate(-50%, 50%) rotate(0deg) scale(1)';
-            (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 4px 14px rgba(0,0,0,0.18)';
-          }}
-        >
-          <SwapOutlined style={{ fontSize: 16 }} />
-        </button>
-        <style jsx>{`
-          @media (max-width: 767px) {
-            .swap-locations-btn {
-              top: auto !important;
-              bottom: 50% !important;
-              transform: translate(-50%, 50%) rotate(90deg) !important;
-            }
-            .swap-locations-btn:hover {
-              transform: translate(-50%, 50%) rotate(270deg) scale(1.08) !important;
-            }
-          }
-        `}</style>
+          </div>
+        </div>
       </div>
-      <Row gutter={[12, 16]} style={{ marginTop: 16 }}>
-        <Col xs={12} md={6}>
-          <Text strong style={{ display: 'block', marginBottom: 8, color: theme.labelColor, fontSize: 14 }}>
-            <CalendarOutlined style={{ color: theme.primaryColor }} /> {t('search.date')}
-          </Text>
+
+      {/* Details Grid */}
+      <div
+        className={`st-details-grid ${tripType === 'return' ? 'st-details-grid--return' : ''}`}
+      >
+        <div className="st-grid-gtarih">
+          <div className="st-detail-label">
+            <CalendarOutlined className="st-detail-label-icon" /> {t('search.date')}
+          </div>
           <DatePicker
-            size="large"
-            style={{ width: '100%', borderRadius: 12 }}
+            size="middle"
+            style={{ width: '100%', borderRadius: 10 }}
             format="DD.MM.YYYY"
             placeholder={t('search.datePlaceholder')}
             value={pickupDate}
             onChange={(date) => setPickupDate(date)}
             disabledDate={(current) => current && current < dayjs().startOf('day')}
           />
-        </Col>
-        <Col xs={12} md={5}>
-          <Text strong style={{ display: 'block', marginBottom: 8, color: theme.labelColor, fontSize: 14 }}>
-            <ClockCircleOutlined style={{ color: theme.primaryColor }} />{' '}
-            <span style={{ transition: 'all 0.3s' }}>{timeLabel}</span>
-          </Text>
+        </div>
+        <div className="st-grid-gsaat">
+          <div className="st-detail-label">
+            <ClockCircleOutlined className="st-detail-label-icon" /> {timeLabel}
+          </div>
           <TimePicker
-            size="large"
-            style={{ width: '100%', borderRadius: 12 }}
-            format="HH:mm"
-            minuteStep={5}
+            size="middle"
+            style={{ width: '100%', borderRadius: 10 }}
+            format="HH:mm" minuteStep={5}
             value={pickupTime}
             onChange={(time) => setPickupTime(time)}
             placeholder={t('search.timePlaceholder')}
-            needConfirm={false}
-            showNow={false}
+            needConfirm={false} showNow={false}
           />
-        </Col>
-        <Col xs={12} md={5}>
-          <Text strong style={{ display: 'block', marginBottom: 8, color: theme.labelColor, fontSize: 14 }}>
+        </div>
+        {tripType === 'return' && (
+          <>
+            <div className="st-grid-dtarih">
+              <div className="st-detail-label">
+                <CalendarOutlined className="st-detail-label-icon" /> {t('search.returnDate')}
+              </div>
+              <DatePicker
+                size="middle"
+                style={{ width: '100%', borderRadius: 10 }}
+                format="DD.MM.YYYY"
+                placeholder={t('search.returnDatePlaceholder')}
+                value={returnDate}
+                onChange={(date) => setReturnDate(date)}
+                disabledDate={(current) => {
+                  if (!pickupDate) return current && current < dayjs().startOf('day');
+                  return current && current < pickupDate.startOf('day');
+                }}
+              />
+            </div>
+            <div className="st-grid-dsaat">
+              <div className="st-detail-label">
+                <ClockCircleOutlined className="st-detail-label-icon" /> {returnTimeLabel}
+              </div>
+              <TimePicker
+                size="middle"
+                style={{ width: '100%', borderRadius: 10 }}
+                format="HH:mm" minuteStep={5}
+                value={returnTime}
+                onChange={(time) => setReturnTime(time)}
+                placeholder={t('search.returnTimePlaceholder')}
+                needConfirm={false} showNow={false}
+              />
+            </div>
+          </>
+        )}
+        <div className="st-grid-yolcu">
+          <div className="st-detail-label">
             {t('search.passengers')}
-          </Text>
+          </div>
           <PassengerSelector
-            size="large"
+            size="middle"
             value={passengerCounts}
             onChange={(counts) => { setPassengerCounts(counts); setPassengers(counts.adults + counts.children + counts.babies); }}
           />
-        </Col>
-        <Col xs={12} md={8}>
-          <Text strong style={{ display: 'block', marginBottom: 8, color: theme.labelColor, fontSize: 14 }}>
+        </div>
+        <div className="st-grid-tip">
+          <div className="st-detail-label">
             {t('search.transferType')}
-          </Text>
-          <Radio.Group value={tripType} onChange={(e) => setTripType(e.target.value)} style={{ width: '100%' }} size="large">
-            <Radio.Button value="oneway" style={{ width: '50%', textAlign: 'center', borderRadius: '12px 0 0 12px' }}>{t('search.oneWay')}</Radio.Button>
-            <Radio.Button value="return" style={{ width: '50%', textAlign: 'center', borderRadius: '0 12px 12px 0' }}>{t('search.roundTrip')}</Radio.Button>
-          </Radio.Group>
-        </Col>
-      </Row>
-      {tripType === 'return' && (
-        <Row gutter={[12, 16]} style={{ marginTop: 16 }}>
-          <Col xs={12} md={8}>
-            <Text strong style={{ display: 'block', marginBottom: 8, color: theme.labelColor, fontSize: 14 }}>
-              <CalendarOutlined style={{ color: theme.accentColor }} /> {t('search.returnDate')}
-            </Text>
-            <DatePicker
-              size="large"
-              style={{ width: '100%', borderRadius: 12 }}
-              format="DD.MM.YYYY"
-              placeholder={t('search.returnDatePlaceholder')}
-              value={returnDate}
-              onChange={(date) => setReturnDate(date)}
-              disabledDate={(current) => {
-                if (!pickupDate) return current && current < dayjs().startOf('day');
-                return current && current < pickupDate.startOf('day');
-              }}
-            />
-          </Col>
-          <Col xs={12} md={8}>
-            <Text strong style={{ display: 'block', marginBottom: 8, color: theme.labelColor, fontSize: 14 }}>
-              <ClockCircleOutlined style={{ color: theme.accentColor }} />{' '}
-              <span style={{ transition: 'all 0.3s' }}>{returnTimeLabel}</span>
-            </Text>
-            <TimePicker
-              size="large"
-              style={{ width: '100%', borderRadius: 12 }}
-              format="HH:mm"
-              minuteStep={5}
-              value={returnTime}
-              onChange={(time) => setReturnTime(time)}
-              placeholder={t('search.returnTimePlaceholder')}
-              needConfirm={false}
-              showNow={false}
-            />
-          </Col>
-        </Row>
-      )}
+          </div>
+          <div className="st-type-toggle">
+            <button
+              type="button"
+              onClick={() => setTripType('oneway')}
+              className={`st-type-option ${tripType === 'oneway' ? 'st-type-option--active' : ''}`}
+            >
+              {t('search.oneWay')}
+            </button>
+            <button
+              type="button"
+              onClick={() => setTripType('return')}
+              className={`st-type-option ${tripType === 'return' ? 'st-type-option--active' : ''}`}
+            >
+              {t('search.roundTrip')}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Search Button */}
       <Button
         type="primary" block size="large" icon={<SearchOutlined />}
         onClick={handleTransferSearch} loading={searchLoading}
         style={{
-          marginTop: 24, height: 54, fontSize: 17, fontWeight: 700,
-          background: theme.buttonGradient, border: 'none',
-          boxShadow: theme.buttonShadow, borderRadius: 14, color: '#fff', letterSpacing: 0.5,
+          height: 44, fontSize: 13, fontWeight: 600,
+          background: theme.buttonGradient || '#111827', border: 'none',
+          boxShadow: theme.buttonShadow || '0 2px 8px rgba(17,24,39,0.15)',
+          borderRadius: 10, color: '#fff', letterSpacing: 0.2,
         }}
       >
         {t('search.searchButton')}
@@ -657,42 +632,125 @@ const HomePage: React.FC = () => {
           {theme.heroSubtitle}
         </Text>
       </div>
-      <div style={{
-        width: '100%', maxWidth: 960,
-        background: theme.searchCardBg, backdropFilter: 'blur(20px)',
-        borderRadius: 20, border: theme.searchCardBorder,
-        boxShadow: '0 20px 60px rgba(0,0,0,0.15)', padding: 'clamp(20px, 3vw, 32px)',
-      }}>
-        {/* Mode Tabs */}
-        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 20 }}>
-          <Segmented
-            value={searchMode}
-            onChange={(v) => setSearchMode(v as any)}
-            options={[
-              {
-                value: 'transfer',
-                label: (
-                  <div style={{ padding: '2px 12px', display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <SwapOutlined style={{ fontSize: 13 }} />
-                    <span style={{ fontWeight: 600, fontSize: 13 }}>Transfer</span>
-                  </div>
-                ),
-              },
-              {
-                value: 'hourly',
-                label: (
-                  <div style={{ padding: '2px 12px', display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <ClockCircleOutlined style={{ fontSize: 13 }} />
-                    <span style={{ fontWeight: 600, fontSize: 13 }}>Saatlik Kiralama</span>
-                  </div>
-                ),
-              },
-            ]}
-            style={{ borderRadius: 12, background: 'rgba(255,255,255,0.15)' }}
-          />
+      <div className="st-search-card">
+        {/* Tabs */}
+        <div className="st-tabs">
+          <button
+            type="button"
+            onClick={() => setSearchMode('transfer')}
+            className={`st-tab ${searchMode === 'transfer' ? 'st-tab--active' : ''}`}
+          >
+            <SwapOutlined style={{ fontSize: 11 }} />
+            Transfer
+          </button>
+          <button
+            type="button"
+            onClick={() => setSearchMode('hourly')}
+            className={`st-tab ${searchMode === 'hourly' ? 'st-tab--active' : ''}`}
+          >
+            <ClockCircleOutlined style={{ fontSize: 11 }} />
+            Saatlik Kiralama
+          </button>
         </div>
         {searchMode === 'transfer' ? transferSearchForm : hourlySearchForm}
       </div>
+      {/* Search Card Styles */}
+      <style>{`
+        .st-search-card {
+          width: 100%; max-width: 720px;
+          background: #ffffff; border-radius: 16px;
+          border: 1px solid #e8eaed;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 8px 24px rgba(0,0,0,0.06);
+          padding: clamp(20px, 3vw, 28px) clamp(20px, 3vw, 32px);
+        }
+        .st-tabs { display: flex; gap: 4px; margin-bottom: 20px; justify-content: center; }
+        .st-tab {
+          padding: 8px 20px; border-radius: 8px; border: none;
+          background: transparent; color: #6b7280;
+          font-family: inherit; font-size: 13px; font-weight: 500;
+          cursor: pointer; transition: all 0.2s ease;
+          display: flex; align-items: center; gap: 6px;
+        }
+        .st-tab:hover { background: #f3f4f6; color: #374151; }
+        .st-tab--active {
+          background: #ffffff; color: #111827; font-weight: 600;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+          border: 1px solid #e5e7eb;
+        }
+        .st-detail-label {
+          font-size: 11px; font-weight: 500; color: #6b7280;
+          margin-bottom: 4px; display: flex; align-items: center; gap: 4px;
+        }
+        .st-detail-label-icon { color: #9ca3af; font-size: 10px; }
+        .st-route-inputs { display: flex; align-items: center; gap: 8px; }
+        .st-swap-btn {
+          width: 28px; height: 28px; border: 1px solid #e5e7eb;
+          background: #fff; border-radius: 50%; cursor: pointer;
+          color: #9ca3af; display: flex; align-items: center;
+          justify-content: center; flex-shrink: 0; transition: all 0.2s ease;
+        }
+        .st-swap-btn:hover { border-color: #d1d5db; color: #6b7280; transform: rotate(180deg); }
+        .st-details-grid {
+          display: grid; grid-template-columns: repeat(4, 1fr);
+          grid-template-areas: "gtarih gsaat yolcu tip";
+          gap: 12px; margin-bottom: 18px;
+        }
+        .st-details-grid--return {
+          grid-template-areas: "gtarih gsaat dtarih dsaat" "yolcu yolcu tip tip";
+        }
+        .st-grid-gtarih { grid-area: gtarih; }
+        .st-grid-gsaat  { grid-area: gsaat; }
+        .st-grid-dtarih { grid-area: dtarih; animation: stFadeIn 0.25s ease; }
+        .st-grid-dsaat  { grid-area: dsaat; animation: stFadeIn 0.25s ease; }
+        .st-grid-yolcu  { grid-area: yolcu; }
+        .st-grid-tip    { grid-area: tip; }
+        @keyframes stFadeIn {
+          from { opacity: 0; transform: translateY(-6px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        .st-type-toggle {
+          display: flex; background: #fafafa; border-radius: 10px;
+          padding: 3px; border: 1px solid #e5e7eb;
+        }
+        .st-type-option {
+          flex: 1; padding: 7px 4px; border: none;
+          background: transparent; border-radius: 7px;
+          font-family: inherit; font-size: 11px; font-weight: 500;
+          color: #6b7280; cursor: pointer; transition: all 0.2s ease;
+          text-align: center; white-space: nowrap;
+        }
+        .st-type-option--active {
+          background: #fff; color: #111827;
+          box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+          border: 1px solid #e5e7eb;
+        }
+        .st-rental-row { display: flex; align-items: flex-end; gap: 8px; }
+        .st-rental-field { display: flex; flex-direction: column; gap: 4px; }
+        .st-rental-field-location { flex: 2.2; min-width: 180px; }
+        .st-rental-field-date { flex: 1; min-width: 100px; }
+        .st-rental-field-time { width: 85px; flex-shrink: 0; }
+        .st-rental-field-duration { width: 90px; flex-shrink: 0; }
+        .st-rental-search-btn { flex-shrink: 0; white-space: nowrap; margin-bottom: 1px; }
+        @media (max-width: 640px) {
+          .st-search-card { padding: 20px; }
+          .st-details-grid { grid-template-columns: repeat(2, 1fr); }
+          .st-details-grid:not(.st-details-grid--return) {
+            grid-template-areas: "gtarih gsaat" "yolcu tip";
+          }
+          .st-details-grid--return {
+            grid-template-areas: "gtarih gsaat" "dtarih dsaat" "yolcu tip";
+          }
+          .st-route-inputs { flex-direction: column; }
+          .st-swap-btn { transform: rotate(90deg); margin: 4px 0; }
+          .st-swap-btn:hover { transform: rotate(270deg); }
+          .st-rental-row { flex-wrap: wrap; gap: 10px; }
+          .st-rental-field-location { flex: 1 1 100%; min-width: auto; }
+          .st-rental-field-date,
+          .st-rental-field-time,
+          .st-rental-field-duration { flex: 1 1 30%; min-width: auto; }
+          .st-rental-search-btn { width: 100%; }
+        }
+      `}</style>
     </div>
   );
 
