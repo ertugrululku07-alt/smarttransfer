@@ -936,7 +936,7 @@ const HomePage: React.FC = () => {
                 { from: 'Bodrum Havalimanı', to: 'Bodrum', img: 'https://images.unsplash.com/photo-1573790389818-adb13b9d4742?q=80&w=800&auto=format&fit=crop', price: '40' },
               ];
               return (
-                <div key="popularRoutes" style={{ background: '#f8fafc', padding: 'clamp(56px, 8vw, 96px) 16px' }}>
+                <div key="popularRoutes" style={{ background: '#f8fafc', padding: 'clamp(32px, 4vw, 48px) 16px' }}>
                   <style>{`
                     .hp-route-card { position: relative; border-radius: 20px; overflow: hidden; aspect-ratio: 4/5; cursor: pointer; box-shadow: 0 10px 40px rgba(0,0,0,0.08); transition: all 0.5s cubic-bezier(0.4,0,0.2,1); }
                     .hp-route-card:hover { transform: translateY(-8px); box-shadow: 0 25px 60px rgba(0,0,0,0.15); }
@@ -948,19 +948,14 @@ const HomePage: React.FC = () => {
                     .hp-route-from { color: rgba(255,255,255,0.72); font-size: 14px; display: flex; align-items: center; gap: 6px; }
                   `}</style>
                   <div style={{ maxWidth: 1200, margin: '0 auto' }}>
-                    <div style={{ textAlign: 'center', marginBottom: 56 }}>
-                      <div style={{ display: 'inline-block', fontSize: 12, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase' as const, color: theme.sectionAccent, marginBottom: 14 }}>
-                        {t('routes.badge')}
-                        <div style={{ width: 40, height: 2, background: theme.sectionAccent, margin: '10px auto 0' }} />
-                      </div>
-                      <Title level={2} style={{ fontFamily: 'var(--font-playfair, Georgia, serif)', fontSize: 'clamp(1.8rem, 4vw, 2.8rem)', color: '#0f172a', marginBottom: 10, marginTop: 0 }}>{t('routes.title')}</Title>
-                      <Text style={{ color: '#64748b', fontSize: 16, lineHeight: 1.7, fontWeight: 400 }}>{t('routes.subtitle')}</Text>
+                    <div style={{ textAlign: 'center', marginBottom: 32 }}>
+                      <Title level={2} style={{ fontFamily: 'var(--font-playfair, Georgia, serif)', fontSize: 'clamp(1.8rem, 4vw, 2.8rem)', color: '#0f172a', marginBottom: 0, marginTop: 0 }}>{t('routes.title')}</Title>
                     </div>
                     <Row gutter={[20, 20]}>
                       {routesData.map((route, i) => (
                         <Col xs={12} sm={12} md={6} key={i}>
                           <div className="hp-route-card">
-                            <img src={route.img} alt={route.to} loading="lazy" />
+                            <img src={route.img && !route.img.startsWith('http') ? getImageUrl(route.img) : route.img} alt={route.to} loading="lazy" />
                             <div className="hp-route-overlay">
                               <div className="hp-route-price">{route.price} EUR {t('routes.from')}</div>
                               <div className="hp-route-dest">{route.to}</div>
