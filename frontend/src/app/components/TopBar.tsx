@@ -199,6 +199,7 @@ const TopBar: React.FC = () => {
                 {page.title}
               </a>
             ))}
+            <a href="/track" style={navLinkStyle}>Rezervasyon Sorgula</a>
             <a href="/contact" style={navLinkStyle}>İletişim</a>
           </nav>
         </div>
@@ -346,6 +347,7 @@ const TopBar: React.FC = () => {
               {page.title}
             </a>
           ))}
+          <a href="/track" style={{ padding: '10px 0', color: '#333', fontWeight: 500, borderBottom: '1px solid #f0f0f0' }}>Rezervasyon Sorgula</a>
           <a href="/contact" style={{ padding: '10px 0', color: '#333', fontWeight: 500, borderBottom: '1px solid #f0f0f0' }}>İletişim</a>
 
           {/* Mobile Language Selector */}

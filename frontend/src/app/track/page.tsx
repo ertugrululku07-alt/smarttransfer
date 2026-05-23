@@ -1,19 +1,22 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
-    Card, Row, Col, Typography, Tag, Button, Space, Skeleton,
+    Row, Col, Typography, Tag, Button, Space, Skeleton,
     Avatar, Descriptions, Divider, Empty, Rate, Alert, Statistic,
-    Form, Input, message, Tabs
+    Form, Input, message,
 } from 'antd';
 import {
     SearchOutlined, EnvironmentOutlined, CarOutlined, UserOutlined,
-    PhoneOutlined, ClockCircleOutlined, ArrowLeftOutlined,
-    ReloadOutlined, AimOutlined, HomeOutlined, CheckCircleOutlined
+    PhoneOutlined, ClockCircleOutlined,
+    ReloadOutlined, AimOutlined, CheckCircleOutlined,
+    ArrowRightOutlined, SafetyCertificateOutlined, StarOutlined,
 } from '@ant-design/icons';
 import { useRouter, useSearchParams } from 'next/navigation';
 import apiClient from '@/lib/api-client';
 import TopBar from '@/app/components/TopBar';
+import SiteFooter from '@/app/components/SiteFooter';
+import { useTheme } from '@/app/context/ThemeContext';
 import { Suspense } from 'react';
 
 const { Title, Text } = Typography;
@@ -35,27 +38,25 @@ const fmtDate = (iso?: string | null) => {
     });
 };
 
+const STEP_STATUS: Record<string, number> = {
+    PENDING: 0, CONFIRMED: 1, IN_PROGRESS: 2, COMPLETED: 3, CANCELLED: -1, NO_SHOW: -1,
+};
+
 function TrackContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
+    const { theme } = useTheme();
     const [form] = Form.useForm();
-
-    // Lookup form state
     const [searching, setSearching] = useState(false);
-
-    // Booking result state
     const [booking, setBooking] = useState<any | null>(null);
     const [verifyEmail, setVerifyEmail] = useState<string>('');
     const [verifyPhone4, setVerifyPhone4] = useState<string>('');
     const [refreshing, setRefreshing] = useState(false);
-
-    // Driver location state
     const [driverLocation, setDriverLocation] = useState<any | null>(null);
     const [locationOnline, setLocationOnline] = useState(false);
     const [locationLastSeen, setLocationLastSeen] = useState<number | null>(null);
     const [locationError, setLocationError] = useState<string | null>(null);
 
-    // Pre-fill from URL params (e.g. from homepage quick-form)
     useEffect(() => {
         const bn = searchParams.get('bookingNumber');
         const em = searchParams.get('email');
@@ -63,22 +64,14 @@ function TrackContent() {
         if (bn) form.setFieldValue('bookingNumber', bn);
         if (em) form.setFieldValue('identifier', em);
         if (ph) form.setFieldValue('identifier', ph);
-        // Auto-submit if both provided
-        if (bn && (em || ph)) {
-            handleSearch({ bookingNumber: bn, identifier: em || ph || '' });
-        }
+        if (bn && (em || ph)) handleSearch({ bookingNumber: bn, identifier: em || ph || '' });
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    const buildParams = (bookingNumberOverride?: string, identifierOverride?: string) => {
-        const bn = bookingNumberOverride ?? form.getFieldValue('bookingNumber');
-        const id = identifierOverride ?? form.getFieldValue('identifier');
+    const buildParams = (bn: string, id: string) => {
         const params: Record<string, string> = { bookingNumber: bn };
-        if (id.includes('@')) {
-            params.email = id;
-        } else {
-            params.phone4 = id.replace(/\D/g, '').slice(-4);
-        }
+        if (id.includes('@')) params.email = id;
+        else params.phone4 = id.replace(/\D/g, '').slice(-4);
         return params;
     };
 
@@ -100,11 +93,8 @@ function TrackContent() {
                 setVerifyPhone4(params.phone4 || '');
             }
         } catch (e: any) {
-            const msg = e?.response?.data?.error || 'Rezervasyon bulunamadı';
-            message.error(msg);
-        } finally {
-            setSearching(false);
-        }
+            message.error(e?.response?.data?.error || 'Rezervasyon bulunamadı');
+        } finally { setSearching(false); }
     };
 
     const handleRefresh = async () => {
@@ -133,9 +123,7 @@ function TrackContent() {
                 setLocationLastSeen(res.data.data.lastSeen);
                 setLocationError(null);
             }
-        } catch (e: any) {
-            setLocationError(e?.response?.data?.error || 'Konum alınamadı');
-        }
+        } catch (e: any) { setLocationError(e?.response?.data?.error || 'Konum alınamadı'); }
     }, [booking?.id, booking?.trackingAvailable, verifyEmail, verifyPhone4]);
 
     useEffect(() => {
@@ -146,365 +134,394 @@ function TrackContent() {
     }, [booking?.trackingAvailable, fetchDriverLocation]);
 
     const status = booking ? (STATUS_INFO[booking.status] || { label: booking.status, color: 'default' }) : null;
+    const stepIndex = booking ? (STEP_STATUS[booking.status] ?? 0) : -1;
+
+    const inputStyle: React.CSSProperties = {
+        height: 52, borderRadius: 12, fontSize: 15, border: '1.5px solid #e2e8f0',
+        background: '#f8fafc',
+    };
 
     return (
         <div style={{ minHeight: '100vh', background: '#f8fafc' }}>
             <TopBar />
+            <style>{`
+                .trk-card { background: #fff; border-radius: 20px; border: 1px solid #e2e8f0; box-shadow: 0 4px 24px rgba(0,0,0,0.05); overflow: hidden; }
+                .trk-section-label { font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: ${theme.sectionAccent}; margin-bottom: 6px; display: block; }
+                .trk-step { display: flex; flex-direction: column; align-items: center; gap: 8px; flex: 1; }
+                .trk-step-circle { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 700; transition: all 0.3s; }
+                .trk-step-line { flex: 1; height: 3px; border-radius: 2px; transition: all 0.3s; }
+                .trk-info-row { display: flex; align-items: flex-start; gap: 12px; padding: 14px 0; border-bottom: 1px solid #f1f5f9; }
+                .trk-info-row:last-child { border-bottom: none; }
+                .trk-info-icon { width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+                .trk-badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 14px; border-radius: 100px; font-size: 13px; font-weight: 700; }
+            `}</style>
 
-            <div style={{ maxWidth: 980, margin: '0 auto', padding: '32px 16px' }}>
-                {/* Back / Title */}
-                <Space style={{ marginBottom: 24 }}>
-                    <Button icon={<HomeOutlined />} onClick={() => router.push('/')}>Ana Sayfa</Button>
-                    <Title level={3} style={{ margin: 0 }}>Rezervasyon Sorgulama</Title>
-                </Space>
-
-                {/* Lookup form */}
-                <Card
-                    style={{ marginBottom: 24, borderRadius: 12, boxShadow: '0 2px 12px rgba(0,0,0,.06)' }}
-                    styles={{ body: { padding: '24px 28px' } }}
-                >
-                    <Title level={5} style={{ marginBottom: 16, color: '#4f46e5' }}>
-                        <SearchOutlined /> Rezervasyonunuzu Sorgulayın
+            {/* Hero / Search bar */}
+            <div style={{
+                background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #0f172a 100%)',
+                padding: '100px 16px 56px',
+                position: 'relative',
+                overflow: 'hidden',
+            }}>
+                <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg, transparent, ${theme.sectionAccent}55, transparent)` }} />
+                <div style={{ position: 'absolute', top: '20%', right: '-5%', width: 400, height: 400, borderRadius: '50%', background: `${theme.sectionAccent}08`, pointerEvents: 'none' }} />
+                <div style={{ maxWidth: 720, margin: '0 auto', textAlign: 'center' }}>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(251,191,36,0.12)', border: '1px solid rgba(251,191,36,0.3)', color: '#fbbf24', padding: '5px 18px', borderRadius: 100, fontSize: 12, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 20 }}>
+                        <SafetyCertificateOutlined /> Rezervasyon Takip
+                    </div>
+                    <Title level={1} style={{ color: '#fff', fontFamily: 'var(--font-playfair, Georgia, serif)', fontSize: 'clamp(1.8rem, 4vw, 3rem)', marginBottom: 12, fontWeight: 700 }}>
+                        Rezervasyonunuzu Sorgulayın
                     </Title>
-                    <Form
-                        form={form}
-                        layout="vertical"
-                        onFinish={handleSearch}
-                    >
-                        <Row gutter={16}>
-                            <Col xs={24} sm={12}>
-                                <Form.Item
-                                    name="bookingNumber"
-                                    label="Rezervasyon Numarası"
-                                    rules={[{ required: true, message: 'Rezervasyon numarası girin' }]}
-                                >
-                                    <Input
-                                        placeholder="TR-20260501-1234"
-                                        size="large"
-                                        prefix={<CheckCircleOutlined style={{ color: '#9ca3af' }} />}
-                                        allowClear
-                                    />
-                                </Form.Item>
-                            </Col>
-                            <Col xs={24} sm={12}>
-                                <Form.Item
-                                    name="identifier"
-                                    label="E-posta veya Telefon Son 4 Hanesi"
-                                    rules={[{ required: true, message: 'E-posta veya telefon son 4 hanesi girin' }]}
-                                    tooltip="Rezervasyonu yaparken kullandığınız e-posta ya da telefon numaranızın son 4 rakamını girin"
-                                >
-                                    <Input
-                                        placeholder="ornek@email.com veya 4567"
-                                        size="large"
-                                        prefix={<UserOutlined style={{ color: '#9ca3af' }} />}
-                                        allowClear
-                                    />
-                                </Form.Item>
-                            </Col>
-                        </Row>
-                        <Button
-                            type="primary"
-                            htmlType="submit"
-                            icon={<SearchOutlined />}
-                            loading={searching}
-                            size="large"
-                            style={{ background: '#4f46e5', borderColor: '#4f46e5', borderRadius: 8 }}
-                        >
-                            Rezervasyonu Sorgula
-                        </Button>
-                    </Form>
-                </Card>
+                    <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 16, display: 'block', marginBottom: 40, fontWeight: 300, lineHeight: 1.7 }}>
+                        Rezervasyon numaranız ve e-posta / telefon bilginizle transferinizin anlık durumunu takip edin.
+                    </Text>
 
-                {/* Loading skeleton */}
-                {searching && <Card><Skeleton active paragraph={{ rows: 8 }} /></Card>}
-
-                {/* Booking result */}
-                {booking && !searching && (
-                    <>
-                        {/* Status banner */}
-                        <Card style={{ marginBottom: 16, borderRadius: 12 }} styles={{ body: { padding: 16 } }}>
-                            <Row align="middle" justify="space-between" wrap>
-                                <Col>
-                                    <Space size="middle" wrap>
-                                        <Title level={5} style={{ margin: 0 }}>#{booking.bookingNumber}</Title>
-                                        <Tag color={status!.color} style={{ fontSize: 14, padding: '4px 14px', fontWeight: 700 }}>
-                                            {status!.label}
-                                        </Tag>
-                                        <Text type="secondary">
-                                            <ClockCircleOutlined /> {fmtDate(booking.startDate)}
-                                        </Text>
-                                        {booking.minutesUntilPickup !== null && booking.minutesUntilPickup > 0 && booking.minutesUntilPickup < 600 && (
-                                            <Tag color="gold" icon={<ClockCircleOutlined />}>
-                                                {booking.minutesUntilPickup > 60
-                                                    ? `${Math.round(booking.minutesUntilPickup / 60)} saat sonra`
-                                                    : `${booking.minutesUntilPickup} dk sonra`}
-                                            </Tag>
-                                        )}
-                                    </Space>
+                    {/* Search Card */}
+                    <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 24, padding: '32px 28px', backdropFilter: 'blur(20px)' }}>
+                        <Form form={form} layout="vertical" onFinish={handleSearch}>
+                            <Row gutter={[16, 0]}>
+                                <Col xs={24} sm={10}>
+                                    <Form.Item name="bookingNumber" label={<Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, fontWeight: 600 }}>Rezervasyon Numarası</Text>} rules={[{ required: true, message: 'Rezervasyon no girin' }]} style={{ marginBottom: 16 }}>
+                                        <Input placeholder="ÖRN: TR-20260501-1234" style={inputStyle} prefix={<CheckCircleOutlined style={{ color: theme.sectionAccent }} />} allowClear />
+                                    </Form.Item>
                                 </Col>
-                                <Col>
-                                    <Button icon={<ReloadOutlined />} loading={refreshing} onClick={handleRefresh}>
-                                        Yenile
+                                <Col xs={24} sm={10}>
+                                    <Form.Item name="identifier" label={<Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, fontWeight: 600 }}>E-posta veya Tel. Son 4 Hane</Text>} rules={[{ required: true, message: 'E-posta / telefon girin' }]} style={{ marginBottom: 16 }} tooltip="Rezervasyon yaparken kullandığınız e-posta veya telefonun son 4 rakamı">
+                                        <Input placeholder="ornek@email.com veya 4567" style={inputStyle} prefix={<UserOutlined style={{ color: '#94a3b8' }} />} allowClear />
+                                    </Form.Item>
+                                </Col>
+                                <Col xs={24} sm={4} style={{ display: 'flex', alignItems: 'flex-end', paddingBottom: 16 }}>
+                                    <Button
+                                        type="primary" htmlType="submit" icon={<SearchOutlined />}
+                                        loading={searching} block
+                                        style={{ height: 52, borderRadius: 12, background: theme.buttonGradient, border: 'none', fontWeight: 700, fontSize: 15, boxShadow: theme.buttonShadow }}
+                                    >
+                                        Sorgula
                                     </Button>
                                 </Col>
                             </Row>
-                        </Card>
+                        </Form>
+                    </div>
+                </div>
+            </div>
 
-                        <Row gutter={[16, 16]}>
-                            {/* Left col */}
+            {/* Results area */}
+            <div style={{ maxWidth: 1100, margin: '0 auto', padding: '40px 16px 60px' }}>
+
+                {searching && (
+                    <div style={{ background: '#fff', borderRadius: 20, padding: 32, border: '1px solid #e2e8f0' }}>
+                        <Skeleton active paragraph={{ rows: 8 }} />
+                    </div>
+                )}
+
+                {booking && !searching && (
+                    <>
+                        {/* Status Progress Bar */}
+                        <div className="trk-card" style={{ padding: '28px 32px', marginBottom: 24 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                    <Title level={4} style={{ margin: 0, fontFamily: 'var(--font-playfair, Georgia, serif)' }}>
+                                        #{booking.bookingNumber}
+                                    </Title>
+                                    <span className="trk-badge" style={{
+                                        background: booking.status === 'COMPLETED' ? '#dcfce7' : booking.status === 'CANCELLED' ? '#fee2e2' : booking.status === 'IN_PROGRESS' ? '#fef3c7' : '#dbeafe',
+                                        color: booking.status === 'COMPLETED' ? '#16a34a' : booking.status === 'CANCELLED' ? '#dc2626' : booking.status === 'IN_PROGRESS' ? '#d97706' : '#2563eb',
+                                    }}>
+                                        {status!.label}
+                                    </span>
+                                    {booking.minutesUntilPickup !== null && booking.minutesUntilPickup > 0 && booking.minutesUntilPickup < 600 && (
+                                        <span className="trk-badge" style={{ background: '#fef3c7', color: '#b45309' }}>
+                                            <ClockCircleOutlined /> {booking.minutesUntilPickup > 60 ? `${Math.round(booking.minutesUntilPickup / 60)} saat sonra` : `${booking.minutesUntilPickup} dk sonra`}
+                                        </span>
+                                    )}
+                                </div>
+                                <Button icon={<ReloadOutlined />} loading={refreshing} onClick={handleRefresh} style={{ borderRadius: 10 }}>
+                                    Yenile
+                                </Button>
+                            </div>
+
+                            {/* Step progress */}
+                            {booking.status !== 'CANCELLED' && booking.status !== 'NO_SHOW' && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
+                                    {['Alındı', 'Onaylandı', 'Yolda', 'Tamamlandı'].map((label, i) => (
+                                        <React.Fragment key={i}>
+                                            <div className="trk-step">
+                                                <div className="trk-step-circle" style={{
+                                                    background: i <= stepIndex ? theme.buttonGradient : '#f1f5f9',
+                                                    color: i <= stepIndex ? '#fff' : '#94a3b8',
+                                                    boxShadow: i === stepIndex ? `0 4px 16px ${theme.primaryColor}55` : 'none',
+                                                }}>
+                                                    {i < stepIndex ? '✓' : i + 1}
+                                                </div>
+                                                <Text style={{ fontSize: 11, fontWeight: i <= stepIndex ? 700 : 400, color: i <= stepIndex ? theme.primaryColor : '#94a3b8', whiteSpace: 'nowrap' }}>
+                                                    {label}
+                                                </Text>
+                                            </div>
+                                            {i < 3 && (
+                                                <div className="trk-step-line" style={{ background: i < stepIndex ? theme.buttonGradient : '#e2e8f0' }} />
+                                            )}
+                                        </React.Fragment>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        <Row gutter={[24, 24]}>
+                            {/* Left: Trip details + map */}
                             <Col xs={24} lg={14}>
                                 {/* Trip info */}
-                                <Card
-                                    title={<><EnvironmentOutlined /> Yolculuk Bilgileri</>}
-                                    style={{ marginBottom: 16, borderRadius: 12 }}
-                                >
-                                    <Descriptions column={1} size="small" colon>
-                                        <Descriptions.Item label="Alış">{booking.metadata?.pickup || '-'}</Descriptions.Item>
-                                        <Descriptions.Item label="Varış">{booking.metadata?.dropoff || '-'}</Descriptions.Item>
-                                        <Descriptions.Item label="Tarih / Saat">{fmtDate(booking.startDate)}</Descriptions.Item>
-                                        <Descriptions.Item label="Yolcu Sayısı">
-                                            {booking.adults} Yetişkin
-                                            {booking.children ? `, ${booking.children} Çocuk` : ''}
-                                            {booking.infants ? `, ${booking.infants} Bebek` : ''}
-                                        </Descriptions.Item>
-                                        {booking.metadata?.flightNumber && (
-                                            <Descriptions.Item label="Uçuş No">{booking.metadata.flightNumber}</Descriptions.Item>
-                                        )}
-                                        {booking.metadata?.vehicleType && (
-                                            <Descriptions.Item label="Araç Tipi">{booking.metadata.vehicleType}</Descriptions.Item>
-                                        )}
-                                        <Descriptions.Item label="Tutar">
-                                            <strong>{Number(booking.total).toFixed(2)} {booking.currency}</strong>
-                                            <Tag color={booking.paymentStatus === 'PAID' ? 'green' : 'orange'} style={{ marginLeft: 8 }}>
-                                                {booking.paymentStatus === 'PAID' ? 'Ödendi' : 'Bekliyor'}
-                                            </Tag>
-                                        </Descriptions.Item>
+                                <div className="trk-card" style={{ padding: '24px 28px', marginBottom: 24 }}>
+                                    <span className="trk-section-label"><EnvironmentOutlined /> Yolculuk Detayları</span>
+                                    <div style={{ marginTop: 16 }}>
+                                        {/* Route visual */}
+                                        <div style={{ display: 'flex', alignItems: 'stretch', gap: 0, marginBottom: 20 }}>
+                                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginRight: 16, paddingTop: 4 }}>
+                                                <div style={{ width: 12, height: 12, borderRadius: '50%', background: theme.primaryColor, flexShrink: 0 }} />
+                                                <div style={{ width: 2, flex: 1, background: `linear-gradient(to bottom, ${theme.primaryColor}, ${theme.sectionAccent})`, margin: '4px 0', minHeight: 36 }} />
+                                                <div style={{ width: 12, height: 12, borderRadius: '50%', background: theme.sectionAccent, flexShrink: 0 }} />
+                                            </div>
+                                            <div style={{ flex: 1 }}>
+                                                <div style={{ marginBottom: 20 }}>
+                                                    <Text style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em' }}>NEREDEN</Text>
+                                                    <Text style={{ display: 'block', fontSize: 15, fontWeight: 600, color: '#0f172a', marginTop: 2 }}>{booking.metadata?.pickup || '-'}</Text>
+                                                </div>
+                                                <div>
+                                                    <Text style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em' }}>NEREYE</Text>
+                                                    <Text style={{ display: 'block', fontSize: 15, fontWeight: 600, color: '#0f172a', marginTop: 2 }}>{booking.metadata?.dropoff || '-'}</Text>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                                            {[
+                                                { label: 'Tarih & Saat', value: fmtDate(booking.startDate), icon: <ClockCircleOutlined style={{ color: theme.primaryColor }} /> },
+                                                { label: 'Yolcu', value: `${booking.adults} Yetişkin${booking.children ? `, ${booking.children} Çocuk` : ''}${booking.infants ? `, ${booking.infants} Bebek` : ''}`, icon: <UserOutlined style={{ color: theme.primaryColor }} /> },
+                                                ...(booking.metadata?.flightNumber ? [{ label: 'Uçuş No', value: booking.metadata.flightNumber, icon: <ArrowRightOutlined style={{ color: theme.primaryColor }} /> }] : []),
+                                                ...(booking.metadata?.vehicleType ? [{ label: 'Araç', value: booking.metadata.vehicleType, icon: <CarOutlined style={{ color: theme.primaryColor }} /> }] : []),
+                                            ].map((item, i) => (
+                                                <div key={i} style={{ background: '#f8fafc', borderRadius: 12, padding: '12px 16px' }}>
+                                                    <Text style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600, display: 'block', marginBottom: 4 }}>{item.label}</Text>
+                                                    <Text style={{ fontSize: 14, fontWeight: 600, color: '#0f172a' }}>{item.value}</Text>
+                                                </div>
+                                            ))}
+                                            <div style={{ background: '#f8fafc', borderRadius: 12, padding: '12px 16px' }}>
+                                                <Text style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600, display: 'block', marginBottom: 4 }}>Tutar</Text>
+                                                <Text style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>
+                                                    {Number(booking.total).toFixed(2)} {booking.currency}
+                                                    {' '}<span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 100, background: booking.paymentStatus === 'PAID' ? '#dcfce7' : '#fef3c7', color: booking.paymentStatus === 'PAID' ? '#16a34a' : '#d97706' }}>
+                                                        {booking.paymentStatus === 'PAID' ? 'Ödendi' : 'Bekliyor'}
+                                                    </span>
+                                                </Text>
+                                            </div>
+                                        </div>
+
                                         {booking.specialRequests && (
-                                            <Descriptions.Item label="Özel İstekler">{booking.specialRequests}</Descriptions.Item>
+                                            <div style={{ marginTop: 12, background: '#fffbeb', borderRadius: 12, padding: '12px 16px', border: '1px solid #fde68a' }}>
+                                                <Text style={{ fontSize: 11, color: '#92400e', fontWeight: 600, display: 'block', marginBottom: 4 }}>ÖZEL İSTEKLER</Text>
+                                                <Text style={{ fontSize: 14, color: '#78350f' }}>{booking.specialRequests}</Text>
+                                            </div>
                                         )}
-                                        {booking.pickedUpAt && (
-                                            <Descriptions.Item label="Alış Zamanı">{fmtDate(booking.pickedUpAt)}</Descriptions.Item>
-                                        )}
-                                        {booking.droppedOffAt && (
-                                            <Descriptions.Item label="Varış Zamanı">{fmtDate(booking.droppedOffAt)}</Descriptions.Item>
-                                        )}
-                                    </Descriptions>
-                                </Card>
+                                    </div>
+                                </div>
 
                                 {/* Live tracking */}
-                                <Card
-                                    title={<><AimOutlined /> Şoför Konumu</>}
-                                    style={{ marginBottom: 16, borderRadius: 12 }}
-                                    extra={
-                                        booking.trackingAvailable && (
-                                            <Tag color={locationOnline ? 'green' : 'default'}>
-                                                {locationOnline ? '● Canlı' : 'Bekleniyor'}
-                                            </Tag>
-                                        )
-                                    }
-                                >
+                                <div className="trk-card" style={{ padding: '24px 28px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                                        <span className="trk-section-label" style={{ marginBottom: 0 }}><AimOutlined /> Şoför Konumu</span>
+                                        {booking.trackingAvailable && (
+                                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: locationOnline ? '#16a34a' : '#94a3b8' }}>
+                                                <span style={{ width: 8, height: 8, borderRadius: '50%', background: locationOnline ? '#16a34a' : '#d1d5db', display: 'inline-block', ...(locationOnline ? { boxShadow: '0 0 0 3px #dcfce7' } : {}) }} />
+                                                {locationOnline ? 'Canlı' : 'Bekleniyor'}
+                                            </span>
+                                        )}
+                                    </div>
                                     {!booking.driver ? (
-                                        <Empty description="Henüz şoför atanmamış" />
+                                        <Empty description="Henüz şoför atanmamış" image={Empty.PRESENTED_IMAGE_SIMPLE} />
                                     ) : !booking.trackingAvailable ? (
-                                        <Alert
-                                            type="info"
-                                            showIcon
-                                            message="Şoför konumu transfer saatine 30 dakika kala paylaşılacaktır"
-                                            description={
-                                                booking.minutesUntilPickup !== null && booking.minutesUntilPickup > 0
-                                                    ? `Transferinize ${booking.minutesUntilPickup > 60
-                                                        ? Math.round(booking.minutesUntilPickup / 60) + ' saat'
-                                                        : booking.minutesUntilPickup + ' dakika'} var.`
-                                                    : 'Bu transfer için canlı takip aktif değil.'
+                                        <Alert type="info" showIcon icon={<ClockCircleOutlined />}
+                                            message="Canlı takip yakında aktif olacak"
+                                            description={booking.minutesUntilPickup !== null && booking.minutesUntilPickup > 0
+                                                ? `Şoför konumu transfer saatine 30 dakika kala paylaşılacaktır. Transferinize ${booking.minutesUntilPickup > 60 ? Math.round(booking.minutesUntilPickup / 60) + ' saat' : booking.minutesUntilPickup + ' dakika'} var.`
+                                                : 'Bu transfer için canlı takip aktif değil.'
                                             }
+                                            style={{ borderRadius: 12 }}
                                         />
                                     ) : driverLocation ? (
                                         <div>
-                                            <Space direction="vertical" style={{ width: '100%' }} size={12}>
-                                                <Space wrap>
-                                                    <Statistic
-                                                        title="Mevcut Hız"
-                                                        value={driverLocation.speed ? Math.round(driverLocation.speed * 3.6) : 0}
-                                                        suffix="km/sa"
-                                                    />
-                                                </Space>
+                                            <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
+                                                <div style={{ flex: 1, minWidth: 100, background: '#f8fafc', borderRadius: 12, padding: '12px 16px', textAlign: 'center' }}>
+                                                    <Text style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600, display: 'block' }}>Hız</Text>
+                                                    <Text style={{ fontSize: 22, fontWeight: 800, color: theme.primaryColor }}>{driverLocation.speed ? Math.round(driverLocation.speed * 3.6) : 0}</Text>
+                                                    <Text style={{ fontSize: 11, color: '#94a3b8' }}> km/sa</Text>
+                                                </div>
                                                 {locationLastSeen && (
-                                                    <Text type="secondary" style={{ fontSize: 12 }}>
-                                                        Son güncelleme: {new Date(locationLastSeen).toLocaleTimeString('tr-TR')}
-                                                    </Text>
+                                                    <div style={{ flex: 1, minWidth: 100, background: '#f8fafc', borderRadius: 12, padding: '12px 16px', textAlign: 'center' }}>
+                                                        <Text style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600, display: 'block' }}>Son Güncelleme</Text>
+                                                        <Text style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>{new Date(locationLastSeen).toLocaleTimeString('tr-TR')}</Text>
+                                                    </div>
                                                 )}
-                                                <Space wrap>
-                                                    <Button
-                                                        type="primary"
-                                                        icon={<EnvironmentOutlined />}
-                                                        href={`https://www.google.com/maps?q=${driverLocation.lat},${driverLocation.lng}`}
-                                                        target="_blank"
-                                                        style={{ background: '#4f46e5', borderColor: '#4f46e5' }}
-                                                    >
-                                                        Haritada Göster
+                                            </div>
+                                            <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
+                                                <Button type="primary" icon={<EnvironmentOutlined />} href={`https://www.google.com/maps?q=${driverLocation.lat},${driverLocation.lng}`} target="_blank" style={{ background: theme.buttonGradient, border: 'none', borderRadius: 10, fontWeight: 600 }}>
+                                                    Haritada Aç
+                                                </Button>
+                                                {booking.metadata?.pickupCoordinates && (
+                                                    <Button icon={<ArrowRightOutlined />} href={`https://www.google.com/maps/dir/${driverLocation.lat},${driverLocation.lng}/${booking.metadata.pickupCoordinates.lat},${booking.metadata.pickupCoordinates.lng}`} target="_blank" style={{ borderRadius: 10, fontWeight: 600 }}>
+                                                        Rotayı Gör
                                                     </Button>
-                                                    {booking.metadata?.pickupCoordinates && (
-                                                        <Button
-                                                            icon={<EnvironmentOutlined />}
-                                                            href={`https://www.google.com/maps/dir/${driverLocation.lat},${driverLocation.lng}/${booking.metadata.pickupCoordinates.lat},${booking.metadata.pickupCoordinates.lng}`}
-                                                            target="_blank"
-                                                        >
-                                                            Şöförün Yolunu Gör
-                                                        </Button>
-                                                    )}
-                                                </Space>
-                                            </Space>
-                                            <div style={{ marginTop: 12, borderRadius: 8, overflow: 'hidden', border: '1px solid #e5e7eb' }}>
-                                                <iframe
-                                                    title="Şoför Konumu"
-                                                    width="100%"
-                                                    height="300"
-                                                    frameBorder="0"
-                                                    style={{ display: 'block' }}
+                                                )}
+                                            </div>
+                                            <div style={{ borderRadius: 16, overflow: 'hidden', border: '1px solid #e2e8f0' }}>
+                                                <iframe title="Şoför Konumu" width="100%" height="280" frameBorder="0" style={{ display: 'block' }}
                                                     src={`https://maps.google.com/maps?q=${driverLocation.lat},${driverLocation.lng}&z=15&output=embed`}
                                                 />
                                             </div>
                                         </div>
                                     ) : locationError ? (
-                                        <Alert type="warning" message={locationError} showIcon />
+                                        <Alert type="warning" message={locationError} showIcon style={{ borderRadius: 12 }} />
                                     ) : (
-                                        <div style={{ textAlign: 'center', padding: 16 }}>
+                                        <div style={{ textAlign: 'center', padding: '24px 0' }}>
                                             <Text type="secondary">Şoförün konumu bekleniyor…</Text>
                                         </div>
                                     )}
-                                </Card>
+                                </div>
                             </Col>
 
-                            {/* Right col – Driver + Vehicle */}
+                            {/* Right: Driver + actions */}
                             <Col xs={24} lg={10}>
-                                <Card
-                                    title={<><CarOutlined /> Şoför & Araç</>}
-                                    style={{ marginBottom: 16, borderRadius: 12 }}
-                                >
+                                {/* Driver card */}
+                                <div className="trk-card" style={{ padding: '24px 28px', marginBottom: 24 }}>
+                                    <span className="trk-section-label"><CarOutlined /> Şoför & Araç</span>
                                     {!booking.driver ? (
-                                        <Empty description="Henüz şoför atanmamış" />
+                                        <Empty description="Henüz şoför atanmamış" image={Empty.PRESENTED_IMAGE_SIMPLE} style={{ marginTop: 16 }} />
                                     ) : (
-                                        <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-                                            <Space size="middle">
-                                                <Avatar size={64} icon={<UserOutlined />} src={booking.driver.avatar}
-                                                    style={{ background: '#4f46e5' }} />
+                                        <div style={{ marginTop: 16 }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
+                                                <Avatar size={72} icon={<UserOutlined />} src={booking.driver.avatar}
+                                                    style={{ background: theme.buttonGradient, flexShrink: 0, fontSize: 28, boxShadow: `0 8px 24px ${theme.primaryColor}33` }}
+                                                />
                                                 <div>
-                                                    <Title level={5} style={{ margin: 0 }}>{booking.driver.fullName}</Title>
+                                                    <Title level={5} style={{ margin: 0, fontSize: 17 }}>{booking.driver.fullName}</Title>
                                                     {booking.driver.rating !== null && booking.driver.rating !== undefined && (
-                                                        <Space size={4}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
                                                             <Rate disabled allowHalf value={booking.driver.rating} style={{ fontSize: 12 }} />
-                                                            <Text style={{ fontSize: 12, color: '#f59e0b', fontWeight: 600 }}>
+                                                            <Text style={{ fontSize: 13, color: '#f59e0b', fontWeight: 700 }}>
                                                                 {Number(booking.driver.rating).toFixed(1)}
                                                             </Text>
-                                                            {booking.driver.ratingCount ? (
-                                                                <Text type="secondary" style={{ fontSize: 11 }}>
-                                                                    ({booking.driver.ratingCount})
-                                                                </Text>
-                                                            ) : null}
-                                                        </Space>
-                                                    )}
-                                                    {booking.driver.phone && (
-                                                        <div style={{ marginTop: 4 }}>
-                                                            <Button
-                                                                type="link" size="small" icon={<PhoneOutlined />}
-                                                                href={`tel:${booking.driver.phone}`}
-                                                                style={{ padding: 0 }}
-                                                            >
-                                                                {booking.driver.phone}
-                                                            </Button>
+                                                            {booking.driver.ratingCount ? <Text type="secondary" style={{ fontSize: 11 }}>({booking.driver.ratingCount})</Text> : null}
                                                         </div>
                                                     )}
+                                                    {booking.driver.phone && (
+                                                        <Button type="link" size="small" icon={<PhoneOutlined />} href={`tel:${booking.driver.phone}`}
+                                                            style={{ padding: 0, marginTop: 4, fontWeight: 600, color: theme.primaryColor }}>
+                                                            {booking.driver.phone}
+                                                        </Button>
+                                                    )}
                                                 </div>
-                                            </Space>
+                                            </div>
 
                                             {(booking.driver.vehiclePlate || booking.driver.vehicleType) && (
                                                 <>
-                                                    <Divider style={{ margin: '8px 0' }} />
-                                                    <Descriptions column={1} size="small">
+                                                    <div style={{ height: 1, background: '#f1f5f9', marginBottom: 16 }} />
+                                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                                                         {booking.driver.vehiclePlate && (
-                                                            <Descriptions.Item label="Plaka">
-                                                                <Tag color="blue" style={{ fontWeight: 700, fontSize: 14 }}>
-                                                                    {booking.driver.vehiclePlate}
-                                                                </Tag>
-                                                            </Descriptions.Item>
+                                                            <div style={{ gridColumn: '1/-1', background: `${theme.primaryColor}10`, borderRadius: 12, padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                                                <Text style={{ fontSize: 12, color: '#64748b', fontWeight: 600 }}>PLAKA</Text>
+                                                                <Text style={{ fontSize: 18, fontWeight: 900, color: '#0f172a', letterSpacing: 2, fontFamily: 'monospace' }}>{booking.driver.vehiclePlate}</Text>
+                                                            </div>
                                                         )}
-                                                        {booking.driver.vehicleType && (
-                                                            <Descriptions.Item label="Tip">{booking.driver.vehicleType}</Descriptions.Item>
-                                                        )}
-                                                        {booking.driver.vehicleModel && (
-                                                            <Descriptions.Item label="Model">{booking.driver.vehicleModel}</Descriptions.Item>
-                                                        )}
-                                                        {booking.driver.vehicleColor && (
-                                                            <Descriptions.Item label="Renk">{booking.driver.vehicleColor}</Descriptions.Item>
-                                                        )}
-                                                    </Descriptions>
+                                                        {[
+                                                            { label: 'Araç Tipi', value: booking.driver.vehicleType },
+                                                            { label: 'Model', value: booking.driver.vehicleModel },
+                                                            { label: 'Renk', value: booking.driver.vehicleColor },
+                                                        ].filter(x => x.value).map((item, i) => (
+                                                            <div key={i} style={{ background: '#f8fafc', borderRadius: 10, padding: '10px 12px' }}>
+                                                                <Text style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700, display: 'block', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{item.label}</Text>
+                                                                <Text style={{ fontSize: 13, fontWeight: 600, color: '#0f172a' }}>{item.value}</Text>
+                                                            </div>
+                                                        ))}
+                                                    </div>
                                                 </>
                                             )}
-                                        </Space>
+                                        </div>
                                     )}
-                                </Card>
+                                </div>
 
-                                {/* Rating for completed trips */}
+                                {/* Rating */}
                                 {booking.status === 'COMPLETED' && booking.metadata?.ratingToken && !booking.metadata?.rating && (
-                                    <Card style={{ marginTop: 0, borderRadius: 12 }}>
-                                        <Space direction="vertical" style={{ width: '100%' }} align="center">
-                                            <Text strong>Yolculuğunuzu değerlendirmek ister misiniz?</Text>
-                                            <Button
-                                                type="primary"
-                                                href={`/rate/${booking.metadata.ratingToken}`}
-                                                target="_blank"
-                                                style={{ background: '#4f46e5', borderColor: '#4f46e5' }}
-                                            >
-                                                Puanla
-                                            </Button>
-                                        </Space>
-                                    </Card>
+                                    <div className="trk-card" style={{ padding: '24px 28px', marginBottom: 24, background: 'linear-gradient(135deg, #fffbeb, #fef3c7)', border: '1px solid #fde68a' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                                            <StarOutlined style={{ fontSize: 20, color: '#f59e0b' }} />
+                                            <Text strong style={{ fontSize: 15 }}>Yolculuğunuzu Değerlendirin</Text>
+                                        </div>
+                                        <Text style={{ color: '#92400e', fontSize: 13, display: 'block', marginBottom: 16 }}>
+                                            Deneyiminizi paylaşarak diğer yolcuların doğru tercih yapmasına yardımcı olun.
+                                        </Text>
+                                        <Button type="primary" href={`/rate/${booking.metadata.ratingToken}`} target="_blank"
+                                            style={{ background: '#f59e0b', border: 'none', fontWeight: 700, borderRadius: 10, height: 44 }}>
+                                            Şimdi Puanla <ArrowRightOutlined />
+                                        </Button>
+                                    </div>
                                 )}
                                 {booking.metadata?.rating && (
-                                    <Card style={{ marginTop: 0, borderRadius: 12 }}>
-                                        <Text strong>Verdiğiniz Puan</Text>
-                                        <Space style={{ marginTop: 8 }}>
+                                    <div className="trk-card" style={{ padding: '20px 24px', marginBottom: 24 }}>
+                                        <Text strong style={{ display: 'block', marginBottom: 8 }}>Verdiğiniz Puan</Text>
+                                        <Space>
                                             <Rate disabled allowHalf value={booking.metadata.rating.overall} />
-                                            <Text strong style={{ color: '#f59e0b' }}>
-                                                {Number(booking.metadata.rating.overall).toFixed(1)}
-                                            </Text>
+                                            <Text strong style={{ color: '#f59e0b', fontSize: 18 }}>{Number(booking.metadata.rating.overall).toFixed(1)}</Text>
                                         </Space>
-                                    </Card>
+                                    </div>
                                 )}
 
-                                {/* Hint: register for full features */}
-                                <Card
-                                    style={{ marginTop: 16, borderRadius: 12, background: 'linear-gradient(135deg,#4f46e5,#7c3aed)', border: 'none' }}
-                                    styles={{ body: { padding: 20 } }}
-                                >
-                                    <Space direction="vertical" size={8} style={{ width: '100%' }}>
-                                        <Text strong style={{ color: '#fff', fontSize: 15 }}>
-                                            Tüm rezervasyonlarınızı tek yerden yönetin
-                                        </Text>
-                                        <Text style={{ color: 'rgba(255,255,255,.8)', fontSize: 13 }}>
-                                            Üye olun; tüm transferlerinizi, şoför takibini ve mesajları müşteri panelinizden kolayca yönetin.
-                                        </Text>
-                                        <Space>
-                                            <Button
-                                                onClick={() => router.push('/register')}
-                                                style={{ background: '#fff', color: '#4f46e5', borderColor: '#fff', fontWeight: 600 }}
-                                            >
-                                                Kayıt Ol
-                                            </Button>
-                                            <Button
-                                                onClick={() => router.push('/login')}
-                                                style={{ background: 'transparent', color: '#fff', borderColor: 'rgba(255,255,255,.5)' }}
-                                            >
-                                                Giriş Yap
-                                            </Button>
-                                        </Space>
-                                    </Space>
-                                </Card>
+                                {/* CTA: register */}
+                                <div style={{ background: 'linear-gradient(135deg, #0f172a, #1e293b)', borderRadius: 20, padding: '28px 24px', border: `1px solid ${theme.sectionAccent}22`, position: 'relative', overflow: 'hidden' }}>
+                                    <div style={{ position: 'absolute', top: -30, right: -30, width: 120, height: 120, borderRadius: '50%', background: `${theme.sectionAccent}08` }} />
+                                    <SafetyCertificateOutlined style={{ fontSize: 28, color: theme.sectionAccent, marginBottom: 12, display: 'block' }} />
+                                    <Text strong style={{ color: '#fff', fontSize: 16, display: 'block', marginBottom: 8, fontFamily: 'var(--font-playfair, Georgia, serif)' }}>
+                                        Tüm transferlerinizi yönetin
+                                    </Text>
+                                    <Text style={{ color: 'rgba(255,255,255,0.55)', fontSize: 13, display: 'block', marginBottom: 20, lineHeight: 1.7 }}>
+                                        Üye olun; tüm rezervasyonlarınızı, şoför takibini ve geçmişinizi kolayca görün.
+                                    </Text>
+                                    <div style={{ display: 'flex', gap: 10 }}>
+                                        <Button onClick={() => router.push('/register')}
+                                            style={{ flex: 1, height: 42, borderRadius: 10, background: theme.buttonGradient, border: 'none', color: '#fff', fontWeight: 700 }}>
+                                            Üye Ol
+                                        </Button>
+                                        <Button onClick={() => router.push('/login')}
+                                            style={{ flex: 1, height: 42, borderRadius: 10, background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', fontWeight: 600 }}>
+                                            Giriş Yap
+                                        </Button>
+                                    </div>
+                                </div>
                             </Col>
                         </Row>
                     </>
                 )}
+
+                {/* Empty state: how it works info */}
+                {!booking && !searching && (
+                    <div style={{ marginTop: 16 }}>
+                        <Row gutter={[20, 20]}>
+                            {[
+                                { icon: '🔍', title: 'Hızlı Sorgulama', desc: 'Rezervasyon numaranız ve e-posta / telefon son 4 hanenizle saniyeler içinde bilgi alın.' },
+                                { icon: '📍', title: 'Canlı Takip', desc: 'Transfer saatine 30 dakika kala şoförünüzün konumunu haritada gerçek zamanlı görün.' },
+                                { icon: '🚘', title: 'Şoför Bilgisi', desc: 'Sizi karşılayacak şoförün adını, aracını ve plakasını önceden öğrenin.' },
+                            ].map((item, i) => (
+                                <Col xs={24} sm={8} key={i}>
+                                    <div className="trk-card" style={{ padding: '28px 24px', textAlign: 'center' }}>
+                                        <div style={{ fontSize: 36, marginBottom: 16 }}>{item.icon}</div>
+                                        <Text strong style={{ fontSize: 16, display: 'block', marginBottom: 8, fontFamily: 'var(--font-playfair, Georgia, serif)', color: '#0f172a' }}>{item.title}</Text>
+                                        <Text style={{ fontSize: 14, color: '#64748b', lineHeight: 1.7 }}>{item.desc}</Text>
+                                    </div>
+                                </Col>
+                            ))}
+                        </Row>
+                    </div>
+                )}
             </div>
+
+            <SiteFooter />
         </div>
     );
 }
