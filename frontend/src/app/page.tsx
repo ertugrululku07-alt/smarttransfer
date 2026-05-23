@@ -50,9 +50,8 @@ import {
   WhatsAppOutlined,
   SendOutlined
 } from '@ant-design/icons';
-import axios from 'axios';
 import dayjs, { Dayjs } from 'dayjs';
-import { API_URL, getImageUrl } from '@/lib/api-client';
+import apiClient, { getImageUrl } from '@/lib/api-client';
 
 // ─── Havalimanı Tespiti ───
 const AIRPORT_CODES = [
@@ -98,7 +97,6 @@ interface TransferOption {
   features: string[];
 }
 
-const API_BASE = API_URL;
 
 const HomePage: React.FC = () => {
   const router = useRouter();
@@ -168,7 +166,7 @@ const HomePage: React.FC = () => {
     setCouponResult(null);
     setCouponError('');
     try {
-      const res = await axios.post(`${API_BASE}/api/campaigns/validate`, {
+      const res = await apiClient.post('/api/campaigns/validate', {
         code: couponCode.trim(),
         orderAmount: selectedTransfer?.price || 0,
         vehicleType: selectedTransfer?.vehicleType || '',
@@ -186,8 +184,8 @@ const HomePage: React.FC = () => {
     const fetchConfig = async () => {
       try {
         const [imagesRes, infoRes] = await Promise.all([
-          axios.get(`${API_BASE}/api/tenant/hero-images`),
-          axios.get(`${API_BASE}/api/tenant/info`)
+          apiClient.get('/api/tenant/hero-images'),
+          apiClient.get('/api/tenant/info')
         ]);
 
         if (infoRes.data.success && infoRes.data.data.tenant.settings?.googleMaps) {
@@ -349,7 +347,7 @@ const HomePage: React.FC = () => {
           childAges, babySeat: babySeatRequired,
           couponCode: couponResult?.code || undefined,
         };
-        const res = await axios.post(`${API_BASE}/api/bookings`, payload);
+        const res = await apiClient.post('/api/bookings', payload);
         if (res.data?.success) {
           message.success(t('booking.success'));
           setBookingModalVisible(false);
