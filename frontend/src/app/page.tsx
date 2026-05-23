@@ -48,7 +48,10 @@ import {
   YoutubeOutlined,
   LinkedinOutlined,
   WhatsAppOutlined,
-  SendOutlined
+  SendOutlined,
+  CustomerServiceOutlined,
+  StarOutlined,
+  RocketOutlined,
 } from '@ant-design/icons';
 import dayjs, { Dayjs } from 'dayjs';
 import apiClient, { getImageUrl } from '@/lib/api-client';
@@ -608,19 +611,30 @@ const HomePage: React.FC = () => {
       display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center',
       zIndex: 10, padding: '0 16px',
     }}>
-      <div style={{ textAlign: 'center', marginBottom: 32, maxWidth: 700 }}>
-        {theme.decorationEmoji && (
-          <span style={{ fontSize: 32, display: 'block', marginBottom: 8 }}>{theme.decorationEmoji}</span>
+      <div style={{ textAlign: 'center', marginBottom: 32, maxWidth: 760 }}>
+        {/* Premium badge */}
+        {(theme.decorationEmoji || branding.slogan) && (
+          <div style={{
+            display: 'inline-flex', alignItems: 'center', gap: 8,
+            background: 'rgba(251,191,36,0.15)', border: '1px solid rgba(251,191,36,0.35)',
+            color: '#fbbf24', padding: '6px 20px', borderRadius: 100,
+            fontSize: 12, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const,
+            marginBottom: 24, backdropFilter: 'blur(10px)',
+          }}>
+            <span>{theme.decorationEmoji || '✦'}</span>
+            {branding.slogan || 'Premium Transfer Deneyimi'}
+          </div>
         )}
         <Title level={1} style={{
-          color: '#fff', fontSize: 'clamp(1.8rem, 5vw, 3.2rem)', marginBottom: 12,
-          fontWeight: 800, textShadow: '0 4px 20px rgba(0,0,0,0.5)', letterSpacing: 0.5, lineHeight: 1.2,
+          color: '#fff', fontSize: 'clamp(2rem, 5vw, 4rem)', marginBottom: 16,
+          fontWeight: 700, fontFamily: 'var(--font-playfair, Georgia, serif)',
+          textShadow: '0 4px 20px rgba(0,0,0,0.45)', letterSpacing: '-0.02em', lineHeight: 1.1,
         }}>
           {theme.heroTitle}
         </Title>
         <Text style={{
-          color: 'rgba(255,255,255,0.9)', fontSize: 'clamp(0.95rem, 2vw, 1.2rem)',
-          textShadow: '0 2px 8px rgba(0,0,0,0.5)', fontWeight: 400, display: 'block',
+          color: 'rgba(255,255,255,0.78)', fontSize: 'clamp(0.95rem, 2vw, 1.18rem)',
+          textShadow: '0 2px 8px rgba(0,0,0,0.4)', fontWeight: 300, display: 'block', lineHeight: 1.75,
         }}>
           {theme.heroSubtitle}
         </Text>
@@ -804,14 +818,17 @@ const HomePage: React.FC = () => {
           switch (sectionKey) {
             case 'howItWorks':
               return (
-                <div key="howItWorks" style={{ background: '#fff', padding: 'clamp(48px, 8vw, 80px) 16px' }}>
+                <div key="howItWorks" style={{ background: '#f8fafc', padding: 'clamp(56px, 8vw, 96px) 16px' }}>
                   <div style={{ maxWidth: 1100, margin: '0 auto' }}>
-                    <div style={{ textAlign: 'center', marginBottom: 48 }}>
-                      <Text style={{ color: theme.sectionAccent, fontWeight: 600, fontSize: 13, textTransform: 'uppercase' as const, letterSpacing: 2 }}>{t('howItWorks.badge')}</Text>
-                      <Title level={2} style={{ marginTop: 8, marginBottom: 8 }}>{t('howItWorks.title')}</Title>
-                      <Text type="secondary" style={{ fontSize: 15 }}>{t('howItWorks.subtitle')}</Text>
+                    <div style={{ textAlign: 'center', marginBottom: 56 }}>
+                      <div style={{ display: 'inline-block', fontSize: 12, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase' as const, color: theme.sectionAccent, marginBottom: 14, position: 'relative' as const }}>
+                        {t('howItWorks.badge')}
+                        <div style={{ width: 40, height: 2, background: theme.sectionAccent, margin: '10px auto 0' }} />
+                      </div>
+                      <Title level={2} style={{ fontFamily: 'var(--font-playfair, Georgia, serif)', fontSize: 'clamp(1.8rem, 4vw, 2.8rem)', color: '#0f172a', marginBottom: 10, marginTop: 0 }}>{t('howItWorks.title')}</Title>
+                      <Text style={{ color: '#64748b', fontSize: 16, lineHeight: 1.7, fontWeight: 400 }}>{t('howItWorks.subtitle')}</Text>
                     </div>
-                    <Row gutter={[32, 32]}>
+                    <Row gutter={[40, 40]}>
                       {[
                         { icon: <SearchOutlined />, num: '01', title: t('howItWorks.step1.title'), desc: t('howItWorks.step1.desc') },
                         { icon: <CarOutlined />, num: '02', title: t('howItWorks.step2.title'), desc: t('howItWorks.step2.desc') },
@@ -820,16 +837,18 @@ const HomePage: React.FC = () => {
                         <Col xs={24} sm={8} key={i}>
                           <div style={{ textAlign: 'center' }}>
                             <div style={{
-                              width: 72, height: 72, borderRadius: '50%', background: theme.stepCircleGradient,
+                              width: 72, height: 72, borderRadius: 20,
+                              background: `linear-gradient(135deg, ${theme.primaryColor}18, ${theme.primaryColor}08)`,
+                              border: `1px solid ${theme.primaryColor}28`,
                               display: 'flex', alignItems: 'center', justifyContent: 'center',
-                              margin: '0 auto 16px', fontSize: 28, color: '#fff',
-                              boxShadow: `0 8px 24px ${theme.primaryColor}40`,
+                              margin: '0 auto 18px', fontSize: 26, color: theme.primaryColor,
+                              transition: 'all 0.3s',
                             }}>
                               {step.icon}
                             </div>
-                            <Text style={{ color: theme.sectionAccent, fontWeight: 700, fontSize: 12, letterSpacing: 1 }}>{step.num}</Text>
-                            <Title level={4} style={{ marginTop: 4, marginBottom: 6 }}>{step.title}</Title>
-                            <Text type="secondary" style={{ fontSize: 14, lineHeight: 1.6 }}>{step.desc}</Text>
+                            <Text style={{ color: theme.sectionAccent, fontWeight: 700, fontSize: 12, letterSpacing: '0.1em', textTransform: 'uppercase' as const }}>{step.num}</Text>
+                            <Title level={4} style={{ fontFamily: 'var(--font-playfair, Georgia, serif)', marginTop: 6, marginBottom: 8, color: '#0f172a' }}>{step.title}</Title>
+                            <Text style={{ color: '#64748b', fontSize: 14, lineHeight: 1.75, fontWeight: 400 }}>{step.desc}</Text>
                           </div>
                         </Col>
                       ))}
@@ -837,40 +856,52 @@ const HomePage: React.FC = () => {
                   </div>
                 </div>
               );
-            case 'whyUs':
+            case 'whyUs': {
+              const featureIconList = [<SafetyOutlined />, <CustomerServiceOutlined />, <CheckCircleOutlined />, <TrophyOutlined />, <GlobalOutlined />, <HeartOutlined />];
               const whyUsFeatures = featureItems.length > 0 ? featureItems : [
                 { title: t('whyUs.feature1.title'), desc: t('whyUs.feature1.desc'), color: theme.primaryColor },
-                { title: t('whyUs.feature2.title'), desc: t('whyUs.feature2.desc'), color: '#00b96b' },
-                { title: t('whyUs.feature3.title'), desc: t('whyUs.feature3.desc'), color: '#faad14' },
-                { title: t('whyUs.feature4.title'), desc: t('whyUs.feature4.desc'), color: theme.accentColor },
-                { title: t('whyUs.feature5.title'), desc: t('whyUs.feature5.desc'), color: '#13c2c2' },
-                { title: t('whyUs.feature6.title'), desc: t('whyUs.feature6.desc'), color: '#eb2f96' },
+                { title: t('whyUs.feature2.title'), desc: t('whyUs.feature2.desc'), color: theme.primaryColor },
+                { title: t('whyUs.feature3.title'), desc: t('whyUs.feature3.desc'), color: theme.primaryColor },
+                { title: t('whyUs.feature4.title'), desc: t('whyUs.feature4.desc'), color: theme.primaryColor },
+                { title: t('whyUs.feature5.title'), desc: t('whyUs.feature5.desc'), color: theme.primaryColor },
+                { title: t('whyUs.feature6.title'), desc: t('whyUs.feature6.desc'), color: theme.primaryColor },
               ];
               return (
-                <div key="whyUs" style={{ background: theme.featureBg, padding: 'clamp(48px, 8vw, 80px) 16px' }}>
-                  <div style={{ maxWidth: 1100, margin: '0 auto' }}>
-                    <div style={{ textAlign: 'center', marginBottom: 48 }}>
-                      <Text style={{ color: theme.sectionAccent, fontWeight: 600, fontSize: 13, textTransform: 'uppercase' as const, letterSpacing: 2 }}>{t('whyUs.badge')}</Text>
-                      <Title level={2} style={{ marginTop: 8, marginBottom: 8 }}>{t('whyUs.title', { name: fullName })}</Title>
-                      <Text type="secondary" style={{ fontSize: 15 }}>{t('whyUs.subtitle')}</Text>
+                <div key="whyUs" style={{ background: '#0f172a', padding: 'clamp(56px, 8vw, 96px) 16px', position: 'relative', overflow: 'hidden' }}>
+                  <div style={{ position: 'absolute', top: '-30%', right: '-10%', width: 600, height: 600, borderRadius: '50%', background: `radial-gradient(circle, ${theme.primaryColor}0d 0%, transparent 70%)`, pointerEvents: 'none' }} />
+                  <div style={{ maxWidth: 1200, margin: '0 auto', position: 'relative', zIndex: 1 }}>
+                    <div style={{ textAlign: 'center', marginBottom: 56 }}>
+                      <div style={{ display: 'inline-block', fontSize: 12, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase' as const, color: theme.sectionAccent, marginBottom: 14 }}>
+                        {t('whyUs.badge')}
+                        <div style={{ width: 40, height: 2, background: theme.sectionAccent, margin: '10px auto 0' }} />
+                      </div>
+                      <Title level={2} style={{ fontFamily: 'var(--font-playfair, Georgia, serif)', fontSize: 'clamp(1.8rem, 4vw, 2.8rem)', color: '#fff', marginBottom: 10, marginTop: 0 }}>{t('whyUs.title', { name: fullName })}</Title>
+                      <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 16, lineHeight: 1.7, fontWeight: 300 }}>{t('whyUs.subtitle')}</Text>
                     </div>
+                    <style>{`
+                      .hp-feature-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); border-radius: 20px; padding: 2.5rem; transition: all 0.4s ease; }
+                      .hp-feature-card:hover { background: rgba(255,255,255,0.06); border-color: ${theme.primaryColor}33; transform: translateY(-5px); box-shadow: 0 20px 40px rgba(0,0,0,0.2); }
+                      .hp-feature-icon { width: 56px; height: 56px; background: linear-gradient(135deg, ${theme.primaryColor}26, ${theme.primaryColor}0d); border: 1px solid ${theme.primaryColor}33; border-radius: 16px; display: flex; align-items: center; justify-content: center; color: ${theme.sectionAccent}; font-size: 1.25rem; margin-bottom: 1.5rem; transition: all 0.3s; }
+                      .hp-feature-card:hover .hp-feature-icon { background: linear-gradient(135deg, ${theme.primaryColor}, ${theme.accentColor}); color: white; box-shadow: 0 8px 25px ${theme.primaryColor}50; border-color: transparent; }
+                    `}</style>
                     <Row gutter={[20, 20]}>
                       {whyUsFeatures.map((item, i) => (
                         <Col xs={24} sm={12} md={8} key={i}>
-                          <Card hoverable style={{ height: '100%', borderRadius: 16, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }} styles={{ body: { padding: 24 } }}>
-                            <div style={{ width: 52, height: 52, borderRadius: 14, background: `${item.color}14`, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 14, color: item.color }}>
-                              <SafetyOutlined style={{ fontSize: 32 }} />
+                          <div className="hp-feature-card">
+                            <div className="hp-feature-icon">
+                              {featureIconList[i % featureIconList.length]}
                             </div>
-                            <Title level={5} style={{ marginBottom: 6 }}>{item.title}</Title>
-                            <Text type="secondary" style={{ fontSize: 13, lineHeight: 1.7 }}>{item.desc}</Text>
-                          </Card>
+                            <Title level={4} style={{ fontFamily: 'var(--font-playfair, Georgia, serif)', color: '#fff', marginBottom: 10, marginTop: 0, fontSize: '1.15rem' }}>{item.title}</Title>
+                            <Text style={{ color: 'rgba(255,255,255,0.55)', fontSize: 14, lineHeight: 1.75, fontWeight: 300 }}>{item.desc}</Text>
+                          </div>
                         </Col>
                       ))}
                     </Row>
                   </div>
                 </div>
               );
-            case 'stats':
+            }
+            case 'stats': {
               const statsData = statsItems.length > 0 ? statsItems : [
                 { num: '50,000+', label: t('stats.passengers') },
                 { num: '200+', label: t('stats.drivers') },
@@ -878,102 +909,117 @@ const HomePage: React.FC = () => {
                 { num: '4.9/5', label: t('stats.rating') },
               ];
               return (
-                <div key="stats" style={{ background: theme.statsGradient, padding: 'clamp(40px, 6vw, 64px) 16px' }}>
-                  <div style={{ maxWidth: 900, margin: '0 auto' }}>
-                    <Row gutter={[24, 24]}>
+                <div key="stats" style={{ background: theme.statsGradient, padding: 'clamp(48px, 6vw, 72px) 16px' }}>
+                  <div style={{ maxWidth: 1000, margin: '0 auto' }}>
+                    <Row gutter={[24, 32]}>
                       {statsData.map((stat, i) => (
                         <Col xs={12} md={6} key={i} style={{ textAlign: 'center' }}>
-                          <Title level={2} style={{ color: '#fff', marginBottom: 4, fontSize: 'clamp(1.4rem, 3vw, 2rem)' }}>{stat.num}</Title>
-                          <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13 }}>{stat.label}</Text>
+                          <Title level={2} style={{ fontFamily: 'var(--font-playfair, Georgia, serif)', color: '#fff', marginBottom: 6, fontSize: 'clamp(1.6rem, 3vw, 2.4rem)', letterSpacing: '-0.02em' }}>{stat.num}</Title>
+                          <div style={{ width: 32, height: 2, background: 'rgba(255,255,255,0.35)', margin: '0 auto 10px' }} />
+                          <Text style={{ color: 'rgba(255,255,255,0.72)', fontSize: 13, letterSpacing: '0.04em', textTransform: 'uppercase' as const }}>{stat.label}</Text>
                         </Col>
                       ))}
                     </Row>
                   </div>
                 </div>
               );
-            case 'popularRoutes':
+            }
+            case 'popularRoutes': {
               const routesData = routeItems.length > 0 ? routeItems : [
-                { from: 'Antalya Havalimanı', to: 'Kemer', img: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=400&h=250&fit=crop', price: '35' },
-                { from: 'İstanbul Havalimanı', to: 'Taksim', img: 'https://images.unsplash.com/photo-1524231757912-21f4fe3a7200?w=400&h=250&fit=crop', price: '45' },
-                { from: 'Dalaman Havalimanı', to: 'Fethiye', img: 'https://images.unsplash.com/photo-1519046904884-53103b34b206?w=400&h=250&fit=crop', price: '55' },
-                { from: 'Bodrum Havalimanı', to: 'Bodrum', img: 'https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=400&h=250&fit=crop', price: '40' },
+                { from: 'Antalya Havalimanı', to: 'Kemer', img: 'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?q=80&w=800&auto=format&fit=crop', price: '35' },
+                { from: 'İstanbul Havalimanı', to: 'Taksim', img: 'https://images.unsplash.com/photo-1524231757912-21f4fe3a7200?q=80&w=800&auto=format&fit=crop', price: '45' },
+                { from: 'Dalaman Havalimanı', to: 'Fethiye', img: 'https://images.unsplash.com/photo-1519046904884-53103b34b206?q=80&w=800&auto=format&fit=crop', price: '55' },
+                { from: 'Bodrum Havalimanı', to: 'Bodrum', img: 'https://images.unsplash.com/photo-1573790389818-adb13b9d4742?q=80&w=800&auto=format&fit=crop', price: '40' },
               ];
               return (
-                <div key="popularRoutes" style={{ background: '#fff', padding: 'clamp(48px, 8vw, 80px) 16px' }}>
-                  <div style={{ maxWidth: 1100, margin: '0 auto' }}>
-                    <div style={{ textAlign: 'center', marginBottom: 48 }}>
-                      <Text style={{ color: theme.sectionAccent, fontWeight: 600, fontSize: 13, textTransform: 'uppercase' as const, letterSpacing: 2 }}>{t('routes.badge')}</Text>
-                      <Title level={2} style={{ marginTop: 8, marginBottom: 8 }}>{t('routes.title')}</Title>
-                      <Text type="secondary" style={{ fontSize: 15 }}>{t('routes.subtitle')}</Text>
+                <div key="popularRoutes" style={{ background: '#f8fafc', padding: 'clamp(56px, 8vw, 96px) 16px' }}>
+                  <style>{`
+                    .hp-route-card { position: relative; border-radius: 20px; overflow: hidden; aspect-ratio: 4/5; cursor: pointer; box-shadow: 0 10px 40px rgba(0,0,0,0.08); transition: all 0.5s cubic-bezier(0.4,0,0.2,1); }
+                    .hp-route-card:hover { transform: translateY(-8px); box-shadow: 0 25px 60px rgba(0,0,0,0.15); }
+                    .hp-route-card img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.7s ease; }
+                    .hp-route-card:hover img { transform: scale(1.08); }
+                    .hp-route-overlay { position: absolute; inset: 0; background: linear-gradient(to top, rgba(15,23,42,0.95) 0%, rgba(15,23,42,0.25) 50%, transparent 100%); display: flex; flex-direction: column; justify-content: flex-end; padding: 1.75rem; }
+                    .hp-route-price { position: absolute; top: 1.25rem; right: 1.25rem; background: rgba(255,255,255,0.95); backdrop-filter: blur(10px); padding: 6px 14px; border-radius: 100px; font-size: 13px; font-weight: 700; color: #0f172a; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+                    .hp-route-dest { color: white; font-family: var(--font-playfair, Georgia, serif); font-size: 1.2rem; font-weight: 600; margin-bottom: 4px; }
+                    .hp-route-from { color: rgba(255,255,255,0.72); font-size: 14px; display: flex; align-items: center; gap: 6px; }
+                  `}</style>
+                  <div style={{ maxWidth: 1200, margin: '0 auto' }}>
+                    <div style={{ textAlign: 'center', marginBottom: 56 }}>
+                      <div style={{ display: 'inline-block', fontSize: 12, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase' as const, color: theme.sectionAccent, marginBottom: 14 }}>
+                        {t('routes.badge')}
+                        <div style={{ width: 40, height: 2, background: theme.sectionAccent, margin: '10px auto 0' }} />
+                      </div>
+                      <Title level={2} style={{ fontFamily: 'var(--font-playfair, Georgia, serif)', fontSize: 'clamp(1.8rem, 4vw, 2.8rem)', color: '#0f172a', marginBottom: 10, marginTop: 0 }}>{t('routes.title')}</Title>
+                      <Text style={{ color: '#64748b', fontSize: 16, lineHeight: 1.7, fontWeight: 400 }}>{t('routes.subtitle')}</Text>
                     </div>
-                    <Row gutter={[16, 16]}>
+                    <Row gutter={[20, 20]}>
                       {routesData.map((route, i) => (
                         <Col xs={12} sm={12} md={6} key={i}>
-                          <Card hoverable style={{ borderRadius: 16, overflow: 'hidden', border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }} styles={{ body: { padding: 14 } }}
-                            cover={
-                              <div style={{ height: 'clamp(120px, 18vw, 160px)', backgroundImage: `url(${route.img})`, backgroundSize: 'cover', backgroundPosition: 'center', position: 'relative' }}>
-                                <div style={{ position: 'absolute', bottom: 10, right: 10, background: 'rgba(0,0,0,0.7)', color: '#fff', padding: '3px 10px', borderRadius: 16, fontSize: 12, fontWeight: 600 }}>
-                                  {route.price} EUR {t('routes.from')}
-                                </div>
+                          <div className="hp-route-card">
+                            <img src={route.img} alt={route.to} loading="lazy" />
+                            <div className="hp-route-overlay">
+                              <div className="hp-route-price">{route.price} EUR {t('routes.from')}</div>
+                              <div className="hp-route-dest">{route.to}</div>
+                              <div className="hp-route-from">
+                                <ArrowRightOutlined style={{ fontSize: 11, color: theme.sectionAccent }} />
+                                {route.from}
                               </div>
-                            }
-                          >
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
-                              <EnvironmentOutlined style={{ color: theme.primaryColor }} />
-                              <Text strong style={{ fontSize: 12 }}>{route.from}</Text>
                             </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, marginTop: 4 }}>
-                              <SwapOutlined style={{ color: '#00b96b' }} />
-                              <Text style={{ fontSize: 12 }}>{route.to}</Text>
-                            </div>
-                          </Card>
+                          </div>
                         </Col>
                       ))}
                     </Row>
                   </div>
                 </div>
               );
+            }
             case 'testimonials':
               return (
-                <div key="testimonials" style={{ background: theme.testimonialBg, padding: 'clamp(48px, 8vw, 80px) 16px' }}>
-                  <div style={{ maxWidth: 1000, margin: '0 auto' }}>
-                    <div style={{ textAlign: 'center', marginBottom: 48 }}>
-                      <Text style={{ color: theme.sectionAccent, fontWeight: 600, fontSize: 13, textTransform: 'uppercase' as const, letterSpacing: 2 }}>{t('testimonials.badge')}</Text>
-                      <Title level={2} style={{ marginTop: 8, marginBottom: 8 }}>{t('testimonials.title')}</Title>
+                <div key="testimonials" style={{ background: '#fff', padding: 'clamp(56px, 8vw, 96px) 16px' }}>
+                  <style>{`
+                    .hp-testimonial-card { background: #fff; border-radius: 20px; padding: 2.5rem; box-shadow: 0 4px 20px rgba(0,0,0,0.04); border: 1px solid #f1f5f9; transition: all 0.4s ease; position: relative; height: 100%; }
+                    .hp-testimonial-card::before { content: '\\201C'; position: absolute; top: 1.5rem; right: 2rem; font-family: var(--font-playfair, Georgia, serif); font-size: 4rem; color: ${theme.sectionAccent}; opacity: 0.25; line-height: 1; pointer-events: none; }
+                    .hp-testimonial-card:hover { transform: translateY(-5px); box-shadow: 0 20px 50px rgba(0,0,0,0.08); border-color: ${theme.sectionAccent}; }
+                    .hp-stars { color: #fbbf24; font-size: 13px; letter-spacing: 3px; margin-bottom: 1.25rem; }
+                    .hp-author-avatar { width: 48px; height: 48px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-family: var(--font-playfair, Georgia, serif); font-weight: 600; font-size: 1.1rem; color: white; flex-shrink: 0; }
+                  `}</style>
+                  <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+                    <div style={{ textAlign: 'center', marginBottom: 56 }}>
+                      <div style={{ display: 'inline-block', fontSize: 12, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase' as const, color: theme.sectionAccent, marginBottom: 14 }}>
+                        {t('testimonials.badge')}
+                        <div style={{ width: 40, height: 2, background: theme.sectionAccent, margin: '10px auto 0' }} />
+                      </div>
+                      <Title level={2} style={{ fontFamily: 'var(--font-playfair, Georgia, serif)', fontSize: 'clamp(1.8rem, 4vw, 2.8rem)', color: '#0f172a', marginBottom: 0, marginTop: 0 }}>{t('testimonials.title')}</Title>
                     </div>
-                    <Row gutter={[20, 20]}>
+                    <Row gutter={[24, 24]}>
                       {[
                         { name: 'Ahmet Y.', text: t('testimonials.review1'), rating: 5, city: 'İstanbul' },
                         { name: 'Maria S.', text: t('testimonials.review2'), rating: 5, city: 'Berlin' },
                         { name: 'Fatma K.', text: t('testimonials.review3', { name: fullName }), rating: 5, city: 'Ankara' },
                       ].map((review, i) => (
                         <Col xs={24} md={8} key={i}>
-                          <Card style={{ height: '100%', borderRadius: 16, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }} styles={{ body: { padding: 24 } }}>
-                            <Rate disabled defaultValue={review.rating} style={{ fontSize: 14, marginBottom: 14 }} />
-                            <Paragraph style={{ fontSize: 13, color: '#555', lineHeight: 1.7, minHeight: 70 }}>
+                          <div className="hp-testimonial-card">
+                            <div className="hp-stars">{'★'.repeat(review.rating)}</div>
+                            <Paragraph style={{ fontSize: 15, color: '#334155', lineHeight: 1.8, marginBottom: 24, fontWeight: 400, minHeight: 80 }}>
                               &ldquo;{review.text}&rdquo;
                             </Paragraph>
-                            <Divider style={{ margin: '14px 0' }} />
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                              <div style={{
-                                width: 38, height: 38, borderRadius: '50%', background: theme.stepCircleGradient,
-                                display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: 15,
-                              }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 12, borderTop: '1px solid #f1f5f9', paddingTop: 20 }}>
+                              <div className="hp-author-avatar" style={{ background: theme.stepCircleGradient }}>
                                 {review.name.charAt(0)}
                               </div>
                               <div>
-                                <Text strong style={{ display: 'block', fontSize: 13 }}>{review.name}</Text>
-                                <Text type="secondary" style={{ fontSize: 11 }}>{review.city}</Text>
+                                <Text strong style={{ display: 'block', fontSize: 14, color: '#0f172a' }}>{review.name}</Text>
+                                <Text style={{ fontSize: 13, color: '#64748b' }}>{review.city}</Text>
                               </div>
                             </div>
-                          </Card>
+                          </div>
                         </Col>
                       ))}
                     </Row>
                   </div>
                 </div>
               );
-            case 'faq':
+            case 'faq': {
               const faqData = faqItems.length > 0 ? faqItems : [
                 { question: t('faq.q1'), answer: t('faq.a1') },
                 { question: t('faq.q2'), answer: t('faq.a2') },
@@ -982,32 +1028,39 @@ const HomePage: React.FC = () => {
                 { question: t('faq.q5'), answer: t('faq.a5') },
               ];
               return (
-                <div key="faq" style={{ background: '#fff', padding: 'clamp(48px, 8vw, 80px) 16px' }}>
-                  <div style={{ maxWidth: 750, margin: '0 auto' }}>
-                    <div style={{ textAlign: 'center', marginBottom: 48 }}>
-                      <Text style={{ color: theme.sectionAccent, fontWeight: 600, fontSize: 13, textTransform: 'uppercase' as const, letterSpacing: 2 }}>{t('faq.badge')}</Text>
-                      <Title level={2} style={{ marginTop: 8, marginBottom: 8 }}>{t('faq.title')}</Title>
+                <div key="faq" style={{ background: 'linear-gradient(to bottom, #f8fafc, #fff)', padding: 'clamp(56px, 8vw, 96px) 16px' }}>
+                  <div style={{ maxWidth: 800, margin: '0 auto' }}>
+                    <div style={{ textAlign: 'center', marginBottom: 56 }}>
+                      <div style={{ display: 'inline-block', fontSize: 12, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase' as const, color: theme.sectionAccent, marginBottom: 14 }}>
+                        {t('faq.badge')}
+                        <div style={{ width: 40, height: 2, background: theme.sectionAccent, margin: '10px auto 0' }} />
+                      </div>
+                      <Title level={2} style={{ fontFamily: 'var(--font-playfair, Georgia, serif)', fontSize: 'clamp(1.8rem, 4vw, 2.8rem)', color: '#0f172a', marginBottom: 0, marginTop: 0 }}>{t('faq.title')}</Title>
                     </div>
-                    <Collapse accordion expandIconPlacement="end" style={{ background: 'transparent', border: 'none' }}
+                    <Collapse accordion expandIconPlacement="end"
+                      style={{ background: 'transparent', border: 'none' }}
+                      styles={{ header: { fontSize: 16, fontWeight: 500, color: '#0f172a', padding: '22px 0' }, body: { padding: '0 0 22px', color: '#64748b', lineHeight: 1.8, fontSize: 15 } }}
                       items={faqData.map((faq, idx) => ({
                         key: idx.toString(),
-                        label: <Text strong>{faq.question}</Text>,
-                        children: <Text type="secondary">{faq.answer}</Text>
+                        label: <span style={{ fontFamily: 'var(--font-outfit, sans-serif)', fontWeight: 500, color: '#0f172a', fontSize: 16 }}>{faq.question}</span>,
+                        children: <span style={{ color: '#64748b', lineHeight: 1.8, fontSize: 15 }}>{faq.answer}</span>,
+                        style: { borderBottom: '1px solid #e2e8f0', borderRadius: 0 }
                       }))}
                     />
                   </div>
                 </div>
               );
+            }
             case 'cta':
               return (
-                <div key="cta" style={{ background: theme.ctaGradient, padding: 'clamp(40px, 6vw, 64px) 16px', textAlign: 'center' }}>
+                <div key="cta" style={{ background: theme.ctaGradient, padding: 'clamp(56px, 6vw, 80px) 16px', textAlign: 'center' }}>
                   <div style={{ maxWidth: 650, margin: '0 auto' }}>
-                    <Title level={2} style={{ color: '#fff', marginBottom: 10 }}>{t('cta.title')}</Title>
-                    <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 15, display: 'block', marginBottom: 28 }}>
+                    <Title level={2} style={{ fontFamily: 'var(--font-playfair, Georgia, serif)', color: '#fff', marginBottom: 14, fontSize: 'clamp(1.6rem, 3.5vw, 2.4rem)' }}>{t('cta.title')}</Title>
+                    <Text style={{ color: 'rgba(255,255,255,0.82)', fontSize: 16, display: 'block', marginBottom: 32, lineHeight: 1.7, fontWeight: 300 }}>
                       {t('cta.subtitle')}
                     </Text>
                     <Button size="large" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-                      style={{ height: 50, padding: '0 36px', fontSize: 15, fontWeight: 600, borderRadius: 12, background: '#fff', color: theme.primaryColor, border: 'none', boxShadow: '0 4px 16px rgba(0,0,0,0.15)' }}>
+                      style={{ height: 54, padding: '0 40px', fontSize: 15, fontWeight: 600, borderRadius: 14, background: '#fff', color: theme.primaryColor, border: 'none', boxShadow: '0 8px 30px rgba(0,0,0,0.18)', letterSpacing: '0.02em' }}>
                       {t('cta.button')} <ArrowRightOutlined />
                     </Button>
                   </div>
@@ -1131,77 +1184,81 @@ const HomePage: React.FC = () => {
       </Content>
 
       {/* ─── FOOTER ─── */}
-      <footer style={{ background: theme.footerBg, color: '#fff', padding: 'clamp(40px, 6vw, 64px) 16px 28px' }}>
-        <div style={{ maxWidth: 1100, margin: '0 auto' }}>
-          <Row gutter={[32, 32]}>
-            <Col xs={24} md={8}>
-              <div style={{ marginBottom: 14 }}>
+      <footer style={{ background: '#020617', color: '#fff', padding: 'clamp(48px, 6vw, 72px) 16px 0', position: 'relative', overflow: 'hidden' }}>
+        {/* Top gradient border line */}
+        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 1, background: `linear-gradient(90deg, transparent, ${theme.sectionAccent}55, transparent)` }} />
+        <style>{`
+          .hp-footer-link { color: rgba(255,255,255,0.5); text-decoration: none; font-size: 14px; transition: all 0.3s; display: inline-block; }
+          .hp-footer-link:hover { color: ${theme.sectionAccent}; transform: translateX(4px); }
+          .hp-footer-social { width: 40px; height: 40px; border-radius: 50%; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; color: rgba(255,255,255,0.6); text-decoration: none; transition: all 0.3s; font-size: 16px; }
+          .hp-footer-social:hover { background: ${theme.primaryColor}; border-color: ${theme.primaryColor}; color: white; transform: translateY(-3px); }
+        `}</style>
+        <div style={{ maxWidth: 1200, margin: '0 auto' }}>
+          <Row gutter={[48, 40]} style={{ marginBottom: 56 }}>
+            <Col xs={24} md={10}>
+              <div style={{ marginBottom: 20 }}>
                 {branding.logoUrl ? (
-                  <img
-                    src={getImageUrl(branding.logoUrl)}
-                    alt={fullName}
-                    style={{ maxHeight: 36, maxWidth: 160, objectFit: 'contain', filter: 'brightness(0) invert(1)', opacity: 0.9 }}
-                  />
+                  <img src={getImageUrl(branding.logoUrl)} alt={fullName} style={{ maxHeight: 38, maxWidth: 180, objectFit: 'contain', filter: 'brightness(0) invert(1)', opacity: 0.9 }} />
                 ) : (
-                  <>
-                    <span style={{ color: theme.primaryColor, fontWeight: 800, fontSize: 22 }}>{branding.siteNameHighlight}</span>
-                    <span style={{ color: '#fff', fontWeight: 600, fontSize: 22 }}>{branding.siteName}</span>
-                  </>
+                  <span style={{ fontFamily: 'var(--font-playfair, Georgia, serif)', fontSize: 26, fontWeight: 700 }}>
+                    <span style={{ color: theme.sectionAccent }}>{branding.siteNameHighlight}</span>
+                    <span style={{ color: '#fff' }}>{branding.siteName}</span>
+                  </span>
                 )}
               </div>
-              <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 13, lineHeight: 1.7, display: 'block', marginBottom: 16 }}>
+              <Text style={{ color: 'rgba(255,255,255,0.5)', fontSize: 14, lineHeight: 1.8, display: 'block', marginBottom: 20, fontWeight: 300 }}>
                 {branding.slogan}. {t('footer.available')}
               </Text>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <Space size="small"><PhoneOutlined style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14 }} /><Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 13 }}>{branding.phone}</Text></Space>
-                <Space size="small"><MailOutlined style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14 }} /><Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 13 }}>{branding.email}</Text></Space>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <Space size={8}><PhoneOutlined style={{ color: 'rgba(255,255,255,0.55)', fontSize: 13 }} /><Text style={{ color: 'rgba(255,255,255,0.55)', fontSize: 14 }}>{branding.phone}</Text></Space>
+                <Space size={8}><MailOutlined style={{ color: 'rgba(255,255,255,0.55)', fontSize: 13 }} /><Text style={{ color: 'rgba(255,255,255,0.55)', fontSize: 14 }}>{branding.email}</Text></Space>
               </div>
             </Col>
-            <Col xs={12} md={5}>
-              <Title level={5} style={{ color: '#fff', marginBottom: 16, fontSize: 14 }}>{t('footer.quickLinks')}</Title>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <a href="/" style={{ color: 'rgba(255,255,255,0.55)', textDecoration: 'none', fontSize: 13 }}>{t('footer.home')}</a>
-                <a href="/sayfa/hakkimizda" style={{ color: 'rgba(255,255,255,0.55)', textDecoration: 'none', fontSize: 13 }}>{t('footer.about')}</a>
-                <a href="/contact" style={{ color: 'rgba(255,255,255,0.55)', textDecoration: 'none', fontSize: 13 }}>{t('footer.contact')}</a>
-                <a href="/sayfa/seyahat-rehberi" style={{ color: 'rgba(255,255,255,0.55)', textDecoration: 'none', fontSize: 13 }}>{t('footer.travelGuide')}</a>
+            <Col xs={12} sm={8} md={5}>
+              <Text strong style={{ color: '#fff', fontSize: 12, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, display: 'block', marginBottom: 20 }}>{t('footer.quickLinks')}</Text>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <a href="/" className="hp-footer-link">{t('footer.home')}</a>
+                <a href="/sayfa/hakkimizda" className="hp-footer-link">{t('footer.about')}</a>
+                <a href="/contact" className="hp-footer-link">{t('footer.contact')}</a>
+                <a href="/sayfa/seyahat-rehberi" className="hp-footer-link">{t('footer.travelGuide')}</a>
               </div>
             </Col>
-            <Col xs={12} md={5}>
-              <Title level={5} style={{ color: '#fff', marginBottom: 16, fontSize: 14 }}>{t('footer.legal')}</Title>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <a href="/sayfa/gizlilik-politikasi" style={{ color: 'rgba(255,255,255,0.55)', textDecoration: 'none', fontSize: 13 }}>{t('footer.privacy')}</a>
-                <a href="/sayfa/kullanim-kosullari" style={{ color: 'rgba(255,255,255,0.55)', textDecoration: 'none', fontSize: 13 }}>{t('footer.terms')}</a>
-                <a href="/sayfa/iptal-iade-politikasi" style={{ color: 'rgba(255,255,255,0.55)', textDecoration: 'none', fontSize: 13 }}>{t('footer.refund')}</a>
+            <Col xs={12} sm={8} md={4}>
+              <Text strong style={{ color: '#fff', fontSize: 12, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, display: 'block', marginBottom: 20 }}>{t('footer.legal')}</Text>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <a href="/sayfa/gizlilik-politikasi" className="hp-footer-link">{t('footer.privacy')}</a>
+                <a href="/sayfa/kullanim-kosullari" className="hp-footer-link">{t('footer.terms')}</a>
+                <a href="/sayfa/iptal-iade-politikasi" className="hp-footer-link">{t('footer.refund')}</a>
               </div>
             </Col>
-            <Col xs={24} md={6}>
-              <Title level={5} style={{ color: '#fff', marginBottom: 16, fontSize: 14 }}>{t('footer.services')}</Title>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <span style={{ color: 'rgba(255,255,255,0.55)', fontSize: 13 }}>{t('footer.vipTransfer')}</span>
-                <span style={{ color: 'rgba(255,255,255,0.55)', fontSize: 13 }}>{t('footer.airportTransfer')}</span>
-                <span style={{ color: 'rgba(255,255,255,0.55)', fontSize: 13 }}>{t('footer.intercityTransfer')}</span>
-                <span style={{ color: 'rgba(255,255,255,0.55)', fontSize: 13 }}>{t('footer.groupTransfer')}</span>
+            <Col xs={24} sm={8} md={5}>
+              <Text strong style={{ color: '#fff', fontSize: 12, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, display: 'block', marginBottom: 20 }}>{t('footer.services')}</Text>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <span className="hp-footer-link">{t('footer.vipTransfer')}</span>
+                <span className="hp-footer-link">{t('footer.airportTransfer')}</span>
+                <span className="hp-footer-link">{t('footer.intercityTransfer')}</span>
+                <span className="hp-footer-link">{t('footer.groupTransfer')}</span>
               </div>
             </Col>
           </Row>
-          <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', marginTop: 36, paddingTop: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-            <Text style={{ color: 'rgba(255,255,255,0.35)', fontSize: 12 }}>&copy; {new Date().getFullYear()} {branding.companyName}. {t('footer.rights')}</Text>
-            <Space size={12}>
-              {socialMedia.facebook && <a href={socialMedia.facebook} target="_blank" rel="noopener noreferrer" style={{ color: 'rgba(255,255,255,0.5)', fontSize: 18, transition: 'color 0.2s' }}><FacebookOutlined /></a>}
-              {socialMedia.instagram && <a href={socialMedia.instagram} target="_blank" rel="noopener noreferrer" style={{ color: 'rgba(255,255,255,0.5)', fontSize: 18, transition: 'color 0.2s' }}><InstagramOutlined /></a>}
-              {socialMedia.twitter && <a href={socialMedia.twitter} target="_blank" rel="noopener noreferrer" style={{ color: 'rgba(255,255,255,0.5)', fontSize: 18, transition: 'color 0.2s' }}><TwitterOutlined /></a>}
-              {socialMedia.youtube && <a href={socialMedia.youtube} target="_blank" rel="noopener noreferrer" style={{ color: 'rgba(255,255,255,0.5)', fontSize: 18, transition: 'color 0.2s' }}><YoutubeOutlined /></a>}
-              {socialMedia.linkedin && <a href={socialMedia.linkedin} target="_blank" rel="noopener noreferrer" style={{ color: 'rgba(255,255,255,0.5)', fontSize: 18, transition: 'color 0.2s' }}><LinkedinOutlined /></a>}
-              {socialMedia.whatsapp && <a href={socialMedia.whatsapp} target="_blank" rel="noopener noreferrer" style={{ color: 'rgba(255,255,255,0.5)', fontSize: 18, transition: 'color 0.2s' }}><WhatsAppOutlined /></a>}
-              {socialMedia.telegram && <a href={socialMedia.telegram} target="_blank" rel="noopener noreferrer" style={{ color: 'rgba(255,255,255,0.5)', fontSize: 18, transition: 'color 0.2s' }}><SendOutlined /></a>}
+          <div style={{ borderTop: '1px solid rgba(255,255,255,0.07)', padding: '20px 0 28px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+            <Text style={{ color: 'rgba(255,255,255,0.32)', fontSize: 13 }}>&copy; {new Date().getFullYear()} {branding.companyName}. {t('footer.rights')}</Text>
+            <div style={{ display: 'flex', gap: 10 }}>
+              {socialMedia.facebook && <a href={socialMedia.facebook} target="_blank" rel="noopener noreferrer" className="hp-footer-social"><FacebookOutlined /></a>}
+              {socialMedia.instagram && <a href={socialMedia.instagram} target="_blank" rel="noopener noreferrer" className="hp-footer-social"><InstagramOutlined /></a>}
+              {socialMedia.twitter && <a href={socialMedia.twitter} target="_blank" rel="noopener noreferrer" className="hp-footer-social"><TwitterOutlined /></a>}
+              {socialMedia.youtube && <a href={socialMedia.youtube} target="_blank" rel="noopener noreferrer" className="hp-footer-social"><YoutubeOutlined /></a>}
+              {socialMedia.linkedin && <a href={socialMedia.linkedin} target="_blank" rel="noopener noreferrer" className="hp-footer-social"><LinkedinOutlined /></a>}
+              {socialMedia.whatsapp && <a href={socialMedia.whatsapp} target="_blank" rel="noopener noreferrer" className="hp-footer-social"><WhatsAppOutlined /></a>}
+              {socialMedia.telegram && <a href={socialMedia.telegram} target="_blank" rel="noopener noreferrer" className="hp-footer-social"><SendOutlined /></a>}
               {!Object.values(socialMedia).some(v => v) && (
                 <>
-                  <a href="#" style={{ color: 'rgba(255,255,255,0.35)', fontSize: 18 }}><FacebookOutlined /></a>
-                  <a href="#" style={{ color: 'rgba(255,255,255,0.35)', fontSize: 18 }}><InstagramOutlined /></a>
-                  <a href="#" style={{ color: 'rgba(255,255,255,0.35)', fontSize: 18 }}><TwitterOutlined /></a>
+                  <a href="#" className="hp-footer-social"><FacebookOutlined /></a>
+                  <a href="#" className="hp-footer-social"><InstagramOutlined /></a>
+                  <a href="#" className="hp-footer-social"><TwitterOutlined /></a>
                 </>
               )}
-            </Space>
+            </div>
           </div>
         </div>
       </footer>

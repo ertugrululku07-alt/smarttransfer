@@ -1,5 +1,5 @@
 import type { Metadata, ResolvingMetadata } from "next";
-import { Outfit } from "next/font/google";
+import { Outfit, Playfair_Display } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "./context/AuthContext";
 import { SocketProvider } from "./context/SocketContext";
@@ -12,6 +12,13 @@ import LiveChatWidget from "./components/LiveChatWidget";
 const outfit = Outfit({
   variable: "--font-outfit",
   subsets: ["latin"],
+  display: "swap",
+});
+
+const playfair = Playfair_Display({
+  variable: "--font-playfair",
+  subsets: ["latin"],
+  weight: ["600", "700"],
   display: "swap",
 });
 
@@ -147,7 +154,7 @@ export default async function RootLayout({
           }}
         />
       </head>
-      <body className={`${outfit.variable} antialiased`}>
+      <body className={`${outfit.variable} ${playfair.variable} antialiased`}>
         <AuthProvider>
           <SocketProvider>
             <CurrencyProvider>
