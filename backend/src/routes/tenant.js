@@ -153,7 +153,7 @@ router.get('/payment-methods', async (req, res) => {
  */
 router.put('/settings', authMiddleware, async (req, res) => {
     try {
-        const { googleMaps, heroBackground, definitions, salaryPaymentDay, hubs, siteTheme, branding, homepageSections, homepageFaq, homepageStats, homepageRoutes, homepageFeatures, homepageTestimonials, customTheme, timeDefinitions, socialMedia, emailSettings, emailTemplate, whatsappSettings, driverSettings, flightTracking, operationSettings, uetdsSettings, contactPage, tursab } = req.body;
+        const { googleMaps, heroBackground, definitions, salaryPaymentDay, hubs, siteTheme, branding, homepageSections, homepageFaq, homepageStats, homepageRoutes, homepageFeatures, homepageTestimonials, customTheme, timeDefinitions, socialMedia, emailSettings, emailTemplate, whatsappSettings, driverSettings, flightTracking, operationSettings, uetdsSettings, contactPage, tursab, trackPage } = req.body;
 
         // Check permission
         if (req.user.roleType !== 'TENANT_ADMIN' && req.user.roleType !== 'SUPER_ADMIN') {
@@ -234,6 +234,7 @@ router.put('/settings', authMiddleware, async (req, res) => {
             } : currentSettings.uetdsSettings,
             contactPage: contactPage !== undefined ? contactPage : currentSettings.contactPage,
             tursab: tursab !== undefined ? tursab : currentSettings.tursab,
+            trackPage: trackPage !== undefined ? trackPage : currentSettings.trackPage,
             homepageTestimonials: homepageTestimonials !== undefined ? homepageTestimonials : currentSettings.homepageTestimonials
         };
 
