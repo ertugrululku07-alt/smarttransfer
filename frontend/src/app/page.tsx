@@ -145,7 +145,7 @@ const HomePage: React.FC = () => {
 
   // Map Modal
   const [mapModalVisible, setMapModalVisible] = useState(false);
-  const [mapModalType, setMapModalType] = useState<'pickup' | 'dropoff'>('pickup');
+  const [mapModalType, setMapModalType] = useState<'pickup' | 'dropoff' | 'hourly-pickup'>('pickup');
 
   // Search & Booking
   const [searchLoading, setSearchLoading] = useState(false);
@@ -230,7 +230,10 @@ const HomePage: React.FC = () => {
   };
 
   const handleMapConfirm = (address: string, lat: number, lng: number) => {
-    if (mapModalType === 'pickup') {
+    if (mapModalType === 'hourly-pickup') {
+      setHourlyPickup(address);
+      setHourlyPickupLocation({ lat, lng });
+    } else if (mapModalType === 'pickup') {
       setPickup(address);
       setPickupLocation({ lat, lng });
     } else {
@@ -377,7 +380,7 @@ const HomePage: React.FC = () => {
           value={hourlyPickup}
           onChange={setHourlyPickup}
           onSelect={(val, lat, lng) => { setHourlyPickup(val); if (lat && lng) setHourlyPickupLocation({ lat, lng }); }}
-          onMapClick={() => { setMapModalType('pickup'); setMapModalVisible(true); }}
+          onMapClick={() => { setMapModalType('hourly-pickup'); setMapModalVisible(true); }}
           country={googleMapsSettings.country || 'tr,cy'}
           style={{ borderRadius: 10 }}
         />
@@ -750,7 +753,7 @@ const HomePage: React.FC = () => {
         visible={mapModalVisible}
         onCancel={() => setMapModalVisible(false)}
         onConfirm={handleMapConfirm}
-        initialAddress={mapModalType === 'pickup' ? pickup : dropoff}
+        initialAddress={mapModalType === 'pickup' ? pickup : mapModalType === 'hourly-pickup' ? hourlyPickup : dropoff}
         title={mapModalType === 'pickup' ? t('map.pickupTitle') : t('map.dropoffTitle')}
         country={googleMapsSettings.country || 'tr,cy'}
         key={`map-modal-${googleMapsSettings.country || 'tr,cy'}`}

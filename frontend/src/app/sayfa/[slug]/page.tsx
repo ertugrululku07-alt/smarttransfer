@@ -3,8 +3,7 @@ import { API_URL, getImageUrl } from '@/lib/api-client';
 
 import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Layout, Typography, Spin, Result, Button, Breadcrumb } from 'antd';
-import { HomeOutlined } from '@ant-design/icons';
+import { Layout, Typography, Spin, Result, Button } from 'antd';
 import axios from 'axios';
 import TopBar from '../../components/TopBar';
 import SiteFooter from '../../components/SiteFooter';
@@ -116,32 +115,16 @@ const DynamicPage: React.FC = () => {
                     maxWidth: 900, margin: '0 auto', padding: 'clamp(60px, 8vw, 100px) 24px clamp(50px, 7vw, 80px)',
                     textAlign: 'center',
                 }}>
-                    <Breadcrumb
-                        style={{ marginBottom: 20, justifyContent: 'center', display: 'flex' }}
-                        items={[
-                            { title: <a href="/" style={{ color: 'rgba(255,255,255,0.65)', fontSize: 13 }}><HomeOutlined /> Ana Sayfa</a> },
-                            { title: <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13 }}>{page.title}</span> }
-                        ]}
-                    />
                     <Title
                         level={1}
                         style={{
-                            color: '#fff', marginBottom: page.excerpt ? 16 : 0,
-                            fontSize: 'clamp(2rem, 5vw, 3.2rem)', fontWeight: 800,
+                            color: '#fff', marginBottom: 0,
+                            fontSize: 'clamp(2.2rem, 5vw, 3.6rem)', fontWeight: 800,
                             textShadow: '0 2px 20px rgba(0,0,0,0.3)', lineHeight: 1.2,
                         }}
                     >
                         {page.title}
                     </Title>
-                    {page.excerpt && (
-                        <Text style={{
-                            color: 'rgba(255,255,255,0.82)', fontSize: 'clamp(15px, 2vw, 18px)',
-                            lineHeight: 1.7, display: 'block', maxWidth: 640, margin: '0 auto',
-                            textShadow: '0 1px 8px rgba(0,0,0,0.2)',
-                        }}>
-                            {page.excerpt}
-                        </Text>
-                    )}
                 </div>
             </div>
 
