@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import {
   Layout,
   Typography,
@@ -27,11 +26,11 @@ import {
   LinkedinOutlined,
   WhatsAppOutlined,
   YoutubeOutlined,
-  ArrowLeftOutlined,
 } from '@ant-design/icons';
 import apiClient, { getImageUrl } from '@/lib/api-client';
 import { useTheme } from '@/app/context/ThemeContext';
 import { useBranding } from '@/app/context/BrandingContext';
+import TopBar from '@/app/components/TopBar';
 
 const { Title, Text, Paragraph } = Typography;
 const { Content } = Layout;
@@ -81,7 +80,6 @@ const DEFAULT_CONTACT: ContactPageData = {
 };
 
 const ContactPage: React.FC = () => {
-  const router = useRouter();
   const { theme } = useTheme();
   const { branding, fullName } = useBranding();
   const [form] = Form.useForm();
@@ -252,20 +250,11 @@ const ContactPage: React.FC = () => {
       `}</style>
 
       <Content style={{ position: 'relative', zIndex: 1 }}>
-        {/* Header */}
-        <div style={{ padding: '24px 20px 0', maxWidth: 1200, margin: '0 auto' }}>
-          <Button
-            type="text"
-            icon={<ArrowLeftOutlined />}
-            onClick={() => router.push('/')}
-            style={{ color: '#94a3b8', fontSize: 15, height: 40, padding: '0 12px' }}
-          >
-            Ana Sayfa
-          </Button>
-        </div>
+        {/* Top Navigation */}
+        <TopBar />
 
         {/* Hero */}
-        <section style={{ textAlign: 'center', padding: '40px 20px 60px', maxWidth: 800, margin: '0 auto' }}>
+        <section style={{ textAlign: 'center', padding: '100px 20px 60px', maxWidth: 800, margin: '0 auto' }}>
           <Title style={{
             fontSize: 'clamp(2rem, 5vw, 3.5rem)', fontWeight: 700, marginBottom: 20, lineHeight: 1.2,
             background: `linear-gradient(135deg, #fff 0%, ${accent} 100%)`,
