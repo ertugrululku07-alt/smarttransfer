@@ -99,11 +99,11 @@ const DynamicPage: React.FC = () => {
         };
 
     return (
-        <Layout style={{ minHeight: '100vh', background: '#f8fafc' }}>
+        <Layout style={{ minHeight: '100vh', background: '#f8fafc', overflowX: 'hidden' }}>
             <TopBar />
 
             {/* ─── Hero ─── */}
-            <div style={{ ...heroStyle, paddingTop: 80 }}>
+            <div style={{ ...heroStyle, paddingTop: 80, overflowX: 'hidden', width: '100%' }}>
                 {page.heroImage && (
                     <div style={{
                         position: 'absolute', inset: 0,
@@ -129,10 +129,10 @@ const DynamicPage: React.FC = () => {
             </div>
 
             {/* ─── Content ─── */}
-            <Content style={{ background: '#fff' }}>
-                <div style={{ maxWidth: 860, margin: '0 auto', padding: 'clamp(40px, 6vw, 72px) 24px clamp(64px, 8vw, 100px)' }}>
+            <Content style={{ background: '#fff', overflowX: 'hidden' }}>
+                <div style={{ maxWidth: 860, margin: '0 auto', padding: 'clamp(40px, 6vw, 72px) 24px clamp(64px, 8vw, 100px)', overflowX: 'hidden', width: '100%', boxSizing: 'border-box' }}>
                     <style>{`
-                        .st-page-content { font-size: 16px; line-height: 1.85; color: #374151; }
+                        .st-page-content { font-size: 16px; line-height: 1.85; color: #374151; overflow-x: hidden; word-break: break-word; }
                         .st-page-content h1, .st-page-content h2, .st-page-content h3,
                         .st-page-content h4, .st-page-content h5 {
                             color: #111827; font-weight: 700; margin: 2em 0 0.7em; line-height: 1.3;
@@ -152,7 +152,9 @@ const DynamicPage: React.FC = () => {
                             background: #f8faff; border-radius: 0 8px 8px 0;
                             color: #4b5563; font-style: italic;
                         }
-                        .st-page-content img { max-width: 100%; border-radius: 12px; margin: 12px 0; }
+                        .st-page-content img { max-width: 100%; width: auto; border-radius: 12px; margin: 12px 0; }
+                        .st-page-content iframe { max-width: 100%; }
+                        .st-page-content pre, .st-page-content code { max-width: 100%; overflow-x: auto; white-space: pre-wrap; word-break: break-all; }
                         .st-page-content table { width: 100%; border-collapse: collapse; margin: 1.5em 0; }
                         .st-page-content th { background: ${theme.primaryColor}15; color: #111827; font-weight: 600; }
                         .st-page-content th, .st-page-content td { padding: 12px 16px; border: 1px solid #e5e7eb; text-align: left; }
