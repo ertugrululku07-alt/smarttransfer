@@ -4,6 +4,7 @@
 const express = require('express');
 
 const { authMiddleware } = require('../middleware/auth');
+const { clearTenantCache } = require('../middleware/tenant');
 
 const router = express.Router();
 const prisma = require('../lib/prisma');
@@ -236,8 +237,11 @@ router.put('/settings', authMiddleware, async (req, res) => {
         const updatedTenant = await prisma.tenant.update({
             where: { id: req.user.tenantId },
             data: { settings: newSettings },
-            select: { settings: true }
+            select: { settings: true, slug: true }
         });
+
+        // Invalidate tenant cache so homepage gets fresh settings
+        clearTenantCache(req.user.tenantId, updatedTenant.slug);
 
         res.json({
             success: true,
@@ -623,9 +627,12 @@ router.put('/modules', authMiddleware, async (req, res) => {
                 hotelEnabled: true,
                 flightEnabled: true,
                 carEnabled: true,
-                cruiseEnabled: true
+                cruiseEnabled: true,
+                slug: true
             }
         });
+
+        clearTenantCache(req.user.tenantId, updatedTenant.slug);
 
         res.json({
             success: true,
@@ -656,7 +663,11 @@ router.put('/modules', authMiddleware, async (req, res) => {
  */
 router.get('/hero-images', async (req, res) => {
     try {
-        const tenant = req.tenant;
+        // Always do a fresh DB query — don't rely on cached req.tenant
+        const tenant = await prisma.tenant.findUnique({
+            where: { id: req.tenant.id },
+            select: { heroImages: true }
+        });
 
         if (!tenant) {
             return res.status(404).json({
@@ -668,7 +679,7 @@ router.get('/hero-images', async (req, res) => {
         res.json({
             success: true,
             data: {
-                heroImages: tenant.heroImages
+                heroImages: tenant.heroImages || []
             }
         });
     } catch (error) {
@@ -710,9 +721,13 @@ router.put('/hero-images', authMiddleware, async (req, res) => {
                 heroImages: images
             },
             select: {
-                heroImages: true
+                heroImages: true,
+                slug: true
             }
         });
+
+        // Invalidate tenant cache so next GET returns fresh data
+        clearTenantCache(req.user.tenantId, updatedTenant.slug);
 
         res.json({
             success: true,

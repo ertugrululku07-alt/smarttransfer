@@ -129,4 +129,14 @@ async function tenantMiddleware(req, res, next) {
     }
 }
 
+function clearTenantCache(tenantId, tenantSlug) {
+    // Clear all possible cache keys for this tenant
+    for (const [key, entry] of tenantCache.entries()) {
+        if (entry.data && (entry.data.id === tenantId || entry.data.slug === tenantSlug)) {
+            tenantCache.delete(key);
+        }
+    }
+}
+
 module.exports = tenantMiddleware;
+module.exports.clearTenantCache = clearTenantCache;

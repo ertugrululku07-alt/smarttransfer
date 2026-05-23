@@ -195,15 +195,7 @@ const HomePage: React.FC = () => {
           setHeroBackground(infoRes.data.data.tenant.settings.heroBackground);
         }
         if (infoRes.data.success && infoRes.data.data.tenant.settings?.homepageSections) {
-          let sections: string[] = infoRes.data.data.tenant.settings.homepageSections;
-          // Backward compat: ensure bookingLookup is always present (insert after popularRoutes or at end)
-          if (!sections.includes('bookingLookup')) {
-            const idx = sections.indexOf('popularRoutes');
-            sections = idx >= 0
-              ? [...sections.slice(0, idx + 1), 'bookingLookup', ...sections.slice(idx + 1)]
-              : [...sections, 'bookingLookup'];
-          }
-          setHomepageSections(sections);
+          setHomepageSections(infoRes.data.data.tenant.settings.homepageSections);
         }
         // Load dynamic homepage content
         if (infoRes.data.success) {

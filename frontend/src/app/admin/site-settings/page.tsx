@@ -77,11 +77,12 @@ const SiteSettingsPage: React.FC = () => {
         { key: 'whyUs', label: 'Neden Biz?', desc: 'Avantajlar bölümü' },
         { key: 'stats', label: 'İstatistikler', desc: 'Sayısal veriler bandı' },
         { key: 'popularRoutes', label: 'Popüler Rotalar', desc: 'En çok tercih edilen güzergahlar' },
+        { key: 'bookingLookup', label: 'Rezervasyon Sorgulama', desc: 'Rezervasyon numarası ile durum sorgulama' },
         { key: 'testimonials', label: 'Müşteri Yorumları', desc: 'Müşteri değerlendirmeleri' },
         { key: 'faq', label: 'Sıkça Sorulan Sorular', desc: 'SSS bölümü' },
         { key: 'cta', label: 'Aksiyon Çağrısı (CTA)', desc: 'Hemen Rezervasyon Yapın bandı' },
     ];
-    const [activeSections, setActiveSections] = useState<string[]>(['howItWorks', 'whyUs', 'stats', 'popularRoutes', 'testimonials', 'faq', 'cta']);
+    const [activeSections, setActiveSections] = useState<string[]>(['howItWorks', 'whyUs', 'stats', 'popularRoutes', 'bookingLookup', 'testimonials', 'faq', 'cta']);
     const [sectionsSaving, setSectionsSaving] = useState(false);
 
     // Dynamic homepage content
@@ -459,13 +460,10 @@ const SiteSettingsPage: React.FC = () => {
         return false;
     };
 
-    const handleSaveSections = async () => {
+    const saveSections = async (sections: string[]) => {
         try {
             setSectionsSaving(true);
-            const res = await apiClient.put('/api/tenant/settings', { homepageSections: activeSections });
-            if (res.data.success) {
-                message.success('Ana sayfa bölümleri güncellendi');
-            }
+            await apiClient.put('/api/tenant/settings', { homepageSections: sections });
         } catch (error) {
             console.error('Update sections error:', error);
             message.error('Bölümler güncellenemedi');
@@ -474,11 +472,14 @@ const SiteSettingsPage: React.FC = () => {
         }
     };
 
+    const handleSaveSections = () => saveSections(activeSections);
+
     const moveSectionUp = (idx: number) => {
         if (idx === 0) return;
         const arr = [...activeSections];
         [arr[idx - 1], arr[idx]] = [arr[idx], arr[idx - 1]];
         setActiveSections(arr);
+        saveSections(arr);
     };
 
     const moveSectionDown = (idx: number) => {
@@ -486,14 +487,15 @@ const SiteSettingsPage: React.FC = () => {
         const arr = [...activeSections];
         [arr[idx], arr[idx + 1]] = [arr[idx + 1], arr[idx]];
         setActiveSections(arr);
+        saveSections(arr);
     };
 
     const toggleSection = (key: string) => {
-        if (activeSections.includes(key)) {
-            setActiveSections(activeSections.filter(s => s !== key));
-        } else {
-            setActiveSections([...activeSections, key]);
-        }
+        const updated = activeSections.includes(key)
+            ? activeSections.filter(s => s !== key)
+            : [...activeSections, key];
+        setActiveSections(updated);
+        saveSections(updated);
     };
 
     const handleSaveTheme = async (themeKey: string) => {
