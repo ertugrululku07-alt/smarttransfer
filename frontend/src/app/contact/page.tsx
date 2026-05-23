@@ -197,7 +197,11 @@ const ContactPage: React.FC = () => {
         .contact-info-item:hover {
           background: rgba(15,23,42,0.5);
           border-color: ${accent}30;
-          transform: translateX(5px);
+          transform: translateY(-2px);
+          box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+        }
+        @media (max-width: 600px) {
+          .contact-info-grid { grid-template-columns: 1fr !important; }
         }
         .contact-social-btn {
           display: inline-flex;
@@ -282,7 +286,7 @@ const ContactPage: React.FC = () => {
           {/* Contact Info + Form Stack */}
           <div style={{ maxWidth: 800, margin: '0 auto 80px', display: 'flex', flexDirection: 'column', gap: 40 }}>
             {/* Info Items */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div className="contact-info-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16 }}>
               {contactData.phone && (
                 <div className="contact-info-item">
                   <div style={{
