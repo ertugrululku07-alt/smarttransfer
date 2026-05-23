@@ -974,7 +974,7 @@ const HomePage: React.FC = () => {
             }
             case 'testimonials':
               return (
-                <div key="testimonials" style={{ background: '#fff', padding: 'clamp(56px, 8vw, 96px) 16px' }}>
+                <div key="testimonials" style={{ background: '#fff', padding: 'clamp(28px, 4vw, 48px) 16px' }}>
                   <style>{`
                     .hp-testimonial-card { background: #fff; border-radius: 20px; padding: 2.5rem; box-shadow: 0 4px 20px rgba(0,0,0,0.04); border: 1px solid #f1f5f9; transition: all 0.4s ease; position: relative; height: 100%; }
                     .hp-testimonial-card::before { content: '\\201C'; position: absolute; top: 1.5rem; right: 2rem; font-family: var(--font-playfair, Georgia, serif); font-size: 4rem; color: ${theme.sectionAccent}; opacity: 0.25; line-height: 1; pointer-events: none; }
@@ -983,11 +983,7 @@ const HomePage: React.FC = () => {
                     .hp-author-avatar { width: 48px; height: 48px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-family: var(--font-playfair, Georgia, serif); font-weight: 600; font-size: 1.1rem; color: white; flex-shrink: 0; }
                   `}</style>
                   <div style={{ maxWidth: 1100, margin: '0 auto' }}>
-                    <div style={{ textAlign: 'center', marginBottom: 56 }}>
-                      <div style={{ display: 'inline-block', fontSize: 12, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase' as const, color: theme.sectionAccent, marginBottom: 14 }}>
-                        {t('testimonials.badge')}
-                        <div style={{ width: 40, height: 2, background: theme.sectionAccent, margin: '10px auto 0' }} />
-                      </div>
+                    <div style={{ textAlign: 'center', marginBottom: 32 }}>
                       <Title level={2} style={{ fontFamily: 'var(--font-playfair, Georgia, serif)', fontSize: 'clamp(1.8rem, 4vw, 2.8rem)', color: '#0f172a', marginBottom: 0, marginTop: 0 }}>{t('testimonials.title')}</Title>
                     </div>
                     <Row gutter={[24, 24]}>
@@ -1027,13 +1023,9 @@ const HomePage: React.FC = () => {
                 { question: t('faq.q5'), answer: t('faq.a5') },
               ];
               return (
-                <div key="faq" style={{ background: 'linear-gradient(to bottom, #f8fafc, #fff)', padding: 'clamp(56px, 8vw, 96px) 16px' }}>
+                <div key="faq" style={{ background: 'linear-gradient(to bottom, #f8fafc, #fff)', padding: 'clamp(28px, 4vw, 48px) 16px' }}>
                   <div style={{ maxWidth: 800, margin: '0 auto' }}>
-                    <div style={{ textAlign: 'center', marginBottom: 56 }}>
-                      <div style={{ display: 'inline-block', fontSize: 12, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase' as const, color: theme.sectionAccent, marginBottom: 14 }}>
-                        {t('faq.badge')}
-                        <div style={{ width: 40, height: 2, background: theme.sectionAccent, margin: '10px auto 0' }} />
-                      </div>
+                    <div style={{ textAlign: 'center', marginBottom: 32 }}>
                       <Title level={2} style={{ fontFamily: 'var(--font-playfair, Georgia, serif)', fontSize: 'clamp(1.8rem, 4vw, 2.8rem)', color: '#0f172a', marginBottom: 0, marginTop: 0 }}>{t('faq.title')}</Title>
                     </div>
                     <Collapse accordion expandIconPlacement="end"
@@ -1205,12 +1197,34 @@ const HomePage: React.FC = () => {
                   </span>
                 )}
               </div>
-              <Text style={{ color: 'rgba(255,255,255,0.5)', fontSize: 14, lineHeight: 1.8, display: 'block', marginBottom: 20, fontWeight: 300 }}>
-                {branding.slogan}. {t('footer.available')}
-              </Text>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <Space size={8}><PhoneOutlined style={{ color: 'rgba(255,255,255,0.55)', fontSize: 13 }} /><Text style={{ color: 'rgba(255,255,255,0.55)', fontSize: 14 }}>{branding.phone}</Text></Space>
-                <Space size={8}><MailOutlined style={{ color: 'rgba(255,255,255,0.55)', fontSize: 13 }} /><Text style={{ color: 'rgba(255,255,255,0.55)', fontSize: 14 }}>{branding.email}</Text></Space>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap' }}>
+                <div style={{ flex: '1 1 auto', minWidth: 180 }}>
+                  <Text style={{ color: 'rgba(255,255,255,0.5)', fontSize: 14, lineHeight: 1.8, display: 'block', marginBottom: 12, fontWeight: 300 }}>
+                    {branding.slogan}. {t('footer.available')}
+                  </Text>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <Space size={8}><PhoneOutlined style={{ color: 'rgba(255,255,255,0.55)', fontSize: 13 }} /><Text style={{ color: 'rgba(255,255,255,0.55)', fontSize: 14 }}>{branding.phone}</Text></Space>
+                    <Space size={8}><MailOutlined style={{ color: 'rgba(255,255,255,0.55)', fontSize: 13 }} /><Text style={{ color: 'rgba(255,255,255,0.55)', fontSize: 14 }}>{branding.email}</Text></Space>
+                  </div>
+                </div>
+                {tursab.enabled && tursab.belgeNo && (
+                  <a
+                    href={tursab.verificationUrl || 'https://www.tursab.org.tr/tr/dds'}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 12, background: '#fff', borderRadius: 10, padding: '8px 16px', textDecoration: 'none', transition: 'all 0.3s', border: '2px solid #e5e7eb', flexShrink: 0 }}
+                  >
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                      <span style={{ fontWeight: 900, fontSize: 14, color: '#dc2626', letterSpacing: 2, lineHeight: 1 }}>TÜRSAB</span>
+                      <span style={{ fontSize: 7, color: '#666', fontWeight: 600, letterSpacing: 0.5, marginTop: 2 }}>DİJİTAL DOĞRULAMA</span>
+                    </div>
+                    <div style={{ width: 1, height: 28, background: '#e5e7eb' }} />
+                    <div>
+                      <div style={{ fontSize: 9, color: '#888' }}>Belge No</div>
+                      <div style={{ fontSize: 16, fontWeight: 800, color: '#0f172a', lineHeight: 1 }}>{tursab.belgeNo}</div>
+                    </div>
+                  </a>
+                )}
               </div>
             </Col>
             <Col xs={12} sm={8} md={5}>
@@ -1240,27 +1254,6 @@ const HomePage: React.FC = () => {
               </div>
             </Col>
           </Row>
-          {/* TÜRSAB Badge */}
-          {tursab.enabled && tursab.belgeNo && (
-            <div style={{ borderTop: '1px solid rgba(255,255,255,0.07)', padding: '20px 0' }}>
-              <a
-                href={tursab.verificationUrl || 'https://www.tursab.org.tr/tr/dds'}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 12, background: '#fff', borderRadius: 10, padding: '10px 18px', textDecoration: 'none', transition: 'all 0.3s', border: '2px solid #e5e7eb' }}
-              >
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                  <span style={{ fontWeight: 900, fontSize: 16, color: '#dc2626', letterSpacing: 2, lineHeight: 1 }}>TÜRSAB</span>
-                  <span style={{ fontSize: 7, color: '#666', fontWeight: 600, letterSpacing: 0.5, marginTop: 2 }}>DİJİTAL DOĞRULAMA</span>
-                </div>
-                <div style={{ width: 1, height: 32, background: '#e5e7eb' }} />
-                <div>
-                  <div style={{ fontSize: 10, color: '#888' }}>Belge No</div>
-                  <div style={{ fontSize: 18, fontWeight: 800, color: '#0f172a', lineHeight: 1 }}>{tursab.belgeNo}</div>
-                </div>
-              </a>
-            </div>
-          )}
           <div style={{ borderTop: '1px solid rgba(255,255,255,0.07)', padding: '20px 0 28px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
             <Text style={{ color: 'rgba(255,255,255,0.32)', fontSize: 13 }}>&copy; {new Date().getFullYear()} {branding.companyName}. {t('footer.rights')}</Text>
             <div style={{ display: 'flex', gap: 10 }}>

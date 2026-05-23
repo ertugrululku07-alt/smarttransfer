@@ -65,12 +65,34 @@ const SiteFooter: React.FC = () => {
                                 </span>
                             )}
                         </div>
-                        <Text style={{ color: 'rgba(255,255,255,0.5)', fontSize: 14, lineHeight: 1.8, display: 'block', marginBottom: 20, fontWeight: 300 }}>
-                            {branding.slogan}. {t('footer.available')}
-                        </Text>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                            {branding.phone && <Space size={8}><PhoneOutlined style={{ color: 'rgba(255,255,255,0.55)', fontSize: 13 }} /><Text style={{ color: 'rgba(255,255,255,0.55)', fontSize: 14 }}>{branding.phone}</Text></Space>}
-                            {branding.email && <Space size={8}><MailOutlined style={{ color: 'rgba(255,255,255,0.55)', fontSize: 13 }} /><Text style={{ color: 'rgba(255,255,255,0.55)', fontSize: 14 }}>{branding.email}</Text></Space>}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap' }}>
+                            <div style={{ flex: '1 1 auto', minWidth: 180 }}>
+                                <Text style={{ color: 'rgba(255,255,255,0.5)', fontSize: 14, lineHeight: 1.8, display: 'block', marginBottom: 12, fontWeight: 300 }}>
+                                    {branding.slogan}. {t('footer.available')}
+                                </Text>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                    {branding.phone && <Space size={8}><PhoneOutlined style={{ color: 'rgba(255,255,255,0.55)', fontSize: 13 }} /><Text style={{ color: 'rgba(255,255,255,0.55)', fontSize: 14 }}>{branding.phone}</Text></Space>}
+                                    {branding.email && <Space size={8}><MailOutlined style={{ color: 'rgba(255,255,255,0.55)', fontSize: 13 }} /><Text style={{ color: 'rgba(255,255,255,0.55)', fontSize: 14 }}>{branding.email}</Text></Space>}
+                                </div>
+                            </div>
+                            {tursab.enabled && tursab.belgeNo && (
+                                <a
+                                    href={tursab.verificationUrl || 'https://www.tursab.org.tr/tr/dds'}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    style={{ display: 'inline-flex', alignItems: 'center', gap: 12, background: '#fff', borderRadius: 10, padding: '8px 16px', textDecoration: 'none', transition: 'all 0.3s', border: '2px solid #e5e7eb', flexShrink: 0 }}
+                                >
+                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                                        <span style={{ fontWeight: 900, fontSize: 14, color: '#dc2626', letterSpacing: 2, lineHeight: 1 }}>TÜRSAB</span>
+                                        <span style={{ fontSize: 7, color: '#666', fontWeight: 600, letterSpacing: 0.5, marginTop: 2 }}>DİJİTAL DOĞRULAMA</span>
+                                    </div>
+                                    <div style={{ width: 1, height: 28, background: '#e5e7eb' }} />
+                                    <div>
+                                        <div style={{ fontSize: 9, color: '#888' }}>Belge No</div>
+                                        <div style={{ fontSize: 16, fontWeight: 800, color: '#0f172a', lineHeight: 1 }}>{tursab.belgeNo}</div>
+                                    </div>
+                                </a>
+                            )}
                         </div>
                     </Col>
                     <Col xs={12} sm={8} md={5}>
@@ -100,27 +122,6 @@ const SiteFooter: React.FC = () => {
                         </div>
                     </Col>
                 </Row>
-                {/* TÜRSAB Badge */}
-                {tursab.enabled && tursab.belgeNo && (
-                    <div style={{ borderTop: '1px solid rgba(255,255,255,0.07)', padding: '20px 0' }}>
-                        <a
-                            href={tursab.verificationUrl || 'https://www.tursab.org.tr/tr/dds'}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            style={{ display: 'inline-flex', alignItems: 'center', gap: 12, background: '#fff', borderRadius: 10, padding: '10px 18px', textDecoration: 'none', transition: 'all 0.3s', border: '2px solid #e5e7eb' }}
-                        >
-                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                                <span style={{ fontWeight: 900, fontSize: 16, color: '#dc2626', letterSpacing: 2, lineHeight: 1 }}>TÜRSAB</span>
-                                <span style={{ fontSize: 7, color: '#666', fontWeight: 600, letterSpacing: 0.5, marginTop: 2 }}>DİJİTAL DOĞRULAMA</span>
-                            </div>
-                            <div style={{ width: 1, height: 32, background: '#e5e7eb' }} />
-                            <div>
-                                <div style={{ fontSize: 10, color: '#888' }}>Belge No</div>
-                                <div style={{ fontSize: 18, fontWeight: 800, color: '#0f172a', lineHeight: 1 }}>{tursab.belgeNo}</div>
-                            </div>
-                        </a>
-                    </div>
-                )}
                 <div style={{ borderTop: '1px solid rgba(255,255,255,0.07)', padding: '20px 0 28px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
                     <Text style={{ color: 'rgba(255,255,255,0.32)', fontSize: 13 }}>&copy; {new Date().getFullYear()} {branding.companyName}. {t('footer.rights')}</Text>
                     <div style={{ display: 'flex', gap: 10 }}>
