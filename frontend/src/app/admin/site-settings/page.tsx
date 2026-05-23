@@ -132,6 +132,7 @@ const SiteSettingsPage: React.FC = () => {
     const [contactPage, setContactPage] = useState({
         heroTitle: 'Bizimle İletişime Geçin',
         heroSubtitle: 'Sorularınız, önerileriniz veya iş birliği talepleriniz için aşağıdaki kanallardan bize ulaşabilirsiniz.',
+        heroImage: '',
         phone: '',
         phoneHours: 'Hafta içi 09:00 - 18:00',
         email: '',
@@ -1421,7 +1422,7 @@ const SiteSettingsPage: React.FC = () => {
                             İletişim sayfasında gösterilecek tüm bilgileri buradan yönetebilirsiniz. Değişiklikler kaydettikten sonra <a href="/contact" target="_blank">/contact</a> sayfasında görünecektir.
                         </Text>
 
-                        <Title level={5} style={{ marginBottom: 12, marginTop: 24 }}>Sayfa Başlığı</Title>
+                        <Title level={5} style={{ marginBottom: 12, marginTop: 24 }}>Sayfa Başlığı & Hero</Title>
                         <Row gutter={[16, 16]}>
                             <Col xs={24} md={12}>
                                 <Form.Item label="Ana Başlık" style={{ marginBottom: 12 }}>
@@ -1434,6 +1435,36 @@ const SiteSettingsPage: React.FC = () => {
                                 </Form.Item>
                             </Col>
                         </Row>
+                        <Form.Item label="Hero Arka Plan Görseli" style={{ marginBottom: 16 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                                <Upload
+                                    showUploadList={false}
+                                    accept="image/*"
+                                    beforeUpload={async (file) => {
+                                        const formData = new FormData();
+                                        formData.append('file', file);
+                                        const res = await apiClient.post('/api/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+                                        if (res.data.success) { setContactPage(p => ({ ...p, heroImage: res.data.data.url })); message.success('Görsel yüklendi'); }
+                                        return false;
+                                    }}
+                                >
+                                    <Button icon={<UploadOutlined />}>Görsel Yükle</Button>
+                                </Upload>
+                                {contactPage.heroImage && (
+                                    <>
+                                        <img src={contactPage.heroImage} alt="hero" style={{ height: 60, borderRadius: 8, objectFit: 'cover', maxWidth: 160, border: '1px solid #e5e7eb' }} />
+                                        <Button size="small" danger onClick={() => setContactPage(p => ({ ...p, heroImage: '' }))}>Kaldır</Button>
+                                    </>
+                                )}
+                                {!contactPage.heroImage && <span style={{ color: '#999', fontSize: 13 }}>Yüklenmemiş — gradient kullanılır</span>}
+                            </div>
+                            <Input
+                                style={{ marginTop: 8 }}
+                                value={contactPage.heroImage}
+                                onChange={e => setContactPage(p => ({ ...p, heroImage: e.target.value }))}
+                                placeholder="https://... (veya yukarıdan yükle)"
+                            />
+                        </Form.Item>
 
                         <Title level={5} style={{ marginBottom: 12, marginTop: 24 }}>İletişim Bilgileri</Title>
                         <Row gutter={[16, 16]}>

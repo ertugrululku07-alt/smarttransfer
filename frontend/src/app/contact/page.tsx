@@ -49,6 +49,7 @@ interface Branch {
 interface ContactPageData {
   heroTitle: string;
   heroSubtitle: string;
+  heroImage?: string;
   phone: string;
   phoneHours: string;
   email: string;
@@ -73,6 +74,7 @@ const extractMapSrc = (value: string): string => {
 const DEFAULT_CONTACT: ContactPageData = {
   heroTitle: 'Bizimle İletişime Geçin',
   heroSubtitle: 'Sorularınız, önerileriniz veya iş birliği talepleriniz için aşağıdaki kanallardan bize ulaşabilirsiniz.',
+  heroImage: '',
   phone: '',
   phoneHours: 'Hafta içi 09:00 - 18:00',
   email: '',
@@ -148,238 +150,160 @@ const ContactPage: React.FC = () => {
 
   if (loading) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0f172a' }}>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8fafc' }}>
         <Spin size="large" />
       </div>
     );
   }
 
-  return (
-    <Layout style={{ minHeight: '100vh', background: 'transparent', position: 'relative', overflow: 'hidden' }}>
-      {/* Background */}
-      <div style={{
-        position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', zIndex: 0,
-        background: `linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%)`,
-      }}>
-        <div style={{ position: 'absolute', width: 600, height: 600, borderRadius: '50%', top: -200, left: -100, background: `radial-gradient(circle, ${accent}20 0%, transparent 70%)`, animation: 'contactFloat 20s infinite ease-in-out' }} />
-        <div style={{ position: 'absolute', width: 500, height: 500, borderRadius: '50%', bottom: -150, right: -100, background: `radial-gradient(circle, ${accentAlt}15 0%, transparent 70%)`, animation: 'contactFloat 20s infinite ease-in-out 5s' }} />
-        <div style={{ position: 'absolute', width: 300, height: 300, borderRadius: '50%', top: '50%', left: '50%', background: `radial-gradient(circle, ${accent}10 0%, transparent 70%)`, animation: 'contactFloat 20s infinite ease-in-out 10s' }} />
-      </div>
+  const heroStyle: React.CSSProperties = contactData.heroImage
+    ? {
+        backgroundImage: `url(${getImageUrl(contactData.heroImage)})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat',
+      }
+    : {
+        background: theme.heroGradient || `linear-gradient(135deg, ${accent} 0%, ${accentAlt} 100%)`,
+      };
 
+  return (
+    <Layout style={{ minHeight: '100vh', background: '#fff', overflowX: 'hidden' }}>
       <style>{`
-        @keyframes contactFloat {
-          0%, 100% { transform: translate(0, 0) scale(1); }
-          33% { transform: translate(30px, -30px) scale(1.1); }
-          66% { transform: translate(-20px, 20px) scale(0.9); }
+        .ci-info-card {
+          display: flex; align-items: flex-start; gap: 16px; padding: 20px;
+          background: #fff; border-radius: 16px; border: 1px solid #e5e7eb;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.06); transition: all 0.3s ease;
         }
-        .contact-glass {
-          background: rgba(30, 41, 59, 0.6);
-          backdrop-filter: blur(20px);
-          -webkit-backdrop-filter: blur(20px);
-          border: 1px solid rgba(255,255,255,0.08);
-          border-radius: 24px;
-          transition: all 0.4s ease;
+        .ci-info-card:hover {
+          border-color: ${accent}50; transform: translateY(-3px);
+          box-shadow: 0 8px 24px rgba(0,0,0,0.1);
         }
-        .contact-glass:hover {
-          border-color: ${accent}40;
-          box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        @media (max-width: 600px) { .contact-info-grid { grid-template-columns: 1fr !important; } }
+        .ci-form-wrap { background: #fff; border-radius: 24px; border: 1px solid #e5e7eb; box-shadow: 0 4px 20px rgba(0,0,0,0.07); padding: clamp(24px, 4vw, 40px); }
+        .ci-social-btn {
+          display: inline-flex; align-items: center; gap: 10px; padding: 14px 24px;
+          background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 14px;
+          color: #374151; text-decoration: none; font-weight: 500; transition: all 0.25s ease;
+          min-width: 150px; justify-content: center; font-size: 15px;
         }
-        .contact-info-item {
-          display: flex;
-          align-items: flex-start;
-          gap: 16px;
-          padding: 20px;
-          background: rgba(15,23,42,0.3);
-          border-radius: 16px;
-          border: 1px solid rgba(255,255,255,0.08);
-          transition: all 0.3s ease;
+        .ci-social-btn:hover { transform: translateY(-4px); box-shadow: 0 10px 28px rgba(0,0,0,0.12); }
+        .ci-branch-card {
+          background: #fff; border: 1px solid #e5e7eb; border-radius: 20px;
+          overflow: hidden; transition: all 0.35s ease;
+          box-shadow: 0 2px 10px rgba(0,0,0,0.06);
         }
-        .contact-info-item:hover {
-          background: rgba(15,23,42,0.5);
-          border-color: ${accent}30;
-          transform: translateY(-2px);
-          box-shadow: 0 8px 24px rgba(0,0,0,0.25);
-        }
-        @media (max-width: 600px) {
-          .contact-info-grid { grid-template-columns: 1fr !important; }
-        }
-        .contact-social-btn {
-          display: inline-flex;
-          align-items: center;
-          gap: 10px;
-          padding: 16px 28px;
-          background: rgba(30,41,59,0.6);
-          backdrop-filter: blur(10px);
-          border: 1px solid rgba(255,255,255,0.08);
-          border-radius: 16px;
-          color: #f8fafc;
-          text-decoration: none;
-          font-weight: 500;
-          transition: all 0.3s ease;
-          min-width: 160px;
-          justify-content: center;
-          font-size: 15px;
-          cursor: pointer;
-        }
-        .contact-social-btn:hover {
-          transform: translateY(-5px);
-          border-color: ${accent};
-          box-shadow: 0 15px 40px rgba(0,0,0,0.3);
-        }
-        .contact-branch-card {
-          background: rgba(30,41,59,0.6);
-          backdrop-filter: blur(20px);
-          border: 1px solid rgba(255,255,255,0.08);
-          border-radius: 24px;
-          overflow: hidden;
-          transition: all 0.4s ease;
-        }
-        .contact-branch-card:hover {
-          transform: translateY(-10px);
-          border-color: ${accent}40;
-          box-shadow: 0 25px 60px rgba(0,0,0,0.4);
-        }
-        .contact-input .ant-input,
-        .contact-input .ant-select-selector,
-        .contact-input textarea.ant-input {
-          background: rgba(15,23,42,0.5) !important;
-          border: 1px solid rgba(255,255,255,0.08) !important;
-          border-radius: 12px !important;
-          color: #f8fafc !important;
-          font-size: 15px !important;
-          padding: 12px 16px !important;
-          min-height: 48px !important;
-        }
-        .contact-input .ant-input:focus,
-        .contact-input .ant-select-selector:focus,
-        .contact-input .ant-input-focused,
-        .contact-input .ant-select-focused .ant-select-selector {
-          border-color: ${accent} !important;
-          box-shadow: 0 0 0 3px ${accent}18 !important;
-          background: rgba(15,23,42,0.8) !important;
-        }
-        .contact-input .ant-input::placeholder { color: #64748b !important; }
-        .contact-input .ant-form-item-label > label { color: #94a3b8 !important; font-weight: 500; }
-        .contact-input .ant-select-arrow { color: #94a3b8 !important; }
-        .contact-input .ant-select-selection-placeholder { color: #64748b !important; }
+        .ci-branch-card:hover { transform: translateY(-6px); border-color: ${accent}40; box-shadow: 0 16px 40px rgba(0,0,0,0.12); }
       `}</style>
 
-      <Content style={{ position: 'relative', zIndex: 1 }}>
-        {/* Top Navigation */}
-        <TopBar />
+      <TopBar />
 
-        {/* Hero */}
-        <section style={{ textAlign: 'center', padding: '100px 20px 60px', maxWidth: 800, margin: '0 auto' }}>
-          <Title style={{
-            fontSize: 'clamp(2rem, 5vw, 3.5rem)', fontWeight: 700, marginBottom: 20, lineHeight: 1.2,
-            background: `linear-gradient(135deg, #fff 0%, ${accent} 100%)`,
-            WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
+      {/* ─── Hero ─── */}
+      <div style={{ ...heroStyle, paddingTop: 80, position: 'relative', overflowX: 'hidden' }}>
+        {contactData.heroImage && (
+          <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, rgba(15,23,42,0.65) 0%, rgba(15,23,42,0.45) 100%)' }} />
+        )}
+        <div style={{ position: 'relative', zIndex: 1, maxWidth: 860, margin: '0 auto', padding: 'clamp(60px, 8vw, 100px) 24px clamp(50px, 7vw, 80px)', textAlign: 'center' }}>
+          <Title level={1} style={{
+            color: '#fff', marginBottom: 18,
+            fontSize: 'clamp(2rem, 5vw, 3.4rem)', fontWeight: 800,
+            textShadow: '0 2px 20px rgba(0,0,0,0.3)', lineHeight: 1.2,
           }}>
             {contactData.heroTitle}
           </Title>
-          <Paragraph style={{ fontSize: 'clamp(1rem, 2vw, 1.2rem)', color: '#94a3b8', lineHeight: 1.8 }}>
+          <Paragraph style={{ fontSize: 'clamp(1rem, 2vw, 1.2rem)', color: 'rgba(255,255,255,0.82)', lineHeight: 1.8, margin: 0 }}>
             {contactData.heroSubtitle}
           </Paragraph>
-        </section>
+        </div>
+      </div>
 
-        <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 20px 80px' }}>
-          {/* Contact Info + Form Stack */}
-          <div style={{ maxWidth: 800, margin: '0 auto 80px', display: 'flex', flexDirection: 'column', gap: 40 }}>
-            {/* Info Items */}
-            <div className="contact-info-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16 }}>
-              {contactData.phone && (
-                <div className="contact-info-item">
-                  <div style={{
-                    width: 48, height: 48, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    background: `linear-gradient(135deg, ${accent}, ${accentAlt})`, fontSize: 20, color: '#0f172a', flexShrink: 0,
-                  }}>
-                    <PhoneOutlined />
-                  </div>
-                  <div>
-                    <Text strong style={{ color: '#f8fafc', fontSize: 16, display: 'block', marginBottom: 2 }}>Telefon</Text>
-                    <a href={`tel:${contactData.phone.replace(/\s/g, '')}`} style={{ color: accent, textDecoration: 'none', fontSize: 15 }}>{contactData.phone}</a>
-                    {contactData.phoneHours && <Text style={{ color: '#94a3b8', fontSize: 13, display: 'block', marginTop: 2 }}>{contactData.phoneHours}</Text>}
-                  </div>
+      {/* ─── White Body ─── */}
+      <Content style={{ background: '#fff', overflowX: 'hidden' }}>
+        <div style={{ maxWidth: 1100, margin: '0 auto', padding: 'clamp(48px, 6vw, 80px) 20px clamp(64px, 8vw, 100px)' }}>
+
+          {/* Contact Info Grid */}
+          <div className="contact-info-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16, maxWidth: 820, margin: '0 auto 56px' }}>
+            {contactData.phone && (
+              <div className="ci-info-card">
+                <div style={{ width: 48, height: 48, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', background: `linear-gradient(135deg, ${accent}, ${accentAlt})`, fontSize: 20, color: '#fff', flexShrink: 0 }}>
+                  <PhoneOutlined />
                 </div>
-              )}
-
-              {contactData.email && (
-                <div className="contact-info-item">
-                  <div style={{
-                    width: 48, height: 48, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    background: `linear-gradient(135deg, ${accent}, ${accentAlt})`, fontSize: 20, color: '#0f172a', flexShrink: 0,
-                  }}>
-                    <MailOutlined />
-                  </div>
-                  <div>
-                    <Text strong style={{ color: '#f8fafc', fontSize: 16, display: 'block', marginBottom: 2 }}>E-posta</Text>
-                    <a href={`mailto:${contactData.email}`} style={{ color: accent, textDecoration: 'none', fontSize: 15 }}>{contactData.email}</a>
-                    {contactData.emailNote && <Text style={{ color: '#94a3b8', fontSize: 13, display: 'block', marginTop: 2 }}>{contactData.emailNote}</Text>}
-                  </div>
+                <div>
+                  <Text strong style={{ color: '#111827', fontSize: 15, display: 'block', marginBottom: 2 }}>Telefon</Text>
+                  <a href={`tel:${contactData.phone.replace(/\s/g, '')}`} style={{ color: accent, textDecoration: 'none', fontSize: 14 }}>{contactData.phone}</a>
+                  {contactData.phoneHours && <Text style={{ color: '#6b7280', fontSize: 13, display: 'block', marginTop: 2 }}>{contactData.phoneHours}</Text>}
                 </div>
-              )}
-
-              {contactData.address && (
-                <div className="contact-info-item">
-                  <div style={{
-                    width: 48, height: 48, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    background: `linear-gradient(135deg, ${accent}, ${accentAlt})`, fontSize: 20, color: '#0f172a', flexShrink: 0,
-                  }}>
-                    <EnvironmentOutlined />
-                  </div>
-                  <div>
-                    <Text strong style={{ color: '#f8fafc', fontSize: 16, display: 'block', marginBottom: 2 }}>Merkez Ofis</Text>
-                    <Text style={{ color: '#94a3b8', fontSize: 15, lineHeight: 1.5 }}>{contactData.address}</Text>
-                  </div>
-                </div>
-              )}
-
-              {contactData.workingHours?.length > 0 && (
-                <div className="contact-info-item">
-                  <div style={{
-                    width: 48, height: 48, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    background: `linear-gradient(135deg, ${accent}, ${accentAlt})`, fontSize: 20, color: '#0f172a', flexShrink: 0,
-                  }}>
-                    <ClockCircleOutlined />
-                  </div>
-                  <div>
-                    <Text strong style={{ color: '#f8fafc', fontSize: 16, display: 'block', marginBottom: 2 }}>Çalışma Saatleri</Text>
-                    {contactData.workingHours.map((h, i) => (
-                      <Text key={i} style={{ color: '#94a3b8', fontSize: 15, display: 'block' }}>{h}</Text>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Contact Form */}
-            <div className="contact-glass" style={{ padding: 'clamp(24px, 4vw, 40px)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 30 }}>
-                <SendOutlined style={{ color: accent, fontSize: 20 }} />
-                <Title level={3} style={{ color: '#f8fafc', margin: 0, fontSize: 'clamp(1.2rem, 2.5vw, 1.5rem)' }}>Mesaj Gönderin</Title>
               </div>
-              <Form form={form} layout="vertical" onFinish={handleSubmit} className="contact-input">
+            )}
+            {contactData.email && (
+              <div className="ci-info-card">
+                <div style={{ width: 48, height: 48, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', background: `linear-gradient(135deg, ${accent}, ${accentAlt})`, fontSize: 20, color: '#fff', flexShrink: 0 }}>
+                  <MailOutlined />
+                </div>
+                <div>
+                  <Text strong style={{ color: '#111827', fontSize: 15, display: 'block', marginBottom: 2 }}>E-posta</Text>
+                  <a href={`mailto:${contactData.email}`} style={{ color: accent, textDecoration: 'none', fontSize: 14 }}>{contactData.email}</a>
+                  {contactData.emailNote && <Text style={{ color: '#6b7280', fontSize: 13, display: 'block', marginTop: 2 }}>{contactData.emailNote}</Text>}
+                </div>
+              </div>
+            )}
+            {contactData.address && (
+              <div className="ci-info-card">
+                <div style={{ width: 48, height: 48, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', background: `linear-gradient(135deg, ${accent}, ${accentAlt})`, fontSize: 20, color: '#fff', flexShrink: 0 }}>
+                  <EnvironmentOutlined />
+                </div>
+                <div>
+                  <Text strong style={{ color: '#111827', fontSize: 15, display: 'block', marginBottom: 2 }}>Merkez Ofis</Text>
+                  <Text style={{ color: '#6b7280', fontSize: 14, lineHeight: 1.5 }}>{contactData.address}</Text>
+                </div>
+              </div>
+            )}
+            {contactData.workingHours?.length > 0 && (
+              <div className="ci-info-card">
+                <div style={{ width: 48, height: 48, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', background: `linear-gradient(135deg, ${accent}, ${accentAlt})`, fontSize: 20, color: '#fff', flexShrink: 0 }}>
+                  <ClockCircleOutlined />
+                </div>
+                <div>
+                  <Text strong style={{ color: '#111827', fontSize: 15, display: 'block', marginBottom: 2 }}>Çalışma Saatleri</Text>
+                  {contactData.workingHours.map((h, i) => (
+                    <Text key={i} style={{ color: '#6b7280', fontSize: 14, display: 'block' }}>{h}</Text>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Contact Form */}
+          <div style={{ maxWidth: 820, margin: '0 auto 72px' }}>
+            <div className="ci-form-wrap">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 28 }}>
+                <div style={{ width: 44, height: 44, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', background: `linear-gradient(135deg, ${accent}, ${accentAlt})`, fontSize: 18, color: '#fff' }}>
+                  <SendOutlined />
+                </div>
+                <Title level={3} style={{ color: '#111827', margin: 0, fontSize: 'clamp(1.15rem, 2.5vw, 1.4rem)' }}>Mesaj Gönderin</Title>
+              </div>
+              <Form form={form} layout="vertical" onFinish={handleSubmit}>
                 <Row gutter={16}>
                   <Col xs={24} sm={12}>
                     <Form.Item name="name" label="Ad Soyad" rules={[{ required: true, message: 'Ad soyad zorunlu' }]}>
-                      <Input placeholder="Adınız ve soyadınız" size="large" />
+                      <Input placeholder="Adınız ve soyadınız" size="large" style={{ borderRadius: 10 }} />
                     </Form.Item>
                   </Col>
                   <Col xs={24} sm={12}>
                     <Form.Item name="email" label="E-posta" rules={[{ required: true, type: 'email', message: 'Geçerli e-posta girin' }]}>
-                      <Input placeholder="ornek@email.com" size="large" />
+                      <Input placeholder="ornek@email.com" size="large" style={{ borderRadius: 10 }} />
                     </Form.Item>
                   </Col>
                 </Row>
                 <Row gutter={16}>
                   <Col xs={24} sm={12}>
                     <Form.Item name="phone" label="Telefon">
-                      <Input placeholder="+90 5XX XXX XX XX" size="large" />
+                      <Input placeholder="+90 5XX XXX XX XX" size="large" style={{ borderRadius: 10 }} />
                     </Form.Item>
                   </Col>
                   <Col xs={24} sm={12}>
                     <Form.Item name="subject" label="Konu" rules={[{ required: true, message: 'Konu seçin' }]}>
-                      <Select placeholder="Konu seçiniz" size="large" popupClassName="contact-select-dropdown">
+                      <Select placeholder="Konu seçiniz" size="large" style={{ borderRadius: 10 }}>
                         {(contactData.formSubjects || DEFAULT_CONTACT.formSubjects).map(s => (
                           <Select.Option key={s.value} value={s.value}>{s.label}</Select.Option>
                         ))}
@@ -388,20 +312,18 @@ const ContactPage: React.FC = () => {
                   </Col>
                 </Row>
                 <Form.Item name="message" label="Mesajınız" rules={[{ required: true, message: 'Mesaj yazın' }]}>
-                  <TextArea rows={5} placeholder="Mesajınızı buraya yazın..." />
+                  <TextArea rows={5} placeholder="Mesajınızı buraya yazın..." style={{ borderRadius: 10 }} />
                 </Form.Item>
                 <Button
                   type="primary"
                   htmlType="submit"
                   loading={submitting}
-                  block
-                  size="large"
+                  block size="large"
                   icon={<SendOutlined />}
                   style={{
                     height: 52, fontSize: 16, fontWeight: 600, borderRadius: 12,
                     background: `linear-gradient(135deg, ${accent}, ${accentAlt})`,
-                    border: 'none', color: '#0f172a',
-                    boxShadow: `0 8px 24px ${accent}40`,
+                    border: 'none', boxShadow: `0 6px 20px ${accent}40`,
                   }}
                 >
                   Gönder
@@ -412,123 +334,46 @@ const ContactPage: React.FC = () => {
 
           {/* Social Media */}
           {Object.values(socialMedia).some(v => v) && (
-            <section style={{ textAlign: 'center', marginBottom: 80 }}>
-              <Title level={2} style={{ color: '#f8fafc', fontWeight: 700, marginBottom: 12 }}>Sosyal Medya & Anlık İletişim</Title>
-              <Text style={{ color: '#94a3b8', fontSize: 16, display: 'block', marginBottom: 40 }}>
+            <section style={{ textAlign: 'center', marginBottom: 72 }}>
+              <Title level={2} style={{ color: '#111827', fontWeight: 700, marginBottom: 10 }}>Sosyal Medya</Title>
+              <Text style={{ color: '#6b7280', fontSize: 16, display: 'block', marginBottom: 36 }}>
                 Bizi sosyal medyada takip edin veya anlık mesajlaşma uygulamalarından ulaşın
               </Text>
-              <div style={{ display: 'flex', justifyContent: 'center', gap: 16, flexWrap: 'wrap' }}>
-                {socialMedia.whatsapp && (
-                  <a href={socialMedia.whatsapp} target="_blank" rel="noopener noreferrer" className="contact-social-btn"
-                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(37,211,102,0.15)'; e.currentTarget.style.borderColor = '#25d366'; e.currentTarget.style.color = '#25d366'; }}
-                    onMouseLeave={e => { e.currentTarget.style.background = ''; e.currentTarget.style.borderColor = ''; e.currentTarget.style.color = '#f8fafc'; }}
-                  >
-                    <WhatsAppOutlined style={{ fontSize: 20 }} /> WhatsApp
-                  </a>
-                )}
-                {socialMedia.telegram && (
-                  <a href={socialMedia.telegram} target="_blank" rel="noopener noreferrer" className="contact-social-btn"
-                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(0,136,204,0.15)'; e.currentTarget.style.borderColor = '#0088cc'; e.currentTarget.style.color = '#0088cc'; }}
-                    onMouseLeave={e => { e.currentTarget.style.background = ''; e.currentTarget.style.borderColor = ''; e.currentTarget.style.color = '#f8fafc'; }}
-                  >
-                    <SendOutlined style={{ fontSize: 20 }} /> Telegram
-                  </a>
-                )}
-                {socialMedia.instagram && (
-                  <a href={socialMedia.instagram} target="_blank" rel="noopener noreferrer" className="contact-social-btn"
-                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(225,48,108,0.15)'; e.currentTarget.style.borderColor = '#e1306c'; e.currentTarget.style.color = '#e1306c'; }}
-                    onMouseLeave={e => { e.currentTarget.style.background = ''; e.currentTarget.style.borderColor = ''; e.currentTarget.style.color = '#f8fafc'; }}
-                  >
-                    <InstagramOutlined style={{ fontSize: 20 }} /> Instagram
-                  </a>
-                )}
-                {socialMedia.facebook && (
-                  <a href={socialMedia.facebook} target="_blank" rel="noopener noreferrer" className="contact-social-btn"
-                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(24,119,242,0.15)'; e.currentTarget.style.borderColor = '#1877f2'; e.currentTarget.style.color = '#1877f2'; }}
-                    onMouseLeave={e => { e.currentTarget.style.background = ''; e.currentTarget.style.borderColor = ''; e.currentTarget.style.color = '#f8fafc'; }}
-                  >
-                    <FacebookOutlined style={{ fontSize: 20 }} /> Facebook
-                  </a>
-                )}
-                {socialMedia.twitter && (
-                  <a href={socialMedia.twitter} target="_blank" rel="noopener noreferrer" className="contact-social-btn"
-                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(29,161,242,0.15)'; e.currentTarget.style.borderColor = '#1da1f2'; e.currentTarget.style.color = '#1da1f2'; }}
-                    onMouseLeave={e => { e.currentTarget.style.background = ''; e.currentTarget.style.borderColor = ''; e.currentTarget.style.color = '#f8fafc'; }}
-                  >
-                    <TwitterOutlined style={{ fontSize: 20 }} /> X (Twitter)
-                  </a>
-                )}
-                {socialMedia.youtube && (
-                  <a href={socialMedia.youtube} target="_blank" rel="noopener noreferrer" className="contact-social-btn"
-                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,0,0,0.15)'; e.currentTarget.style.borderColor = '#ff0000'; e.currentTarget.style.color = '#ff0000'; }}
-                    onMouseLeave={e => { e.currentTarget.style.background = ''; e.currentTarget.style.borderColor = ''; e.currentTarget.style.color = '#f8fafc'; }}
-                  >
-                    <YoutubeOutlined style={{ fontSize: 20 }} /> YouTube
-                  </a>
-                )}
-                {socialMedia.linkedin && (
-                  <a href={socialMedia.linkedin} target="_blank" rel="noopener noreferrer" className="contact-social-btn"
-                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(0,119,181,0.15)'; e.currentTarget.style.borderColor = '#0077b5'; e.currentTarget.style.color = '#0077b5'; }}
-                    onMouseLeave={e => { e.currentTarget.style.background = ''; e.currentTarget.style.borderColor = ''; e.currentTarget.style.color = '#f8fafc'; }}
-                  >
-                    <LinkedinOutlined style={{ fontSize: 20 }} /> LinkedIn
-                  </a>
-                )}
+              <div style={{ display: 'flex', justifyContent: 'center', gap: 14, flexWrap: 'wrap' }}>
+                {socialMedia.whatsapp && <a href={socialMedia.whatsapp} target="_blank" rel="noopener noreferrer" className="ci-social-btn" style={{ color: '#25d366', borderColor: '#25d366' }}><WhatsAppOutlined style={{ fontSize: 18 }} /> WhatsApp</a>}
+                {socialMedia.telegram && <a href={socialMedia.telegram} target="_blank" rel="noopener noreferrer" className="ci-social-btn" style={{ color: '#0088cc', borderColor: '#0088cc' }}><SendOutlined style={{ fontSize: 18 }} /> Telegram</a>}
+                {socialMedia.instagram && <a href={socialMedia.instagram} target="_blank" rel="noopener noreferrer" className="ci-social-btn" style={{ color: '#e1306c', borderColor: '#e1306c' }}><InstagramOutlined style={{ fontSize: 18 }} /> Instagram</a>}
+                {socialMedia.facebook && <a href={socialMedia.facebook} target="_blank" rel="noopener noreferrer" className="ci-social-btn" style={{ color: '#1877f2', borderColor: '#1877f2' }}><FacebookOutlined style={{ fontSize: 18 }} /> Facebook</a>}
+                {socialMedia.twitter && <a href={socialMedia.twitter} target="_blank" rel="noopener noreferrer" className="ci-social-btn" style={{ color: '#1da1f2', borderColor: '#1da1f2' }}><TwitterOutlined style={{ fontSize: 18 }} /> X (Twitter)</a>}
+                {socialMedia.youtube && <a href={socialMedia.youtube} target="_blank" rel="noopener noreferrer" className="ci-social-btn" style={{ color: '#ff0000', borderColor: '#ff0000' }}><YoutubeOutlined style={{ fontSize: 18 }} /> YouTube</a>}
+                {socialMedia.linkedin && <a href={socialMedia.linkedin} target="_blank" rel="noopener noreferrer" className="ci-social-btn" style={{ color: '#0077b5', borderColor: '#0077b5' }}><LinkedinOutlined style={{ fontSize: 18 }} /> LinkedIn</a>}
               </div>
             </section>
           )}
 
           {/* Branches */}
           {contactData.branches?.length > 0 && (
-            <section style={{ marginBottom: 80 }}>
-              <Title level={2} style={{ color: '#f8fafc', fontWeight: 700, textAlign: 'center', marginBottom: 8 }}>Şubelerimiz & Konumlarımız</Title>
-              <Text style={{ color: '#94a3b8', fontSize: 16, display: 'block', textAlign: 'center', marginBottom: 40 }}>
-                Size en yakın şubemizi ziyaret edin
-              </Text>
+            <section style={{ marginBottom: 72 }}>
+              <Title level={2} style={{ color: '#111827', fontWeight: 700, textAlign: 'center', marginBottom: 8 }}>Şubelerimiz & Konumlarımız</Title>
+              <Text style={{ color: '#6b7280', fontSize: 16, display: 'block', textAlign: 'center', marginBottom: 36 }}>Size en yakın şubemizi ziyaret edin</Text>
               <Row gutter={[24, 24]}>
                 {contactData.branches.map((branch, idx) => (
                   <Col xs={24} sm={12} lg={contactData.branches.length >= 3 ? 8 : 12} key={idx}>
-                    <div className="contact-branch-card" style={{ height: '100%' }}>
+                    <div className="ci-branch-card" style={{ height: '100%' }}>
                       {branch.mapEmbedUrl && (
-                        <iframe
-                          src={extractMapSrc(branch.mapEmbedUrl)}
-                          style={{ width: '100%', height: 200, border: 'none', filter: 'grayscale(30%) contrast(1.1)' }}
-                          allowFullScreen
-                          loading="lazy"
-                        />
+                        <iframe src={extractMapSrc(branch.mapEmbedUrl)} style={{ width: '100%', height: 200, border: 'none' }} allowFullScreen loading="lazy" />
                       )}
-                      <div style={{ padding: 'clamp(20px, 3vw, 30px)' }}>
+                      <div style={{ padding: 'clamp(18px, 3vw, 28px)' }}>
                         {branch.badge && (
-                          <span style={{
-                            display: 'inline-block', padding: '6px 14px', borderRadius: 20, fontSize: 12, fontWeight: 600,
-                            textTransform: 'uppercase', letterSpacing: 1, marginBottom: 14,
-                            background: `${accent}20`, border: `1px solid ${accent}40`, color: accent,
-                          }}>
+                          <span style={{ display: 'inline-block', padding: '5px 12px', borderRadius: 20, fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12, background: `${accent}12`, border: `1px solid ${accent}30`, color: accent }}>
                             {branch.badge}
                           </span>
                         )}
-                        <Title level={4} style={{ color: '#f8fafc', marginBottom: 12, marginTop: branch.badge ? 0 : undefined }}>
-                          {branch.name}
-                        </Title>
+                        <Title level={4} style={{ color: '#111827', marginBottom: 12, marginTop: branch.badge ? 0 : undefined }}>{branch.name}</Title>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                          {branch.address && (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                              <EnvironmentOutlined style={{ color: accent, flexShrink: 0 }} />
-                              <Text style={{ color: '#94a3b8', fontSize: 14 }}>{branch.address}</Text>
-                            </div>
-                          )}
-                          {branch.phone && (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                              <PhoneOutlined style={{ color: accent, flexShrink: 0 }} />
-                              <a href={`tel:${branch.phone.replace(/\s/g, '')}`} style={{ color: '#94a3b8', textDecoration: 'none', fontSize: 14 }}>{branch.phone}</a>
-                            </div>
-                          )}
-                          {branch.hours && (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                              <ClockCircleOutlined style={{ color: accent, flexShrink: 0 }} />
-                              <Text style={{ color: '#94a3b8', fontSize: 14 }}>{branch.hours}</Text>
-                            </div>
-                          )}
+                          {branch.address && <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}><EnvironmentOutlined style={{ color: accent, flexShrink: 0 }} /><Text style={{ color: '#6b7280', fontSize: 14 }}>{branch.address}</Text></div>}
+                          {branch.phone && <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}><PhoneOutlined style={{ color: accent, flexShrink: 0 }} /><a href={`tel:${branch.phone.replace(/\s/g, '')}`} style={{ color: '#6b7280', textDecoration: 'none', fontSize: 14 }}>{branch.phone}</a></div>}
+                          {branch.hours && <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}><ClockCircleOutlined style={{ color: accent, flexShrink: 0 }} /><Text style={{ color: '#6b7280', fontSize: 14 }}>{branch.hours}</Text></div>}
                         </div>
                       </div>
                     </div>
@@ -540,18 +385,16 @@ const ContactPage: React.FC = () => {
 
           {/* Main Map */}
           {contactData.mainMapUrl && (
-            <section style={{ marginBottom: 60 }}>
-              <Title level={2} style={{ color: '#f8fafc', fontWeight: 700, textAlign: 'center', marginBottom: 30 }}>Tüm Konumlarımız</Title>
+            <section style={{ marginBottom: 40 }}>
+              <Title level={2} style={{ color: '#111827', fontWeight: 700, textAlign: 'center', marginBottom: 28 }}>Tüm Konumlarımız</Title>
               <iframe
                 src={extractMapSrc(contactData.mainMapUrl)}
-                style={{ width: '100%', height: 400, border: 'none', borderRadius: 24, filter: 'grayscale(40%) contrast(1.1)' }}
-                allowFullScreen
-                loading="lazy"
+                style={{ width: '100%', height: 400, border: 'none', borderRadius: 20, boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }}
+                allowFullScreen loading="lazy"
               />
             </section>
           )}
         </div>
-
       </Content>
       <SiteFooter />
     </Layout>
