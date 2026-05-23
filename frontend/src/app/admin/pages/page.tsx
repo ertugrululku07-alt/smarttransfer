@@ -44,8 +44,11 @@ import {
     YoutubeOutlined,
     LinkedinOutlined,
     WhatsAppOutlined,
-    SendOutlined
+    SendOutlined,
+    PictureOutlined,
+    UploadOutlined
 } from '@ant-design/icons';
+import Upload from 'antd/es/upload';
 import AdminGuard from '../AdminGuard';
 import AdminLayout from '../AdminLayout';
 import apiClient from '@/lib/api-client';
@@ -84,6 +87,7 @@ interface PageItem {
     content: string;
     excerpt: string;
     icon: string;
+    heroImage: string;
     isPublished: boolean;
     showInMenu: boolean;
     showInFooter: boolean;
@@ -131,6 +135,7 @@ const PagesManagement: React.FC = () => {
     const [editingPage, setEditingPage] = useState<PageItem | null>(null);
     const [form] = Form.useForm();
     const [activeTab, setActiveTab] = useState('list');
+    const [heroImageUploading, setHeroImageUploading] = useState(false);
 
     // Social Media
     const [socialMedia, setSocialMedia] = useState<Record<string, string>>({});
@@ -405,6 +410,24 @@ const PagesManagement: React.FC = () => {
             content: TEMPLATE_CONTENTS[template.key] || `<h2>${template.title}</h2>\n<p>${template.excerpt}</p>`
         });
         setModalVisible(true);
+    };
+
+    const handleHeroImageUpload = async (file: File) => {
+        try {
+            setHeroImageUploading(true);
+            const formData = new FormData();
+            formData.append('file', file);
+            const res = await apiClient.post('/api/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+            if (res.data.success) {
+                form.setFieldsValue({ heroImage: res.data.data.url });
+                message.success('Görsel yüklendi');
+            }
+        } catch (e) {
+            message.error('Görsel yüklenemedi');
+        } finally {
+            setHeroImageUploading(false);
+        }
+        return false;
     };
 
     const generateSlug = (title: string) => {
@@ -847,8 +870,27 @@ const PagesManagement: React.FC = () => {
                             </Col>
                         </Row>
 
-                        <Form.Item label="Kısa Açıklama" name="excerpt">
+                        <Form.Item label="Kısa Açıklama / Alt Başlık" name="excerpt" extra="Hero bölümünde başlığın altında görünür">
                             <Input placeholder="Sayfa hakkında kısa bir açıklama" />
+                        </Form.Item>
+
+                        <Form.Item
+                            label={<span><PictureOutlined style={{ marginRight: 6, color: '#667eea' }} />Hero Arka Plan Görseli</span>}
+                            name="heroImage"
+                            extra="Sayfanın üst hero bölümünde arka plan olarak kullanılır. URL veya yükleyin."
+                        >
+                            <Space.Compact style={{ width: '100%' }}>
+                                <Input placeholder="https://... veya /uploads/..." />
+                                <Upload
+                                    accept="image/*"
+                                    showUploadList={false}
+                                    beforeUpload={(file) => { handleHeroImageUpload(file); return false; }}
+                                >
+                                    <Button icon={<UploadOutlined />} loading={heroImageUploading} style={{ height: 32 }}>
+                                        Yükle
+                                    </Button>
+                                </Upload>
+                            </Space.Compact>
                         </Form.Item>
 
                         <Form.Item label="Sayfa İçeriği" name="content">

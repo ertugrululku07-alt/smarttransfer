@@ -207,7 +207,18 @@ const SiteSettingsPage: React.FC = () => {
                     setCustomTheme(settings.customTheme);
                 }
                 if (settings.contactPage) {
-                    setContactPage(prev => ({ ...prev, ...settings.contactPage }));
+                    const cp = { ...settings.contactPage };
+                    const extractSrc = (v: string) => {
+                        if (!v) return v;
+                        const t = v.trim();
+                        if (t.startsWith('<')) { const m = t.match(/src=["']([^"']+)["']/); return m ? m[1] : t; }
+                        return t;
+                    };
+                    if (cp.mainMapUrl) cp.mainMapUrl = extractSrc(cp.mainMapUrl);
+                    if (Array.isArray(cp.branches)) {
+                        cp.branches = cp.branches.map((b: any) => ({ ...b, mapEmbedUrl: extractSrc(b.mapEmbedUrl || '') }));
+                    }
+                    setContactPage(prev => ({ ...prev, ...cp }));
                 }
             }
         } catch (error) {
@@ -1476,7 +1487,15 @@ const SiteSettingsPage: React.FC = () => {
 
                         <Title level={5} style={{ marginBottom: 12, marginTop: 24 }}>Ana Harita (Google Maps Embed)</Title>
                         <Form.Item label="Harita Embed URL" extra="Google Maps → Paylaş → Haritayı yerleştir → iframe src URL'sini yapıştırın" style={{ marginBottom: 0 }}>
-                            <Input value={contactPage.mainMapUrl} onChange={e => setContactPage(p => ({ ...p, mainMapUrl: e.target.value }))} placeholder="https://www.google.com/maps/embed?pb=..." />
+                            <Input
+                                value={contactPage.mainMapUrl}
+                                onChange={e => {
+                                    let v = e.target.value.trim();
+                                    if (v.startsWith('<')) { const m = v.match(/src=["']([^"']+)["']/); v = m ? m[1] : v; }
+                                    setContactPage(p => ({ ...p, mainMapUrl: v }));
+                                }}
+                                placeholder="https://www.google.com/maps/embed?pb=..."
+                            />
                         </Form.Item>
                     </Card>
 
@@ -1529,7 +1548,15 @@ const SiteSettingsPage: React.FC = () => {
                                     </Col>
                                     <Col xs={24}>
                                         <Form.Item label="Google Maps Embed URL" extra="Google Maps → Paylaş → Haritayı yerleştir → iframe src URL'si" style={{ marginBottom: 8 }}>
-                                            <Input value={branch.mapEmbedUrl} onChange={e => updateBranch(idx, 'mapEmbedUrl', e.target.value)} placeholder="https://www.google.com/maps/embed?pb=..." />
+                                            <Input
+                                                value={branch.mapEmbedUrl}
+                                                onChange={e => {
+                                                    let v = e.target.value.trim();
+                                                    if (v.startsWith('<')) { const m = v.match(/src=["']([^"']+)["']/); v = m ? m[1] : v; }
+                                                    updateBranch(idx, 'mapEmbedUrl', v);
+                                                }}
+                                                placeholder="https://www.google.com/maps/embed?pb=..."
+                                            />
                                         </Form.Item>
                                     </Col>
                                 </Row>

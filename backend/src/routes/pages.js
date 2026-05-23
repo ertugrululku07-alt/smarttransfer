@@ -109,7 +109,7 @@ router.post('/', authMiddleware, async (req, res) => {
             return res.status(403).json({ success: false, error: 'Permission denied' });
         }
 
-        const { title, slug, content, excerpt, icon, isPublished, showInMenu, showInFooter, menuOrder, category, metaTitle, metaDescription } = req.body;
+        const { title, slug, content, excerpt, icon, isPublished, showInMenu, showInFooter, menuOrder, category, metaTitle, metaDescription, heroImage } = req.body;
 
         if (!title || !slug) {
             return res.status(400).json({ success: false, error: 'Title and slug are required' });
@@ -135,6 +135,7 @@ router.post('/', authMiddleware, async (req, res) => {
             content: content || '',
             excerpt: excerpt || '',
             icon: icon || '',
+            heroImage: heroImage || '',
             isPublished: isPublished !== false,
             showInMenu: showInMenu || false,
             showInFooter: showInFooter || false,
@@ -171,7 +172,7 @@ router.put('/:id', authMiddleware, async (req, res) => {
         }
 
         const { id } = req.params;
-        const { title, slug, content, excerpt, icon, isPublished, showInMenu, showInFooter, menuOrder, category, metaTitle, metaDescription } = req.body;
+        const { title, slug, content, excerpt, icon, isPublished, showInMenu, showInFooter, menuOrder, category, metaTitle, metaDescription, heroImage } = req.body;
 
         const tenant = await prisma.tenant.findUnique({
             where: { id: req.user.tenantId },
@@ -198,6 +199,7 @@ router.put('/:id', authMiddleware, async (req, res) => {
             content: content !== undefined ? content : pages[pageIndex].content,
             excerpt: excerpt !== undefined ? excerpt : pages[pageIndex].excerpt,
             icon: icon !== undefined ? icon : pages[pageIndex].icon,
+            heroImage: heroImage !== undefined ? heroImage : pages[pageIndex].heroImage,
             isPublished: isPublished !== undefined ? isPublished : pages[pageIndex].isPublished,
             showInMenu: showInMenu !== undefined ? showInMenu : pages[pageIndex].showInMenu,
             showInFooter: showInFooter !== undefined ? showInFooter : pages[pageIndex].showInFooter,

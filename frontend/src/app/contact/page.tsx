@@ -31,6 +31,7 @@ import apiClient, { getImageUrl } from '@/lib/api-client';
 import { useTheme } from '@/app/context/ThemeContext';
 import { useBranding } from '@/app/context/BrandingContext';
 import TopBar from '@/app/components/TopBar';
+import SiteFooter from '@/app/components/SiteFooter';
 
 const { Title, Text, Paragraph } = Typography;
 const { Content } = Layout;
@@ -58,6 +59,16 @@ interface ContactPageData {
   mainMapUrl: string;
   formSubjects: { value: string; label: string }[];
 }
+
+const extractMapSrc = (value: string): string => {
+  if (!value) return '';
+  const trimmed = value.trim();
+  if (trimmed.startsWith('<')) {
+    const match = trimmed.match(/src=["']([^"']+)["']/);
+    return match ? match[1] : '';
+  }
+  return trimmed;
+};
 
 const DEFAULT_CONTACT: ContactPageData = {
   heroTitle: 'Bizimle İletişime Geçin',
@@ -476,7 +487,7 @@ const ContactPage: React.FC = () => {
                     <div className="contact-branch-card" style={{ height: '100%' }}>
                       {branch.mapEmbedUrl && (
                         <iframe
-                          src={branch.mapEmbedUrl}
+                          src={extractMapSrc(branch.mapEmbedUrl)}
                           style={{ width: '100%', height: 200, border: 'none', filter: 'grayscale(30%) contrast(1.1)' }}
                           allowFullScreen
                           loading="lazy"
@@ -528,7 +539,7 @@ const ContactPage: React.FC = () => {
             <section style={{ marginBottom: 60 }}>
               <Title level={2} style={{ color: '#f8fafc', fontWeight: 700, textAlign: 'center', marginBottom: 30 }}>Tüm Konumlarımız</Title>
               <iframe
-                src={contactData.mainMapUrl}
+                src={extractMapSrc(contactData.mainMapUrl)}
                 style={{ width: '100%', height: 400, border: 'none', borderRadius: 24, filter: 'grayscale(40%) contrast(1.1)' }}
                 allowFullScreen
                 loading="lazy"
@@ -537,15 +548,8 @@ const ContactPage: React.FC = () => {
           )}
         </div>
 
-        {/* Footer */}
-        <footer style={{ textAlign: 'center', padding: '40px 20px', borderTop: '1px solid rgba(255,255,255,0.08)', color: '#94a3b8', fontSize: 14 }}>
-          <Text style={{ color: '#64748b' }}>
-            &copy; {new Date().getFullYear()} {branding.companyName || fullName}. Tüm hakları saklıdır. |{' '}
-            <a href="/sayfa/gizlilik-politikasi" style={{ color: accent, textDecoration: 'none' }}>Gizlilik Politikası</a> |{' '}
-            <a href="/sayfa/kullanim-kosullari" style={{ color: accent, textDecoration: 'none' }}>Kullanım Koşulları</a>
-          </Text>
-        </footer>
       </Content>
+      <SiteFooter />
     </Layout>
   );
 };

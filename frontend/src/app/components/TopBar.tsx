@@ -118,56 +118,49 @@ const TopBar: React.FC = () => {
           borderBottom: scrolled ? 'none' : '1px solid rgba(255,255,255,0.08)',
         }}
       >
-        {/* Logo */}
-        <div
-          style={{
-            fontWeight: 700,
-            cursor: 'pointer',
-            fontSize: 20,
-            letterSpacing: '-0.5px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-          }}
-          onClick={() => router.push('/')}
-        >
-          {branding.logoUrl ? (
-            <img
-              src={getImageUrl(branding.logoVariants?.header || branding.logoUrl)}
-              alt={fullName}
-              style={{ height: 44, maxWidth: 200, objectFit: 'contain' }}
-            />
-          ) : (
-            <>
-              <span style={{
-                color: theme.primaryColor,
-                fontWeight: 800,
-                fontSize: 22,
-              }}>{branding.siteNameHighlight}</span>
-              <span style={{ fontWeight: 600, color: '#fff', fontSize: 22 }}>{branding.siteName}</span>
-            </>
-          )}
-        </div>
+        {/* Logo + Desktop Navigation grouped on the left */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
+          <div
+            style={{
+              fontWeight: 700,
+              cursor: 'pointer',
+              fontSize: 20,
+              letterSpacing: '-0.5px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              flexShrink: 0,
+            }}
+            onClick={() => router.push('/')}
+          >
+            {branding.logoUrl ? (
+              <img
+                src={getImageUrl(branding.logoVariants?.header || branding.logoUrl)}
+                alt={fullName}
+                style={{ height: 44, maxWidth: 200, objectFit: 'contain' }}
+              />
+            ) : (
+              <>
+                <span style={{
+                  color: theme.primaryColor,
+                  fontWeight: 800,
+                  fontSize: 22,
+                }}>{branding.siteNameHighlight}</span>
+                <span style={{ fontWeight: 600, color: '#fff', fontSize: 22 }}>{branding.siteName}</span>
+              </>
+            )}
+          </div>
 
-        {/* Desktop Navigation */}
-        <nav style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 4,
-        }}
-          className="topbar-nav-desktop"
-        >
-          <a href="/" style={navLinkStyle}>{t('nav.home')}</a>
-          {menuPages.map(page => (
-            <a
-              key={page.slug}
-              href={`/sayfa/${page.slug}`}
-              style={navLinkStyle}
-            >
-              {page.title}
-            </a>
-          ))}
-        </nav>
+          <nav style={{ display: 'flex', alignItems: 'center', gap: 4 }} className="topbar-nav-desktop">
+            <a href="/" style={navLinkStyle}>{t('nav.home')}</a>
+            {menuPages.map(page => (
+              <a key={page.slug} href={`/sayfa/${page.slug}`} style={navLinkStyle}>
+                {page.title}
+              </a>
+            ))}
+            <a href="/contact" style={navLinkStyle}>İletişim</a>
+          </nav>
+        </div>
 
         {/* Right Side */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -313,6 +306,7 @@ const TopBar: React.FC = () => {
               {page.title}
             </a>
           ))}
+          <a href="/contact" style={{ padding: '10px 0', color: '#333', fontWeight: 500, borderBottom: '1px solid #f0f0f0' }}>İletişim</a>
 
           {/* Mobile Language Selector */}
           <div style={{ padding: '10px 0', borderBottom: '1px solid #f0f0f0' }}>
