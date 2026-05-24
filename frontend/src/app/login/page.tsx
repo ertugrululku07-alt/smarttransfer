@@ -90,8 +90,11 @@ const LoginPage: React.FC = () => {
         }
         .login-right::before {
           content: ''; position: absolute; inset: 0;
-          background: url(/background.gif) center/cover no-repeat;
-          opacity: 0.15; z-index: 1;
+          background:
+            radial-gradient(circle at 20% 30%, rgba(102,126,234,0.15) 0%, transparent 50%),
+            radial-gradient(circle at 80% 70%, rgba(118,75,162,0.15) 0%, transparent 50%),
+            linear-gradient(135deg, rgba(255,255,255,0.02) 0%, transparent 100%);
+          opacity: 1; z-index: 1;
         }
         .login-orb {
           position: absolute; border-radius: 50%; filter: blur(80px);

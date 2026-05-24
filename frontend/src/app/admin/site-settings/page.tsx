@@ -15,7 +15,9 @@ import {
     Col,
     Image,
     Tag,
-    Radio
+    Radio,
+    Alert,
+    Select
 } from 'antd';
 import {
     PlusOutlined,
@@ -38,7 +40,10 @@ import {
     PhoneOutlined,
     GlobalOutlined,
     SafetyCertificateOutlined,
-    StarOutlined
+    StarOutlined,
+    SearchOutlined,
+    LinkOutlined,
+    TagsOutlined
 } from '@ant-design/icons';
 import Upload from 'antd/es/upload';
 import { THEMES } from '@/app/context/ThemeContext';
@@ -166,6 +171,45 @@ const SiteSettingsPage: React.FC = () => {
     const [trackPageImgUploading, setTrackPageImgUploading] = useState(false);
     const [trackPageSaving, setTrackPageSaving] = useState(false);
 
+    // SEO state
+    const [seo, setSeo] = useState<{
+        siteUrl: string;
+        defaultTitle: string;
+        titleTemplate: string;
+        defaultDescription: string;
+        keywords: string[];
+        ogImage: string;
+        locale: string;
+        twitterHandle: string;
+        googleSiteVerification: string;
+        bingSiteVerification: string;
+        yandexVerification: string;
+        facebookAppId: string;
+        gtmId: string;
+        gaId: string;
+        indexingEnabled: boolean;
+        extraUrls: string[];
+    }>({
+        siteUrl: '',
+        defaultTitle: '',
+        titleTemplate: '',
+        defaultDescription: '',
+        keywords: [],
+        ogImage: '',
+        locale: 'tr_TR',
+        twitterHandle: '',
+        googleSiteVerification: '',
+        bingSiteVerification: '',
+        yandexVerification: '',
+        facebookAppId: '',
+        gtmId: '',
+        gaId: '',
+        indexingEnabled: true,
+        extraUrls: [],
+    });
+    const [seoSaving, setSeoSaving] = useState(false);
+    const [seoOgUploading, setSeoOgUploading] = useState(false);
+
     // Fetch settings on load
     useEffect(() => {
         fetchSettings();
@@ -230,6 +274,14 @@ const SiteSettingsPage: React.FC = () => {
                 }
                 if (settings.trackPage) {
                     setTrackPage(prev => ({ ...prev, ...settings.trackPage }));
+                }
+                if (settings.seo) {
+                    setSeo(prev => ({
+                        ...prev,
+                        ...settings.seo,
+                        keywords: Array.isArray(settings.seo.keywords) ? settings.seo.keywords : [],
+                        extraUrls: Array.isArray(settings.seo.extraUrls) ? settings.seo.extraUrls : [],
+                    }));
                 }
                 if (settings.contactPage) {
                     const cp = { ...settings.contactPage };
@@ -635,6 +687,35 @@ const SiteSettingsPage: React.FC = () => {
             message.error('Görsel yüklenemedi');
         } finally {
             setTrackPageImgUploading(false);
+        }
+    };
+
+    const handleSaveSeo = async () => {
+        try {
+            setSeoSaving(true);
+            const res = await apiClient.put('/api/tenant/settings', { seo });
+            if (res.data.success) message.success('SEO ayarları kaydedildi');
+        } catch {
+            message.error('SEO ayarları kaydedilemedi');
+        } finally {
+            setSeoSaving(false);
+        }
+    };
+
+    const handleSeoOgImageUpload = async (file: File) => {
+        try {
+            setSeoOgUploading(true);
+            const formData = new FormData();
+            formData.append('file', file);
+            const res = await apiClient.post('/api/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+            if (res.data.success) {
+                setSeo(prev => ({ ...prev, ogImage: res.data.data.url }));
+                message.success('OG görseli yüklendi');
+            }
+        } catch {
+            message.error('Görsel yüklenemedi');
+        } finally {
+            setSeoOgUploading(false);
         }
     };
 
@@ -1898,6 +1979,183 @@ const SiteSettingsPage: React.FC = () => {
                     <div style={{ textAlign: 'right' }}>
                         <Button type="primary" size="large" icon={<SaveOutlined />} loading={contactSaving} onClick={handleSaveContact}>
                             İletişim Sayfasını Kaydet
+                        </Button>
+                    </div>
+                </div>
+            ),
+        },
+        {
+            key: 'seo',
+            label: (
+                <span>
+                    <SearchOutlined />
+                    SEO Yönetimi
+                </span>
+            ),
+            children: (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+                    <Alert
+                        type="info"
+                        showIcon
+                        message="Arama Motoru Optimizasyonu"
+                        description="Bu sayfadaki ayarlar Google, Bing, Yandex gibi arama motorları için sitenizin nasıl görüneceğini belirler. Robots.txt, sitemap.xml ve manifest.json otomatik olarak bu ayarlardan üretilir."
+                    />
+
+                    <Card title="Genel SEO" variant="borderless" extra={<Button type="primary" icon={<SaveOutlined />} loading={seoSaving} onClick={handleSaveSeo}>Kaydet</Button>}>
+                        <Row gutter={16}>
+                            <Col xs={24} md={12}>
+                                <Form.Item label="Site URL" extra="Ör: https://www.firmaniz.com (sonunda / olmadan)">
+                                    <Input value={seo.siteUrl} onChange={e => setSeo(p => ({ ...p, siteUrl: e.target.value }))} placeholder="https://www.smarttravel.com" prefix={<LinkOutlined />} />
+                                </Form.Item>
+                            </Col>
+                            <Col xs={24} md={12}>
+                                <Form.Item label="Dil / Locale" extra="Ör: tr_TR, en_US">
+                                    <Input value={seo.locale} onChange={e => setSeo(p => ({ ...p, locale: e.target.value }))} placeholder="tr_TR" />
+                                </Form.Item>
+                            </Col>
+                            <Col xs={24}>
+                                <Form.Item label="Varsayılan Sayfa Başlığı (Title)" extra="50-60 karakter ideal. Boş bırakılırsa firma adı + slogan kullanılır.">
+                                    <Input value={seo.defaultTitle} onChange={e => setSeo(p => ({ ...p, defaultTitle: e.target.value }))} placeholder="SmartTravel | Türkiye'nin Premium Transfer Platformu" maxLength={70} showCount />
+                                </Form.Item>
+                            </Col>
+                            <Col xs={24}>
+                                <Form.Item label="Title Şablonu" extra="Alt sayfalar için. %s yerine sayfa başlığı yerleştirilir. Ör: %s | SmartTravel">
+                                    <Input value={seo.titleTemplate} onChange={e => setSeo(p => ({ ...p, titleTemplate: e.target.value }))} placeholder="%s | SmartTravel" />
+                                </Form.Item>
+                            </Col>
+                            <Col xs={24}>
+                                <Form.Item label="Varsayılan Açıklama (Description)" extra="150-160 karakter ideal. Arama sonuçlarında sitenin altında gösterilir.">
+                                    <Input.TextArea value={seo.defaultDescription} onChange={e => setSeo(p => ({ ...p, defaultDescription: e.target.value }))} placeholder="Havalimanı, otel ve şehirler arası VIP transfer hizmeti. 7/24 anlık rezervasyon ve canlı araç takibi." maxLength={170} showCount rows={3} />
+                                </Form.Item>
+                            </Col>
+                            <Col xs={24}>
+                                <Form.Item label="Anahtar Kelimeler (Keywords)" extra="Enter ile ekleyin. Ör: havalimanı transferi, vip transfer, antalya transfer">
+                                    <Select
+                                        mode="tags"
+                                        value={seo.keywords}
+                                        onChange={(v: string[]) => setSeo(p => ({ ...p, keywords: v }))}
+                                        placeholder="Anahtar kelimeleri yazıp Enter'a basın"
+                                        style={{ width: '100%' }}
+                                        tokenSeparators={[',']}
+                                        suffixIcon={<TagsOutlined />}
+                                    />
+                                </Form.Item>
+                            </Col>
+                            <Col xs={24}>
+                                <Form.Item label="Arama Motorlarında İndekslensin" extra="Kapalıyken site Google, Bing vb. tarafından indekslenmez (geliştirme/test için).">
+                                    <Switch checked={seo.indexingEnabled} onChange={(v) => setSeo(p => ({ ...p, indexingEnabled: v }))} checkedChildren="Açık" unCheckedChildren="Kapalı" />
+                                </Form.Item>
+                            </Col>
+                        </Row>
+                    </Card>
+
+                    <Card title="Sosyal Medya Paylaşım Görseli (OG Image)" variant="borderless">
+                        <Text type="secondary" style={{ display: 'block', marginBottom: 12 }}>
+                            Facebook, Twitter, WhatsApp gibi platformlarda link paylaşıldığında gösterilen görsel. İdeal boyut: <strong>1200x630 px</strong>. Boş bırakılırsa logo kullanılır.
+                        </Text>
+                        <Row gutter={16} align="middle">
+                            <Col xs={24} md={16}>
+                                <Form.Item label="OG Görsel" style={{ marginBottom: 0 }}>
+                                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                                        <Upload showUploadList={false} accept="image/*" beforeUpload={(file) => { handleSeoOgImageUpload(file); return false; }}>
+                                            <Button icon={<UploadOutlined />} loading={seoOgUploading}>Görsel Yükle</Button>
+                                        </Upload>
+                                        <Input value={seo.ogImage} onChange={e => setSeo(p => ({ ...p, ogImage: e.target.value }))} placeholder="/uploads/..." style={{ flex: 1, minWidth: 200 }} allowClear />
+                                    </div>
+                                </Form.Item>
+                            </Col>
+                            <Col xs={24} md={8}>
+                                {seo.ogImage && (
+                                    <div style={{ borderRadius: 8, overflow: 'hidden', border: '1px solid #e5e7eb' }}>
+                                        <img src={seo.ogImage.startsWith('http') ? seo.ogImage : getImageUrl(seo.ogImage)} alt="OG" style={{ width: '100%', height: 110, objectFit: 'cover', display: 'block' }} />
+                                    </div>
+                                )}
+                            </Col>
+                        </Row>
+                    </Card>
+
+                    <Card title="Arama Motoru Doğrulama Kodları" variant="borderless">
+                        <Text type="secondary" style={{ display: 'block', marginBottom: 12 }}>
+                            Search Console / Webmaster Tools sahiplik doğrulama kodları. Sadece <code>content</code> değerini girin (ör: <code>abc123xyz</code>).
+                        </Text>
+                        <Row gutter={16}>
+                            <Col xs={24} md={8}>
+                                <Form.Item label="Google Search Console" extra="google-site-verification meta tag değeri">
+                                    <Input value={seo.googleSiteVerification} onChange={e => setSeo(p => ({ ...p, googleSiteVerification: e.target.value }))} placeholder="abc123xyz..." />
+                                </Form.Item>
+                            </Col>
+                            <Col xs={24} md={8}>
+                                <Form.Item label="Bing Webmaster" extra="msvalidate.01 meta tag değeri">
+                                    <Input value={seo.bingSiteVerification} onChange={e => setSeo(p => ({ ...p, bingSiteVerification: e.target.value }))} placeholder="abc123..." />
+                                </Form.Item>
+                            </Col>
+                            <Col xs={24} md={8}>
+                                <Form.Item label="Yandex Webmaster" extra="yandex-verification meta tag değeri">
+                                    <Input value={seo.yandexVerification} onChange={e => setSeo(p => ({ ...p, yandexVerification: e.target.value }))} placeholder="abc123..." />
+                                </Form.Item>
+                            </Col>
+                        </Row>
+                    </Card>
+
+                    <Card title="Analytics & Tag Yönetimi" variant="borderless">
+                        <Row gutter={16}>
+                            <Col xs={24} md={12}>
+                                <Form.Item label="Google Tag Manager (GTM) ID" extra="Ör: GTM-XXXXXXX">
+                                    <Input value={seo.gtmId} onChange={e => setSeo(p => ({ ...p, gtmId: e.target.value }))} placeholder="GTM-XXXXXXX" />
+                                </Form.Item>
+                            </Col>
+                            <Col xs={24} md={12}>
+                                <Form.Item label="Google Analytics 4 ID" extra="Ör: G-XXXXXXXXXX">
+                                    <Input value={seo.gaId} onChange={e => setSeo(p => ({ ...p, gaId: e.target.value }))} placeholder="G-XXXXXXXXXX" />
+                                </Form.Item>
+                            </Col>
+                            <Col xs={24} md={12}>
+                                <Form.Item label="Twitter / X Hesap (@kullanıcı)" extra="Ör: @smarttravel">
+                                    <Input value={seo.twitterHandle} onChange={e => setSeo(p => ({ ...p, twitterHandle: e.target.value }))} placeholder="@smarttravel" />
+                                </Form.Item>
+                            </Col>
+                            <Col xs={24} md={12}>
+                                <Form.Item label="Facebook App ID" extra="Facebook Insights için">
+                                    <Input value={seo.facebookAppId} onChange={e => setSeo(p => ({ ...p, facebookAppId: e.target.value }))} placeholder="1234567890" />
+                                </Form.Item>
+                            </Col>
+                        </Row>
+                    </Card>
+
+                    <Card title="Sitemap'e Ek URL'ler" variant="borderless">
+                        <Text type="secondary" style={{ display: 'block', marginBottom: 12 }}>
+                            Otomatik tespit edilemeyen sayfaları (ör: konum bazlı landing page'ler) ekleyin. Ör: <code>/transfer/istanbul-havalimani</code>
+                        </Text>
+                        <Form.Item>
+                            <Select
+                                mode="tags"
+                                value={seo.extraUrls}
+                                onChange={(v: string[]) => setSeo(p => ({ ...p, extraUrls: v }))}
+                                placeholder="/transfer/istanbul-havalimani yazıp Enter'a basın"
+                                style={{ width: '100%' }}
+                                tokenSeparators={[',']}
+                            />
+                        </Form.Item>
+                    </Card>
+
+                    <Alert
+                        type="success"
+                        showIcon
+                        message="Yararlı Linkler"
+                        description={(
+                            <ul style={{ margin: 0, paddingLeft: 20 }}>
+                                <li><a href="https://search.google.com/search-console" target="_blank" rel="noopener noreferrer">Google Search Console</a> — Sitenizi Google'a tanıtmak ve performans takip etmek için</li>
+                                <li><a href="https://www.bing.com/webmasters" target="_blank" rel="noopener noreferrer">Bing Webmaster Tools</a> — Bing arama motoru için</li>
+                                <li><a href="https://webmaster.yandex.com" target="_blank" rel="noopener noreferrer">Yandex Webmaster</a> — Yandex arama motoru için</li>
+                                <li><a href="https://pagespeed.web.dev" target="_blank" rel="noopener noreferrer">PageSpeed Insights</a> — Sayfa hızı ve Core Web Vitals testi</li>
+                                <li><a href="https://search.google.com/test/rich-results" target="_blank" rel="noopener noreferrer">Rich Results Test</a> — JSON-LD schema kontrolü</li>
+                            </ul>
+                        )}
+                    />
+
+                    <div style={{ textAlign: 'right' }}>
+                        <Button type="primary" size="large" icon={<SaveOutlined />} loading={seoSaving} onClick={handleSaveSeo}>
+                            Tüm SEO Ayarlarını Kaydet
                         </Button>
                     </div>
                 </div>
