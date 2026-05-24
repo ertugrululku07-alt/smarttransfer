@@ -556,6 +556,16 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, selectedKey = 'dash
                   onClick: () => router.push('/admin/users')
                 },
                 {
+                  key: 'blog',
+                  label: 'Blog Yönetimi',
+                  onClick: () => router.push('/admin/blog')
+                },
+                {
+                  key: 'seo-tools',
+                  label: 'SEO Araçları',
+                  onClick: () => router.push('/admin/seo-tools')
+                },
+                {
                   key: 'definitions',
                   label: 'Tanımlamalar',
                   onClick: () => router.push('/admin/settings/definitions')

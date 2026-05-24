@@ -423,3 +423,92 @@ export async function getLandingPageBySlug(slug: string): Promise<LandingPage | 
     const pages = await getLandingPages();
     return pages.find(p => p.slug === slug) || null;
 }
+
+/**
+ * Blog post (admin-managed, stored in tenant.settings.blog.posts)
+ */
+export interface BlogPost {
+    slug: string;
+    title: string;
+    excerpt?: string;
+    content?: string; // HTML content
+    coverImage?: string;
+    category?: string;
+    tags?: string[];
+    keywords?: string[];
+    author?: { name?: string; image?: string };
+    publishedAt?: string; // ISO date
+    updatedAt?: string;
+    status?: 'draft' | 'published';
+    readingTime?: number; // minutes
+}
+
+export async function getBlogPosts(): Promise<BlogPost[]> {
+    const { seo } = await getTenantData();
+    const blog: any = (seo as any).blog;
+    const posts: BlogPost[] = Array.isArray(blog?.posts) ? blog.posts : [];
+    // Only return published posts on public site
+    return posts
+        .filter(p => p.status !== 'draft')
+        .sort((a, b) => {
+            const da = a.publishedAt ? new Date(a.publishedAt).getTime() : 0;
+            const db = b.publishedAt ? new Date(b.publishedAt).getTime() : 0;
+            return db - da;
+        });
+}
+
+export async function getBlogPostBySlug(slug: string): Promise<BlogPost | null> {
+    const posts = await getBlogPosts();
+    return posts.find(p => p.slug === slug) || null;
+}
+
+export async function getBlogCategories(): Promise<string[]> {
+    const posts = await getBlogPosts();
+    const set = new Set<string>();
+    for (const p of posts) if (p.category) set.add(p.category);
+    return Array.from(set);
+}
+
+/**
+ * Build Article / BlogPosting JSON-LD for a blog post
+ */
+export function buildArticleJsonLd(opts: {
+    siteUrl: string;
+    post: BlogPost;
+    providerName: string;
+    providerLogo?: string;
+}) {
+    const { post, siteUrl, providerName, providerLogo } = opts;
+    const url = `${siteUrl}/blog/${post.slug}`;
+    const image = post.coverImage
+        ? (post.coverImage.startsWith('http') ? post.coverImage : `${siteUrl}${post.coverImage.startsWith('/') ? post.coverImage : '/' + post.coverImage}`)
+        : undefined;
+    return {
+        '@context': 'https://schema.org',
+        '@type': 'BlogPosting',
+        mainEntityOfPage: { '@type': 'WebPage', '@id': url },
+        headline: post.title,
+        description: post.excerpt,
+        image: image ? [image] : undefined,
+        datePublished: post.publishedAt,
+        dateModified: post.updatedAt || post.publishedAt,
+        author: {
+            '@type': 'Person',
+            name: post.author?.name || providerName,
+        },
+        publisher: {
+            '@type': 'Organization',
+            name: providerName,
+            logo: providerLogo ? { '@type': 'ImageObject', url: providerLogo } : undefined,
+        },
+        keywords: (post.keywords && post.keywords.length > 0) ? post.keywords.join(', ') : (post.tags || []).join(', '),
+        articleSection: post.category,
+    };
+}
+
+export function estimateReadingTime(html: string): number {
+    if (!html) return 1;
+    const text = html.replace(/<[^>]+>/g, ' ');
+    const words = text.trim().split(/\s+/).length;
+    return Math.max(1, Math.round(words / 200));
+}

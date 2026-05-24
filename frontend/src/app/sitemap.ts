@@ -100,6 +100,27 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         // ignore
     }
 
+    // Blog index + posts
+    const blogEntries: MetadataRoute.Sitemap = [];
+    const blogPosts = Array.isArray((seo as any).blog?.posts) ? (seo as any).blog.posts : [];
+    const publishedPosts = blogPosts.filter((p: any) => p?.slug && p?.status !== 'draft');
+    if (publishedPosts.length > 0) {
+        blogEntries.push({
+            url: `${baseUrl}/blog`,
+            lastModified: now,
+            changeFrequency: 'daily',
+            priority: 0.8,
+        });
+        for (const p of publishedPosts) {
+            blogEntries.push({
+                url: `${baseUrl}/blog/${p.slug}`,
+                lastModified: p.updatedAt ? new Date(p.updatedAt) : (p.publishedAt ? new Date(p.publishedAt) : now),
+                changeFrequency: 'weekly',
+                priority: 0.7,
+            });
+        }
+    }
+
     // Landing pages (admin-managed transfer location pages)
     const landingPages: MetadataRoute.Sitemap = [];
     if (Array.isArray((seo as any).landingPages)) {
@@ -136,5 +157,5 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         }
     }
 
-    return [...coreRoutes, ...landingPages, ...customPages, ...extraUrls];
+    return [...coreRoutes, ...blogEntries, ...landingPages, ...customPages, ...extraUrls];
 }
