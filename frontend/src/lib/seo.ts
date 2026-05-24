@@ -56,7 +56,11 @@ export interface TenantData {
     homepageStats?: any;
     homepageTestimonials?: Array<{ name?: string; rating?: number; comment?: string }>;
     homepageRoutes?: any[];
-    branding_logoUrl?: string;
+    contactPage?: {
+        heroTitle?: string; heroSubtitle?: string; phone?: string; email?: string;
+        address?: string; workingHours?: string[];
+        branches?: Array<{ name?: string; badge?: string; address?: string; phone?: string; hours?: string; mapEmbedUrl?: string }>;
+    };
 }
 
 function resolveServerApiUrl(): string {
@@ -119,6 +123,7 @@ export async function getTenantData(): Promise<TenantData> {
             homepageStats: settings.homepageStats || null,
             homepageTestimonials: Array.isArray(settings.homepageTestimonials) ? settings.homepageTestimonials : [],
             homepageRoutes: Array.isArray(settings.homepageRoutes) ? settings.homepageRoutes : [],
+            contactPage: settings.contactPage || {},
         };
         _tenantCache = { data: result, ts: Date.now() };
         return result;
@@ -288,4 +293,133 @@ export function buildAggregateRatingJsonLd(testimonials: Array<{ rating?: number
         bestRating: 5,
         worstRating: 1,
     };
+}
+
+/**
+ * Build individual Review JSON-LD entries
+ */
+export function buildReviewJsonLdArray(testimonials: Array<{ name?: string; rating?: number; comment?: string }>) {
+    if (!testimonials || testimonials.length === 0) return [];
+    return testimonials
+        .filter(t => t.comment && t.rating && t.rating > 0)
+        .slice(0, 10) // Cap at 10 reviews
+        .map(t => ({
+            '@type': 'Review',
+            reviewBody: t.comment,
+            reviewRating: {
+                '@type': 'Rating',
+                ratingValue: t.rating,
+                bestRating: 5,
+                worstRating: 1,
+            },
+            author: { '@type': 'Person', name: t.name || 'Anonim Müşteri' },
+        }));
+}
+
+/**
+ * Build LocalBusiness JSON-LD per branch
+ */
+export function buildLocalBusinessJsonLd(opts: {
+    name: string;
+    branch?: string;
+    description?: string;
+    url?: string;
+    image?: string;
+    telephone?: string;
+    email?: string;
+    address?: { street?: string; city?: string; country?: string };
+    openingHours?: string;
+    priceRange?: string;
+}) {
+    const ld: any = {
+        '@context': 'https://schema.org',
+        '@type': 'LocalBusiness',
+        '@id': opts.url ? `${opts.url}#${(opts.branch || 'main').toLowerCase().replace(/\s+/g, '-')}` : undefined,
+        name: opts.branch ? `${opts.name} — ${opts.branch}` : opts.name,
+        description: opts.description,
+        url: opts.url,
+        image: opts.image,
+        telephone: opts.telephone,
+        email: opts.email,
+        priceRange: opts.priceRange || '₺₺',
+    };
+    if (opts.address) {
+        ld.address = {
+            '@type': 'PostalAddress',
+            streetAddress: opts.address.street,
+            addressLocality: opts.address.city,
+            addressCountry: opts.address.country || 'TR',
+        };
+    }
+    if (opts.openingHours) {
+        ld.openingHours = opts.openingHours;
+    }
+    return ld;
+}
+
+/**
+ * Build Service JSON-LD per route (e.g. Istanbul Airport → Sultanahmet)
+ */
+export function buildRouteServiceJsonLd(opts: {
+    siteUrl: string;
+    fromName: string;
+    toName: string;
+    price?: number | string;
+    currency?: string;
+    image?: string;
+    providerName: string;
+    providerLogo?: string;
+}) {
+    const ld: any = {
+        '@context': 'https://schema.org',
+        '@type': 'TaxiService',
+        name: `${opts.fromName} → ${opts.toName} Transfer`,
+        description: `${opts.fromName} ile ${opts.toName} arası özel transfer hizmeti`,
+        provider: {
+            '@type': 'Organization',
+            name: opts.providerName,
+            logo: opts.providerLogo,
+        },
+        areaServed: 'TR',
+        serviceType: 'Transfer',
+        image: opts.image,
+    };
+    if (opts.price) {
+        ld.offers = {
+            '@type': 'Offer',
+            price: opts.price,
+            priceCurrency: opts.currency || 'EUR',
+            availability: 'https://schema.org/InStock',
+        };
+    }
+    return ld;
+}
+
+/**
+ * Landing Page definition (admin-managed)
+ */
+export interface LandingPage {
+    slug: string;
+    title: string;
+    h1?: string;
+    intro?: string;
+    heroImage?: string;
+    keywords?: string[];
+    description?: string;
+    sections?: Array<{ heading: string; body: string }>;
+    faq?: Array<{ question: string; answer: string }>;
+    cta?: { text: string; link: string };
+    relatedRoutes?: Array<{ from: string; to: string; price?: string; link?: string }>;
+    location?: { name: string; lat?: number; lng?: number };
+}
+
+export async function getLandingPages(): Promise<LandingPage[]> {
+    const { seo } = await getTenantData();
+    const pages = (seo as any).landingPages;
+    return Array.isArray(pages) ? pages : [];
+}
+
+export async function getLandingPageBySlug(slug: string): Promise<LandingPage | null> {
+    const pages = await getLandingPages();
+    return pages.find(p => p.slug === slug) || null;
 }

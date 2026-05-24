@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { buildPageMetadata } from '@/lib/seo';
+import BreadcrumbJsonLd from '../components/BreadcrumbJsonLd';
 
 export async function generateMetadata(): Promise<Metadata> {
     return buildPageMetadata({
@@ -15,5 +16,10 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default function TrackLayout({ children }: { children: React.ReactNode }) {
-    return children;
+    return (
+        <>
+            <BreadcrumbJsonLd items={[{ name: 'Rezervasyon Sorgula', path: '/track' }]} />
+            {children}
+        </>
+    );
 }

@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { buildPageMetadata } from '@/lib/seo';
+import ContactJsonLd from '../components/ContactJsonLd';
 
 export async function generateMetadata(): Promise<Metadata> {
     return buildPageMetadata({
@@ -15,5 +16,10 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default function ContactLayout({ children }: { children: React.ReactNode }) {
-    return children;
+    return (
+        <>
+            <ContactJsonLd />
+            {children}
+        </>
+    );
 }

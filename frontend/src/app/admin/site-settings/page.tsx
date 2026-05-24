@@ -191,6 +191,15 @@ const SiteSettingsPage: React.FC = () => {
         extraUrls: string[];
         languages: string[];
         pages: Record<string, { title?: string; description?: string; keywords?: string[]; ogImage?: string; canonical?: string; noindex?: boolean }>;
+        landingPages: Array<{
+            slug: string; title: string; h1?: string; intro?: string; description?: string;
+            heroImage?: string; keywords?: string[];
+            sections?: Array<{ heading: string; body: string }>;
+            faq?: Array<{ question: string; answer: string }>;
+            relatedRoutes?: Array<{ from: string; to: string; price?: string; link?: string }>;
+            cta?: { text?: string; link?: string };
+            updatedAt?: string;
+        }>;
     }>({
         siteUrl: '',
         defaultTitle: '',
@@ -210,7 +219,8 @@ const SiteSettingsPage: React.FC = () => {
         extraUrls: [],
         languages: [],
         pages: {},
-    } as any);
+        landingPages: [],
+    });
     const [seoSaving, setSeoSaving] = useState(false);
     const [seoOgUploading, setSeoOgUploading] = useState(false);
 
@@ -287,6 +297,7 @@ const SiteSettingsPage: React.FC = () => {
                         extraUrls: Array.isArray(settings.seo.extraUrls) ? settings.seo.extraUrls : [],
                         languages: Array.isArray(settings.seo.languages) ? settings.seo.languages : [],
                         pages: settings.seo.pages && typeof settings.seo.pages === 'object' ? settings.seo.pages : {},
+                        landingPages: Array.isArray(settings.seo.landingPages) ? settings.seo.landingPages : [],
                     }));
                 }
                 if (settings.contactPage) {
@@ -2216,6 +2227,251 @@ const SiteSettingsPage: React.FC = () => {
                                                     unCheckedChildren="Görünür"
                                                 />
                                             </Form.Item>
+                                        </Col>
+                                    </Row>
+                                </Card>
+                            );
+                        })}
+                    </Card>
+
+                    <Card
+                        title="Konum Bazlı Landing Pages"
+                        variant="borderless"
+                        extra={
+                            <Button
+                                type="dashed"
+                                icon={<PlusOutlined />}
+                                onClick={() => setSeo(p => ({
+                                    ...p,
+                                    landingPages: [
+                                        ...(p.landingPages || []),
+                                        {
+                                            slug: `yeni-sayfa-${Date.now()}`,
+                                            title: 'Yeni Landing Page',
+                                            h1: '',
+                                            intro: '',
+                                            description: '',
+                                            heroImage: '',
+                                            keywords: [],
+                                            sections: [],
+                                            faq: [],
+                                            relatedRoutes: [],
+                                            cta: { text: 'Rezervasyon Yap', link: '/transfer/book' },
+                                        },
+                                    ],
+                                }))}
+                            >
+                                Yeni Landing Page
+                            </Button>
+                        }
+                    >
+                        <Alert
+                            type="info"
+                            showIcon
+                            style={{ marginBottom: 16 }}
+                            message="SEO Long-tail Trafiği için Konum Sayfaları"
+                            description={<>Her landing page <code>/transfer/&lt;slug&gt;</code> adresinde yayınlanır. Örn: <code>/transfer/istanbul-havalimani-sultanahmet</code>. Sitemap'e otomatik eklenir, kendi başlığı, açıklaması ve FAQ'i olur.</>}
+                        />
+
+                        {(seo.landingPages || []).length === 0 && (
+                            <div style={{ textAlign: 'center', padding: 32, color: '#94a3b8', fontSize: 14 }}>
+                                Henüz landing page eklenmemiş. Yukarıdaki butonla başlayın.
+                            </div>
+                        )}
+
+                        {(seo.landingPages || []).map((lp, idx) => {
+                            const update = (field: string, value: any) => {
+                                setSeo(p => {
+                                    const arr = [...(p.landingPages || [])];
+                                    arr[idx] = { ...arr[idx], [field]: value, updatedAt: new Date().toISOString() };
+                                    return { ...p, landingPages: arr };
+                                });
+                            };
+                            const remove = () => {
+                                if (!confirm(`"${lp.title}" landing page silinsin mi?`)) return;
+                                setSeo(p => ({ ...p, landingPages: (p.landingPages || []).filter((_, i) => i !== idx) }));
+                            };
+                            return (
+                                <Card
+                                    key={idx}
+                                    size="small"
+                                    style={{ marginBottom: 12, background: '#fafafa' }}
+                                    title={
+                                        <Space>
+                                            <GlobalOutlined style={{ color: '#667eea' }} />
+                                            <Text strong>{lp.title || 'İsimsiz'}</Text>
+                                            <Text type="secondary" style={{ fontSize: 12 }}>/transfer/{lp.slug}</Text>
+                                        </Space>
+                                    }
+                                    extra={
+                                        <Space>
+                                            <Button size="small" type="link" href={`/transfer/${lp.slug}`} target="_blank">Önizle</Button>
+                                            <Button size="small" danger type="text" icon={<DeleteOutlined />} onClick={remove} />
+                                        </Space>
+                                    }
+                                >
+                                    <Row gutter={12}>
+                                        <Col xs={24} md={8}>
+                                            <Form.Item label="URL Slug" style={{ marginBottom: 8 }} extra="Sadece harf, rakam ve tire">
+                                                <Input
+                                                    value={lp.slug}
+                                                    onChange={e => update('slug', e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-'))}
+                                                    placeholder="istanbul-havalimani-sultanahmet"
+                                                />
+                                            </Form.Item>
+                                        </Col>
+                                        <Col xs={24} md={16}>
+                                            <Form.Item label="Title (SEO Başlık)" style={{ marginBottom: 8 }}>
+                                                <Input value={lp.title} onChange={e => update('title', e.target.value)} placeholder="İstanbul Havalimanı Sultanahmet Transfer" maxLength={70} showCount />
+                                            </Form.Item>
+                                        </Col>
+                                        <Col xs={24}>
+                                            <Form.Item label="H1 Başlık (sayfa içi)" style={{ marginBottom: 8 }}>
+                                                <Input value={lp.h1 || ''} onChange={e => update('h1', e.target.value)} placeholder="Boş ise Title kullanılır" />
+                                            </Form.Item>
+                                        </Col>
+                                        <Col xs={24}>
+                                            <Form.Item label="Description (SEO)" style={{ marginBottom: 8 }}>
+                                                <Input.TextArea value={lp.description || ''} onChange={e => update('description', e.target.value)} rows={2} maxLength={170} showCount placeholder="Arama sonuçlarında görünecek özet" />
+                                            </Form.Item>
+                                        </Col>
+                                        <Col xs={24}>
+                                            <Form.Item label="Intro / Giriş Paragrafı" style={{ marginBottom: 8 }}>
+                                                <Input.TextArea value={lp.intro || ''} onChange={e => update('intro', e.target.value)} rows={3} placeholder="Hero altında görünecek tanıtım metni" />
+                                            </Form.Item>
+                                        </Col>
+                                        <Col xs={24} md={12}>
+                                            <Form.Item label="Hero Görsel URL" style={{ marginBottom: 8 }}>
+                                                <Input value={lp.heroImage || ''} onChange={e => update('heroImage', e.target.value)} placeholder="/uploads/... veya https://..." />
+                                            </Form.Item>
+                                        </Col>
+                                        <Col xs={24} md={12}>
+                                            <Form.Item label="Anahtar Kelimeler" style={{ marginBottom: 8 }}>
+                                                <Select
+                                                    mode="tags"
+                                                    value={lp.keywords || []}
+                                                    onChange={(v: string[]) => update('keywords', v)}
+                                                    placeholder="Long-tail keyword'ler"
+                                                    style={{ width: '100%' }}
+                                                    tokenSeparators={[',']}
+                                                />
+                                            </Form.Item>
+                                        </Col>
+                                        <Col xs={24}>
+                                            <details style={{ marginTop: 8 }}>
+                                                <summary style={{ cursor: 'pointer', fontWeight: 600, color: '#475569', padding: '8px 0' }}>İçerik Bölümleri ({(lp.sections || []).length}) + FAQ ({(lp.faq || []).length}) + Popüler Rotalar ({(lp.relatedRoutes || []).length})</summary>
+                                                <div style={{ padding: '12px 0' }}>
+                                                    {/* Sections */}
+                                                    <div style={{ marginBottom: 16 }}>
+                                                        <Text strong style={{ display: 'block', marginBottom: 8 }}>İçerik Bölümleri (H2 + paragraf)</Text>
+                                                        {(lp.sections || []).map((s, si) => (
+                                                            <Row key={si} gutter={8} style={{ marginBottom: 8 }}>
+                                                                <Col xs={24} md={8}>
+                                                                    <Input value={s.heading} onChange={e => {
+                                                                        const arr = [...(lp.sections || [])];
+                                                                        arr[si] = { ...arr[si], heading: e.target.value };
+                                                                        update('sections', arr);
+                                                                    }} placeholder="Başlık (H2)" />
+                                                                </Col>
+                                                                <Col xs={20} md={15}>
+                                                                    <Input.TextArea value={s.body} onChange={e => {
+                                                                        const arr = [...(lp.sections || [])];
+                                                                        arr[si] = { ...arr[si], body: e.target.value };
+                                                                        update('sections', arr);
+                                                                    }} placeholder="Paragraf" rows={2} />
+                                                                </Col>
+                                                                <Col xs={4} md={1}>
+                                                                    <Button danger type="text" icon={<DeleteOutlined />} onClick={() => {
+                                                                        update('sections', (lp.sections || []).filter((_, i) => i !== si));
+                                                                    }} />
+                                                                </Col>
+                                                            </Row>
+                                                        ))}
+                                                        <Button size="small" type="dashed" icon={<PlusOutlined />} onClick={() => update('sections', [...(lp.sections || []), { heading: '', body: '' }])}>Bölüm Ekle</Button>
+                                                    </div>
+
+                                                    {/* FAQ */}
+                                                    <div style={{ marginBottom: 16 }}>
+                                                        <Text strong style={{ display: 'block', marginBottom: 8 }}>FAQ (Sıkça Sorulan Sorular)</Text>
+                                                        {(lp.faq || []).map((f, fi) => (
+                                                            <Row key={fi} gutter={8} style={{ marginBottom: 8 }}>
+                                                                <Col xs={24} md={9}>
+                                                                    <Input value={f.question} onChange={e => {
+                                                                        const arr = [...(lp.faq || [])];
+                                                                        arr[fi] = { ...arr[fi], question: e.target.value };
+                                                                        update('faq', arr);
+                                                                    }} placeholder="Soru" />
+                                                                </Col>
+                                                                <Col xs={20} md={14}>
+                                                                    <Input.TextArea value={f.answer} onChange={e => {
+                                                                        const arr = [...(lp.faq || [])];
+                                                                        arr[fi] = { ...arr[fi], answer: e.target.value };
+                                                                        update('faq', arr);
+                                                                    }} placeholder="Cevap" rows={2} />
+                                                                </Col>
+                                                                <Col xs={4} md={1}>
+                                                                    <Button danger type="text" icon={<DeleteOutlined />} onClick={() => update('faq', (lp.faq || []).filter((_, i) => i !== fi))} />
+                                                                </Col>
+                                                            </Row>
+                                                        ))}
+                                                        <Button size="small" type="dashed" icon={<PlusOutlined />} onClick={() => update('faq', [...(lp.faq || []), { question: '', answer: '' }])}>FAQ Ekle</Button>
+                                                    </div>
+
+                                                    {/* Related Routes */}
+                                                    <div style={{ marginBottom: 16 }}>
+                                                        <Text strong style={{ display: 'block', marginBottom: 8 }}>İlgili Rotalar</Text>
+                                                        {(lp.relatedRoutes || []).map((r, ri) => (
+                                                            <Row key={ri} gutter={8} style={{ marginBottom: 8 }}>
+                                                                <Col xs={11} md={7}>
+                                                                    <Input value={r.from} onChange={e => {
+                                                                        const arr = [...(lp.relatedRoutes || [])];
+                                                                        arr[ri] = { ...arr[ri], from: e.target.value };
+                                                                        update('relatedRoutes', arr);
+                                                                    }} placeholder="Nereden" />
+                                                                </Col>
+                                                                <Col xs={11} md={7}>
+                                                                    <Input value={r.to} onChange={e => {
+                                                                        const arr = [...(lp.relatedRoutes || [])];
+                                                                        arr[ri] = { ...arr[ri], to: e.target.value };
+                                                                        update('relatedRoutes', arr);
+                                                                    }} placeholder="Nereye" />
+                                                                </Col>
+                                                                <Col xs={11} md={4}>
+                                                                    <Input value={r.price || ''} onChange={e => {
+                                                                        const arr = [...(lp.relatedRoutes || [])];
+                                                                        arr[ri] = { ...arr[ri], price: e.target.value };
+                                                                        update('relatedRoutes', arr);
+                                                                    }} placeholder="Fiyat €" />
+                                                                </Col>
+                                                                <Col xs={9} md={5}>
+                                                                    <Input value={r.link || ''} onChange={e => {
+                                                                        const arr = [...(lp.relatedRoutes || [])];
+                                                                        arr[ri] = { ...arr[ri], link: e.target.value };
+                                                                        update('relatedRoutes', arr);
+                                                                    }} placeholder="Link (opsiyonel)" />
+                                                                </Col>
+                                                                <Col xs={4} md={1}>
+                                                                    <Button danger type="text" icon={<DeleteOutlined />} onClick={() => update('relatedRoutes', (lp.relatedRoutes || []).filter((_, i) => i !== ri))} />
+                                                                </Col>
+                                                            </Row>
+                                                        ))}
+                                                        <Button size="small" type="dashed" icon={<PlusOutlined />} onClick={() => update('relatedRoutes', [...(lp.relatedRoutes || []), { from: '', to: '', price: '', link: '' }])}>Rota Ekle</Button>
+                                                    </div>
+
+                                                    {/* CTA */}
+                                                    <div>
+                                                        <Text strong style={{ display: 'block', marginBottom: 8 }}>CTA Butonu</Text>
+                                                        <Row gutter={8}>
+                                                            <Col xs={24} md={12}>
+                                                                <Input value={lp.cta?.text || ''} onChange={e => update('cta', { ...(lp.cta || {}), text: e.target.value })} placeholder="Buton Metni" />
+                                                            </Col>
+                                                            <Col xs={24} md={12}>
+                                                                <Input value={lp.cta?.link || ''} onChange={e => update('cta', { ...(lp.cta || {}), link: e.target.value })} placeholder="/transfer/book" />
+                                                            </Col>
+                                                        </Row>
+                                                    </div>
+                                                </div>
+                                            </details>
                                         </Col>
                                     </Row>
                                 </Card>

@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { buildPageMetadata } from '@/lib/seo';
+import BreadcrumbJsonLd from '../../components/BreadcrumbJsonLd';
 
 export async function generateMetadata(): Promise<Metadata> {
     return buildPageMetadata({
@@ -15,5 +16,13 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default function BookLayout({ children }: { children: React.ReactNode }) {
-    return children;
+    return (
+        <>
+            <BreadcrumbJsonLd items={[
+                { name: 'Transfer', path: '/transfer/book' },
+                { name: 'Rezervasyon', path: '/transfer/book' },
+            ]} />
+            {children}
+        </>
+    );
 }

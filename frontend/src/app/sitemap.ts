@@ -100,7 +100,21 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         // ignore
     }
 
-    // SEO-defined extra URLs (location landing pages, etc.)
+    // Landing pages (admin-managed transfer location pages)
+    const landingPages: MetadataRoute.Sitemap = [];
+    if (Array.isArray((seo as any).landingPages)) {
+        for (const lp of (seo as any).landingPages) {
+            if (!lp?.slug) continue;
+            landingPages.push({
+                url: `${baseUrl}/transfer/${lp.slug}`,
+                lastModified: lp.updatedAt ? new Date(lp.updatedAt) : now,
+                changeFrequency: 'weekly',
+                priority: 0.85,
+            });
+        }
+    }
+
+    // SEO-defined extra URLs (other custom URLs)
     const extraUrls: MetadataRoute.Sitemap = [];
     if (Array.isArray(seo.extraUrls)) {
         for (const u of seo.extraUrls) {
@@ -122,5 +136,5 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         }
     }
 
-    return [...coreRoutes, ...customPages, ...extraUrls];
+    return [...coreRoutes, ...landingPages, ...customPages, ...extraUrls];
 }

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import {
   Layout,
   Typography,
@@ -958,7 +959,15 @@ const HomePage: React.FC = () => {
                       {routesData.map((route, i) => (
                         <Col xs={12} sm={12} md={6} key={i}>
                           <div className="hp-route-card">
-                            <img src={route.img && !route.img.startsWith('http') ? getImageUrl(route.img) : route.img} alt={route.to} loading="lazy" />
+                            <Image
+                              src={(route.img && !route.img.startsWith('http') ? getImageUrl(route.img) : route.img) || '/vehicles/placeholder.svg'}
+                              alt={`${route.from} - ${route.to} transfer`}
+                              width={400}
+                              height={300}
+                              sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+                              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                              priority={i < 4}
+                            />
                             <div className="hp-route-overlay">
                               <div className="hp-route-price">{route.price} EUR {t('routes.from')}</div>
                               <div className="hp-route-dest">{route.to}</div>
