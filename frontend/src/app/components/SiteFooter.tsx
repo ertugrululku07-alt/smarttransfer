@@ -17,7 +17,7 @@ import { useBranding } from '../context/BrandingContext';
 import { useTheme } from '../context/ThemeContext';
 import { useLanguage } from '../context/LanguageContext';
 import { getImageUrl } from '@/lib/api-client';
-import apiClient from '@/lib/api-client';
+import { fetchTenantInfo } from '@/lib/tenant-info-cache';
 
 const { Text, Title } = Typography;
 
@@ -29,7 +29,7 @@ const SiteFooter: React.FC = () => {
     const [tursab, setTursab] = useState<{ enabled: boolean; belgeNo: string; verificationUrl: string }>({ enabled: false, belgeNo: '', verificationUrl: '' });
 
     useEffect(() => {
-        apiClient.get('/api/tenant/info').then(res => {
+        fetchTenantInfo().then(res => {
             if (res.data.success) {
                 const settings = res.data.data.tenant.settings || {};
                 setSocialMedia(settings.socialMedia || {});

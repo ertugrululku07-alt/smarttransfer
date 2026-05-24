@@ -56,6 +56,7 @@ import {
 } from '@ant-design/icons';
 import dayjs, { Dayjs } from 'dayjs';
 import apiClient, { getImageUrl } from '@/lib/api-client';
+import { fetchTenantInfo } from '@/lib/tenant-info-cache';
 
 // ─── Havalimanı Tespiti ───
 const AIRPORT_CODES = [
@@ -191,7 +192,7 @@ const HomePage: React.FC = () => {
       try {
         const [imagesRes, infoRes] = await Promise.all([
           apiClient.get('/api/tenant/hero-images'),
-          apiClient.get('/api/tenant/info')
+          fetchTenantInfo()
         ]);
 
         if (infoRes.data.success && infoRes.data.data.tenant.settings?.googleMaps) {
@@ -217,11 +218,6 @@ const HomePage: React.FC = () => {
 
         if (imagesRes.data.success && imagesRes.data.data.heroImages?.length > 0) {
           setHeroImages(imagesRes.data.data.heroImages);
-        } else {
-          setHeroImages([
-            'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?ixlib=rb-4.0.3&auto=format&fit=crop&w=2021&q=80',
-            'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80'
-          ]);
         }
       } catch (error) {
         console.error('Config load error:', error);
@@ -910,12 +906,8 @@ const HomePage: React.FC = () => {
               );
             }
             case 'stats': {
-              const statsData = statsItems.length > 0 ? statsItems : [
-                { num: '50,000+', label: t('stats.passengers') },
-                { num: '200+', label: t('stats.drivers') },
-                { num: '50+', label: t('stats.zones') },
-                { num: '4.9/5', label: t('stats.rating') },
-              ];
+              if (statsItems.length === 0) return null;
+              const statsData = statsItems;
               return (
                 <div key="stats" style={{ background: theme.statsGradient, padding: 'clamp(48px, 6vw, 72px) 16px' }}>
                   <div style={{ maxWidth: 1000, margin: '0 auto' }}>
@@ -933,12 +925,8 @@ const HomePage: React.FC = () => {
               );
             }
             case 'popularRoutes': {
-              const routesData = routeItems.length > 0 ? routeItems : [
-                { from: 'Antalya Havalimanı', to: 'Kemer', img: 'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?q=80&w=800&auto=format&fit=crop', price: '35' },
-                { from: 'İstanbul Havalimanı', to: 'Taksim', img: 'https://images.unsplash.com/photo-1524231757912-21f4fe3a7200?q=80&w=800&auto=format&fit=crop', price: '45' },
-                { from: 'Dalaman Havalimanı', to: 'Fethiye', img: 'https://images.unsplash.com/photo-1519046904884-53103b34b206?q=80&w=800&auto=format&fit=crop', price: '55' },
-                { from: 'Bodrum Havalimanı', to: 'Bodrum', img: 'https://images.unsplash.com/photo-1573790389818-adb13b9d4742?q=80&w=800&auto=format&fit=crop', price: '40' },
-              ];
+              if (routeItems.length === 0) return null;
+              const routesData = routeItems;
               return (
                 <div key="popularRoutes" style={{ background: '#f8fafc', padding: 'clamp(32px, 4vw, 48px) 16px' }}>
                   <style>{`
@@ -985,6 +973,7 @@ const HomePage: React.FC = () => {
               );
             }
             case 'testimonials':
+              if (testimonialItems.length === 0) return null;
               return (
                 <div key="testimonials" style={{ background: '#fff', padding: 'clamp(28px, 4vw, 48px) 16px' }}>
                   <style>{`
@@ -999,11 +988,7 @@ const HomePage: React.FC = () => {
                       <Title level={2} style={{ fontFamily: 'var(--font-playfair, Georgia, serif)', fontSize: 'clamp(1.8rem, 4vw, 2.8rem)', color: '#0f172a', marginBottom: 0, marginTop: 0 }}>{t('testimonials.title')}</Title>
                     </div>
                     <Row gutter={[24, 24]}>
-                      {(testimonialItems.length > 0 ? testimonialItems : [
-                        { name: 'Ahmet Y.', text: t('testimonials.review1'), rating: 5, city: 'İstanbul' },
-                        { name: 'Maria S.', text: t('testimonials.review2'), rating: 5, city: 'Berlin' },
-                        { name: 'Fatma K.', text: t('testimonials.review3', { name: fullName }), rating: 5, city: 'Ankara' },
-                      ]).map((review, i) => (
+                      {testimonialItems.map((review, i) => (
                         <Col xs={24} md={8} key={i}>
                           <div className="hp-testimonial-card">
                             <div className="hp-stars">{'★'.repeat(review.rating)}</div>

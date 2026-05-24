@@ -1,11 +1,7 @@
 'use client';
-import { API_URL } from '@/lib/api-client';
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import axios from 'axios';
-
-
-const TENANT_SLUG = (process.env.NEXT_PUBLIC_TENANT_SLUG || 'smarttravel-demo').replace(/[\r\n]+/g, '').trim();
+import { fetchTenantInfo } from '@/lib/tenant-info-cache';
 
 export interface LogoVariants {
   original?: string;
@@ -63,9 +59,7 @@ export const BrandingProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const fetchBranding = async () => {
     try {
-      const res = await axios.get(`${API_URL}/api/tenant/info`, {
-        headers: { 'X-Tenant-Slug': TENANT_SLUG }
-      });
+      const res = await fetchTenantInfo();
       if (res.data.success) {
         const saved = res.data.data.tenant.settings?.branding;
         if (saved) {

@@ -28,6 +28,7 @@ import {
   YoutubeOutlined,
 } from '@ant-design/icons';
 import apiClient, { getImageUrl } from '@/lib/api-client';
+import { fetchTenantInfo } from '@/lib/tenant-info-cache';
 import { useTheme } from '@/app/context/ThemeContext';
 import { useBranding } from '@/app/context/BrandingContext';
 import TopBar from '@/app/components/TopBar';
@@ -104,7 +105,7 @@ const ContactPage: React.FC = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const res = await apiClient.get('/api/tenant/info');
+        const res = await fetchTenantInfo();
         if (res.data.success) {
           const settings = res.data.data.tenant.settings || {};
           if (settings.contactPage) {

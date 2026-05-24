@@ -1,8 +1,8 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import apiClient from '@/lib/api-client';
 import { populateDefinitionsCache } from '@/app/hooks/useDefinitions';
+import { fetchTenantInfo } from '@/lib/tenant-info-cache';
 
 interface Currency {
   code: string;
@@ -62,7 +62,7 @@ export const CurrencyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     const fetchCurrencies = async () => {
       try {
-        const res = await apiClient.get('/api/tenant/info');
+        const res = await fetchTenantInfo();
         if (res.data.success && res.data.data.tenant?.settings?.definitions?.currencies) {
           const defs = res.data.data.tenant.settings.definitions;
           const fetchedCurrencies = defs.currencies;

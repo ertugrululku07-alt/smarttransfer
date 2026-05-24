@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Layout,
   Menu,
@@ -12,6 +12,9 @@ import {
   Button,
   Typography,
   Calendar,
+  Empty,
+  Spin,
+  message,
 } from 'antd';
 import {
   CarOutlined,
@@ -20,52 +23,111 @@ import {
   DollarCircleOutlined,
   LogoutOutlined,
 } from '@ant-design/icons';
+import apiClient from '@/lib/api-client';
 
 const { Header, Sider, Content } = Layout;
 const { Title, Text } = Typography;
 
+type DashboardStats = {
+  todayJobs: number;
+  completedJobs: number;
+  rating: number;
+  ratingCount: number;
+};
+
+type DriverBooking = {
+  id: string;
+  bookingNumber?: string;
+  startDate?: string;
+  status?: string;
+  pickup?: string;
+  dropoff?: string;
+  fullName?: string;
+  passengerName?: string;
+  metadata?: any;
+};
+
+const statusColor = (status?: string) => {
+  switch ((status || '').toUpperCase()) {
+    case 'PENDING':
+      return 'orange';
+    case 'CONFIRMED':
+    case 'ASSIGNED':
+      return 'geekblue';
+    case 'IN_PROGRESS':
+    case 'EN_ROUTE':
+      return 'blue';
+    case 'COMPLETED':
+      return 'green';
+    case 'CANCELLED':
+      return 'red';
+    default:
+      return 'default';
+  }
+};
+
+const formatTime = (iso?: string) => {
+  if (!iso) return '';
+  try {
+    return new Date(iso).toLocaleString('tr-TR', {
+      timeZone: 'Europe/Istanbul',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  } catch {
+    return '';
+  }
+};
+
 const DriverDashboard: React.FC = () => {
   const [collapsed, setCollapsed] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [todayTransfers, setTodayTransfers] = useState<DriverBooking[]>([]);
+  const [profileName, setProfileName] = useState<string>('');
 
-  // Şimdilik dummy veriler – ileride backend’e bağlarız
-  const todayTransfers = [
-    {
-      id: 1,
-      time: '10:30',
-      from: 'IST Havalimanı',
-      to: 'Taksim Otel',
-      passenger: 'Ali Demir',
-      status: 'Bekliyor',
-    },
-    {
-      id: 2,
-      time: '14:00',
-      from: 'Taksim Otel',
-      to: 'SAW Havalimanı',
-      passenger: 'Ayşe Yılmaz',
-      status: 'Yolda',
-    },
-  ];
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const [dashRes, bookingsRes, profileRes] = await Promise.all([
+          apiClient.get('/api/driver/dashboard').catch((e) => ({ error: e })),
+          apiClient.get('/api/driver/bookings', { params: { type: 'today' } }).catch((e) => ({ error: e })),
+          apiClient.get('/api/driver/profile').catch((e) => ({ error: e })),
+        ]);
+        if (cancelled) return;
 
-  const stats = [
-    { title: 'Bugünkü Transferler', value: 5 },
-    { title: 'Tamamlanan', value: 3 },
-    { title: 'Bekleyen', value: 2 },
-    { title: 'Bugünkü Kazanç', value: '₺1.250' },
-  ];
+        if ((dashRes as any).data?.success) {
+          setStats((dashRes as any).data.data);
+        }
+        if ((bookingsRes as any).data?.success) {
+          const list = (bookingsRes as any).data.data?.bookings || (bookingsRes as any).data.data || [];
+          setTodayTransfers(Array.isArray(list) ? list : []);
+        }
+        if ((profileRes as any).data?.success) {
+          const u = (profileRes as any).data.data?.user || (profileRes as any).data.data || {};
+          setProfileName(u.fullName || u.name || u.email || '');
+        }
+      } catch (err: any) {
+        message.error('Veriler yüklenemedi');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'Bekliyor':
-        return 'orange';
-      case 'Yolda':
-        return 'blue';
-      case 'Tamamlandı':
-        return 'green';
-      default:
-        return 'default';
-    }
-  };
+  const statCards = stats
+    ? [
+        { title: 'Bugünkü Transferler', value: stats.todayJobs },
+        { title: 'Tamamlanan', value: stats.completedJobs },
+        { title: 'Puan', value: stats.rating > 0 ? `${stats.rating.toFixed(1)} / 5` : '—' },
+        { title: 'Değerlendirme Sayısı', value: stats.ratingCount },
+      ]
+    : [];
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
@@ -118,72 +180,81 @@ const DriverDashboard: React.FC = () => {
             Sürücü Dashboard
           </Title>
           <div>
-            <Text strong>Hoş geldin, Demo Sürücü</Text>
+            <Text strong>{profileName ? `Hoş geldin, ${profileName}` : 'Hoş geldin'}</Text>
           </div>
         </Header>
 
         <Content style={{ margin: '16px' }}>
-          {/* Üst İstatistik Kartları */}
-          <Row gutter={[16, 16]}>
-            {stats.map((s) => (
-              <Col xs={24} sm={12} md={6} key={s.title}>
-                <Card>
-                  <Text type="secondary">{s.title}</Text>
-                  <Title level={3} style={{ marginTop: 8 }}>
-                    {s.value}
-                  </Title>
-                </Card>
-              </Col>
-            ))}
-          </Row>
+          {loading ? (
+            <div style={{ textAlign: 'center', padding: 64 }}>
+              <Spin size="large" />
+            </div>
+          ) : (
+            <>
+              <Row gutter={[16, 16]}>
+                {statCards.map((s) => (
+                  <Col xs={24} sm={12} md={6} key={s.title}>
+                    <Card>
+                      <Text type="secondary">{s.title}</Text>
+                      <Title level={3} style={{ marginTop: 8 }}>
+                        {s.value}
+                      </Title>
+                    </Card>
+                  </Col>
+                ))}
+              </Row>
 
-          <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
-            {/* Bugünkü Transferler */}
-            <Col xs={24} md={14}>
-              <Card title="Bugünkü Transferler">
-                <List
-                  itemLayout="horizontal"
-                  dataSource={todayTransfers}
-                  renderItem={(item) => (
-                    <List.Item
-                      actions={[
-                        <Button size="small" type="link" key="detail">
-                          Detay
-                        </Button>,
-                        <Button
-                          size="small"
-                          type="primary"
-                          key="status"
-                        >
-                          Durumu Güncelle
-                        </Button>,
-                      ]}
-                    >
-                      <List.Item.Meta
-                        title={`${item.time} - ${item.from} → ${item.to}`}
-                        description={
-                          <>
-                            <Text>Yolcu: {item.passenger}</Text>
-                            <br />
-                            <Tag color={getStatusColor(item.status)}>
-                              {item.status}
-                            </Tag>
-                          </>
-                        }
+              <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
+                <Col xs={24} md={14}>
+                  <Card title="Bugünkü Transferler">
+                    {todayTransfers.length === 0 ? (
+                      <Empty description="Bugün için atanmış transfer yok" />
+                    ) : (
+                      <List
+                        itemLayout="horizontal"
+                        dataSource={todayTransfers}
+                        renderItem={(item) => {
+                          const passenger =
+                            item.passengerName ||
+                            item.fullName ||
+                            item.metadata?.fullName ||
+                            '—';
+                          return (
+                            <List.Item
+                              actions={[
+                                <Button size="small" type="link" key="detail">
+                                  Detay
+                                </Button>,
+                              ]}
+                            >
+                              <List.Item.Meta
+                                title={`${formatTime(item.startDate)} — ${item.pickup || '?'} → ${item.dropoff || '?'}`}
+                                description={
+                                  <>
+                                    <Text>Yolcu: {passenger}</Text>
+                                    <br />
+                                    <Tag color={statusColor(item.status)}>
+                                      {item.status || 'BEKLİYOR'}
+                                    </Tag>
+                                  </>
+                                }
+                              />
+                            </List.Item>
+                          );
+                        }}
                       />
-                    </List.Item>
-                  )}
-                />
-              </Card>
-            </Col>
+                    )}
+                  </Card>
+                </Col>
 
-            {/* Takvim */}
-            <Col xs={24} md={10}>
-              <Card title="Takvim">
-                <Calendar fullscreen={false} />
-              </Card>
-            </Col>
-          </Row>
+                <Col xs={24} md={10}>
+                  <Card title="Takvim">
+                    <Calendar fullscreen={false} />
+                  </Card>
+                </Col>
+              </Row>
+            </>
+          )}
         </Content>
       </Layout>
     </Layout>

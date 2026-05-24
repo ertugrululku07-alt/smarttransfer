@@ -1,11 +1,7 @@
 'use client';
-import { API_URL } from '@/lib/api-client';
 
 import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
-import axios from 'axios';
-
-
-const TENANT_SLUG = (process.env.NEXT_PUBLIC_TENANT_SLUG || 'smarttravel-demo').replace(/[\r\n]+/g, '').trim();
+import { fetchTenantInfo } from '@/lib/tenant-info-cache';
 
 export interface SiteTheme {
   key: string;
@@ -224,9 +220,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   useEffect(() => {
     const fetchTheme = async () => {
       try {
-        const res = await axios.get(`${API_URL}/api/tenant/info`, {
-          headers: { 'X-Tenant-Slug': TENANT_SLUG }
-        });
+        const res = await fetchTenantInfo();
         if (res.data.success) {
           const savedTheme = res.data.data.tenant.settings?.siteTheme;
           const savedCustomTheme = res.data.data.tenant.settings?.customTheme;

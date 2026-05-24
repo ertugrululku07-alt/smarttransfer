@@ -1536,7 +1536,8 @@ export default function OperationsPage() {
             if (response.data.success) {
                 let data = response.data.data;
 
-                // MOCKDATA: Enrich data with missing fields for UI demo
+                // Normalize backend response shape for UI table consumption.
+                // Pulls driver/vehicle/UETDS info from API when present, falls back to empty-state labels.
                 data = data.map((item: any) => {
                     // Fix Backend Format Mismatch (Backend returns string, UI expects object or check)
                     const pickupVal = typeof item.pickup === 'string' ? item.pickup : (item.pickup?.location || '');
@@ -1569,10 +1570,10 @@ export default function OperationsPage() {
                         dropoff: typeof item.dropoff === 'string' ? { location: item.dropoff, rawLocation: item.dropoff } : item.dropoff,
                         direction,
                         transferType: isShuttle ? 'SHUTTLE' : 'PRIVATE',
-                        driverName: 'Atanmadı',
-                        plateNumber: '-',
-                        passport: '-',
-                        uetds: 'Gönderilmedi',
+                        driverName: item.driver?.fullName || item.driver?.name || item.driverName || item.metadata?.driverName || 'Atanmadı',
+                        plateNumber: item.vehicle?.plateNumber || item.assignedVehicle?.plateNumber || item.plateNumber || item.metadata?.plateNumber || '-',
+                        passport: item.passport || item.metadata?.passport || '-',
+                        uetds: item.uetdsStatus || item.metadata?.uetds?.status || 'Gönderilmedi',
                         agencyNote: item.notes || item.metadata?.agencyNotes || '',
                         pax: (item.adults || 1) + (item.children || 0) + (item.infants || 0),
                         vehicleId: item.assignedVehicleId || item.metadata?.vehicleId || null,

@@ -14,6 +14,7 @@ import {
 } from '@ant-design/icons';
 import { useRouter, useSearchParams } from 'next/navigation';
 import apiClient, { getImageUrl } from '@/lib/api-client';
+import { fetchTenantInfo } from '@/lib/tenant-info-cache';
 import TopBar from '@/app/components/TopBar';
 import SiteFooter from '@/app/components/SiteFooter';
 import { useTheme } from '@/app/context/ThemeContext';
@@ -51,7 +52,7 @@ function TrackContent() {
     const [trackHeroImage, setTrackHeroImage] = useState<string>('');
 
     useEffect(() => {
-        apiClient.get('/api/tenant/info').then(res => {
+        fetchTenantInfo().then(res => {
             if (res.data.success) {
                 const img = res.data.data?.tenant?.settings?.trackPage?.heroImage;
                 if (img) setTrackHeroImage(img);
