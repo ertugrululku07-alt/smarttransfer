@@ -669,30 +669,33 @@ const HomePage: React.FC = () => {
       <style>{`
         .st-search-card {
           width: 100%; max-width: 720px;
-          background: #ffffff; border-radius: 16px;
-          border: 1px solid #e8eaed;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 8px 24px rgba(0,0,0,0.06);
+          background: rgba(255,255,255,0.14);
+          backdrop-filter: blur(22px);
+          -webkit-backdrop-filter: blur(22px);
+          border-radius: 20px;
+          border: 1px solid rgba(255,255,255,0.22);
+          box-shadow: 0 8px 32px rgba(0,0,0,0.28), 0 1px 0 rgba(255,255,255,0.12) inset;
           padding: clamp(20px, 3vw, 28px) clamp(20px, 3vw, 32px);
         }
         .st-tabs { display: flex; gap: 4px; margin-bottom: 20px; justify-content: center; }
         .st-tab {
           padding: 8px 20px; border-radius: 8px; border: none;
-          background: transparent; color: #6b7280;
+          background: transparent; color: rgba(255,255,255,0.65);
           font-family: inherit; font-size: 13px; font-weight: 500;
           cursor: pointer; transition: all 0.2s ease;
           display: flex; align-items: center; gap: 6px;
         }
-        .st-tab:hover { background: #f3f4f6; color: #374151; }
+        .st-tab:hover { background: rgba(255,255,255,0.12); color: #fff; }
         .st-tab--active {
-          background: #ffffff; color: #111827; font-weight: 600;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-          border: 1px solid #e5e7eb;
+          background: rgba(255,255,255,0.22); color: #fff; font-weight: 600;
+          box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+          border: 1px solid rgba(255,255,255,0.28);
         }
         .st-detail-label {
-          font-size: 11px; font-weight: 500; color: #6b7280;
+          font-size: 11px; font-weight: 500; color: rgba(255,255,255,0.8);
           margin-bottom: 4px; display: flex; align-items: center; gap: 4px;
         }
-        .st-detail-label-icon { color: #9ca3af; font-size: 10px; }
+        .st-detail-label-icon { color: rgba(255,255,255,0.55); font-size: 10px; }
         .st-route-inputs { display: flex; align-items: center; gap: 8px; }
         .st-swap-btn {
           width: 28px; height: 28px; border: 1px solid #e5e7eb;
@@ -720,20 +723,20 @@ const HomePage: React.FC = () => {
           to   { opacity: 1; transform: translateY(0); }
         }
         .st-type-toggle {
-          display: flex; background: #fafafa; border-radius: 10px;
-          padding: 3px; border: 1px solid #e5e7eb;
+          display: flex; background: rgba(255,255,255,0.1); border-radius: 10px;
+          padding: 3px; border: 1px solid rgba(255,255,255,0.18);
         }
         .st-type-option {
           flex: 1; padding: 7px 4px; border: none;
           background: transparent; border-radius: 7px;
           font-family: inherit; font-size: 11px; font-weight: 500;
-          color: #6b7280; cursor: pointer; transition: all 0.2s ease;
+          color: rgba(255,255,255,0.65); cursor: pointer; transition: all 0.2s ease;
           text-align: center; white-space: nowrap;
         }
         .st-type-option--active {
-          background: #fff; color: #111827;
-          box-shadow: 0 1px 2px rgba(0,0,0,0.04);
-          border: 1px solid #e5e7eb;
+          background: rgba(255,255,255,0.25); color: #fff;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+          border: 1px solid rgba(255,255,255,0.3);
         }
         .st-rental-row { display: flex; align-items: flex-end; gap: 8px; }
         .st-rental-field { display: flex; flex-direction: column; gap: 4px; }
