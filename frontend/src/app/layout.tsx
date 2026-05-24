@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import { Outfit, Playfair_Display } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "./context/AuthContext";
@@ -29,9 +30,15 @@ function resolveServerApiUrl(): string {
   throw new Error('NEXT_PUBLIC_API_URL must be set for SSR');
 }
 
-function getDefaultSiteUrl(): string {
+async function getDefaultSiteUrl(): Promise<string> {
   const envUrl = (process.env.NEXT_PUBLIC_SITE_URL || '').trim().replace(/\/$/, '');
   if (envUrl) return envUrl;
+  try {
+    const h = await headers();
+    const host = h.get('x-forwarded-host') || h.get('host');
+    const proto = h.get('x-forwarded-proto') || (host && !host.includes('localhost') ? 'https' : 'http');
+    if (host) return `${proto}://${host}`.replace(/\/$/, '');
+  } catch {}
   return 'http://localhost:3000';
 }
 
@@ -115,7 +122,8 @@ function buildAbsoluteImageUrl(url: string | undefined, baseUrl: string): string
 export async function generateMetadata(): Promise<Metadata> {
   const { branding, seo } = await getTenantData();
   const fullName = `${branding.siteNameHighlight || ''}${branding.siteName || ''}` || branding.companyName || 'SmartTravel';
-  const siteUrl = (seo.siteUrl || getDefaultSiteUrl()).replace(/\/$/, '');
+  const fallbackUrl = await getDefaultSiteUrl();
+  const siteUrl = (seo.siteUrl || fallbackUrl).replace(/\/$/, '');
 
   const title = seo.defaultTitle || `${fullName} | ${branding.slogan || 'Premium Transfer Hizmeti'}`;
   const description = seo.defaultDescription || branding.slogan || `${fullName} ile havalimanı, otel ve şehirler arası VIP transfer hizmeti. 7/24 rezervasyon ve canlı takip.`;
@@ -194,7 +202,8 @@ export default async function RootLayout({
 }>) {
   const { branding, seo, socialMedia, customTheme } = await getTenantData();
   const fullName = `${branding.siteNameHighlight || ''}${branding.siteName || ''}` || branding.companyName || 'SmartTravel';
-  const siteUrl = (seo.siteUrl || getDefaultSiteUrl()).replace(/\/$/, '');
+  const fallbackUrl = await getDefaultSiteUrl();
+  const siteUrl = (seo.siteUrl || fallbackUrl).replace(/\/$/, '');
   const themeColor = customTheme?.primaryColor || '#667eea';
 
   // Organization JSON-LD (rich data)

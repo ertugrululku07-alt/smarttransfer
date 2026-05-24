@@ -1,4 +1,5 @@
 import type { MetadataRoute } from 'next';
+import { headers } from 'next/headers';
 
 function resolveServerApiUrl(): string {
     const fromEnv = process.env.NEXT_PUBLIC_API_URL?.trim();
@@ -7,9 +8,15 @@ function resolveServerApiUrl(): string {
     return '';
 }
 
-function getSiteUrl(): string {
+async function getSiteUrl(): Promise<string> {
     const envUrl = (process.env.NEXT_PUBLIC_SITE_URL || '').trim().replace(/\/$/, '');
     if (envUrl) return envUrl;
+    try {
+        const h = await headers();
+        const host = h.get('x-forwarded-host') || h.get('host');
+        const proto = h.get('x-forwarded-proto') || (host && !host.includes('localhost') ? 'https' : 'http');
+        if (host) return `${proto}://${host}`.replace(/\/$/, '');
+    } catch {}
     return 'http://localhost:3000';
 }
 
@@ -31,7 +38,7 @@ async function getSeoSettings() {
 }
 
 export default async function robots(): Promise<MetadataRoute.Robots> {
-    const siteUrl = getSiteUrl();
+    const siteUrl = await getSiteUrl();
     const seo = await getSeoSettings();
     const customSiteUrl = (seo?.siteUrl || siteUrl).replace(/\/$/, '');
 

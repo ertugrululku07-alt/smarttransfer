@@ -1,4 +1,5 @@
 import type { MetadataRoute } from 'next';
+import { headers } from 'next/headers';
 
 function resolveServerApiUrl(): string {
     const fromEnv = process.env.NEXT_PUBLIC_API_URL?.trim();
@@ -7,9 +8,15 @@ function resolveServerApiUrl(): string {
     return '';
 }
 
-function getSiteUrl(): string {
+async function getSiteUrl(): Promise<string> {
     const envUrl = (process.env.NEXT_PUBLIC_SITE_URL || '').trim().replace(/\/$/, '');
     if (envUrl) return envUrl;
+    try {
+        const h = await headers();
+        const host = h.get('x-forwarded-host') || h.get('host');
+        const proto = h.get('x-forwarded-proto') || (host && !host.includes('localhost') ? 'https' : 'http');
+        if (host) return `${proto}://${host}`.replace(/\/$/, '');
+    } catch {}
     return 'http://localhost:3000';
 }
 
@@ -33,7 +40,8 @@ async function getTenantData() {
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     const tenant = await getTenantData();
     const seo = tenant?.settings?.seo || {};
-    const baseUrl = (seo.siteUrl || getSiteUrl()).replace(/\/$/, '');
+    const fallback = await getSiteUrl();
+    const baseUrl = (seo.siteUrl || fallback).replace(/\/$/, '');
     const now = new Date();
 
     // Core public routes
