@@ -189,6 +189,8 @@ const SiteSettingsPage: React.FC = () => {
         gaId: string;
         indexingEnabled: boolean;
         extraUrls: string[];
+        languages: string[];
+        pages: Record<string, { title?: string; description?: string; keywords?: string[]; ogImage?: string; canonical?: string; noindex?: boolean }>;
     }>({
         siteUrl: '',
         defaultTitle: '',
@@ -206,7 +208,9 @@ const SiteSettingsPage: React.FC = () => {
         gaId: '',
         indexingEnabled: true,
         extraUrls: [],
-    });
+        languages: [],
+        pages: {},
+    } as any);
     const [seoSaving, setSeoSaving] = useState(false);
     const [seoOgUploading, setSeoOgUploading] = useState(false);
 
@@ -276,11 +280,13 @@ const SiteSettingsPage: React.FC = () => {
                     setTrackPage(prev => ({ ...prev, ...settings.trackPage }));
                 }
                 if (settings.seo) {
-                    setSeo(prev => ({
+                    setSeo((prev: any) => ({
                         ...prev,
                         ...settings.seo,
                         keywords: Array.isArray(settings.seo.keywords) ? settings.seo.keywords : [],
                         extraUrls: Array.isArray(settings.seo.extraUrls) ? settings.seo.extraUrls : [],
+                        languages: Array.isArray(settings.seo.languages) ? settings.seo.languages : [],
+                        pages: settings.seo.pages && typeof settings.seo.pages === 'object' ? settings.seo.pages : {},
                     }));
                 }
                 if (settings.contactPage) {
@@ -2120,6 +2126,101 @@ const SiteSettingsPage: React.FC = () => {
                                 </Form.Item>
                             </Col>
                         </Row>
+                    </Card>
+
+                    <Card title="Çoklu Dil (Hreflang)" variant="borderless">
+                        <Text type="secondary" style={{ display: 'block', marginBottom: 12 }}>
+                            Sitenizde birden fazla dil destekleniyorsa, arama motorlarına bildirmek için dil kodlarını ekleyin. Ör: <code>tr</code>, <code>en</code>, <code>de</code>, <code>ru</code>, <code>ar</code>
+                        </Text>
+                        <Form.Item>
+                            <Select
+                                mode="tags"
+                                value={seo.languages || []}
+                                onChange={(v: string[]) => setSeo((p: any) => ({ ...p, languages: v }))}
+                                placeholder="tr, en, de yazıp Enter'a basın"
+                                style={{ width: '100%' }}
+                                tokenSeparators={[',']}
+                            />
+                        </Form.Item>
+                    </Card>
+
+                    <Card title="Sayfa Bazında SEO Override" variant="borderless">
+                        <Alert
+                            type="info"
+                            showIcon
+                            style={{ marginBottom: 16 }}
+                            message="Her sayfa için özel başlık ve açıklama belirleyin. Boş bırakılan alanlar varsayılan SEO ayarlarını kullanır."
+                        />
+                        {[
+                            { key: 'home', label: 'Ana Sayfa', path: '/' },
+                            { key: 'track', label: 'Rezervasyon Sorgula', path: '/track' },
+                            { key: 'contact', label: 'İletişim', path: '/contact' },
+                            { key: 'book', label: 'Transfer Rezervasyon', path: '/transfer/book' },
+                        ].map(({ key, label, path }) => {
+                            const pageSeo = (seo.pages && seo.pages[key]) || {};
+                            const updatePage = (field: string, value: any) => {
+                                setSeo((p: any) => ({
+                                    ...p,
+                                    pages: { ...(p.pages || {}), [key]: { ...(p.pages?.[key] || {}), [field]: value } }
+                                }));
+                            };
+                            return (
+                                <Card
+                                    key={key}
+                                    size="small"
+                                    style={{ marginBottom: 12, background: '#fafafa' }}
+                                    title={<Space><Text strong>{label}</Text><Text type="secondary" style={{ fontSize: 12 }}>{path}</Text></Space>}
+                                >
+                                    <Row gutter={12}>
+                                        <Col xs={24}>
+                                            <Form.Item label="Title" style={{ marginBottom: 8 }}>
+                                                <Input
+                                                    value={pageSeo.title || ''}
+                                                    onChange={e => updatePage('title', e.target.value)}
+                                                    placeholder={`Ör: ${label} | Firma Adı`}
+                                                    maxLength={70}
+                                                    showCount
+                                                />
+                                            </Form.Item>
+                                        </Col>
+                                        <Col xs={24}>
+                                            <Form.Item label="Description" style={{ marginBottom: 8 }}>
+                                                <Input.TextArea
+                                                    value={pageSeo.description || ''}
+                                                    onChange={e => updatePage('description', e.target.value)}
+                                                    placeholder={`${label} sayfası için özel açıklama`}
+                                                    maxLength={170}
+                                                    showCount
+                                                    rows={2}
+                                                />
+                                            </Form.Item>
+                                        </Col>
+                                        <Col xs={24} md={16}>
+                                            <Form.Item label="Anahtar Kelimeler" style={{ marginBottom: 8 }}>
+                                                <Select
+                                                    mode="tags"
+                                                    value={pageSeo.keywords || []}
+                                                    onChange={(v: string[]) => updatePage('keywords', v)}
+                                                    placeholder="Bu sayfaya özel keyword'ler"
+                                                    style={{ width: '100%' }}
+                                                    tokenSeparators={[',']}
+                                                />
+                                            </Form.Item>
+                                        </Col>
+                                        <Col xs={24} md={8}>
+                                            <Form.Item label="Bu Sayfayı Gizle (noindex)" style={{ marginBottom: 8 }}>
+                                                <Switch
+                                                    checked={!!pageSeo.noindex}
+                                                    onChange={v => updatePage('noindex', v)}
+                                                    checkedChildren="Gizli"
+                                                    unCheckedChildren="Görünür"
+                                                />
+                                            </Form.Item>
+                                        </Col>
+                                    </Row>
+                                </Card>
+                            );
+                        })}
                     </Card>
 
                     <Card title="Sitemap'e Ek URL'ler" variant="borderless">
