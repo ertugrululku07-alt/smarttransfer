@@ -9,6 +9,7 @@ import { ThemeProvider } from "./context/ThemeContext";
 import { BrandingProvider } from "./context/BrandingContext";
 import { LanguageProvider } from "./context/LanguageContext";
 import LiveChatWidget from "./components/LiveChatWidget";
+import ServiceWorkerRegister from "./components/ServiceWorkerRegister";
 
 const outfit = Outfit({
   variable: "--font-outfit",
@@ -242,13 +243,32 @@ export default async function RootLayout({
   return (
     <html lang={seo.locale?.split(/[-_]/)[0] || 'tr'} suppressHydrationWarning>
       <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5, viewport-fit=cover" />
         <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
         <meta name="theme-color" content={themeColor} />
+        <meta name="color-scheme" content="light" />
         <meta name="geo.region" content="TR" />
         <meta name="geo.placename" content="Turkey" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="format-detection" content="telephone=yes" />
+
+        {/* Resource hints - critical for performance */}
+        {process.env.NEXT_PUBLIC_API_URL && (() => {
+          try {
+            const apiOrigin = new URL(process.env.NEXT_PUBLIC_API_URL).origin;
+            return (
+              <>
+                <link rel="preconnect" href={apiOrigin} crossOrigin="anonymous" />
+                <link rel="dns-prefetch" href={apiOrigin} />
+              </>
+            );
+          } catch { return null; }
+        })()}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        {(seo.gtmId || seo.gaId) && <link rel="dns-prefetch" href="https://www.googletagmanager.com" />}
+        {(seo.gtmId || seo.gaId) && <link rel="preconnect" href="https://www.googletagmanager.com" crossOrigin="anonymous" />}
 
         {/* Schema.org JSON-LD */}
         <script
@@ -301,6 +321,7 @@ export default async function RootLayout({
                   <LanguageProvider>
                     {children}
                     <LiveChatWidget />
+                    <ServiceWorkerRegister />
                   </LanguageProvider>
                 </BrandingProvider>
               </ThemeProvider>

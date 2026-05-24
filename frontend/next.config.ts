@@ -3,8 +3,29 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   output: 'standalone',
   reactCompiler: true,
+  compress: true,
+  poweredByHeader: false,
+  productionBrowserSourceMaps: false,
   typescript: {
     ignoreBuildErrors: false,
+  },
+  // Tree-shake icons + lodash + date-fns (huge wins for bundle size)
+  modularizeImports: {
+    '@ant-design/icons': {
+      transform: '@ant-design/icons/lib/icons/{{member}}',
+      preventFullImport: true,
+    },
+    'lodash': {
+      transform: 'lodash/{{member}}',
+      preventFullImport: true,
+    },
+    'date-fns': {
+      transform: 'date-fns/{{member}}',
+      preventFullImport: true,
+    },
+  },
+  experimental: {
+    optimizePackageImports: ['antd', '@ant-design/icons', 'lucide-react', 'date-fns'],
   },
   images: {
     remotePatterns: [

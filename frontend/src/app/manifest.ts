@@ -53,11 +53,40 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
         short_name: shortName,
         description,
         start_url: '/',
+        scope: '/',
         display: 'standalone',
+        display_override: ['standalone', 'minimal-ui'],
         background_color: '#ffffff',
         theme_color: themeColor,
         orientation: 'portrait',
-        lang: seo.locale || 'tr-TR',
+        lang: seo.locale?.split(/[-_]/)[0] || 'tr',
         icons,
+        categories: ['travel', 'transportation', 'business'],
+        shortcuts: [
+            {
+                name: 'Rezervasyon Yap',
+                short_name: 'Rezervasyon',
+                description: 'Yeni transfer rezervasyonu',
+                url: '/transfer/book',
+                icons: logoUrl && logoUrl !== '/favicon.ico'
+                    ? [{ src: logoUrl, sizes: '192x192' }]
+                    : undefined,
+            },
+            {
+                name: 'Rezervasyon Sorgula',
+                short_name: 'Takip',
+                description: 'Mevcut rezervasyonu takip et',
+                url: '/track',
+                icons: logoUrl && logoUrl !== '/favicon.ico'
+                    ? [{ src: logoUrl, sizes: '192x192' }]
+                    : undefined,
+            },
+            {
+                name: 'İletişim',
+                short_name: 'İletişim',
+                description: 'Bize ulaşın',
+                url: '/contact',
+            },
+        ],
     };
 }
