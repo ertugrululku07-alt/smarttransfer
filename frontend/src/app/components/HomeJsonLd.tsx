@@ -6,6 +6,15 @@ import { getTenantData, getSiteUrl, buildAbsoluteUrl, buildFaqJsonLd, buildServi
  * individual route Services, and reviews.
  */
 export default async function HomeJsonLd() {
+    try {
+        return await renderHomeJsonLd();
+    } catch (e) {
+        console.error('HomeJsonLd failed:', e);
+        return null;
+    }
+}
+
+async function renderHomeJsonLd() {
     const { branding, seo, homepageFaq, homepageTestimonials, homepageRoutes } = await getTenantData();
     const fullName = `${branding.siteNameHighlight || ''}${branding.siteName || ''}` || branding.companyName || 'SmartTravel';
     const fallbackUrl = await getSiteUrl();

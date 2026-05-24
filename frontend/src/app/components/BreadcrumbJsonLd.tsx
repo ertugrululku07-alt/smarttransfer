@@ -9,15 +9,20 @@ interface Props {
  * Always includes the home page as the first item.
  */
 export default async function BreadcrumbJsonLd({ items }: Props) {
-    const { seo } = await getTenantData();
-    const fallback = await getSiteUrl();
-    const siteUrl = (seo.siteUrl || fallback).replace(/\/$/, '');
-    const breadcrumbItems = [
-        { name: 'Ana Sayfa', url: `${siteUrl}/` },
-        ...items.map(i => ({ name: i.name, url: `${siteUrl}${i.path.startsWith('/') ? i.path : '/' + i.path}` })),
-    ];
-    const ld = buildBreadcrumbJsonLd(breadcrumbItems);
-    return (
-        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(ld) }} />
-    );
+    try {
+        const { seo } = await getTenantData();
+        const fallback = await getSiteUrl();
+        const siteUrl = (seo.siteUrl || fallback).replace(/\/$/, '');
+        const breadcrumbItems = [
+            { name: 'Ana Sayfa', url: `${siteUrl}/` },
+            ...items.map(i => ({ name: i.name, url: `${siteUrl}${i.path.startsWith('/') ? i.path : '/' + i.path}` })),
+        ];
+        const ld = buildBreadcrumbJsonLd(breadcrumbItems);
+        return (
+            <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(ld) }} />
+        );
+    } catch (e) {
+        console.error('BreadcrumbJsonLd failed:', e);
+        return null;
+    }
 }

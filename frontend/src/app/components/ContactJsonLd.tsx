@@ -6,6 +6,15 @@ import { getTenantData, getSiteUrl, buildAbsoluteUrl, buildLocalBusinessJsonLd, 
  * - One LocalBusiness per branch (or single if no branches)
  */
 export default async function ContactJsonLd() {
+    try {
+        return await renderContactJsonLd();
+    } catch (e) {
+        console.error('ContactJsonLd failed:', e);
+        return null;
+    }
+}
+
+async function renderContactJsonLd() {
     const { branding, seo, contactPage, socialMedia } = await getTenantData();
     const fullName = `${branding.siteNameHighlight || ''}${branding.siteName || ''}` || branding.companyName || 'SmartTravel';
     const fallbackUrl = await getSiteUrl();

@@ -148,6 +148,18 @@ interface BuildMetadataOptions {
 }
 
 export async function buildPageMetadata(opts: BuildMetadataOptions): Promise<Metadata> {
+    try {
+        return await _buildPageMetadata(opts);
+    } catch (e) {
+        console.error('buildPageMetadata failed for', opts.pageKey, e);
+        return {
+            title: opts.fallbackTitle || 'SmartTravel',
+            description: opts.fallbackDescription,
+        };
+    }
+}
+
+async function _buildPageMetadata(opts: BuildMetadataOptions): Promise<Metadata> {
     const { branding, seo } = await getTenantData();
     const fullName = `${branding.siteNameHighlight || ''}${branding.siteName || ''}` || branding.companyName || 'SmartTravel';
     const fallbackUrl = await getSiteUrl();
