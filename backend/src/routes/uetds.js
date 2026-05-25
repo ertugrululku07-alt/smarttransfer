@@ -152,7 +152,7 @@ router.get('/queue', authMiddleware, async (req, res) => {
             }) : [],
             driverIds.length ? prisma.personnel.findMany({
                 where: { OR: [{ userId: { in: driverIds } }, { id: { in: driverIds } }] },
-                select: { id: true, userId: true, firstName: true, lastName: true, phone: true, tcNo: true }
+                select: { id: true, userId: true, firstName: true, lastName: true, phone: true, tcNumber: true }
             }) : [],
         ]);
         const driverMap = new Map(drivers.map(d => [d.id, d]));
@@ -186,7 +186,7 @@ router.get('/queue', authMiddleware, async (req, res) => {
                     id: drv.id,
                     name: drvP ? `${drvP.firstName || ''} ${drvP.lastName || ''}`.trim() : drv.fullName,
                     phone: drvP?.phone || drv.phone || '',
-                    tcNo: drvP?.tcNo || ''
+                    tcNo: drvP?.tcNumber || ''
                 } : null,
                 vehicle: veh ? {
                     id: veh.id,
@@ -467,7 +467,7 @@ async function submitOneItem({ tenantId, userId, item, config, bookings, drivers
             price: Number(primary.total || 0),
         };
         const vehicleData = { plate: vehicle.plateNumber };
-        const driverData = { tcNo: driverP?.tcNo || '11111111111', phone: driverP?.phone || driver?.phone || '' };
+        const driverData = { tcNo: driverP?.tcNumber || '11111111111', phone: driverP?.phone || driver?.phone || '' };
         try {
             const submitRes = await uetdsRestService.submitDynamicTrip({
                 credentials, reservation, vehicleData, driverData,
@@ -551,10 +551,10 @@ async function submitOneItem({ tenantId, userId, item, config, bookings, drivers
                 yolcuResults.push({ name: `${p.firstName} ${p.lastName}`, success: false, error: e.message });
             }
         }
-        if (driverP?.tcNo) {
+        if (driverP?.tcNumber) {
             try {
                 await uetdsService.personelEkle(credentials, seferResult.uetdsSeferId, {
-                    tcKimlikNo: driverP.tcNo,
+                    tcKimlikNo: driverP.tcNumber,
                     adi: driverName.first, soyadi: driverName.last,
                     cinsiyet: '1',
                     telefonNo: driverP.phone || driver?.phone || '',
@@ -620,7 +620,7 @@ router.post('/submit', authMiddleware, async (req, res) => {
             }) : [],
             driverIds.length ? prisma.personnel.findMany({
                 where: { OR: [{ userId: { in: driverIds } }, { id: { in: driverIds } }] },
-                select: { id: true, userId: true, firstName: true, lastName: true, phone: true, tcNo: true }
+                select: { id: true, userId: true, firstName: true, lastName: true, phone: true, tcNumber: true }
             }) : [],
         ]);
 
@@ -767,7 +767,7 @@ router.post('/resubmit', authMiddleware, async (req, res) => {
         const [drivers, vehicles, personnel] = await Promise.all([
             driverIds.length ? prisma.user.findMany({ where: { id: { in: driverIds } }, select: { id: true, fullName: true, phone: true } }) : [],
             vehicleIds.length ? prisma.vehicle.findMany({ where: { id: { in: vehicleIds } }, select: { id: true, plateNumber: true, brand: true, model: true } }) : [],
-            driverIds.length ? prisma.personnel.findMany({ where: { OR: [{ userId: { in: driverIds } }, { id: { in: driverIds } }] }, select: { id: true, userId: true, firstName: true, lastName: true, phone: true, tcNo: true } }) : [],
+            driverIds.length ? prisma.personnel.findMany({ where: { OR: [{ userId: { in: driverIds } }, { id: { in: driverIds } }] }, select: { id: true, userId: true, firstName: true, lastName: true, phone: true, tcNumber: true } }) : [],
         ]);
 
         const r = await submitOneItem({ tenantId, userId, item, config, bookings, drivers, personnel, vehicles });
