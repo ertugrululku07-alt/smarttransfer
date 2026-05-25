@@ -74,22 +74,16 @@ const SOAP_ACTIONS = {
     kullaniciKontrol:'http://uetds.unetws.udhb.gov.tr/uetdsytsarizi/kullaniciKontrol',
 };
 
-// ── Build SOAP envelope with WS-Security ─────────────────────────────────────
-function buildSoapEnvelope(username, password, bodyXml) {
+// ── Build SOAP envelope ──────────────────────────────────────────────────────
+// WSDL defines NO WS-Security policy. Auth is via <wsuser> in SOAP body.
+// Sending WS-Security with mustUnderstand="1" causes HTTP 401 at the gateway
+// because the backend doesn't support/expect it.
+function buildSoapEnvelope(bodyXml) {
     return `<?xml version="1.0" encoding="UTF-8"?>
 <soapenv:Envelope 
     xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
     xmlns:uet="${UETDS_NS}">
-    <soapenv:Header>
-        <wsse:Security 
-            xmlns:wsse="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd"
-            soapenv:mustUnderstand="1">
-            <wsse:UsernameToken>
-                <wsse:Username>${xmlEscape(username)}</wsse:Username>
-                <wsse:Password Type="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordText">${xmlEscape(password)}</wsse:Password>
-            </wsse:UsernameToken>
-        </wsse:Security>
-    </soapenv:Header>
+    <soapenv:Header/>
     <soapenv:Body>
         ${bodyXml}
     </soapenv:Body>
@@ -199,7 +193,7 @@ async function seferEkle(credentials, sefer) {
             </uet:seferBilgileri>
         </uet:seferEkle>`;
 
-    const envelope = buildSoapEnvelope(credentials.username, credentials.password, bodyXml);
+    const envelope = buildSoapEnvelope(bodyXml);
     const result = await callSoap(credentials.serviceUrl, SOAP_ACTIONS.seferEkle, envelope);
 
     const uetdsSeferId = extractXmlValue(result.data, 'uetdsSeferId') || extractXmlValue(result.data, 'seferId');
@@ -243,7 +237,7 @@ async function seferIptal(credentials, uetdsSeferId) {
             <uet:uetdsSeferId>${xmlEscape(uetdsSeferId)}</uet:uetdsSeferId>
         </uet:seferIptal>`;
 
-    const envelope = buildSoapEnvelope(credentials.username, credentials.password, bodyXml);
+    const envelope = buildSoapEnvelope(bodyXml);
     const result = await callSoap(credentials.serviceUrl, SOAP_ACTIONS.seferIptal, envelope);
     const hata = extractSoapFault(result.data) || extractXmlValue(result.data, 'sonucMesaji');
 
@@ -277,7 +271,7 @@ async function yolcuEkle(credentials, uetdsSeferId, yolcu) {
             </uet:yolcuBilgileri>
         </uet:yolcuEkle>`;
 
-    const envelope = buildSoapEnvelope(credentials.username, credentials.password, bodyXml);
+    const envelope = buildSoapEnvelope(bodyXml);
     const result = await callSoap(credentials.serviceUrl, SOAP_ACTIONS.yolcuEkle, envelope);
     const hata = extractSoapFault(result.data) || extractXmlValue(result.data, 'sonucMesaji');
 
@@ -311,7 +305,7 @@ async function personelEkle(credentials, uetdsSeferId, personel) {
             </uet:personelBilgileri>
         </uet:personelEkle>`;
 
-    const envelope = buildSoapEnvelope(credentials.username, credentials.password, bodyXml);
+    const envelope = buildSoapEnvelope(bodyXml);
     const result = await callSoap(credentials.serviceUrl, SOAP_ACTIONS.personelEkle, envelope);
     const hata = extractSoapFault(result.data) || extractXmlValue(result.data, 'sonucMesaji');
 
@@ -339,7 +333,7 @@ async function testCredentials(credentials) {
             </uet:wsuser>
         </uet:kullaniciKontrol>`;
 
-    const envelope = buildSoapEnvelope(credentials.username, credentials.password, bodyXml);
+    const envelope = buildSoapEnvelope(bodyXml);
     const result = await callSoap(credentials.serviceUrl, SOAP_ACTIONS.kullaniciKontrol, envelope);
 
     console.log(`[UETDS SOAP] testCredentials response: status=${result.status}, success=${result.success}, error=${result.error || 'none'}`);
