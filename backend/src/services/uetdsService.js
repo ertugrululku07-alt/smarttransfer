@@ -142,9 +142,14 @@ async function callSoap(serviceUrl, soapAction, envelopeXml, basicAuth) {
 }
 
 // ── Parse simple XML value by tag name ───────────────────────────────────────
+// Matches <tagName>, <ns:tagName>, with optional attributes; namespace-agnostic.
 function extractXmlValue(xml, tagName) {
-    if (!xml) return null;
-    const regex = new RegExp(`<[^:]*:?${tagName}[^>]*>([^<]*)<`, 'i');
+    if (!xml || typeof xml !== 'string') return null;
+    const escaped = tagName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(
+        `<(?:[\\w-]+:)?${escaped}(?:\\s[^>]*)?>([\\s\\S]*?)<\\/(?:[\\w-]+:)?${escaped}>`,
+        'i'
+    );
     const match = xml.match(regex);
     return match ? match[1].trim() : null;
 }
@@ -213,9 +218,14 @@ async function seferEkle(credentials, sefer) {
     const result = await callSoap(credentials.serviceUrl, SOAP_ACTIONS.seferEkle, envelope, { username: credentials.username, password: credentials.password });
 
     const uetdsSeferId = extractXmlValue(result.data, 'uetdsSeferId') || extractXmlValue(result.data, 'seferId');
-    const refNo = extractXmlValue(result.data, 'referansNo') || extractXmlValue(result.data, 'sonucKodu');
+    const sonucKodu = extractXmlValue(result.data, 'sonucKodu');
+    const sonucMesaji = extractXmlValue(result.data, 'sonucMesaji');
+    const refNo = extractXmlValue(result.data, 'referansNo') || sonucKodu;
+    // UETDS convention: sonucKodu="0" means success, anything else (e.g. "1") is an error.
+    const businessError = (sonucKodu && sonucKodu !== '0') ? sonucMesaji : null;
     const hataMsg = extractSoapFault(result.data)
-        || extractXmlValue(result.data, 'sonucMesaji')
+        || businessError
+        || sonucMesaji
         || extractXmlValue(result.data, 'hataAciklamasi')
         || result.error
         || (result.status && result.status >= 400 ? `HTTP ${result.status}` : null)
