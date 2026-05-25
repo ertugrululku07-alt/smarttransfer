@@ -94,19 +94,16 @@ function buildSoapEnvelope(bodyXml /*, wsUsername, wsPassword */) {
 }
 
 // ── SOAP call helper ─────────────────────────────────────────────────────────
-async function callSoap(serviceUrl, soapAction, envelopeXml, basicAuth) {
+async function callSoap(serviceUrl, soapAction, envelopeXml) {
     const url = serviceUrl || DEFAULT_SERVICE_URL;
     try {
         const headers = {
             'Content-Type': 'text/xml; charset=utf-8',
             'SOAPAction': soapAction,
         };
-        // Also send HTTP Basic Auth — some UETDS gateways accept either WS-Security
-        // or Basic Auth at the HTTP layer. Sending both is safe.
-        if (basicAuth && basicAuth.username) {
-            const token = Buffer.from(`${basicAuth.username}:${basicAuth.password || ''}`).toString('base64');
-            headers['Authorization'] = `Basic ${token}`;
-        }
+        // NOTE: servis.turkiye.gov.tr authenticates via SOAP body <wsuser>,
+        // NOT via HTTP Basic Auth. Sending an Authorization header confuses
+        // the gateway and causes credential mismatch errors.
         const response = await axios.post(url, envelopeXml, {
             headers,
             timeout: 30000,
@@ -392,30 +389,38 @@ async function personelEkle(credentials, uetdsSeferReferansNo, personel) {
 }
 
 /**
- * Test UETDS credentials with the simplest possible auth-only call.
+ * Test UETDS credentials using kullaniciKontrol.
  *
- * Why firmaIletisimBilgisiListele instead of kullaniciKontrol:
- *   kullaniciKontrol in practice returns "Eksik Parametre" because the UETDS
- *   gateway expects additional context (IP/firma) that the bare username+password
- *   schema doesn't include. firmaIletisimBilgisiListele takes ONLY <wsuser> and
- *   returns the company's contact list — perfect for an auth check:
- *     • sonucKodu=0 → credentials valid
- *     • sonucKodu=1 + "KULLANICI ADI YADA SIFRE HATALI" → wrong creds
- *     • HTTP 500 "Yetki Hatası" → IP not whitelisted
+ * Per the official WSDL XSD, kullaniciKontrol takes kullaniciAdi and sifre
+ * DIRECTLY as children (NOT wrapped in <wsuser>). This is different from
+ * other operations like seferEkle which use <wsuser>.
+ *
+ * XSD definition (from servis.turkiye.gov.tr WSDL):
+ *   <complexType name="kullaniciKontrol">
+ *     <sequence>
+ *       <element minOccurs="0" name="kullaniciAdi" type="xs:string"/>
+ *       <element minOccurs="0" name="sifre" type="xs:string"/>
+ *     </sequence>
+ *   </complexType>
+ *
+ * Response: uetdsFirmaSonuc with sonucKodu, sonucMesaji, firmaUnvan, belgeNo, etc.
+ *   sonucKodu=0 → credentials valid (returns firm info)
+ *   sonucKodu=1 + "KULLANICI ADI YADA SIFRE HATALI" → wrong creds
  */
 async function testCredentials(credentials) {
-    console.log(`[UETDS SOAP] testCredentials: username=${credentials.username}, serviceUrl=${credentials.serviceUrl || DEFAULT_SERVICE_URL}`);
+    const serviceUrl = credentials.serviceUrl || DEFAULT_SERVICE_URL;
+    console.log(`[UETDS SOAP] testCredentials: username=${credentials.username}, serviceUrl=${serviceUrl}`);
 
+    // kullaniciKontrol — NO <wsuser> wrapper per XSD!
     const bodyXml = `
-        <uet:firmaIletisimBilgisiListele>
-            <uet:wsuser>
-                <uet:kullaniciAdi>${xmlEscape(credentials.username)}</uet:kullaniciAdi>
-                <uet:sifre>${xmlEscape(credentials.password)}</uet:sifre>
-            </uet:wsuser>
-        </uet:firmaIletisimBilgisiListele>`;
+        <uet:kullaniciKontrol>
+            <uet:kullaniciAdi>${xmlEscape(credentials.username)}</uet:kullaniciAdi>
+            <uet:sifre>${xmlEscape(credentials.password)}</uet:sifre>
+        </uet:kullaniciKontrol>`;
 
-    const envelope = buildSoapEnvelope(bodyXml, credentials.username, credentials.password);
-    const result = await callSoap(credentials.serviceUrl, SOAP_ACTIONS.firmaIletisimBilgisiListele, envelope, { username: credentials.username, password: credentials.password });
+    const envelope = buildSoapEnvelope(bodyXml);
+    console.log(`[UETDS SOAP] testCredentials SOAP request:\n${envelope}`);
+    const result = await callSoap(serviceUrl, SOAP_ACTIONS.kullaniciKontrol, envelope);
 
     console.log(`[UETDS SOAP] testCredentials response: status=${result.status}, success=${result.success}, error=${result.error || 'none'}`);
     if (result.data) {
@@ -430,44 +435,52 @@ async function testCredentials(credentials) {
 
     const raw = typeof result.data === 'string' ? result.data : '';
 
-    // Check for WS-Security / auth failures at the gateway level
-    const isAuthError = raw.includes('InvalidSecurity') || raw.includes('InvalidSecurityToken') ||
-        raw.includes('FailedAuthentication') || raw.includes('wsse:FailedCheck') ||
-        raw.includes('Authentication') || raw.includes('Unauthorized');
-
-    if (isAuthError) {
-        return { success: false, error: 'Kullanıcı adı veya şifre hatalı (WS-Security)' };
+    // Check for gateway-level / WS-Security auth failures
+    const isGatewayAuthError = raw.includes('InvalidSecurity') || raw.includes('InvalidSecurityToken') ||
+        raw.includes('FailedAuthentication') || raw.includes('wsse:FailedCheck');
+    if (isGatewayAuthError) {
+        return { success: false, error: 'Gateway kimlik doğrulama hatası (WS-Security). IP yetkilendirmesi kontrol edin.' };
     }
 
-    // HTTP 500 with generic "Client Error" usually means wrong namespace/SOAPAction
+    // HTTP 401/403 = gateway rejected (IP whitelist or cert issue)
+    if (result.status === 401 || result.status === 403) {
+        return { success: false, error: `Erişim reddedildi (HTTP ${result.status}). Sunucu IP adresinin UETDS'de yetkilendirildiğinden emin olun.` };
+    }
+
+    // HTTP 500 with SOAP fault
     if (result.status === 500) {
         const fault = extractSoapFault(result.data);
         return { success: false, error: `Sunucu hatası: ${fault || 'HTTP 500'}` };
     }
 
     // Parse SOAP response for the UETDS business result code.
-    // UETDS convention: sonucKodu="0" -> success, anything else -> error (the
-    // sonucMesaji field describes the problem, e.g. "KULLANICI ADI YADA SIFRE HATALI").
-    if (result.success) {
-        const sonucKodu = extractXmlValue(result.data, 'sonucKodu');
-        const sonucMesaji = (extractXmlValue(result.data, 'sonucMesaji') || '').trim();
+    // kullaniciKontrol response type: uetdsFirmaSonuc
+    //   sonucKodu=0 → success (returns firmaUnvan, belgeNo, belgeTuru, unetNo)
+    //   sonucKodu=1 → error (sonucMesaji e.g. "KULLANICI ADI YADA SIFRE HATALI")
+    const sonucKodu = extractXmlValue(result.data, 'sonucKodu');
+    const sonucMesaji = (extractXmlValue(result.data, 'sonucMesaji') || '').trim();
 
-        if (sonucKodu === '0') {
-            return { success: true, message: sonucMesaji ? `Bağlantı başarılı — ${sonucMesaji}` : 'Bağlantı başarılı — kimlik doğrulandı' };
-        }
+    if (sonucKodu === '0') {
+        const firmaUnvan = extractXmlValue(result.data, 'firmaUnvan') || '';
+        const belgeNo = extractXmlValue(result.data, 'belgeNo') || '';
+        const detail = [firmaUnvan, belgeNo].filter(Boolean).join(' — ');
+        return { success: true, message: detail ? `Bağlantı başarılı — ${detail}` : 'Bağlantı başarılı — kimlik doğrulandı' };
+    }
 
-        if (sonucMesaji) {
-            return { success: false, error: sonucMesaji };
-        }
+    if (sonucKodu !== null && sonucMesaji) {
+        return { success: false, error: sonucMesaji };
+    }
 
-        // Non-zero sonucKodu without message, or no parsable response → treat as failure.
-        return { success: false, error: `UETDS yanıt verdi ancak doğrulama başarısız (sonucKodu=${sonucKodu || 'bilinmiyor'})` };
+    // No sonucKodu found — check for SOAP fault or generic error
+    const fault = extractSoapFault(result.data);
+    if (fault) {
+        return { success: false, error: fault };
     }
 
     // Fallback
     return {
         success: false,
-        error: extractSoapFault(result.data) || result.error || 'Bağlantı kurulamadı — Sunucu yanıt vermedi',
+        error: result.error || `Beklenmeyen yanıt (HTTP ${result.status}). Lütfen sunucu loglarını kontrol edin.`,
     };
 }
 
