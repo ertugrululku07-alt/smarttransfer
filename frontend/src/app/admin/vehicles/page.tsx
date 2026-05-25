@@ -987,8 +987,7 @@ const VehiclesPage: React.FC = () => {
             <Form form={form} layout="vertical" size="middle">
 
               {/* ── STEP 0: Araç Bilgileri ── */}
-              {currentStep === 0 && (
-                <>
+              <div style={{ display: currentStep === 0 ? 'block' : 'none' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
                     <CarOutlined style={{ color: 'var(--brand-primary)', fontSize: 16 }} />
                     <Text strong style={{ fontSize: 15, color: '#1e293b' }}>Temel Araç Bilgileri</Text>
@@ -1067,12 +1066,10 @@ const VehiclesPage: React.FC = () => {
                       </Form.Item>
                     </Col>
                   </Row>
-                </>
-              )}
+              </div>
 
               {/* ── STEP 1: Belgeler & Muayene ── */}
-              {currentStep === 1 && (
-                <>
+              <div style={{ display: currentStep === 1 ? 'block' : 'none' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
                     <FileProtectOutlined style={{ color: 'var(--brand-primary)', fontSize: 16 }} />
                     <Text strong style={{ fontSize: 15, color: '#1e293b' }}>UETDS & Ruhsat Bilgileri</Text>
@@ -1143,12 +1140,10 @@ const VehiclesPage: React.FC = () => {
                     <Col span={6}><Form.Item label="Başlangıç" name="kaskoStartDate"><DatePicker style={{ width: '100%' }} format="DD.MM.YYYY" /></Form.Item></Col>
                     <Col span={6}><Form.Item label="Bitiş" name="kaskoExpiryDate"><DatePicker style={{ width: '100%' }} format="DD.MM.YYYY" /></Form.Item></Col>
                   </Row>
-                </>
-              )}
+              </div>
 
               {/* ── STEP 2: Mülkiyet & Sahiplik ── */}
-              {currentStep === 2 && (
-                <>
+              <div style={{ display: currentStep === 2 ? 'block' : 'none' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
                     <HomeOutlined style={{ color: 'var(--brand-primary)', fontSize: 16 }} />
                     <Text strong style={{ fontSize: 15, color: '#1e293b' }}>Mülkiyet Durumu</Text>
@@ -1242,12 +1237,10 @@ const VehiclesPage: React.FC = () => {
                       );
                     }}
                   </Form.Item>
-                </>
-              )}
+              </div>
 
               {/* ── STEP 3: Özellikler & Fotoğraf ── */}
-              {currentStep === 3 && (
-                <>
+              <div style={{ display: currentStep === 3 ? 'block' : 'none' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
                     <SettingOutlined style={{ color: 'var(--brand-primary)', fontSize: 16 }} />
                     <Text strong style={{ fontSize: 15, color: '#1e293b' }}>Araç Özellikleri & Fotoğraf</Text>
@@ -1292,8 +1285,7 @@ const VehiclesPage: React.FC = () => {
                       </Form.Item>
                     </Col>
                   </Row>
-                </>
-              )}
+              </div>
 
             </Form>
           </div>
