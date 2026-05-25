@@ -94,16 +94,20 @@ function buildSoapEnvelope(bodyXml /*, wsUsername, wsPassword */) {
 }
 
 // ── SOAP call helper ─────────────────────────────────────────────────────────
-async function callSoap(serviceUrl, soapAction, envelopeXml) {
+// servis.turkiye.gov.tr requires BOTH:
+//   1) HTTP Basic Auth at the gateway/transport level (without it → HTTP 401)
+//   2) Body-level <wsuser> for UETDS service-level authentication
+async function callSoap(serviceUrl, soapAction, envelopeXml, basicAuth) {
     const url = serviceUrl || DEFAULT_SERVICE_URL;
     try {
         const headers = {
             'Content-Type': 'text/xml; charset=utf-8',
             'SOAPAction': soapAction,
         };
-        // NOTE: servis.turkiye.gov.tr authenticates via SOAP body <wsuser>,
-        // NOT via HTTP Basic Auth. Sending an Authorization header confuses
-        // the gateway and causes credential mismatch errors.
+        if (basicAuth && basicAuth.username) {
+            const token = Buffer.from(`${basicAuth.username}:${basicAuth.password || ''}`).toString('base64');
+            headers['Authorization'] = `Basic ${token}`;
+        }
         const response = await axios.post(url, envelopeXml, {
             headers,
             timeout: 30000,
@@ -420,7 +424,7 @@ async function testCredentials(credentials) {
 
     const envelope = buildSoapEnvelope(bodyXml);
     console.log(`[UETDS SOAP] testCredentials SOAP request:\n${envelope}`);
-    const result = await callSoap(serviceUrl, SOAP_ACTIONS.kullaniciKontrol, envelope);
+    const result = await callSoap(serviceUrl, SOAP_ACTIONS.kullaniciKontrol, envelope, { username: credentials.username, password: credentials.password });
 
     console.log(`[UETDS SOAP] testCredentials response: status=${result.status}, success=${result.success}, error=${result.error || 'none'}`);
     if (result.data) {
