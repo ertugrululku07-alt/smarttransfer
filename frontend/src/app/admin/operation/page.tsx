@@ -150,7 +150,7 @@ export default function OperationDashboard() {
             ]);
 
             if (bookingsRes.data.success) {
-                const raw: Booking[] = bookingsRes.data.data;
+                const raw: Booking[] = Array.isArray(bookingsRes.data.data) ? bookingsRes.data.data : [];
                 const enriched = raw.map(b => ({
                     ...b,
                     pickup: typeof b.pickup === 'string' ? { location: b.pickup } : b.pickup,
@@ -188,7 +188,7 @@ export default function OperationDashboard() {
             }
 
             if (driversRes.data.success) {
-                const driverList: Driver[] = driversRes.data.data;
+                const driverList: Driver[] = Array.isArray(driversRes.data.data) ? driversRes.data.data : [];
                 setDrivers(driverList);
                 const online = new Set<string>();
                 const locs: Record<string, { lat: number; lng: number; speed?: number }> = {};

@@ -147,7 +147,7 @@ const HereLiveMapClient: React.FC<HereLiveMapClientProps> = ({ drivers, selected
     const apiKey = HERE_API_KEY;
     const tileUrl = `https://maps.hereapi.com/v3/base/mc/{z}/{x}/{y}/png8?apiKey=${apiKey}&size=256&style=explore.day`;
 
-    const driversWithLocation = useMemo(() => drivers.filter(d => d.lat !== 0 && d.lng !== 0), [drivers]);
+    const driversWithLocation = useMemo(() => (Array.isArray(drivers) ? drivers : []).filter(d => d.lat !== 0 && d.lng !== 0), [drivers]);
 
     // Build segmented polylines (breaks at GPS jumps >5km to prevent sea-crossing)
     const routeSegments = useMemo(() => {
