@@ -820,9 +820,9 @@ router.delete('/submission/:id', authMiddleware, async (req, res) => {
 
 // ── GET /api/uetds/server-ip ────────────────────────────────────────────────
 // Returns the outbound IP of this server (needed for UETDS IP whitelist)
-router.get('/server-ip', authMiddleware, async (req, res) => {
+// Public endpoint — no auth needed, just returns the server's egress IP
+router.get('/server-ip', async (req, res) => {
     try {
-        if (!requireAdmin(req, res)) return;
         const axios = require('axios');
         const result = await axios.get('https://api.ipify.org?format=json', { timeout: 10000 });
         res.json({ success: true, ip: result.data.ip });
