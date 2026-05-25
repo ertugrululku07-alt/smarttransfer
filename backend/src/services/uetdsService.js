@@ -102,11 +102,6 @@ async function callSoap(serviceUrl, soapAction, envelopeXml, basicAuth) {
         headers['Authorization'] = `Basic ${token}`;
     }
 
-    // Debug: log request details
-    const safeHeaders = { ...headers };
-    if (safeHeaders['Authorization']) safeHeaders['Authorization'] = safeHeaders['Authorization'].substring(0, 20) + '...';
-    console.log(`[UETDS SOAP] >>> REQUEST: url=${url}, SOAPAction=${headers['SOAPAction']}, hasAuth=${!!headers['Authorization']}`);
-    console.log(`[UETDS SOAP] >>> Headers: ${JSON.stringify(safeHeaders)}`);
 
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
         try {
@@ -121,9 +116,7 @@ async function callSoap(serviceUrl, soapAction, envelopeXml, basicAuth) {
             const dataStr = typeof response.data === 'string'
                 ? response.data
                 : (response.data ? JSON.stringify(response.data) : '');
-            console.log(`[UETDS SOAP] <<< RESPONSE: ${soapAction} -> HTTP ${response.status}, body length=${dataStr.length} (attempt ${attempt})`);
-            // Always log response for debugging auth issues
-            console.log(`[UETDS SOAP] <<< Response (first 1000 chars): ${dataStr.substring(0, 1000)}`);
+            console.log(`[UETDS SOAP] ${soapAction} -> HTTP ${response.status}, body length=${dataStr.length} (attempt ${attempt})`);
             return {
                 success: response.status >= 200 && response.status < 300,
                 status: response.status,
@@ -262,16 +255,13 @@ async function seferEkle(credentials, sefer) {
         rawResponse = result.error || 'Sunucudan yanıt alınamadı (data=null)';
     }
 
-    // Embed debug info into rawRequest so it's visible in the UI
-    const debugInfo = `[DEBUG] url=${credentials.serviceUrl || DEFAULT_SERVICE_URL}, hasBasicAuth=${!!(credentials.username && credentials.password)}, SOAPAction="${SOAP_ACTIONS.seferEkle}", user=${credentials.username}, passLen=${(credentials.password || '').length}\n\n`;
-
     return {
         success: result.success && !!uetdsSeferId,
         uetdsSeferId,
         refNo,
         status: result.status,
         errorMessage: !uetdsSeferId ? (hataMsg || 'Bilinmeyen hata') : null,
-        rawRequest: debugInfo + envelope,
+        rawRequest: envelope,
         rawResponse,
     };
 }
