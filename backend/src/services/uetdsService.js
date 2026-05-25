@@ -93,45 +93,63 @@ function buildSoapEnvelope(bodyXml /*, wsUsername, wsPassword */) {
 </soapenv:Envelope>`;
 }
 
-// ── SOAP call helper ─────────────────────────────────────────────────────────
+// ── SOAP call helper with retry ──────────────────────────────────────────────
+const MAX_RETRIES = 3;
+const RETRY_DELAY_MS = 2000;
+
 async function callSoap(serviceUrl, soapAction, envelopeXml, basicAuth) {
     const url = serviceUrl || DEFAULT_SERVICE_URL;
-    try {
-        const headers = {
-            'Content-Type': 'text/xml; charset=utf-8',
-            'SOAPAction': soapAction,
-        };
-        // Also send HTTP Basic Auth — some UETDS gateways accept either WS-Security
-        // or Basic Auth at the HTTP layer. Sending both is safe.
-        if (basicAuth && basicAuth.username) {
-            const token = Buffer.from(`${basicAuth.username}:${basicAuth.password || ''}`).toString('base64');
-            headers['Authorization'] = `Basic ${token}`;
+    const headers = {
+        'Content-Type': 'text/xml; charset=utf-8',
+        'SOAPAction': soapAction,
+    };
+    if (basicAuth && basicAuth.username) {
+        const token = Buffer.from(`${basicAuth.username}:${basicAuth.password || ''}`).toString('base64');
+        headers['Authorization'] = `Basic ${token}`;
+    }
+
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        try {
+            const response = await axios.post(url, envelopeXml, {
+                headers,
+                timeout: 60000,
+                validateStatus: () => true,
+                // Force HTTP/1.1 keep-alive and prevent premature socket close
+                httpAgent: new (require('http').Agent)({ keepAlive: true }),
+                httpsAgent: new (require('https').Agent)({ keepAlive: true, rejectUnauthorized: true }),
+            });
+            const dataStr = typeof response.data === 'string'
+                ? response.data
+                : (response.data ? JSON.stringify(response.data) : '');
+            console.log(`[UETDS SOAP] ${soapAction} -> HTTP ${response.status}, body length=${dataStr.length} (attempt ${attempt})`);
+            if (response.status >= 400 || dataStr.length < 50) {
+                console.log(`[UETDS SOAP] Response (first 1000 chars): ${dataStr.substring(0, 1000)}`);
+            }
+            return {
+                success: response.status >= 200 && response.status < 300,
+                status: response.status,
+                data: response.data,
+            };
+        } catch (error) {
+            const isRetryable = error.code === 'ECONNRESET' || error.code === 'ECONNABORTED' ||
+                error.code === 'ETIMEDOUT' || error.code === 'EPIPE' || error.code === 'EAI_AGAIN' ||
+                error.message.includes('ECONNRESET') || error.message.includes('socket hang up');
+
+            console.error(`[UETDS SOAP] Network error for ${soapAction} (attempt ${attempt}/${MAX_RETRIES}): ${error.message}`);
+
+            if (isRetryable && attempt < MAX_RETRIES) {
+                console.log(`[UETDS SOAP] Retrying in ${RETRY_DELAY_MS}ms...`);
+                await new Promise(r => setTimeout(r, RETRY_DELAY_MS * attempt));
+                continue;
+            }
+
+            return {
+                success: false,
+                status: 0,
+                data: null,
+                error: error.message,
+            };
         }
-        const response = await axios.post(url, envelopeXml, {
-            headers,
-            timeout: 30000,
-            validateStatus: () => true, // Accept all HTTP status codes
-        });
-        const dataStr = typeof response.data === 'string'
-            ? response.data
-            : (response.data ? JSON.stringify(response.data) : '');
-        console.log(`[UETDS SOAP] ${soapAction} -> HTTP ${response.status}, body length=${dataStr.length}`);
-        if (response.status >= 400 || dataStr.length < 50) {
-            console.log(`[UETDS SOAP] Response (first 1000 chars): ${dataStr.substring(0, 1000)}`);
-        }
-        return {
-            success: response.status >= 200 && response.status < 300,
-            status: response.status,
-            data: response.data,
-        };
-    } catch (error) {
-        console.error(`[UETDS SOAP] Network error for ${soapAction}:`, error.message);
-        return {
-            success: false,
-            status: 0,
-            data: null,
-            error: error.message,
-        };
     }
 }
 
