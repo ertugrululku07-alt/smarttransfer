@@ -500,13 +500,18 @@ async function submitOneItem({ tenantId, userId, item, config, bookings, drivers
         const seferAciklama = item.kind === 'RUN'
             ? `[SHUTTLE] ${meta.pickup || ''} → ${lastMeta.dropoff || ''} (${bookingsForItem.length} rez.)`
             : `${meta.pickup || ''} → ${meta.dropoff || ''} (${primary.bookingNumber})`;
-        // Pass raw Date objects — formatUetdsDate inside seferEkle handles the formatting
+        // firmaSeferNo: company-side trip identifier required by UETDS WSDL.
+        // For shuttle runs use the runKey, otherwise the booking number.
+        const firmaSeferNo = item.kind === 'RUN'
+            ? `RUN-${runKey}`
+            : (primary.bookingNumber || `BK-${primary.id}`);
         seferResult = await uetdsService.seferEkle(credentials, {
             aracPlaka: (vehicle.plateNumber || '').replace(/\s+/g, '').toUpperCase(),
             seferAciklama,
             baslangicTarih,
             bitisTarih,
-            baslangicIl, baslangicIlce, bitisIl, bitisIlce,
+            firmaSeferNo,
+            aracTelefonu: ((driverP?.phone || driver?.phone || '')).replace(/\D/g, ''),
         });
         seferResult.rawResponse = (seferResult.rawResponse || '').substring(0, 4000);
         seferResult.rawRequest = (seferResult.rawRequest || '').substring(0, 4000);
@@ -544,13 +549,18 @@ async function submitOneItem({ tenantId, userId, item, config, bookings, drivers
     let yolcuResults = [];
     if (provider !== 'UETDS_NET' && seferResult.uetdsSeferId) {
         const uetdsService = require('../services/uetdsService');
+        let seatCounter = 1;
         for (const p of passengers) {
             try {
                 const r = await uetdsService.yolcuEkle(credentials, seferResult.uetdsSeferId, {
-                    tcKimlikNo: p.tcNo || '',
-                    adi: p.firstName, soyadi: p.lastName,
-                    cinsiyet: p.gender, uyruk: p.nationality === 'TR' ? 'TC' : p.nationality,
+                    tcKimlikPasaportNo: p.tcNo || '',
+                    adi: p.firstName,
+                    soyadi: p.lastName,
+                    cinsiyet: (p.gender === 'F' || p.gender === 'K' || p.gender === '2') ? 'K' : 'E',
+                    uyrukUlke: (p.nationality && p.nationality.length === 2) ? p.nationality : 'TR',
                     telefon: p.phone || '',
+                    koltukNo: String(seatCounter++),
+                    grupId: '0',
                 });
                 yolcuResults.push({ name: `${p.firstName} ${p.lastName}`, success: r.success, error: r.errorMessage });
             } catch (e) {
@@ -560,11 +570,13 @@ async function submitOneItem({ tenantId, userId, item, config, bookings, drivers
         if (driverP?.tcNumber) {
             try {
                 await uetdsService.personelEkle(credentials, seferResult.uetdsSeferId, {
-                    tcKimlikNo: driverP.tcNumber,
-                    adi: driverName.first, soyadi: driverName.last,
-                    cinsiyet: '1',
-                    telefonNo: driverP.phone || driver?.phone || '',
-                    gorevTuru: '1',
+                    tcKimlikPasaportNo: driverP.tcNumber,
+                    adi: driverName.first,
+                    soyadi: driverName.last,
+                    cinsiyet: 'E',
+                    telefon: driverP.phone || driver?.phone || '',
+                    turKodu: '1', // 1 = şoför
+                    uyrukUlke: 'TR',
                 });
             } catch (_) { /* non-fatal */ }
         }

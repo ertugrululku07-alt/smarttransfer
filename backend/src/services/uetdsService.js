@@ -161,26 +161,26 @@ function extractSoapFault(xml) {
     return faultString || detail || null;
 }
 
-// ── Format date for UETDS (dd.MM.yyyy HH:mm) ────────────────────────────────
-// Smart: if already in "DD.MM.YYYY HH:mm" format, pass through unchanged.
-// Otherwise parse as Date and format.
-function formatUetdsDate(date) {
-    if (!date) return '';
-    // Already formatted string? (DD.MM.YYYY HH:mm)
-    if (typeof date === 'string' && /^\d{2}\.\d{2}\.\d{4} \d{2}:\d{2}$/.test(date.trim())) {
-        return date.trim();
-    }
+// ── Date helpers for UETDS xs:dateTime + xs:string (HH:mm) ──────────────────
+// WSDL uses xs:dateTime for tarih fields and xs:string for saat fields.
+// Example: hareketTarihi=2026-05-27T09:00:00, hareketSaati=09:00
+function asDateObj(date) {
+    if (!date) return null;
+    if (date instanceof Date) return isNaN(date.getTime()) ? null : date;
     const d = new Date(date);
-    if (isNaN(d.getTime())) {
-        console.warn(`[UETDS] formatUetdsDate: geçersiz tarih değeri: ${date}`);
-        return typeof date === 'string' ? date : '';
-    }
-    const dd = String(d.getDate()).padStart(2, '0');
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const yyyy = d.getFullYear();
-    const hh = String(d.getHours()).padStart(2, '0');
-    const min = String(d.getMinutes()).padStart(2, '0');
-    return `${dd}.${mm}.${yyyy} ${hh}:${min}`;
+    return isNaN(d.getTime()) ? null : d;
+}
+function toIsoDateTime(date) {
+    const d = asDateObj(date);
+    if (!d) return '';
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+function toHHmm(date) {
+    const d = asDateObj(date);
+    if (!d) return '';
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -188,11 +188,23 @@ function formatUetdsDate(date) {
 // ═════════════════════════════════════════════════════════════════════════════
 
 /**
- * seferEkle — Declare a new trip
- * @param {Object} credentials - { username, password, yetkiBelgeNo, serviceUrl }
- * @param {Object} sefer - Trip details
- *   { aracPlaka, seferAciklama, baslangicTarih, bitisTarih,
- *     baslangicIl, baslangicIlce, bitisIl, bitisIlce }
+ * seferEkle — Declare a new ad-hoc (arızı) trip per WSDL schema.
+ * Required schema:
+ *   <seferEkle>
+ *     <wsuser>{kullaniciAdi, sifre}</wsuser>
+ *     <ariziSeferBilgileriInput>
+ *       <aracPlaka/>                 (required)
+ *       <seferAciklama/>             (optional)
+ *       <hareketTarihi/>             (xs:dateTime — ISO format)
+ *       <hareketSaati/>              (HH:mm)
+ *       <aracTelefonu/>              (optional)
+ *       <firmaSeferNo/>              (required — our booking number / runKey)
+ *       <seferBitisTarihi/>          (xs:dateTime)
+ *       <seferBitisSaati/>           (HH:mm)
+ *     </ariziSeferBilgileriInput>
+ *   </seferEkle>
+ * @param {Object} sefer - { aracPlaka, seferAciklama, baslangicTarih, bitisTarih,
+ *                            firmaSeferNo, aracTelefonu? }
  */
 async function seferEkle(credentials, sefer) {
     const bodyXml = `
@@ -201,26 +213,26 @@ async function seferEkle(credentials, sefer) {
                 <uet:kullaniciAdi>${xmlEscape(credentials.username)}</uet:kullaniciAdi>
                 <uet:sifre>${xmlEscape(credentials.password)}</uet:sifre>
             </uet:wsuser>
-            <uet:seferBilgileri>
+            <uet:ariziSeferBilgileriInput>
                 <uet:aracPlaka>${xmlEscape(sefer.aracPlaka)}</uet:aracPlaka>
                 <uet:seferAciklama>${xmlEscape(sefer.seferAciklama || '')}</uet:seferAciklama>
-                <uet:yetkiBelgeNo>${xmlEscape(credentials.yetkiBelgeNo)}</uet:yetkiBelgeNo>
-                <uet:baslangicTarih>${formatUetdsDate(sefer.baslangicTarih)}</uet:baslangicTarih>
-                <uet:bitisTarih>${formatUetdsDate(sefer.bitisTarih)}</uet:bitisTarih>
-                <uet:baslangicIl>${xmlEscape(sefer.baslangicIl || '')}</uet:baslangicIl>
-                <uet:baslangicIlce>${xmlEscape(sefer.baslangicIlce || '')}</uet:baslangicIlce>
-                <uet:bitisIl>${xmlEscape(sefer.bitisIl || '')}</uet:bitisIl>
-                <uet:bitisIlce>${xmlEscape(sefer.bitisIlce || '')}</uet:bitisIlce>
-            </uet:seferBilgileri>
+                <uet:hareketTarihi>${toIsoDateTime(sefer.baslangicTarih)}</uet:hareketTarihi>
+                <uet:hareketSaati>${toHHmm(sefer.baslangicTarih)}</uet:hareketSaati>
+                <uet:aracTelefonu>${xmlEscape(sefer.aracTelefonu || '')}</uet:aracTelefonu>
+                <uet:firmaSeferNo>${xmlEscape(sefer.firmaSeferNo || '')}</uet:firmaSeferNo>
+                <uet:seferBitisTarihi>${toIsoDateTime(sefer.bitisTarih)}</uet:seferBitisTarihi>
+                <uet:seferBitisSaati>${toHHmm(sefer.bitisTarih)}</uet:seferBitisSaati>
+            </uet:ariziSeferBilgileriInput>
         </uet:seferEkle>`;
 
     const envelope = buildSoapEnvelope(bodyXml, credentials.username, credentials.password);
     const result = await callSoap(credentials.serviceUrl, SOAP_ACTIONS.seferEkle, envelope, { username: credentials.username, password: credentials.password });
 
-    const uetdsSeferId = extractXmlValue(result.data, 'uetdsSeferId') || extractXmlValue(result.data, 'seferId');
+    // WSDL response field is uetdsSeferReferansNo (a long), not uetdsSeferId.
+    const uetdsSeferId = extractXmlValue(result.data, 'uetdsSeferReferansNo');
     const sonucKodu = extractXmlValue(result.data, 'sonucKodu');
     const sonucMesaji = extractXmlValue(result.data, 'sonucMesaji');
-    const refNo = extractXmlValue(result.data, 'referansNo') || sonucKodu;
+    const refNo = uetdsSeferId || sonucKodu;
     // UETDS convention: sonucKodu="0" means success, anything else (e.g. "1") is an error.
     const businessError = (sonucKodu && sonucKodu !== '0') ? sonucMesaji : null;
     const hataMsg = extractSoapFault(result.data)
@@ -251,16 +263,22 @@ async function seferEkle(credentials, sefer) {
 }
 
 /**
- * seferIptal — Cancel a declared trip
+ * seferIptal — Cancel a declared trip per WSDL schema.
+ *   <seferIptal>
+ *     <wsuser/>
+ *     <uetdsSeferReferansNo/>  (long — the trip ref returned by seferEkle)
+ *     <iptalAciklama/>
+ *   </seferIptal>
  */
-async function seferIptal(credentials, uetdsSeferId) {
+async function seferIptal(credentials, uetdsSeferReferansNo, iptalAciklama = 'İptal') {
     const bodyXml = `
         <uet:seferIptal>
             <uet:wsuser>
                 <uet:kullaniciAdi>${xmlEscape(credentials.username)}</uet:kullaniciAdi>
                 <uet:sifre>${xmlEscape(credentials.password)}</uet:sifre>
             </uet:wsuser>
-            <uet:uetdsSeferId>${xmlEscape(uetdsSeferId)}</uet:uetdsSeferId>
+            <uet:uetdsSeferReferansNo>${xmlEscape(uetdsSeferReferansNo)}</uet:uetdsSeferReferansNo>
+            <uet:iptalAciklama>${xmlEscape(iptalAciklama)}</uet:iptalAciklama>
         </uet:seferIptal>`;
 
     const envelope = buildSoapEnvelope(bodyXml, credentials.username, credentials.password);
@@ -276,25 +294,43 @@ async function seferIptal(credentials, uetdsSeferId) {
 }
 
 /**
- * yolcuEkle — Add a passenger to a declared trip
- * @param {Object} yolcu - { tcKimlikNo, adi, soyadi, cinsiyet, telefon, uyruk }
+ * yolcuEkle — Add a passenger to a declared trip per WSDL schema.
+ *   <yolcuEkle>
+ *     <wsuser/>
+ *     <uetdsSeferReferansNo/>
+ *     <seferYolcuBilgileriInput>
+ *       <uyrukUlke/>            (required, e.g. "TR")
+ *       <tcKimlikPasaportNo/>   (required)
+ *       <cinsiyet/>             (optional, "E"/"K")
+ *       <adi/>                  (required)
+ *       <soyadi/>               (required)
+ *       <koltukNo/>             (required string)
+ *       <telefonNo/>            (optional)
+ *       <grupId/>               (required long — 0 for ungrouped ad-hoc)
+ *       <hesKodu/>              (optional)
+ *     </seferYolcuBilgileriInput>
+ *   </yolcuEkle>
+ * @param {Object} yolcu - { tcKimlikPasaportNo, adi, soyadi, cinsiyet?, telefon?, uyrukUlke?, koltukNo?, grupId?, hesKodu? }
  */
-async function yolcuEkle(credentials, uetdsSeferId, yolcu) {
+async function yolcuEkle(credentials, uetdsSeferReferansNo, yolcu) {
     const bodyXml = `
         <uet:yolcuEkle>
             <uet:wsuser>
                 <uet:kullaniciAdi>${xmlEscape(credentials.username)}</uet:kullaniciAdi>
                 <uet:sifre>${xmlEscape(credentials.password)}</uet:sifre>
             </uet:wsuser>
-            <uet:uetdsSeferId>${xmlEscape(uetdsSeferId)}</uet:uetdsSeferId>
-            <uet:yolcuBilgileri>
-                <uet:tcKimlikNo>${xmlEscape(yolcu.tcKimlikNo || '')}</uet:tcKimlikNo>
+            <uet:uetdsSeferReferansNo>${xmlEscape(uetdsSeferReferansNo)}</uet:uetdsSeferReferansNo>
+            <uet:seferYolcuBilgileriInput>
+                <uet:uyrukUlke>${xmlEscape(yolcu.uyrukUlke || yolcu.uyruk || 'TR')}</uet:uyrukUlke>
+                <uet:tcKimlikPasaportNo>${xmlEscape(yolcu.tcKimlikPasaportNo || yolcu.tcKimlikNo || '')}</uet:tcKimlikPasaportNo>
+                <uet:cinsiyet>${xmlEscape(yolcu.cinsiyet || 'E')}</uet:cinsiyet>
                 <uet:adi>${xmlEscape(yolcu.adi)}</uet:adi>
                 <uet:soyadi>${xmlEscape(yolcu.soyadi)}</uet:soyadi>
-                <uet:cinsiyet>${xmlEscape(yolcu.cinsiyet || '1')}</uet:cinsiyet>
-                <uet:uyruk>${xmlEscape(yolcu.uyruk || 'TC')}</uet:uyruk>
-                <uet:telefonNo>${xmlEscape(yolcu.telefon || '')}</uet:telefonNo>
-            </uet:yolcuBilgileri>
+                <uet:koltukNo>${xmlEscape(yolcu.koltukNo || '1')}</uet:koltukNo>
+                <uet:telefonNo>${xmlEscape(yolcu.telefon || yolcu.telefonNo || '')}</uet:telefonNo>
+                <uet:grupId>${xmlEscape(yolcu.grupId || '0')}</uet:grupId>
+                <uet:hesKodu>${xmlEscape(yolcu.hesKodu || '')}</uet:hesKodu>
+            </uet:seferYolcuBilgileriInput>
         </uet:yolcuEkle>`;
 
     const envelope = buildSoapEnvelope(bodyXml, credentials.username, credentials.password);
@@ -310,25 +346,43 @@ async function yolcuEkle(credentials, uetdsSeferId, yolcu) {
 }
 
 /**
- * personelEkle — Add driver/personnel to a trip
- * @param {Object} personel - { tcKimlikNo, adi, soyadi, cinsiyet, telefonNo, gorevTuru }
+ * personelEkle — Add driver/personnel to a trip per WSDL schema.
+ *   <personelEkle>
+ *     <wsuser/>
+ *     <uetdsSeferReferansNo/>
+ *     <seferPersonelBilgileriInput>
+ *       <turKodu/>              (int: 1=şoför, 2=muavin, 3=hostes, …)
+ *       <uyrukUlke/>            (required)
+ *       <tcKimlikPasaportNo/>   (required)
+ *       <cinsiyet/>             (required, "E"/"K")
+ *       <adi/>                  (required)
+ *       <soyadi/>               (required)
+ *       <telefon/>              (optional)
+ *       <adres/>                (optional)
+ *       <hesKodu/>              (optional)
+ *     </seferPersonelBilgileriInput>
+ *   </personelEkle>
+ * @param {Object} personel - { tcKimlikPasaportNo, adi, soyadi, cinsiyet, telefon?, adres?, hesKodu?, turKodu?, uyrukUlke? }
  */
-async function personelEkle(credentials, uetdsSeferId, personel) {
+async function personelEkle(credentials, uetdsSeferReferansNo, personel) {
     const bodyXml = `
         <uet:personelEkle>
             <uet:wsuser>
                 <uet:kullaniciAdi>${xmlEscape(credentials.username)}</uet:kullaniciAdi>
                 <uet:sifre>${xmlEscape(credentials.password)}</uet:sifre>
             </uet:wsuser>
-            <uet:uetdsSeferId>${xmlEscape(uetdsSeferId)}</uet:uetdsSeferId>
-            <uet:personelBilgileri>
-                <uet:tcKimlikNo>${xmlEscape(personel.tcKimlikNo)}</uet:tcKimlikNo>
+            <uet:uetdsSeferReferansNo>${xmlEscape(uetdsSeferReferansNo)}</uet:uetdsSeferReferansNo>
+            <uet:seferPersonelBilgileriInput>
+                <uet:turKodu>${xmlEscape(personel.turKodu || personel.gorevTuru || '1')}</uet:turKodu>
+                <uet:uyrukUlke>${xmlEscape(personel.uyrukUlke || 'TR')}</uet:uyrukUlke>
+                <uet:tcKimlikPasaportNo>${xmlEscape(personel.tcKimlikPasaportNo || personel.tcKimlikNo || '')}</uet:tcKimlikPasaportNo>
+                <uet:cinsiyet>${xmlEscape(personel.cinsiyet || 'E')}</uet:cinsiyet>
                 <uet:adi>${xmlEscape(personel.adi)}</uet:adi>
                 <uet:soyadi>${xmlEscape(personel.soyadi)}</uet:soyadi>
-                <uet:cinsiyet>${xmlEscape(personel.cinsiyet || '1')}</uet:cinsiyet>
-                <uet:telefonNo>${xmlEscape(personel.telefonNo || '')}</uet:telefonNo>
-                <uet:gorevTuru>${xmlEscape(personel.gorevTuru || '1')}</uet:gorevTuru>
-            </uet:personelBilgileri>
+                <uet:telefon>${xmlEscape(personel.telefon || personel.telefonNo || '')}</uet:telefon>
+                <uet:adres>${xmlEscape(personel.adres || '')}</uet:adres>
+                <uet:hesKodu>${xmlEscape(personel.hesKodu || '')}</uet:hesKodu>
+            </uet:seferPersonelBilgileriInput>
         </uet:personelEkle>`;
 
     const envelope = buildSoapEnvelope(bodyXml, credentials.username, credentials.password);
@@ -350,13 +404,12 @@ async function personelEkle(credentials, uetdsSeferId, personel) {
 async function testCredentials(credentials) {
     console.log(`[UETDS SOAP] testCredentials: username=${credentials.username}, serviceUrl=${credentials.serviceUrl || DEFAULT_SERVICE_URL}`);
     
-    // Use kullaniciKontrol — the WSDL-defined operation for credential verification
+    // Per WSDL schema, kullaniciKontrol takes kullaniciAdi + sifre DIRECTLY
+    // (NOT wrapped in <wsuser>). Wrapping caused "Eksik Parametre" error.
     const bodyXml = `
         <uet:kullaniciKontrol>
-            <uet:wsuser>
-                <uet:kullaniciAdi>${xmlEscape(credentials.username)}</uet:kullaniciAdi>
-                <uet:sifre>${xmlEscape(credentials.password)}</uet:sifre>
-            </uet:wsuser>
+            <uet:kullaniciAdi>${xmlEscape(credentials.username)}</uet:kullaniciAdi>
+            <uet:sifre>${xmlEscape(credentials.password)}</uet:sifre>
         </uet:kullaniciKontrol>`;
 
     const envelope = buildSoapEnvelope(bodyXml, credentials.username, credentials.password);
