@@ -58,12 +58,19 @@ function xmlEscape(str) {
         .replace(/'/g, '&apos;');
 }
 
+// ── SOAP namespaces ───────────────────────────────────────────────────────
+// Official T.C. UDHB UETDS Arızı (ad-hoc) service namespace per WSDL:
+//   targetNamespace="http://uetds.unetws.udhb.gov.tr/"
+//   SOAPAction prefix: "http://uetds.unetws.udhb.gov.tr/uetdsytsarizi/<op>"
+const UETDS_NS = 'http://uetds.unetws.udhb.gov.tr/';
+const SOAP_ACTION_PREFIX = 'http://uetds.unetws.udhb.gov.tr/uetdsytsarizi/';
+
 // ── Build SOAP envelope with WS-Security ─────────────────────────────────────
 function buildSoapEnvelope(username, password, bodyXml) {
     return `<?xml version="1.0" encoding="UTF-8"?>
 <soapenv:Envelope 
     xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
-    xmlns:uet="http://uetds.udhb.gov.tr/">
+    xmlns:uet="${UETDS_NS}">
     <soapenv:Header>
         <wsse:Security 
             xmlns:wsse="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd"
@@ -83,11 +90,16 @@ function buildSoapEnvelope(username, password, bodyXml) {
 // ── SOAP call helper ─────────────────────────────────────────────────────────
 async function callSoap(serviceUrl, soapAction, envelopeXml) {
     const url = serviceUrl || DEFAULT_SERVICE_URL;
+    // SOAPAction must be a fully-qualified URI per WS-Addressing in the WSDL.
+    // If only an operation name is given, prepend the canonical UETDS prefix.
+    const fullAction = /^https?:\/\//i.test(soapAction)
+        ? soapAction
+        : `${SOAP_ACTION_PREFIX}${soapAction}`;
     try {
         const response = await axios.post(url, envelopeXml, {
             headers: {
                 'Content-Type': 'text/xml; charset=utf-8',
-                'SOAPAction': soapAction,
+                'SOAPAction': `"${fullAction}"`,
             },
             timeout: 30000,
             validateStatus: () => true, // Accept all HTTP status codes
