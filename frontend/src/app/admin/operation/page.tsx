@@ -266,11 +266,11 @@ export default function OperationDashboard() {
         try {
             const res = await apiClient.get(`/api/driver/connection-logs/${driver.id}`);
             if (res.data.success) {
-                setDriverLogs(res.data.data);
+                setDriverLogs(Array.isArray(res.data.data) ? res.data.data : []);
             }
         } catch {
             // Fallback to inline data from /online endpoint
-            setDriverLogs(driver.recentConnectionEvents || []);
+            setDriverLogs(Array.isArray(driver.recentConnectionEvents) ? driver.recentConnectionEvents : []);
         } finally {
             setLoadingLogs(false);
         }
@@ -908,7 +908,7 @@ export default function OperationDashboard() {
 
                             {/* Timeline */}
                             <Timeline
-                                items={[...driverLogs].reverse().map((log, i) => {
+                                items={(Array.isArray(driverLogs) ? [...driverLogs] : []).reverse().map((log, i) => {
                                     const cfg = eventConfig[log.event] || { color: '#6b7280', icon: <ClockCircleOutlined />, label: log.event };
                                     const time = dayjs(log.ts);
                                     const details: string[] = [];
