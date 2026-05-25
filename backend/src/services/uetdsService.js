@@ -102,6 +102,12 @@ async function callSoap(serviceUrl, soapAction, envelopeXml, basicAuth) {
         headers['Authorization'] = `Basic ${token}`;
     }
 
+    // Debug: log request details
+    const safeHeaders = { ...headers };
+    if (safeHeaders['Authorization']) safeHeaders['Authorization'] = safeHeaders['Authorization'].substring(0, 20) + '...';
+    console.log(`[UETDS SOAP] >>> REQUEST: url=${url}, SOAPAction=${headers['SOAPAction']}, hasAuth=${!!headers['Authorization']}`);
+    console.log(`[UETDS SOAP] >>> Headers: ${JSON.stringify(safeHeaders)}`);
+
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
         try {
             const response = await axios.post(url, envelopeXml, {
@@ -115,10 +121,9 @@ async function callSoap(serviceUrl, soapAction, envelopeXml, basicAuth) {
             const dataStr = typeof response.data === 'string'
                 ? response.data
                 : (response.data ? JSON.stringify(response.data) : '');
-            console.log(`[UETDS SOAP] ${soapAction} -> HTTP ${response.status}, body length=${dataStr.length} (attempt ${attempt})`);
-            if (response.status >= 400 || dataStr.length < 50) {
-                console.log(`[UETDS SOAP] Response (first 1000 chars): ${dataStr.substring(0, 1000)}`);
-            }
+            console.log(`[UETDS SOAP] <<< RESPONSE: ${soapAction} -> HTTP ${response.status}, body length=${dataStr.length} (attempt ${attempt})`);
+            // Always log response for debugging auth issues
+            console.log(`[UETDS SOAP] <<< Response (first 1000 chars): ${dataStr.substring(0, 1000)}`);
             return {
                 success: response.status >= 200 && response.status < 300,
                 status: response.status,
