@@ -831,4 +831,48 @@ router.get('/server-ip', async (req, res) => {
     }
 });
 
+// ── POST /api/uetds/diagnose ─────────────────────────────────────────────────
+// Tests multiple UETDS operations with the same credentials to find which work
+router.post('/diagnose', authMiddleware, async (req, res) => {
+    try {
+        if (!requireAdmin(req, res)) return;
+        const tenantId = req.user.tenantId;
+        const config = await loadUetdsConfig(tenantId);
+        if (!config.ok) return res.status(400).json({ success: false, error: config.error });
+        const { credentials } = config;
+        const uetdsService = require('../services/uetdsService');
+
+        const results = {};
+
+        // 1. kullaniciKontrol
+        try {
+            const r1 = await uetdsService.testCredentials(credentials);
+            results.kullaniciKontrol = { success: r1.success, message: r1.message || r1.error };
+        } catch (e) { results.kullaniciKontrol = { success: false, message: e.message }; }
+
+        // 2. seferEkle with minimal ASCII data
+        try {
+            const r2 = await uetdsService.seferEkle(credentials, {
+                aracPlaka: '34TEST001',
+                seferAciklama: 'Diagnose test',
+                baslangicTarih: new Date(Date.now() + 24 * 3600000),
+                bitisTarih: new Date(Date.now() + 26 * 3600000),
+                firmaSeferNo: 'DIAG-' + Date.now(),
+                aracTelefonu: '05001234567',
+            });
+            results.seferEkle = {
+                success: r2.success,
+                errorMessage: r2.errorMessage,
+                sonucKodu: r2.refNo,
+                httpStatus: r2.status,
+                rawResponse: (typeof r2.rawResponse === 'string' ? r2.rawResponse : '').substring(0, 500),
+            };
+        } catch (e) { results.seferEkle = { success: false, message: e.message }; }
+
+        res.json({ success: true, credentials: { user: credentials.username, passLen: (credentials.password || '').length, url: credentials.serviceUrl }, results });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
 module.exports = router;
