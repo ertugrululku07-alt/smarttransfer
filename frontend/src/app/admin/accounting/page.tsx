@@ -35,7 +35,7 @@ interface Account {
 
 /* ─── Config ─────────────────────────────────────────── */
 const TYPE_CFG: Record<string, { label: string; color: string; grad: string; icon: React.ReactNode; bg: string }> = {
-    AGENCY: { label: 'Acenta', color: '#7c3aed', grad: 'linear-gradient(135deg,#7c3aed,#a855f7)', icon: <BankOutlined />, bg: '#faf5ff' },
+    AGENCY: { label: 'Acenta', color: 'var(--brand-accent)', grad: 'linear-gradient(135deg,var(--brand-accent),var(--brand-accent))', icon: <BankOutlined />, bg: 'var(--brand-primary-08)' },
     PARTNER: { label: 'Partner', color: '#0891b2', grad: 'linear-gradient(135deg,#0891b2,#22d3ee)', icon: <TeamOutlined />, bg: '#ecfeff' },
     PERSONNEL: { label: 'Personel', color: '#d97706', grad: 'linear-gradient(135deg,#d97706,#fbbf24)', icon: <UserOutlined />, bg: '#fffbeb' },
     CUSTOMER: { label: 'Müşteri', color: '#2563eb', grad: 'linear-gradient(135deg,#2563eb,#60a5fa)', icon: <UserOutlined />, bg: '#eff6ff' },
@@ -401,7 +401,7 @@ const AccountingDashboard: React.FC = () => {
                             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
                                 <div style={{
                                     width: 36, height: 36, borderRadius: 10,
-                                    background: 'linear-gradient(135deg,#6366f1,#8b5cf6)',
+                                    background: 'linear-gradient(135deg,var(--brand-primary),var(--brand-accent))',
                                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                                     color: 'white', fontSize: 18,
                                 }}>
@@ -457,10 +457,10 @@ const AccountingDashboard: React.FC = () => {
                             <KpiCard
                                 title="Net Bakiye"
                                 value={metrics.totalBalance}
-                                color={metrics.totalBalance >= 0 ? '#2563eb' : '#7c3aed'}
+                                color={metrics.totalBalance >= 0 ? '#2563eb' : 'var(--brand-accent)'}
                                 grad={metrics.totalBalance >= 0
                                     ? 'linear-gradient(135deg,#2563eb,#60a5fa)'
-                                    : 'linear-gradient(135deg,#7c3aed,#a78bfa)'
+                                    : 'linear-gradient(135deg,var(--brand-accent),var(--brand-primary))'
                                 }
                                 icon={<WalletOutlined />}
                                 sub={metrics.totalBalance < 0 ? 'Alacaklı' : 'Borçlu'}
@@ -522,7 +522,7 @@ const AccountingDashboard: React.FC = () => {
                                 <div style={{ fontWeight: 700, marginBottom: 4 }}>Büyüme Trendi</div>
                                 <Text type="secondary" style={{ fontSize: 12 }}>Son 6 ay tahmini</Text>
                                 <div style={{ marginTop: 20 }}>
-                                    <Sparkline values={trendValues} color="#6366f1" width={260} height={72} />
+                                    <Sparkline values={trendValues} color="var(--brand-primary)" width={260} height={72} />
                                     <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
                                         {['Eyl', 'Eki', 'Kas', 'Ara', 'Oca', 'Şub'].map(m => (
                                             <span key={m} style={{ fontSize: 10, color: '#9ca3af' }}>{m}</span>
@@ -537,7 +537,7 @@ const AccountingDashboard: React.FC = () => {
                                     </div>
                                     <div>
                                         <div style={{ fontSize: 10, color: '#6b7280' }}>Ort. Aylık Artış</div>
-                                        <div style={{ fontWeight: 700, color: '#6366f1', fontSize: 16 }}>+5.6%</div>
+                                        <div style={{ fontWeight: 700, color: 'var(--brand-primary)', fontSize: 16 }}>+5.6%</div>
                                     </div>
                                     <div>
                                         <div style={{ fontSize: 10, color: '#6b7280' }}>Hedef</div>

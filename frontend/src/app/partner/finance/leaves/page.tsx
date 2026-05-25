@@ -94,7 +94,7 @@ export default function LeavesPage() {
 
   return (
     <>
-      <Card title={<span><CalendarOutlined style={{ marginRight: 8, color: '#6366f1' }} /> İzin Yönetimi</span>} size="small"
+      <Card title={<span><CalendarOutlined style={{ marginRight: 8, color: 'var(--brand-primary)' }} /> İzin Yönetimi</span>} size="small"
         extra={
           <Space>
             <Select placeholder="Tüm durumlar" allowClear style={{ width: 150 }} value={status} onChange={(v)=>{ setStatus(v); setTimeout(load, 0); }} options={Object.keys(STATUS_LABELS).map(k=>({ value: k, label: STATUS_LABELS[k] }))} />

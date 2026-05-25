@@ -292,7 +292,7 @@ export default function UetdsSubmissionPage() {
             width: 90,
             render: (p: number, it: QueueItem) => (
                 <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontWeight: 800, fontSize: 18, color: '#4f46e5' }}>{p}</div>
+                    <div style={{ fontWeight: 800, fontSize: 18, color: 'var(--brand-accent)' }}>{p}</div>
                     <div style={{ fontSize: 10, color: '#94a3b8' }}>{it.bookings.length} rez.</div>
                 </div>
             )
@@ -489,7 +489,7 @@ export default function UetdsSubmissionPage() {
                     <Card
                         bordered={false}
                         style={{
-                            background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
+                            background: 'linear-gradient(135deg, var(--brand-accent) 0%, var(--brand-accent) 100%)',
                             color: '#fff', marginBottom: 16
                         }}
                     >
@@ -523,7 +523,7 @@ export default function UetdsSubmissionPage() {
                         </Col>
                         <Col xs={12} md={6}>
                             <Card size="small">
-                                <Statistic title="Toplam Yolcu" value={stats.totalPax} valueStyle={{ color: '#6366f1' }} />
+                                <Statistic title="Toplam Yolcu" value={stats.totalPax} valueStyle={{ color: 'var(--brand-primary)' }} />
                             </Card>
                         </Col>
                     </Row>

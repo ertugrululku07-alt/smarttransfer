@@ -32,7 +32,7 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
     const fullName = `${branding.siteNameHighlight || ''}${branding.siteName || ''}` || branding.companyName || 'SmartTravel';
     const shortName = branding.siteName || branding.companyName || 'SmartTravel';
     const description = seo.defaultDescription || branding.slogan || 'Premium Transfer Hizmeti';
-    const themeColor = settings?.customTheme?.primaryColor || '#667eea';
+    const themeColor = settings?.customTheme?.primaryColor || 'var(--brand-primary)';
     const logoUrl = branding.logoUrl || '/favicon.ico';
 
     const icons: MetadataRoute.Manifest['icons'] = [

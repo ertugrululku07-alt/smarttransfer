@@ -102,7 +102,7 @@ export default function CashPage() {
 
   return (
     <>
-      <Card title={<span><WalletOutlined style={{ marginRight: 8, color: '#6366f1' }} /> Kasa & Banka</span>} size="small"
+      <Card title={<span><WalletOutlined style={{ marginRight: 8, color: 'var(--brand-primary)' }} /> Kasa & Banka</span>} size="small"
         extra={
           <Space>
             <Button icon={<DownloadOutlined />} onClick={() => exportResource('cash', 'kasa-banka')}>CSV</Button>
@@ -120,7 +120,7 @@ export default function CashPage() {
       >
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10, marginBottom: 12 }}>
           {accounts.map((a) => (
-            <div key={a.accountKey} className="ps-card" style={{ padding: 12, borderLeft: '3px solid #6366f1', cursor: 'pointer' }} onClick={() => { setAccountKey(a.accountKey); setTimeout(load, 0); }}>
+            <div key={a.accountKey} className="ps-card" style={{ padding: 12, borderLeft: '3px solid var(--brand-primary)', cursor: 'pointer' }} onClick={() => { setAccountKey(a.accountKey); setTimeout(load, 0); }}>
               <div style={{ fontSize: 11, color: '#64748b' }}>{a.accountType}</div>
               <div style={{ fontWeight: 700, fontSize: 14 }}>{a.accountKey}</div>
               <div style={{ marginTop: 4, fontSize: 18, fontWeight: 800 }}>{fmt(a.balance, a.currency)}</div>

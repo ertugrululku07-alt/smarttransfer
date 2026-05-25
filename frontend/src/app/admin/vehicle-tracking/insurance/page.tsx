@@ -212,9 +212,9 @@ const VehicleInsurancePage: React.FC = () => {
                                         onClick={() => selectVehicle(v)}
                                         style={{
                                             padding: '8px 12px', borderRadius: 8, cursor: 'pointer', marginBottom: 4,
-                                            background: selected?.id === v.id ? 'linear-gradient(135deg,#6366f1,#8b5cf6)' : '#f8fafc',
+                                            background: selected?.id === v.id ? 'linear-gradient(135deg,var(--brand-primary),var(--brand-accent))' : '#f8fafc',
                                             color: selected?.id === v.id ? 'white' : '#374151',
-                                            border: `1px solid ${selected?.id === v.id ? '#6366f1' : '#f0f0f0'}`,
+                                            border: `1px solid ${selected?.id === v.id ? 'var(--brand-primary)' : '#f0f0f0'}`,
                                             transition: 'all 0.2s',
                                         }}
                                     >

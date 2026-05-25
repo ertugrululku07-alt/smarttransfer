@@ -42,9 +42,9 @@ function fmt(v: number, c = 'TRY') {
 
 function Kpi({ icon, label, value, sub, color }: { icon: React.ReactNode; label: string; value: string; sub?: string; color?: string }) {
   return (
-    <div className="ps-card" style={{ padding: 16, borderTop: `3px solid ${color || '#6366f1'}` }}>
+    <div className="ps-card" style={{ padding: 16, borderTop: `3px solid ${color || 'var(--brand-primary)'}` }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <div style={{ width: 40, height: 40, borderRadius: 10, background: '#eef2ff', color: '#4f46e5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>{icon}</div>
+        <div style={{ width: 40, height: 40, borderRadius: 10, background: 'var(--brand-primary-08)', color: 'var(--brand-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>{icon}</div>
         <div style={{ minWidth: 0 }}>
           <div style={{ fontSize: 12, color: '#64748b' }}>{label}</div>
           <div style={{ fontSize: 18, fontWeight: 700, color: '#0f172a' }}>{value}</div>
@@ -102,7 +102,7 @@ export default function FinanceDashboardPage() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
         <Kpi icon={<RiseOutlined />} label="Alacaklar" value={fmt(data.kpis.receivable)} sub={`${data.kpis.accountsCount} cari`} color="#10b981" />
         <Kpi icon={<FallOutlined />} label="Borçlar" value={fmt(data.kpis.payable)} color="#ef4444" />
-        <Kpi icon={<FileTextOutlined />} label="Bu Ay Fatura" value={fmt(data.kpis.invoicedMonth)} sub={`${fmt(data.kpis.paidMonth)} tahsil`} color="#6366f1" />
+        <Kpi icon={<FileTextOutlined />} label="Bu Ay Fatura" value={fmt(data.kpis.invoicedMonth)} sub={`${fmt(data.kpis.paidMonth)} tahsil`} color="var(--brand-primary)" />
         <Kpi icon={<WalletOutlined />} label="Kasa Akışı (Ay)" value={fmt(data.kpis.netCashFlow)} sub={`+${fmt(data.kpis.cashIn)} / -${fmt(data.kpis.cashOut)}`} color="#0ea5e9" />
         <Kpi icon={<TeamOutlined />} label="Ödenmemiş Bordro" value={fmt(data.kpis.unpaidPayroll)} sub={`${data.kpis.unpaidPayrollCount} kayıt`} color="#f59e0b" />
       </div>
@@ -200,7 +200,7 @@ export default function FinanceDashboardPage() {
       )}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))', gap: 12 }}>
-        <Card title={<span><FileTextOutlined style={{ marginRight: 8, color: '#6366f1' }} /> Son Faturalar</span>} size="small">
+        <Card title={<span><FileTextOutlined style={{ marginRight: 8, color: 'var(--brand-primary)' }} /> Son Faturalar</span>} size="small">
           {data.recentInvoices.length === 0 ? <Empty description="Henüz fatura yok" /> : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {data.recentInvoices.map((inv) => (
@@ -218,7 +218,7 @@ export default function FinanceDashboardPage() {
           )}
         </Card>
 
-        <Card title={<span><ClockCircleOutlined style={{ marginRight: 8, color: '#6366f1' }} /> Son Hareketler</span>} size="small">
+        <Card title={<span><ClockCircleOutlined style={{ marginRight: 8, color: 'var(--brand-primary)' }} /> Son Hareketler</span>} size="small">
           {data.recentLedger.length === 0 ? <Empty description="Hareket yok" /> : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               {data.recentLedger.map((l) => (

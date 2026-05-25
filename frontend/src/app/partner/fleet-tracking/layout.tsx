@@ -62,14 +62,14 @@ export default function FleetTrackingLayout({ children }: { children: React.Reac
         .ft-side .ft-nav { display:flex; flex-direction:column; gap:2px; }
         .ft-side a { display:flex; align-items:center; gap:10px; padding: 10px 12px; border-radius: 10px; color: rgba(255,255,255,0.7); text-decoration:none; font-size: 13.5px; font-weight: 500; transition: all 0.15s ease; }
         .ft-side a:hover { background: rgba(255,255,255,0.06); color:#fff; }
-        .ft-side a.active { background: linear-gradient(135deg, rgba(99,102,241,0.18), rgba(99,102,241,0.05)); color: #fff; box-shadow: inset 3px 0 0 #6366f1; }
+        .ft-side a.active { background: linear-gradient(135deg, var(--brand-primary-18), var(--brand-primary-08)); color: #fff; box-shadow: inset 3px 0 0 var(--brand-primary); }
         .ft-side a .ft-ic { font-size: 16px; opacity: 0.9; }
       `}</style>
 
       <div className="ps-page-header" style={{ marginBottom: 14 }}>
         <div>
           <h1 className="ps-page-header__title">
-            <CarOutlined style={{ color: '#6366f1', marginRight: 8 }} />
+            <CarOutlined style={{ color: 'var(--brand-primary)', marginRight: 8 }} />
             Araç Takip
           </h1>
           <p className="ps-page-header__subtitle">

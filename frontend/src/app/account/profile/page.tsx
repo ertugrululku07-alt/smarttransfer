@@ -153,7 +153,7 @@ export default function CustomerProfilePage() {
                             <Col xs={24} md={8}>
                                 <Card>
                                     <div style={{ textAlign: 'center' }}>
-                                        <Avatar size={88} icon={<UserOutlined />} src={profile?.avatar} style={{ background: '#4f46e5' }}>
+                                        <Avatar size={88} icon={<UserOutlined />} src={profile?.avatar} style={{ background: 'var(--brand-accent)' }}>
                                             {(profile?.fullName || profile?.email || 'M').charAt(0).toUpperCase()}
                                         </Avatar>
                                         <Title level={5} style={{ marginTop: 12, marginBottom: 4 }}>

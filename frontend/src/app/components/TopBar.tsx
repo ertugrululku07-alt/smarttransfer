@@ -301,7 +301,7 @@ const TopBar: React.FC = () => {
                     size="small"
                     onClick={handleLoginClick}
                     style={{
-                      background: 'linear-gradient(135deg, #667eea, #764ba2)',
+                      background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-accent))',
                       border: 'none',
                       color: '#fff',
                       fontWeight: 600,
@@ -379,7 +379,7 @@ const TopBar: React.FC = () => {
                 onClick={() => { setMobileMenuOpen(false); router.push('/login'); }}
                 style={{
                   height: 44, borderRadius: 10, fontWeight: 600,
-                  background: 'linear-gradient(135deg, #667eea, #764ba2)',
+                  background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-accent))',
                   border: 'none',
                 }}
               >

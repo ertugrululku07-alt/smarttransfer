@@ -34,8 +34,8 @@ interface LogEntry {
 
 const ACTION_CONFIG: Record<string, { icon: React.ReactNode; color: string; label: string }> = {
     CREATE_BOOKING:         { icon: <PlusCircleOutlined />,        color: '#10b981', label: 'Rezervasyon Oluşturuldu' },
-    UPDATE_BOOKING:         { icon: <EditOutlined />,              color: '#6366f1', label: 'Rezervasyon Düzenlendi' },
-    UPDATE_BOOKING_STATUS:  { icon: <SwapOutlined />,              color: '#8b5cf6', label: 'Durum Değiştirildi' },
+    UPDATE_BOOKING:         { icon: <EditOutlined />,              color: 'var(--brand-primary)', label: 'Rezervasyon Düzenlendi' },
+    UPDATE_BOOKING_STATUS:  { icon: <SwapOutlined />,              color: 'var(--brand-accent)', label: 'Durum Değiştirildi' },
     CONFIRM_BOOKING:        { icon: <CheckCircleOutlined />,       color: '#10b981', label: 'Onaylandı' },
     CONFIRM_TO_OPERATION:   { icon: <SafetyCertificateOutlined />, color: '#10b981', label: 'Operasyona Aktarıldı' },
     CONFIRM_TO_POOL:        { icon: <TeamOutlined />,              color: '#06b6d4', label: 'Havuza Aktarıldı' },
@@ -100,7 +100,7 @@ const BookingLogModal: React.FC<BookingLogModalProps> = ({ open, bookingId, book
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <div style={{
                         width: 32, height: 32, borderRadius: 8,
-                        background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                        background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-accent))',
                         display: 'flex', alignItems: 'center', justifyContent: 'center'
                     }}>
                         <FileTextOutlined style={{ color: '#fff', fontSize: 16 }} />

@@ -66,9 +66,9 @@ const { TextArea } = Input;
 
 // ── Category style map ──
 const CATEGORY_STYLES: Record<string, { color: string; bg: string; gradient: string }> = {
-    SEDAN: { color: '#6366f1', bg: '#eef2ff', gradient: 'linear-gradient(135deg, #6366f1, #8b5cf6)' },
+    SEDAN: { color: 'var(--brand-primary)', bg: 'var(--brand-primary-08)', gradient: 'linear-gradient(135deg, var(--brand-primary), var(--brand-accent))' },
     VAN: { color: '#0891b2', bg: '#ecfeff', gradient: 'linear-gradient(135deg, #06b6d4, #0891b2)' },
-    VIP_VAN: { color: '#7c3aed', bg: '#f5f3ff', gradient: 'linear-gradient(135deg, #7c3aed, #a855f7)' },
+    VIP_VAN: { color: 'var(--brand-accent)', bg: 'var(--brand-primary-08)', gradient: 'linear-gradient(135deg, var(--brand-accent), var(--brand-accent))' },
     MINIBUS: { color: '#2563eb', bg: '#eff6ff', gradient: 'linear-gradient(135deg, #2563eb, #3b82f6)' },
     BUS: { color: '#ea580c', bg: '#fff7ed', gradient: 'linear-gradient(135deg, #ea580c, #f97316)' },
     LUXURY: { color: '#ca8a04', bg: '#fefce8', gradient: 'linear-gradient(135deg, #ca8a04, #eab308)' },
@@ -115,9 +115,9 @@ const SortableCard: React.FC<SortableCardProps> = ({ item, onEdit, onDelete }) =
                 background: '#fff',
                 borderRadius: 20,
                 overflow: 'hidden',
-                border: isDragging ? '2px solid #6366f1' : '1px solid #f0f0f0',
+                border: isDragging ? '2px solid var(--brand-primary)' : '1px solid #f0f0f0',
                 boxShadow: isDragging
-                    ? '0 20px 40px rgba(99,102,241,0.2)'
+                    ? '0 20px 40px var(--brand-primary-20)'
                     : '0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.03)',
                 transition: 'all 0.2s ease',
             }}
@@ -197,7 +197,7 @@ const SortableCard: React.FC<SortableCardProps> = ({ item, onEdit, onDelete }) =
                             background: '#f8fafc', border: '1px solid #f1f5f9',
                             textAlign: 'center',
                         }}>
-                            <UserOutlined style={{ fontSize: 14, color: '#6366f1', display: 'block', marginBottom: 4 }} />
+                            <UserOutlined style={{ fontSize: 14, color: 'var(--brand-primary)', display: 'block', marginBottom: 4 }} />
                             <div style={{ fontSize: 16, fontWeight: 800, color: '#1e293b' }}>{item.capacity}</div>
                             <div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>Yolcu</div>
                         </div>
@@ -237,7 +237,7 @@ const SortableCard: React.FC<SortableCardProps> = ({ item, onEdit, onDelete }) =
                             {item.features.length > 4 && (
                                 <Tag style={{
                                     borderRadius: 6, fontSize: 10, fontWeight: 600, margin: 0,
-                                    background: '#e0e7ff', color: '#6366f1', border: 'none',
+                                    background: 'var(--brand-primary-10)', color: 'var(--brand-primary)', border: 'none',
                                     padding: '2px 8px',
                                 }}>
                                     +{item.features.length - 4}
@@ -477,7 +477,7 @@ const VehicleTypesPage: React.FC = () => {
                         display: 'flex', alignItems: 'center', gap: 6,
                         background: viewMode === 'list' ? '#fff' : 'transparent',
                         boxShadow: viewMode === 'list' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-                        color: viewMode === 'list' ? '#6366f1' : '#94a3b8',
+                        color: viewMode === 'list' ? 'var(--brand-primary)' : '#94a3b8',
                         fontWeight: 600, fontSize: 13, transition: 'all 0.2s',
                     }}
                 >
@@ -492,7 +492,7 @@ const VehicleTypesPage: React.FC = () => {
                         display: 'flex', alignItems: 'center', gap: 6,
                         background: viewMode === 'grid' ? '#fff' : 'transparent',
                         boxShadow: viewMode === 'grid' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-                        color: viewMode === 'grid' ? '#6366f1' : '#94a3b8',
+                        color: viewMode === 'grid' ? 'var(--brand-primary)' : '#94a3b8',
                         fontWeight: 600, fontSize: 13, transition: 'all 0.2s',
                     }}
                 >
@@ -561,7 +561,7 @@ const VehicleTypesPage: React.FC = () => {
             align: 'center' as const,
             render: (capacity: number) => (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'center' }}>
-                    <UserOutlined style={{ fontSize: 13, color: '#6366f1' }} />
+                    <UserOutlined style={{ fontSize: 13, color: 'var(--brand-primary)' }} />
                     <span style={{ fontSize: 14, fontWeight: 700, color: '#1e293b' }}>{capacity}</span>
                 </div>
             ),
@@ -616,7 +616,7 @@ const VehicleTypesPage: React.FC = () => {
                     {features.length > 3 && (
                         <Tag style={{
                             borderRadius: 6, fontSize: 10, fontWeight: 600, margin: 0,
-                            background: '#e0e7ff', color: '#6366f1', border: 'none', padding: '2px 8px',
+                            background: 'var(--brand-primary-10)', color: 'var(--brand-primary)', border: 'none', padding: '2px 8px',
                         }}>
                             +{features.length - 3}
                         </Tag>
@@ -707,10 +707,10 @@ const VehicleTypesPage: React.FC = () => {
                                 onClick={handleAdd}
                                 size="large"
                                 style={{
-                                    background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                                    background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-accent))',
                                     border: 'none', borderRadius: 12, fontWeight: 600,
                                     height: 44, paddingInline: 24,
-                                    boxShadow: '0 4px 14px rgba(99,102,241,0.3)',
+                                    boxShadow: '0 4px 14px var(--brand-primary-30)',
                                 }}
                             >
                                 Yeni Araç Tipi
@@ -737,7 +737,7 @@ const VehicleTypesPage: React.FC = () => {
                                 }}>
                                     <span style={{ fontSize: 13, fontWeight: 600, color: '#475569' }}>{cat}</span>
                                     <span style={{
-                                        background: '#6366f115', color: '#6366f1',
+                                        background: 'var(--brand-primary-15)', color: 'var(--brand-primary)',
                                         fontSize: 11, fontWeight: 700, padding: '2px 8px',
                                         borderRadius: 6,
                                     }}>
@@ -756,7 +756,7 @@ const VehicleTypesPage: React.FC = () => {
                             background: '#f8fafc', border: '1px solid #f1f5f9',
                             marginBottom: 20, fontSize: 12, color: '#94a3b8', fontWeight: 500,
                         }}>
-                            <DragOutlined style={{ fontSize: 14, color: '#6366f1' }} />
+                            <DragOutlined style={{ fontSize: 14, color: 'var(--brand-primary)' }} />
                             Kartların sol üst köşesindeki tutamağı sürükleyerek sıralamayı değiştirebilirsiniz
                         </div>
                     )}
@@ -776,7 +776,7 @@ const VehicleTypesPage: React.FC = () => {
                         }}>
                             <div style={{
                                 width: 80, height: 80, borderRadius: 24, margin: '0 auto 20px',
-                                background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                                background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-accent))',
                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                             }}>
                                 <CarOutlined style={{ fontSize: 36, color: '#fff' }} />
@@ -789,7 +789,7 @@ const VehicleTypesPage: React.FC = () => {
                             </Text>
                             <Button type="primary" size="large" icon={<PlusOutlined />} onClick={handleAdd}
                                 style={{
-                                    background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                                    background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-accent))',
                                     border: 'none', borderRadius: 10, fontWeight: 600, height: 42,
                                 }}>
                                 İlk Araç Tipini Ekle
@@ -855,7 +855,7 @@ const VehicleTypesPage: React.FC = () => {
                             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                                 <div style={{
                                     width: 40, height: 40, borderRadius: 12,
-                                    background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                                    background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-accent))',
                                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                                 }}>
                                     <CarOutlined style={{ fontSize: 18, color: '#fff' }} />
@@ -877,7 +877,7 @@ const VehicleTypesPage: React.FC = () => {
                         cancelText="İptal"
                         okButtonProps={{
                             style: {
-                                background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                                background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-accent))',
                                 border: 'none', borderRadius: 8, fontWeight: 600,
                             }
                         }}

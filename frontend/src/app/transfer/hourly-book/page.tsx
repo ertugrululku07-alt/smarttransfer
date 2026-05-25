@@ -272,7 +272,7 @@ function HourlyBookContent() {
                                         </Radio>
                                         <Radio value="ONLINE">
                                             <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                                                <CreditCardOutlined style={{ color: '#6366f1' }} />
+                                                <CreditCardOutlined style={{ color: 'var(--brand-primary)' }} />
                                                 <span style={{ fontSize: 13, fontWeight: 500 }}>Online Ödeme</span>
                                                 <Tag color="purple" style={{ borderRadius: 6, fontSize: 10, margin: 0 }}>Güvenli</Tag>
                                             </div>
@@ -408,7 +408,7 @@ function HourlyBookContent() {
                                     loading={loading}
                                     style={{
                                         height: 50, borderRadius: 12, fontWeight: 700, fontSize: 16,
-                                        background: theme.buttonGradient || 'linear-gradient(135deg, #667eea, #764ba2)',
+                                        background: theme.buttonGradient || 'linear-gradient(135deg, var(--brand-primary), var(--brand-accent))',
                                         border: 'none',
                                     }}
                                 >

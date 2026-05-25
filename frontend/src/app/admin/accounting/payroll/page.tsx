@@ -219,7 +219,7 @@ export default function PayrollPage() {
                 <Space>
                     <Avatar
                         src={getImageUrl(p.photo)}
-                        style={{ background: '#6366f1' }}
+                        style={{ background: 'var(--brand-primary)' }}
                         icon={<UserOutlined />}
                         size={36}
                     />
@@ -291,7 +291,7 @@ export default function PayrollPage() {
                     {/* Stats */}
                     <Row gutter={16}>
                         <Col xs={24} sm={6}>
-                            <Card variant="borderless" style={{ borderRadius: 12, background: 'linear-gradient(135deg,#6366f1,#818cf8)', color: '#fff' }}>
+                            <Card variant="borderless" style={{ borderRadius: 12, background: 'linear-gradient(135deg,var(--brand-primary),var(--brand-primary))', color: '#fff' }}>
                                 <Statistic title={<span style={{ color: 'rgba(255,255,255,.8)' }}>Toplam Personel</span>}
                                     value={personnel.length} prefix={<TeamOutlined />}
                                     styles={{ content: { color: '#fff' } }} />

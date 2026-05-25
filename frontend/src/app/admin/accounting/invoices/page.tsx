@@ -78,13 +78,13 @@ const PAYMENT_METHODS = [
 const STATUS_CFG: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
     DRAFT: { label: 'Taslak', color: '#6b7280', icon: <FileTextOutlined /> },
     APPROVED: { label: 'Onaylandı', color: '#2563eb', icon: <CheckCircleOutlined /> },
-    SENT: { label: 'Gönderildi', color: '#7c3aed', icon: <SendOutlined /> },
+    SENT: { label: 'Gönderildi', color: 'var(--brand-accent)', icon: <SendOutlined /> },
     PAID: { label: 'Ödendi', color: '#16a34a', icon: <CheckCircleOutlined /> },
     CANCELLED: { label: 'İptal', color: '#dc2626', icon: <ClockCircleOutlined /> },
 };
 const KIND_CFG: Record<string, { label: string; color: string }> = {
     STANDARD: { label: 'Fatura', color: '#6b7280' },
-    EFATURA: { label: 'e-Fatura', color: '#7c3aed' },
+    EFATURA: { label: 'e-Fatura', color: 'var(--brand-accent)' },
     EARCHIVE: { label: 'e-Arşiv', color: '#0891b2' },
 };
 
@@ -128,7 +128,7 @@ const PrintModal: React.FC<{ invoice: Invoice | null; open: boolean; onClose: ()
                 onCancel={onClose}
                 footer={[
                     <Button key="print" type="primary" icon={<PrinterOutlined />}
-                        style={{ background: 'linear-gradient(135deg,#6366f1,#8b5cf6)', border: 'none' }}
+                        style={{ background: 'linear-gradient(135deg,var(--brand-primary),var(--brand-accent))', border: 'none' }}
                         onClick={() => window.print()}>
                         Yazdır / PDF
                     </Button>,
@@ -151,7 +151,7 @@ const PrintModal: React.FC<{ invoice: Invoice | null; open: boolean; onClose: ()
                 }}>
                     <div style={{
                         background: isSales
-                            ? 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)'
+                            ? 'linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-accent) 100%)'
                             : 'linear-gradient(135deg, #0891b2 0%, #22d3ee 100%)',
                         borderRadius: '12px 12px 0 0',
                         padding: '20px 28px',
@@ -239,8 +239,8 @@ const PrintModal: React.FC<{ invoice: Invoice | null; open: boolean; onClose: ()
                                     <td style={{ padding: '8px 12px', fontSize: 11, textAlign: 'center', color: '#4b5563' }}>{l.unit}</td>
                                     <td style={{ padding: '8px 12px', fontSize: 11, textAlign: 'right' }}>{l.quantity}</td>
                                     <td style={{ padding: '8px 12px', fontSize: 11, textAlign: 'right', fontFamily: 'monospace' }}>{fmtTRY(l.unitPrice, inv.currency)}</td>
-                                    <td style={{ padding: '8px 12px', fontSize: 11, textAlign: 'right', color: '#7c3aed' }}>%{l.vatRate}</td>
-                                    <td style={{ padding: '8px 12px', fontSize: 11, textAlign: 'right', fontFamily: 'monospace', color: '#7c3aed' }}>{fmtTRY(l.vatAmount, inv.currency)}</td>
+                                    <td style={{ padding: '8px 12px', fontSize: 11, textAlign: 'right', color: 'var(--brand-accent)' }}>%{l.vatRate}</td>
+                                    <td style={{ padding: '8px 12px', fontSize: 11, textAlign: 'right', fontFamily: 'monospace', color: 'var(--brand-accent)' }}>{fmtTRY(l.vatAmount, inv.currency)}</td>
                                     <td style={{ padding: '8px 12px', fontSize: 12, textAlign: 'right', fontFamily: 'monospace', fontWeight: 700 }}>{fmtTRY(l.lineTotal + l.vatAmount, inv.currency)}</td>
                                 </tr>
                             ))}
@@ -259,8 +259,8 @@ const PrintModal: React.FC<{ invoice: Invoice | null; open: boolean; onClose: ()
                                     <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: 'monospace', fontSize: 12 }}>{fmtTRY(inv.subTotal, inv.currency)}</td>
                                 </tr>
                                 <tr>
-                                    <td style={{ padding: '4px 8px', color: '#7c3aed', fontSize: 12 }}>Toplam KDV</td>
-                                    <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: 'monospace', fontSize: 12, color: '#7c3aed' }}>{fmtTRY(inv.totalVat, inv.currency)}</td>
+                                    <td style={{ padding: '4px 8px', color: 'var(--brand-accent)', fontSize: 12 }}>Toplam KDV</td>
+                                    <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: 'monospace', fontSize: 12, color: 'var(--brand-accent)' }}>{fmtTRY(inv.totalVat, inv.currency)}</td>
                                 </tr>
                                 {inv.discount > 0 && (
                                     <tr>
@@ -619,7 +619,7 @@ function InvoicesPageContent() {
                 <Space>
                     <Tooltip title="Önizle / Yazdır">
                         <Button size="small" icon={<PrinterOutlined />} onClick={() => setPrintInv(r)}
-                            style={{ color: '#6366f1', borderColor: '#6366f1' }} />
+                            style={{ color: 'var(--brand-primary)', borderColor: 'var(--brand-primary)' }} />
                     </Tooltip>
                     <Tooltip title="Düzenle">
                         <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(r)}
@@ -646,7 +646,7 @@ function InvoicesPageContent() {
                             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
                                 <div style={{
                                     width: 36, height: 36, borderRadius: 10,
-                                    background: isSales ? 'linear-gradient(135deg,#6366f1,#8b5cf6)' : 'linear-gradient(135deg,#0891b2,#22d3ee)',
+                                    background: isSales ? 'linear-gradient(135deg,var(--brand-primary),var(--brand-accent))' : 'linear-gradient(135deg,#0891b2,#22d3ee)',
                                     display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: 18,
                                 }}>
                                     <FileTextOutlined />
@@ -662,7 +662,7 @@ function InvoicesPageContent() {
                                 onClick={openNew}
                                 style={{
                                     background: isSales
-                                        ? 'linear-gradient(135deg,#6366f1,#8b5cf6)'
+                                        ? 'linear-gradient(135deg,var(--brand-primary),var(--brand-accent))'
                                         : 'linear-gradient(135deg,#0891b2,#22d3ee)',
                                     border: 'none', fontWeight: 700, borderRadius: 8, height: 36,
                                 }}
@@ -677,7 +677,7 @@ function InvoicesPageContent() {
                             { title: 'Toplam Tutar', value: total, color: isSales ? '#16a34a' : '#dc2626', icon: isSales ? <ArrowUpOutlined /> : <ArrowDownOutlined />, grad: isSales ? 'linear-gradient(135deg,#16a34a,#4ade80)' : 'linear-gradient(135deg,#dc2626,#f87171)', raw: fmtTRY(total) },
                             { title: 'Tahsil Edilen', value: paid, color: '#2563eb', icon: <CheckCircleOutlined />, grad: 'linear-gradient(135deg,#2563eb,#60a5fa)', raw: fmtTRY(paid) },
                             { title: 'Taslak', value: draft, color: '#6b7280', icon: <FileTextOutlined />, grad: 'linear-gradient(135deg,#6b7280,#9ca3af)' },
-                            { title: 'Gönderilen', value: sent, color: '#7c3aed', icon: <SendOutlined />, grad: 'linear-gradient(135deg,#7c3aed,#a855f7)' },
+                            { title: 'Gönderilen', value: sent, color: 'var(--brand-accent)', icon: <SendOutlined />, grad: 'linear-gradient(135deg,var(--brand-accent),var(--brand-accent))' },
                         ].map((k, i) => (
                             <Col key={i} xs={24} sm={12} lg={6}>
                                 <div style={{
@@ -715,7 +715,7 @@ function InvoicesPageContent() {
                                             <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600 }}>
                                                 <ArrowUpOutlined style={{ color: '#16a34a' }} />
                                                 Satış Faturaları
-                                                <Badge count={invoices.filter(i => i.invoiceType === 'SALES').length} style={{ background: '#6366f1' }} />
+                                                <Badge count={invoices.filter(i => i.invoiceType === 'SALES').length} style={{ background: 'var(--brand-primary)' }} />
                                             </span>
                                         ),
                                     },
@@ -749,7 +749,7 @@ function InvoicesPageContent() {
                     onCancel={() => setModalOpen(false)}
                     title={
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                            <div style={{ width: 32, height: 32, borderRadius: 8, background: isSales ? 'linear-gradient(135deg,#6366f1,#8b5cf6)' : 'linear-gradient(135deg,#0891b2,#22d3ee)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: 16 }}>
+                            <div style={{ width: 32, height: 32, borderRadius: 8, background: isSales ? 'linear-gradient(135deg,var(--brand-primary),var(--brand-accent))' : 'linear-gradient(135deg,#0891b2,#22d3ee)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: 16 }}>
                                 <FileTextOutlined />
                             </div>
                             <span>{editing ? 'Fatura Düzenle' : (isSales ? 'Satış Faturası Oluştur' : 'Alış Faturası Oluştur')}</span>
@@ -760,7 +760,7 @@ function InvoicesPageContent() {
                     confirmLoading={submitting}
                     okText="Kaydet"
                     cancelText="İptal"
-                    okButtonProps={{ style: { background: isSales ? 'linear-gradient(135deg,#6366f1,#8b5cf6)' : 'linear-gradient(135deg,#0891b2,#22d3ee)', border: 'none', height: 36, fontWeight: 700 } }}
+                    okButtonProps={{ style: { background: isSales ? 'linear-gradient(135deg,var(--brand-primary),var(--brand-accent))' : 'linear-gradient(135deg,#0891b2,#22d3ee)', border: 'none', height: 36, fontWeight: 700 } }}
                 >
                     <Form form={form} layout="vertical" style={{ marginTop: 8 }}>
                         <Collapse

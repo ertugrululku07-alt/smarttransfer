@@ -415,10 +415,10 @@ const AdminShuttleRoutesPage: React.FC = () => {
             <div style={{
               width: 44, height: 44, borderRadius: 12, flexShrink: 0,
               background: record.isActive
-                ? 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)'
+                ? 'linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-accent) 100%)'
                 : 'linear-gradient(135deg, #9ca3af 0%, #6b7280 100%)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: record.isActive ? '0 4px 14px rgba(99,102,241,0.3)' : 'none'
+              boxShadow: record.isActive ? '0 4px 14px var(--brand-primary-30)' : 'none'
             }}>
               <CarOutlined style={{ color: '#fff', fontSize: 20 }} />
             </div>
@@ -455,8 +455,8 @@ const AdminShuttleRoutesPage: React.FC = () => {
       width: 160,
       render: (_: any, record: ShuttleRoute) => {
         const type = record.scheduleType;
-        const tagColor = type === 'DAILY' ? '#10b981' : type === 'WEEKLY' ? '#f59e0b' : '#8b5cf6';
-        const tagBg = type === 'DAILY' ? '#ecfdf5' : type === 'WEEKLY' ? '#fffbeb' : '#f5f3ff';
+        const tagColor = type === 'DAILY' ? '#10b981' : type === 'WEEKLY' ? '#f59e0b' : 'var(--brand-accent)';
+        const tagBg = type === 'DAILY' ? '#ecfdf5' : type === 'WEEKLY' ? '#fffbeb' : 'var(--brand-primary-08)';
         const label = type === 'DAILY' ? 'Her Gün' : type === 'WEEKLY' ? 'Haftalık' : 'Özel Dönem';
         return (
           <div>
@@ -501,8 +501,8 @@ const AdminShuttleRoutesPage: React.FC = () => {
               <span key={index} style={{
                 display: 'inline-flex', alignItems: 'center', gap: 3,
                 padding: '2px 8px', borderRadius: 6, fontSize: 12, fontWeight: 600,
-                background: 'linear-gradient(135deg, #dbeafe, #ede9fe)',
-                color: '#4338ca', border: '1px solid #c7d2fe'
+                background: 'linear-gradient(135deg, #dbeafe, var(--brand-primary-10))',
+                color: 'var(--brand-accent)', border: '1px solid var(--brand-primary-15)'
               }}>
                 <ClockCircleOutlined style={{ fontSize: 10 }} />
                 {time}
@@ -535,7 +535,7 @@ const AdminShuttleRoutesPage: React.FC = () => {
         return (
           <div style={{
             fontWeight: 800, fontSize: 16, letterSpacing: -0.5,
-            background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+            background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-accent))',
             WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
             backgroundClip: 'text',
           }}>
@@ -595,7 +595,7 @@ const AdminShuttleRoutesPage: React.FC = () => {
               style={{
                 width: 36, height: 36, borderRadius: 10,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                background: '#f1f5f9', color: '#6366f1', border: '1px solid #e2e8f0'
+                background: '#f1f5f9', color: 'var(--brand-primary)', border: '1px solid #e2e8f0'
               }}
             />
           </Tooltip>
@@ -637,9 +637,9 @@ const AdminShuttleRoutesPage: React.FC = () => {
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 6 }}>
               <div style={{
                 width: 46, height: 46, borderRadius: 14,
-                background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+                background: 'linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-accent) 100%)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                boxShadow: '0 6px 20px rgba(99,102,241,0.3)'
+                boxShadow: '0 6px 20px var(--brand-primary-30)'
               }}>
                 <CarOutlined style={{ color: '#fff', fontSize: 22 }} />
               </div>
@@ -687,13 +687,13 @@ const AdminShuttleRoutesPage: React.FC = () => {
               style={{
                 display: 'flex', alignItems: 'center', gap: 8,
                 padding: '10px 22px', border: 'none', borderRadius: 12, cursor: 'pointer',
-                background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a78bfa 100%)',
+                background: 'linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-accent) 50%, var(--brand-primary) 100%)',
                 color: '#fff', fontWeight: 700, fontSize: 14, letterSpacing: 0.3,
-                boxShadow: '0 6px 24px rgba(99,102,241,0.35)',
+                boxShadow: '0 6px 24px var(--brand-primary-33)',
                 transition: 'all 0.2s ease'
               }}
-              onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 8px 30px rgba(99,102,241,0.45)'; }}
-              onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 6px 24px rgba(99,102,241,0.35)'; }}
+              onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 8px 30px var(--brand-primary-40)'; }}
+              onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 6px 24px var(--brand-primary-33)'; }}
             >
               <PlusOutlined style={{ fontSize: 15 }} />
               Yeni Shuttle Hattı
@@ -732,7 +732,7 @@ const AdminShuttleRoutesPage: React.FC = () => {
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <div style={{
                 width: 36, height: 36, borderRadius: 10,
-                background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-accent))',
                 display: 'flex', alignItems: 'center', justifyContent: 'center'
               }}>
                 <CarOutlined style={{ color: '#fff', fontSize: 18 }} />
@@ -756,9 +756,9 @@ const AdminShuttleRoutesPage: React.FC = () => {
           cancelText="İptal"
           okButtonProps={{
             style: {
-              background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+              background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-accent))',
               border: 'none', fontWeight: 600, borderRadius: 10, height: 40, paddingInline: 28,
-              boxShadow: '0 4px 14px rgba(99,102,241,0.3)'
+              boxShadow: '0 4px 14px var(--brand-primary-30)'
             }
           }}
           cancelButtonProps={{ style: { borderRadius: 10, height: 40 } }}
@@ -787,7 +787,7 @@ const AdminShuttleRoutesPage: React.FC = () => {
               border: '1px solid #e2e8f0'
             }}>
               <div style={{ fontWeight: 700, fontSize: 14, color: '#334155', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 6 }}>
-                <SwapOutlined style={{ color: '#6366f1' }} /> Rota Bilgileri
+                <SwapOutlined style={{ color: 'var(--brand-primary)' }} /> Rota Bilgileri
               </div>
               <Row gutter={16}>
                 <Col span={12}>
@@ -840,7 +840,7 @@ const AdminShuttleRoutesPage: React.FC = () => {
               <Col span={12}>
                 <Form.Item
                   name="scheduleType"
-                  label={<span style={{ fontWeight: 600, color: '#334155' }}><CalendarOutlined style={{ color: '#6366f1' }} /> Çalışma Tipi</span>}
+                  label={<span style={{ fontWeight: 600, color: '#334155' }}><CalendarOutlined style={{ color: 'var(--brand-primary)' }} /> Çalışma Tipi</span>}
                   rules={[{ required: true, message: 'Seçin' }]}
                 >
                   <Select>
@@ -873,7 +873,7 @@ const AdminShuttleRoutesPage: React.FC = () => {
 
             <Form.Item
               name="departureTimes"
-              label={<span style={{ fontWeight: 600, color: '#334155' }}><ClockCircleOutlined style={{ color: '#6366f1' }} /> Kalkış Saatleri</span>}
+              label={<span style={{ fontWeight: 600, color: '#334155' }}><ClockCircleOutlined style={{ color: 'var(--brand-primary)' }} /> Kalkış Saatleri</span>}
               rules={[{ required: true, message: 'En az bir saat seçin' }]}
             >
               <Select
@@ -915,7 +915,7 @@ const AdminShuttleRoutesPage: React.FC = () => {
             {/* ===== PRICING ===== */}
             <Row gutter={16}>
               <Col span={8}>
-                <Form.Item label={<span style={{ fontWeight: 600, color: '#334155' }}><DollarOutlined style={{ color: '#6366f1' }} /> Kişi Başı Fiyat</span>} required>
+                <Form.Item label={<span style={{ fontWeight: 600, color: '#334155' }}><DollarOutlined style={{ color: 'var(--brand-primary)' }} /> Kişi Başı Fiyat</span>} required>
                   <Input.Group compact>
                     <Form.Item name="pricePerSeat" noStyle rules={[{ required: true, message: 'Fiyat girin' }]}>
                       <Input type="number" min={0} step={0.01} placeholder="10.00" style={{ width: 'calc(100% - 90px)' }} />
@@ -945,7 +945,7 @@ const AdminShuttleRoutesPage: React.FC = () => {
             {/* ===== PICKUP LEAD HOURS & SUBTRACT OPTION ===== */}
             <Row gutter={16} align="bottom">
               <Col span={14}>
-                <Form.Item name="pickupLeadHours" label={<span style={{ fontWeight: 600, color: '#334155' }}><ClockCircleOutlined style={{ color: '#6366f1' }} /> Alınış Süresi (Saat)</span>}>
+                <Form.Item name="pickupLeadHours" label={<span style={{ fontWeight: 600, color: '#334155' }}><ClockCircleOutlined style={{ color: 'var(--brand-primary)' }} /> Alınış Süresi (Saat)</span>}>
                   <Input type="number" min={0} step={0.5} placeholder="Örn: 2 (uçuştan kaç saat önce)" />
                 </Form.Item>
               </Col>
@@ -994,7 +994,7 @@ const AdminShuttleRoutesPage: React.FC = () => {
             border-bottom: 1px solid #f1f5f9 !important;
           }
           .ant-table-tbody > tr:hover > td {
-            background: #faf5ff !important;
+            background: var(--brand-primary-08) !important;
           }
           .ant-modal-header {
             border-bottom: 1px solid #f1f5f9 !important;

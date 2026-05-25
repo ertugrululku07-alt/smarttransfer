@@ -50,7 +50,7 @@ export default function RegisterAgencyPage() {
     } finally { setLoading(false); }
   };
 
-  const accentColor = '#7c3aed';
+  const accentColor = 'var(--brand-accent)';
 
   return (
     <>
@@ -58,17 +58,17 @@ export default function RegisterAgencyPage() {
         @keyframes regFadeUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
         .agency-reg { min-height:100vh; min-height:100dvh; display:flex; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; }
         .agency-reg-left { flex:1; display:flex; flex-direction:column; justify-content:center; align-items:center; padding:40px 32px; background:#fff; overflow-y:auto; }
-        .agency-reg-right { flex:0.9; position:relative; overflow:hidden; display:flex; align-items:center; justify-content:center; background:linear-gradient(135deg,#7c3aed 0%,#a855f7 50%,#c084fc 100%); }
+        .agency-reg-right { flex:0.9; position:relative; overflow:hidden; display:flex; align-items:center; justify-content:center; background:linear-gradient(135deg,var(--brand-accent) 0%,var(--brand-accent) 50%,var(--brand-primary) 100%); }
         .agency-reg-form { width:100%; max-width:520px; animation:regFadeUp 0.5s ease both; }
         .agency-input .ant-input, .agency-input .ant-input-affix-wrapper { height:46px !important; border-radius:12px !important; border:1.5px solid #e2e8f0 !important; font-size:14px !important; transition:all 0.2s !important; }
         .agency-input .ant-input-affix-wrapper { padding:0 14px !important; }
         .agency-input .ant-input:focus, .agency-input .ant-input-affix-wrapper-focused { border-color:${accentColor} !important; box-shadow:0 0 0 3px rgba(124,58,237,0.1) !important; }
-        .agency-btn { height:50px !important; border-radius:14px !important; font-size:15px !important; font-weight:700 !important; background:linear-gradient(135deg,#7c3aed,#a855f7) !important; border:none !important; box-shadow:0 6px 20px rgba(124,58,237,0.35) !important; transition:all 0.25s !important; }
+        .agency-btn { height:50px !important; border-radius:14px !important; font-size:15px !important; font-weight:700 !important; background:linear-gradient(135deg,var(--brand-accent),var(--brand-accent)) !important; border:none !important; box-shadow:0 6px 20px rgba(124,58,237,0.35) !important; transition:all 0.25s !important; }
         .agency-btn:hover { transform:translateY(-1px) !important; box-shadow:0 10px 28px rgba(124,58,237,0.4) !important; }
         @media (max-width:768px) {
           .agency-reg { flex-direction:column; }
           .agency-reg-right { display:none; }
-          .agency-reg-left { padding:24px 20px; min-height:100vh; min-height:100dvh; background:linear-gradient(180deg,#f8fafc,#f5f3ff); }
+          .agency-reg-left { padding:24px 20px; min-height:100vh; min-height:100dvh; background:linear-gradient(180deg,#f8fafc,var(--brand-primary-08)); }
           .agency-reg-form { max-width:100%; }
         }
       `}</style>
@@ -85,7 +85,7 @@ export default function RegisterAgencyPage() {
             <div style={{ marginBottom: 32 }}>
               <div style={{
                 width: 52, height: 52, borderRadius: 16, marginBottom: 16,
-                background: `linear-gradient(135deg, ${accentColor}, #a855f7)`,
+                background: `linear-gradient(135deg, ${accentColor}, var(--brand-accent))`,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 boxShadow: `0 6px 20px ${accentColor}30`,
               }}>

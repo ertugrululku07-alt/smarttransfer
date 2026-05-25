@@ -418,7 +418,7 @@ export default function AgencyTransferListPage() {
                 {/* Stats Row */}
                 <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
                     {[
-                        { title: 'Toplam', value: total, icon: <TeamOutlined />, color: '#6366f1' },
+                        { title: 'Toplam', value: total, icon: <TeamOutlined />, color: 'var(--brand-primary)' },
                         { title: 'Onaylı', value: confirmed, icon: <CheckCircleOutlined />, color: '#16a34a' },
                         { title: 'Tamamlanan', value: completed, icon: <CarOutlined />, color: '#6b7280' },
                         { title: 'İptal', value: cancelled, icon: <CloseCircleOutlined />, color: '#dc2626' },
@@ -555,7 +555,7 @@ export default function AgencyTransferListPage() {
                             background: '#f8fafc', borderRadius: 8, padding: '12px 14px',
                             marginBottom: 16, border: '1px solid #e2e8f0'
                         }}>
-                            <Text strong style={{ fontSize: 12, color: '#6366f1', display: 'block', marginBottom: 10 }}>
+                            <Text strong style={{ fontSize: 12, color: 'var(--brand-primary)', display: 'block', marginBottom: 10 }}>
                                 <EnvironmentOutlined style={{ marginRight: 6 }} />
                                 Güzergah
                             </Text>
@@ -612,7 +612,7 @@ export default function AgencyTransferListPage() {
                 <Modal
                     title={
                         <div>
-                            <EyeOutlined style={{ marginRight: 8, color: '#6366f1' }} />
+                            <EyeOutlined style={{ marginRight: 8, color: 'var(--brand-primary)' }} />
                             Transfer Detayı
                             <Text type="secondary" style={{ fontSize: 12, marginLeft: 8 }}>
                                 {detailBooking?.bookingNumber}

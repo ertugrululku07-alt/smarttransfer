@@ -145,7 +145,7 @@ export default function NewPartnerBookingPage() {
           >
             {/* 1 — Müşteri */}
             <div style={sectionStyle}>
-              {sectionHeader(<UserOutlined />, 'Müşteri Bilgileri', '#6366f1')}
+              {sectionHeader(<UserOutlined />, 'Müşteri Bilgileri', 'var(--brand-primary)')}
               <Row gutter={16}>
                 <Col xs={24} md={8}>
                   <Form.Item name="passengerName" label="Ad Soyad" rules={[{ required: true, message: 'Ad soyad zorunludur' }]}>
@@ -377,8 +377,8 @@ export default function NewPartnerBookingPage() {
           height: 40px;
         }
         .ps-input:focus {
-          border-color: #6366f1;
-          box-shadow: 0 0 0 2px rgba(99,102,241,0.15);
+          border-color: var(--brand-primary);
+          box-shadow: 0 0 0 2px var(--brand-primary-15);
         }
         .ps-input::placeholder { color: #94a3b8; }
         textarea.ps-input { height: auto; }

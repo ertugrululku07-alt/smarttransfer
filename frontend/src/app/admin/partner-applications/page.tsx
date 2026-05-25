@@ -188,7 +188,7 @@ const PartnerApplicationsPage = () => {
             render: (_: any, r: Application) => (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <Avatar size={38} icon={<UserOutlined />}
-                        style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', flexShrink: 0 }} />
+                        style={{ background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-accent))', flexShrink: 0 }} />
                     <div style={{ minWidth: 0 }}>
                         <div style={{ fontWeight: 700, fontSize: 13, color: '#1e293b' }}>
                             {r.fullName || `${r.firstName} ${r.lastName}`}
@@ -207,12 +207,12 @@ const PartnerApplicationsPage = () => {
             render: (_: any, r: Application) => (
                 <div>
                     <div style={{ fontSize: 12, color: '#334155', display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <MailOutlined style={{ color: '#6366f1', fontSize: 10 }} />
+                        <MailOutlined style={{ color: 'var(--brand-primary)', fontSize: 10 }} />
                         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 170 }}>{r.email}</span>
                     </div>
                     {r.phone && (
                         <div style={{ fontSize: 12, color: '#64748b', display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}>
-                            <PhoneOutlined style={{ color: '#6366f1', fontSize: 10 }} />
+                            <PhoneOutlined style={{ color: 'var(--brand-primary)', fontSize: 10 }} />
                             <span>{r.phone}</span>
                         </div>
                     )}
@@ -246,7 +246,7 @@ const PartnerApplicationsPage = () => {
                         {v.vehicleType && (
                             <div style={{
                                 display: 'inline-block', marginTop: 3,
-                                background: '#ede9fe', color: '#7c3aed', fontSize: 10,
+                                background: 'var(--brand-primary-10)', color: 'var(--brand-accent)', fontSize: 10,
                                 fontWeight: 600, padding: '1px 8px', borderRadius: 10
                             }}>{v.vehicleType.name}</div>
                         )}
@@ -350,9 +350,9 @@ const PartnerApplicationsPage = () => {
                         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                             <div style={{
                                 width: 48, height: 48, borderRadius: 14,
-                                background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                                background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-accent))',
                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                color: '#fff', fontSize: 22, boxShadow: '0 4px 14px #6366f140'
+                                color: '#fff', fontSize: 22, boxShadow: '0 4px 14px var(--brand-primary-40)'
                             }}><TeamOutlined /></div>
                             <div>
                                 <Title level={3} style={{ margin: 0, color: '#1e293b' }}>Partner Sürücü Yönetimi</Title>
@@ -372,8 +372,8 @@ const PartnerApplicationsPage = () => {
                                 onClick={() => setAddModalOpen(true)}
                                 style={{
                                     borderRadius: 8,
-                                    background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-                                    border: 'none', boxShadow: '0 2px 8px #6366f140'
+                                    background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-accent))',
+                                    border: 'none', boxShadow: '0 2px 8px var(--brand-primary-40)'
                                 }}>
                                 Partner Sürücü Ekle
                             </Button>
@@ -383,7 +383,7 @@ const PartnerApplicationsPage = () => {
                     {/* ── Stats Cards ── */}
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12, marginBottom: 20 }}>
                         {[
-                            { label: 'Toplam', value: stats.total, color: '#6366f1', icon: <TeamOutlined /> },
+                            { label: 'Toplam', value: stats.total, color: 'var(--brand-primary)', icon: <TeamOutlined /> },
                             { label: 'Aktif', value: stats.active, color: '#10b981', icon: <CheckCircleOutlined /> },
                             { label: 'Beklemede', value: stats.pending, color: '#f59e0b', icon: <ClockCircleOutlined /> },
                             { label: 'Reddedildi', value: stats.rejected, color: '#ef4444', icon: <StopOutlined /> },
@@ -452,7 +452,7 @@ const PartnerApplicationsPage = () => {
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                             <div style={{
                                 width: 36, height: 36, borderRadius: 10,
-                                background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                                background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-accent))',
                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                                 color: '#fff', fontSize: 16
                             }}><UserOutlined /></div>

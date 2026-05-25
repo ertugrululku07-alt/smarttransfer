@@ -167,7 +167,7 @@ const VehicleTrackingDashboard: React.FC = () => {
                         size={38}
                         src={getImageUrl(r.imageUrl)}
                         icon={<CarOutlined />}
-                        style={{ background: r.isActive ? '#6366f1' : '#9ca3af' }}
+                        style={{ background: r.isActive ? 'var(--brand-primary)' : '#9ca3af' }}
                     />
                     <div>
                         <div style={{ fontWeight: 700, fontSize: 13 }}>{r.brand} {r.model}</div>
@@ -227,8 +227,8 @@ const VehicleTrackingDashboard: React.FC = () => {
             sorter: (a: VehicleSummary, b: VehicleSummary) => a.totalKm - b.totalKm,
             render: (_: any, r: VehicleSummary) => (
                 <div>
-                    <div style={{ fontWeight: 700, fontSize: 13, color: '#6366f1' }}>{fmtKm(r.totalKm)}</div>
-                    <MiniBar value={r.totalKm} max={maxKm} color="#6366f1" />
+                    <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--brand-primary)' }}>{fmtKm(r.totalKm)}</div>
+                    <MiniBar value={r.totalKm} max={maxKm} color="var(--brand-primary)" />
                     <div style={{ fontSize: 10, color: '#9ca3af' }}>{r.transferCount} transfer</div>
                 </div>
             ),
@@ -254,7 +254,7 @@ const VehicleTrackingDashboard: React.FC = () => {
             align: 'right' as const,
             sorter: (a: VehicleSummary, b: VehicleSummary) => a.totalMaintCost - b.totalMaintCost,
             render: (v: number) => (
-                <Text style={{ color: '#7c3aed', fontWeight: 600, fontFamily: 'monospace', fontSize: 12 }}>
+                <Text style={{ color: 'var(--brand-accent)', fontWeight: 600, fontFamily: 'monospace', fontSize: 12 }}>
                     {fmtTRY(v)}
                 </Text>
             ),
@@ -283,7 +283,7 @@ const VehicleTrackingDashboard: React.FC = () => {
             render: (_: any, r: VehicleSummary) => (
                 <Button
                     size="small"
-                    style={{ borderRadius: 6, fontSize: 11, background: '#6366f1', color: 'white', border: 'none', fontWeight: 600 }}
+                    style={{ borderRadius: 6, fontSize: 11, background: 'var(--brand-primary)', color: 'white', border: 'none', fontWeight: 600 }}
                     onClick={() => router.push(`/admin/vehicle-tracking/detail?id=${r.id}`)}
                 >
                     Detay →
@@ -296,7 +296,7 @@ const VehicleTrackingDashboard: React.FC = () => {
     const kpiCards = [
         {
             title: 'Toplam Araç', value: agg.total,
-            icon: <CarOutlined />, grad: 'linear-gradient(135deg,#6366f1,#8b5cf6)',
+            icon: <CarOutlined />, grad: 'linear-gradient(135deg,var(--brand-primary),var(--brand-accent))',
             sub: `${agg.active} aktif · ${agg.inactive} pasif`,
         },
         {
@@ -327,7 +327,7 @@ const VehicleTrackingDashboard: React.FC = () => {
                             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
                                 <div style={{
                                     width: 36, height: 36, borderRadius: 10,
-                                    background: 'linear-gradient(135deg,#6366f1,#8b5cf6)',
+                                    background: 'linear-gradient(135deg,var(--brand-primary),var(--brand-accent))',
                                     display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: 18,
                                 }}>
                                     <AimOutlined />
@@ -451,7 +451,7 @@ const VehicleTrackingDashboard: React.FC = () => {
                             >
                                 {[
                                     { label: 'Yakıt', value: agg.totalFuel, color: '#d97706', icon: <FireOutlined /> },
-                                    { label: 'Bakım', value: agg.totalMaint, color: '#7c3aed', icon: <ToolOutlined /> },
+                                    { label: 'Bakım', value: agg.totalMaint, color: 'var(--brand-accent)', icon: <ToolOutlined /> },
                                     { label: 'Sigorta', value: agg.totalIns, color: '#16a34a', icon: <SafetyOutlined /> },
                                 ].map(e => {
                                     const total = agg.totalExpense || 1;
@@ -482,9 +482,9 @@ const VehicleTrackingDashboard: React.FC = () => {
                         variant="borderless"
                         title={
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                <CarOutlined style={{ color: '#6366f1' }} />
+                                <CarOutlined style={{ color: 'var(--brand-primary)' }} />
                                 <span>Tüm Araçlar — Detaylı Takip</span>
-                                <Badge count={vehicles.length} color="#6366f1" />
+                                <Badge count={vehicles.length} color="var(--brand-primary)" />
                             </div>
                         }
                         style={{ borderRadius: 16, boxShadow: '0 2px 16px rgba(0,0,0,0.06)', border: '1px solid #f0f0f0' }}

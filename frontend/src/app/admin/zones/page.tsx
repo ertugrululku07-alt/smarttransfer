@@ -154,7 +154,7 @@ const ZonesPage: React.FC = () => {
             display: 'flex', alignItems: 'center', gap: 6,
             background: viewMode === 'list' ? '#fff' : 'transparent',
             boxShadow: viewMode === 'list' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-            color: viewMode === 'list' ? '#6366f1' : '#94a3b8',
+            color: viewMode === 'list' ? 'var(--brand-primary)' : '#94a3b8',
             fontWeight: 600, fontSize: 13, transition: 'all 0.2s',
           }}
         >
@@ -169,7 +169,7 @@ const ZonesPage: React.FC = () => {
             display: 'flex', alignItems: 'center', gap: 6,
             background: viewMode === 'grid' ? '#fff' : 'transparent',
             boxShadow: viewMode === 'grid' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-            color: viewMode === 'grid' ? '#6366f1' : '#94a3b8',
+            color: viewMode === 'grid' ? 'var(--brand-primary)' : '#94a3b8',
             fontWeight: 600, fontSize: 13, transition: 'all 0.2s',
           }}
         >
@@ -184,7 +184,7 @@ const ZonesPage: React.FC = () => {
             display: 'flex', alignItems: 'center', gap: 6,
             background: viewMode === 'map' ? '#fff' : 'transparent',
             boxShadow: viewMode === 'map' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-            color: viewMode === 'map' ? '#6366f1' : '#94a3b8',
+            color: viewMode === 'map' ? 'var(--brand-primary)' : '#94a3b8',
             fontWeight: 600, fontSize: 13, transition: 'all 0.2s',
           }}
         >
@@ -237,7 +237,7 @@ const ZonesPage: React.FC = () => {
       render: (code: string | null) => code ? (
         <Tag style={{
           borderRadius: 6, fontWeight: 700, fontSize: 11, margin: 0,
-          background: '#e0e7ff', color: '#4f46e5', border: 'none', fontFamily: 'monospace',
+          background: 'var(--brand-primary-10)', color: 'var(--brand-accent)', border: 'none', fontFamily: 'monospace',
           padding: '2px 10px',
         }}>
           {code}
@@ -275,7 +275,7 @@ const ZonesPage: React.FC = () => {
           {keywords.split(',').filter(Boolean).length > 3 && (
             <Tag style={{
               borderRadius: 6, fontSize: 11, fontWeight: 600, margin: 0,
-              background: '#e0e7ff', color: '#6366f1', border: 'none', padding: '1px 8px',
+              background: 'var(--brand-primary-10)', color: 'var(--brand-primary)', border: 'none', padding: '1px 8px',
             }}>
               +{keywords.split(',').filter(Boolean).length - 3}
             </Tag>
@@ -413,7 +413,7 @@ const ZonesPage: React.FC = () => {
                   {hasCode && (
                     <Tag style={{
                       borderRadius: 6, fontWeight: 700, fontSize: 11, margin: 0,
-                      background: '#e0e7ff', color: '#4f46e5', border: 'none', fontFamily: 'monospace',
+                      background: 'var(--brand-primary-10)', color: 'var(--brand-accent)', border: 'none', fontFamily: 'monospace',
                     }}>
                       {zone.code}
                     </Tag>
@@ -517,10 +517,10 @@ const ZonesPage: React.FC = () => {
               <ViewToggle />
               <Button type="primary" icon={<PlusOutlined />} onClick={handleNewZone} size="large"
                 style={{
-                  background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                  background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-accent))',
                   border: 'none', borderRadius: 12, fontWeight: 600,
                   height: 44, paddingInline: 24,
-                  boxShadow: '0 4px 14px rgba(99,102,241,0.3)',
+                  boxShadow: '0 4px 14px var(--brand-primary-30)',
                 }}>
                 Yeni Bölge
               </Button>
@@ -530,7 +530,7 @@ const ZonesPage: React.FC = () => {
           {/* Info box */}
           <div style={{
             padding: '14px 20px', borderRadius: 12, marginBottom: 20,
-            background: 'linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%)',
+            background: 'linear-gradient(135deg, #f8fafc 0%, var(--brand-primary-08) 100%)',
             border: '1px solid #e2e8f0',
           }}>
             <Text style={{ fontSize: 13, color: '#475569', lineHeight: 1.6 }}>
@@ -554,7 +554,7 @@ const ZonesPage: React.FC = () => {
             }}>
               <div style={{
                 width: 72, height: 72, borderRadius: 20, margin: '0 auto 20px',
-                background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-accent))',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}>
                 <EnvironmentOutlined style={{ fontSize: 32, color: '#fff' }} />
@@ -566,7 +566,7 @@ const ZonesPage: React.FC = () => {
                 Havalimanları, şehirler ve varış bölgelerini ekleyerek başlayın
               </Text>
               <Button type="primary" size="large" icon={<PlusOutlined />} onClick={handleNewZone}
-                style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', border: 'none', borderRadius: 10, fontWeight: 600, height: 42 }}>
+                style={{ background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-accent))', border: 'none', borderRadius: 10, fontWeight: 600, height: 42 }}>
                 İlk Bölgeyi Ekle
               </Button>
             </div>
@@ -630,7 +630,7 @@ const ZonesPage: React.FC = () => {
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <div style={{
                   width: 40, height: 40, borderRadius: 12,
-                  background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                  background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-accent))',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                 }}>
                   <EnvironmentOutlined style={{ fontSize: 18, color: '#fff' }} />
@@ -646,7 +646,7 @@ const ZonesPage: React.FC = () => {
             onOk={handleZoneSubmit}
             okText={editingZone ? 'Güncelle' : 'Kaydet'}
             cancelText="İptal"
-            okButtonProps={{ style: { background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', border: 'none', borderRadius: 8, fontWeight: 600 } }}
+            okButtonProps={{ style: { background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-accent))', border: 'none', borderRadius: 8, fontWeight: 600 } }}
             cancelButtonProps={{ style: { borderRadius: 8 } }}
             styles={{ body: { paddingTop: 20 } }}
             width={560}
@@ -688,7 +688,7 @@ const ZonesPage: React.FC = () => {
                 background: '#f8fafc', border: '1px solid #f1f5f9',
                 fontSize: 12, color: '#64748b', lineHeight: 1.5,
               }}>
-                <SearchOutlined style={{ marginRight: 6, color: '#6366f1' }} />
+                <SearchOutlined style={{ marginRight: 6, color: 'var(--brand-primary)' }} />
                 Kod ve anahtar kelime girildiğinde bu bölge <b>kalkış noktası</b> olarak da çalışır.
                 Boş bırakılırsa sadece varış bölgesi olarak kullanılır.
               </div>

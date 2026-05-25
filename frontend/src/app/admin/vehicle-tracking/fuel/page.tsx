@@ -362,8 +362,8 @@ const FuelPage: React.FC = () => {
                                     </Card>
                                 </Col>
                                 <Col xs={24} md={4}>
-                                    <Card variant="borderless" style={{ borderRadius: 10, background: 'linear-gradient(135deg,#faf5ff,#f3e8ff)', border: '1px solid #d8b4fe' }} styles={{ body: { padding: '12px 16px' } }}>
-                                        <Statistic title={<Text style={{ color: '#7c3aed', fontSize: 11 }}>Ort. Tüketim (L/100km)</Text>} value={stats.avgConsumption || 0} precision={1} suffix="L" styles={{ content: { color: '#7c3aed', fontSize: 18, fontWeight: 700 } }} />
+                                    <Card variant="borderless" style={{ borderRadius: 10, background: 'linear-gradient(135deg,var(--brand-primary-08),#f3e8ff)', border: '1px solid #d8b4fe' }} styles={{ body: { padding: '12px 16px' } }}>
+                                        <Statistic title={<Text style={{ color: 'var(--brand-accent)', fontSize: 11 }}>Ort. Tüketim (L/100km)</Text>} value={stats.avgConsumption || 0} precision={1} suffix="L" styles={{ content: { color: 'var(--brand-accent)', fontSize: 18, fontWeight: 700 } }} />
                                     </Card>
                                 </Col>
                                 <Col xs={24} md={4}>

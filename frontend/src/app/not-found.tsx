@@ -27,7 +27,7 @@ export default async function NotFound() {
             overflow: 'hidden',
         }}>
             {/* Decorative orbs */}
-            <div style={{ position: 'absolute', top: '-20%', left: '-10%', width: 400, height: 400, borderRadius: '50%', background: 'radial-gradient(circle, rgba(102,126,234,0.4) 0%, transparent 70%)', filter: 'blur(60px)' }} />
+            <div style={{ position: 'absolute', top: '-20%', left: '-10%', width: 400, height: 400, borderRadius: '50%', background: 'radial-gradient(circle, var(--brand-primary-40) 0%, transparent 70%)', filter: 'blur(60px)' }} />
             <div style={{ position: 'absolute', bottom: '-20%', right: '-10%', width: 500, height: 500, borderRadius: '50%', background: 'radial-gradient(circle, rgba(118,75,162,0.4) 0%, transparent 70%)', filter: 'blur(80px)' }} />
 
             <div style={{ position: 'relative', zIndex: 1, textAlign: 'center', maxWidth: 600 }}>
@@ -58,12 +58,12 @@ export default async function NotFound() {
                         style={{
                             display: 'inline-flex', alignItems: 'center', gap: 8,
                             padding: '14px 32px',
-                            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                            background: 'linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-accent) 100%)',
                             color: '#fff',
                             borderRadius: 12,
                             fontWeight: 600,
                             textDecoration: 'none',
-                            boxShadow: '0 8px 24px rgba(102,126,234,0.4)',
+                            boxShadow: '0 8px 24px var(--brand-primary-40)',
                             transition: 'transform 0.2s ease',
                         }}
                     >

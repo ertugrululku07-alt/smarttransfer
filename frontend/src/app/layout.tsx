@@ -206,7 +206,7 @@ export default async function RootLayout({
   const fullName = `${branding.siteNameHighlight || ''}${branding.siteName || ''}` || branding.companyName || 'SmartTravel';
   const fallbackUrl = await getDefaultSiteUrl();
   const siteUrl = (seo.siteUrl || fallbackUrl).replace(/\/$/, '');
-  const themeColor = customTheme?.primaryColor || '#667eea';
+  const themeColor = customTheme?.primaryColor || 'var(--brand-primary)';
 
   // Organization JSON-LD (rich data)
   const organizationLd = {

@@ -90,8 +90,8 @@ const SortableServiceCard: React.FC<SortableServiceCardProps> = ({ item, onEdit,
         <div ref={setNodeRef} style={style}>
             <div style={{
                 background: '#fff', borderRadius: 20, overflow: 'hidden',
-                border: isDragging ? '2px solid #6366f1' : '1px solid #f0f0f0',
-                boxShadow: isDragging ? '0 20px 40px rgba(99,102,241,0.2)' : '0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.03)',
+                border: isDragging ? '2px solid var(--brand-primary)' : '1px solid #f0f0f0',
+                boxShadow: isDragging ? '0 20px 40px var(--brand-primary-20)' : '0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.03)',
                 transition: 'all 0.2s ease',
             }}
                 onMouseEnter={e => { if (!isDragging) { e.currentTarget.style.boxShadow = '0 8px 25px rgba(0,0,0,0.08)'; e.currentTarget.style.transform = 'translateY(-2px)'; } }}

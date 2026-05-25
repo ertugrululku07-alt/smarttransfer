@@ -264,7 +264,7 @@ export default function PricingPage() {
   });
 
   const CAT_COLORS: Record<string, string> = {
-    SEDAN: '#6366f1', VAN: '#0891b2', VIP_VAN: '#7c3aed',
+    SEDAN: 'var(--brand-primary)', VAN: '#0891b2', VIP_VAN: 'var(--brand-accent)',
     MINIBUS: '#2563eb', BUS: '#ea580c', LUXURY: '#ca8a04',
   };
 
@@ -303,7 +303,7 @@ export default function PricingPage() {
                 }}>
                   <div style={{
                     padding: '16px 20px',
-                    background: 'linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%)',
+                    background: 'linear-gradient(135deg, #f8fafc 0%, var(--brand-primary-08) 100%)',
                     borderBottom: '1px solid #e2e8f0',
                   }}>
                     <div style={{ fontSize: 14, fontWeight: 700, color: '#1a1a2e' }}>Araç Tipleri</div>
@@ -312,7 +312,7 @@ export default function PricingPage() {
                   <div style={{ padding: '8px 0' }}>
                     {vehicleTypes.map(item => {
                       const isSelected = selectedType?.id === item.id;
-                      const catColor = CAT_COLORS[item.category] || '#6366f1';
+                      const catColor = CAT_COLORS[item.category] || 'var(--brand-primary)';
                       return (
                         <div key={item.id} onClick={() => handleSelectType(item)}
                           style={{
@@ -366,16 +366,16 @@ export default function PricingPage() {
                     {/* Title bar */}
                     <div style={{
                       padding: '16px 24px',
-                      background: 'linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%)',
+                      background: 'linear-gradient(135deg, #f8fafc 0%, var(--brand-primary-08) 100%)',
                       borderBottom: '1px solid #e2e8f0',
                       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                     }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                         <div style={{
                           width: 44, height: 44, borderRadius: 14,
-                          background: `linear-gradient(135deg, ${CAT_COLORS[selectedType.category] || '#6366f1'}, ${CAT_COLORS[selectedType.category] || '#6366f1'}cc)`,
+                          background: `linear-gradient(135deg, ${CAT_COLORS[selectedType.category] || 'var(--brand-primary)'}, ${CAT_COLORS[selectedType.category] || 'var(--brand-primary)'}cc)`,
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          boxShadow: `0 4px 12px ${CAT_COLORS[selectedType.category] || '#6366f1'}30`,
+                          boxShadow: `0 4px 12px ${CAT_COLORS[selectedType.category] || 'var(--brand-primary)'}30`,
                         }}>
                           <CarOutlined style={{ fontSize: 20, color: '#fff' }} />
                         </div>
@@ -386,9 +386,9 @@ export default function PricingPage() {
                       </div>
                       <Button type="primary" icon={<SaveOutlined />} onClick={() => form.submit()} loading={saving}
                         style={{
-                          background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                          background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-accent))',
                           border: 'none', borderRadius: 10, fontWeight: 600, height: 40,
-                          boxShadow: '0 4px 12px rgba(99,102,241,0.25)',
+                          boxShadow: '0 4px 12px var(--brand-primary-22)',
                         }}>
                         Kaydet
                       </Button>
@@ -415,7 +415,7 @@ export default function PricingPage() {
                           <div style={{
                             display: 'grid',
                             gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr',
-                            background: 'linear-gradient(135deg, #f8fafc, #eef2ff)',
+                            background: 'linear-gradient(135deg, #f8fafc, var(--brand-primary-08))',
                             borderBottom: '1px solid #e2e8f0',
                           }}>
                             <div style={thStyle}>Para Birimi</div>
@@ -706,7 +706,7 @@ export default function PricingPage() {
                             <Option key={vt.id} value={vt.id}>
                               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                                 <span>{vt.name}</span>
-                                <Badge count={vt.zonePrices?.length || 0} style={{ backgroundColor: '#6366f1', fontSize: 10 }} />
+                                <Badge count={vt.zonePrices?.length || 0} style={{ backgroundColor: 'var(--brand-primary)', fontSize: 10 }} />
                               </div>
                             </Option>
                           ))}

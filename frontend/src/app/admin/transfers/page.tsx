@@ -52,7 +52,7 @@ const DraggableResizableTitle = (props: any) => {
         e.preventDefault();
         if (!colKey || colKey === 'action' || !__dragColKey || __dragColKey === colKey) return;
         e.dataTransfer.dropEffect = 'move';
-        (e.currentTarget as HTMLElement).style.borderLeft = '3px solid #6366f1';
+        (e.currentTarget as HTMLElement).style.borderLeft = '3px solid var(--brand-primary)';
     };
     const handleDragLeave = (e: React.DragEvent) => {
         (e.currentTarget as HTMLElement).style.borderLeft = '';
@@ -172,10 +172,10 @@ interface StatusConf { label: string; color: string; bg: string; }
 
 const DEFAULT_STATUS_COLORS: Record<string, StatusConf> = {
     PENDING:      { label: 'Beklemede',   color: '#f59e0b', bg: '#fef9ec' },
-    CONFIRMED:    { label: 'Onaylı',      color: '#6366f1', bg: '#f5f3ff' },
+    CONFIRMED:    { label: 'Onaylı',      color: 'var(--brand-primary)', bg: 'var(--brand-primary-08)' },
     IN_POOL:      { label: 'Havuzda',     color: '#06b6d4', bg: '#ecfeff' },
     IN_OPERATION: { label: 'Operasyonda', color: '#10b981', bg: '#f0fdf4' },
-    IN_PROGRESS:  { label: 'Yolda',       color: '#8b5cf6', bg: '#faf5ff' },
+    IN_PROGRESS:  { label: 'Yolda',       color: 'var(--brand-accent)', bg: 'var(--brand-primary-08)' },
     COMPLETED:    { label: 'Tamamlandı',  color: '#10b981', bg: '#f0fdf4' },
     CANCELLED:    { label: 'İptal',       color: '#ef4444', bg: '#fff5f5' },
     NO_SHOW:      { label: 'Gelmedi',     color: '#9ca3af', bg: '#f9fafb' },
@@ -405,7 +405,7 @@ const FilterPopover: React.FC<{ colKey: string; filter: ColFilter; availableValu
     );
     return (
         <Popover content={content} title={null} trigger="click" placement="bottomRight" destroyOnHidden>
-            <Button type="text" size="small" style={{ padding:'0 2px', color: isActive ? '#6366f1' : '#ccc', marginLeft:2 }}
+            <Button type="text" size="small" style={{ padding:'0 2px', color: isActive ? 'var(--brand-primary)' : '#ccc', marginLeft:2 }}
                 icon={isActive ? <FilterFilled style={{fontSize:11}} /> : <FilterOutlined style={{fontSize:11}} />} />
         </Popover>
     );
@@ -434,12 +434,12 @@ const ColorSettingsModal: React.FC<{
     onChange: (k: string, field: 'color'|'bg', v: string) => void;
     onReset: () => void; onClose: () => void; onSave: () => void;
 }> = ({ open, colors, onChange, onReset, onClose, onSave }) => (
-    <Modal title={<Space><BgColorsOutlined style={{color:'#6366f1'}}/>Renk Ayarları — Duruma Göre Satır Rengi</Space>}
+    <Modal title={<Space><BgColorsOutlined style={{color:'var(--brand-primary)'}}/>Renk Ayarları — Duruma Göre Satır Rengi</Space>}
         open={open} onCancel={onClose} width={520}
         footer={[
             <Button key="reset" icon={<ResetOutlined />} onClick={onReset}>Varsayılana Sıfırla</Button>,
             <Button key="cancel" onClick={onClose}>İptal</Button>,
-            <Button key="save" type="primary" onClick={onSave} style={{background:'linear-gradient(135deg,#6366f1,#8b5cf6)',border:'none'}}>Renkleri Kaydet</Button>,
+            <Button key="save" type="primary" onClick={onSave} style={{background:'linear-gradient(135deg,var(--brand-primary),var(--brand-accent))',border:'none'}}>Renkleri Kaydet</Button>,
         ]}
     >
         <div style={{ display:'flex', flexDirection:'column', gap:10, marginTop:8 }}>
@@ -1229,7 +1229,7 @@ const TransfersPage: React.FC = () => {
           sorter:(a:Booking,b:Booking)=>(getAirportForRow(a)||'').localeCompare(getAirportForRow(b)||''),
           render:(_:any,r:Booking)=>{
               const code=getAirportForRow(r);
-              return code ? <Tag style={{fontWeight:700,fontSize:12,letterSpacing:1,background:'#eef2ff',borderColor:'#6366f1',color:'#6366f1',borderRadius:6}}>✈ {code}</Tag> : <Text type="secondary" style={{fontSize:11}}>-</Text>;
+              return code ? <Tag style={{fontWeight:700,fontSize:12,letterSpacing:1,background:'var(--brand-primary-08)',borderColor:'var(--brand-primary)',color:'var(--brand-primary)',borderRadius:6}}>✈ {code}</Tag> : <Text type="secondary" style={{fontSize:11}}>-</Text>;
           }},
         { ...makeHeader('pickupRegionCode'), key:'pickupRegionCode', width:colWidths.pickupRegionCode,
           sorter:(a:Booking,b:Booking)=>((a as any).pickupRegionCode||(a as any).metadata?.pickupRegionCode||'').localeCompare((b as any).pickupRegionCode||(b as any).metadata?.pickupRegionCode||''),
@@ -1245,10 +1245,10 @@ const TransfersPage: React.FC = () => {
           }},
         { ...makeHeader('vehicleType'), key:'vehicleType', width:colWidths.vehicleType,
           sorter:(a:Booking,b:Booking)=>(a.metadata?.vehicleType||a.vehicleType||'').localeCompare(b.metadata?.vehicleType||b.vehicleType||''),
-          render:(_:any,r:Booking)=><Space size={4}><CarOutlined style={{color:'#6366f1'}}/><Text style={{fontSize:11}}>{r.metadata?.vehicleType||r.vehicleType||'Bilinmiyor'}</Text></Space>},
+          render:(_:any,r:Booking)=><Space size={4}><CarOutlined style={{color:'var(--brand-primary)'}}/><Text style={{fontSize:11}}>{r.metadata?.vehicleType||r.vehicleType||'Bilinmiyor'}</Text></Space>},
         { ...makeHeader('price'), dataIndex:'price', key:'price', width:colWidths.price,
           sorter:(a:Booking,b:Booking)=>(a.price||0)-(b.price||0),
-          render:(p:number, r:Booking)=>renderEditableCell(r, 'price', <Text strong style={{color:'#6366f1',fontSize:13}}>₺{p?.toLocaleString('tr-TR')}</Text>)},
+          render:(p:number, r:Booking)=>renderEditableCell(r, 'price', <Text strong style={{color:'var(--brand-primary)',fontSize:13}}>₺{p?.toLocaleString('tr-TR')}</Text>)},
         { ...makeHeader('status'), dataIndex:'status', key:'status', width:colWidths.status,
           sorter:(a:Booking,b:Booking)=>getEffectiveStatus(a).localeCompare(getEffectiveStatus(b)),
           render:(_:any,r:Booking)=>{const conf=getStatusConf(r);return renderEditableCell(r, 'status', <Tag style={{background:conf.bg,borderColor:conf.color,color:conf.color,fontWeight:600,fontSize:11,padding:'2px 8px',borderRadius:20,cursor:'pointer'}}>{conf.label}</Tag>, <Select size="small" autoFocus defaultOpen defaultValue={r.status} style={{ width: 100 }} onChange={(val) => saveCellEdit(r.id, 'status', val)} onBlur={() => setEditingCell(null)} options={Object.keys(DEFAULT_STATUS_COLORS).map(k => ({ value: k, label: DEFAULT_STATUS_COLORS[k].label }))} />);}},
@@ -1365,8 +1365,8 @@ const TransfersPage: React.FC = () => {
           render:(_:any,record:Booking)=>{
               const items: MenuProps['items'] = [
                   {key:'detail',label:'Detaylar',icon:<EyeOutlined/>,onClick:()=>{setSelectedBooking(record);setDetailModalVisible(true);}},
-                  {key:'editPax',label:'Rezervasyonu Düzenle',icon:<EditOutlined style={{color:'#6366f1'}}/>,onClick:()=>openPaxModal(record)},
-                  {key:'log',label:'Log',icon:<HistoryOutlined style={{color:'#8b5cf6'}}/>,onClick:()=>{setLogBookingId(record.id);setLogBookingNumber(record.bookingNumber);setLogModalOpen(true);}},
+                  {key:'editPax',label:'Rezervasyonu Düzenle',icon:<EditOutlined style={{color:'var(--brand-primary)'}}/>,onClick:()=>openPaxModal(record)},
+                  {key:'log',label:'Log',icon:<HistoryOutlined style={{color:'var(--brand-accent)'}}/>,onClick:()=>{setLogBookingId(record.id);setLogBookingNumber(record.bookingNumber);setLogModalOpen(true);}},
               ];
               if (record.status==='PENDING') {
                   items.push({type:'divider'} as any);
@@ -1379,7 +1379,7 @@ const TransfersPage: React.FC = () => {
                   items.push({type:'divider'} as any);
                   items.push({key:'op2',label:'Operasyona Aktar',icon:<SafetyCertificateOutlined style={{color:'#10b981'}}/>,onClick:()=>handleUpdateStatus(record.id,'CONFIRMED','IN_OPERATION')});
                   items.push({key:'pool2',label:'Havuza Aktar',icon:<TeamOutlined style={{color:'#06b6d4'}}/>,onClick:()=>{setActivePoolBooking(record);setPoolPriceInput(record.price||0);setPoolModalOpen(true);}});
-                  items.push({key:'complete',label:'Tamamlandı',icon:<CheckCircleOutlined style={{color:'#6366f1'}}/>,onClick:()=>handleUpdateStatus(record.id,'COMPLETED')});
+                  items.push({key:'complete',label:'Tamamlandı',icon:<CheckCircleOutlined style={{color:'var(--brand-primary)'}}/>,onClick:()=>handleUpdateStatus(record.id,'COMPLETED')});
               }
               return (
                   <Dropdown menu={{items}} trigger={['click']} placement="bottomLeft">
@@ -1444,8 +1444,8 @@ const TransfersPage: React.FC = () => {
                         style={{
                             display:'flex',alignItems:'center',justifyContent:'space-between',
                             padding:'6px 8px', borderRadius:6, cursor:'grab',
-                            background: dragColIdx === idx ? '#eef2ff' : 'transparent',
-                            border: dragColIdx === idx ? '1px dashed #6366f1' : '1px solid transparent',
+                            background: dragColIdx === idx ? 'var(--brand-primary-08)' : 'transparent',
+                            border: dragColIdx === idx ? '1px dashed var(--brand-primary)' : '1px solid transparent',
                             transition: 'all 0.15s'
                         }}
                     >
@@ -1509,12 +1509,12 @@ const TransfersPage: React.FC = () => {
                 {/* Header */}
                 <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20,flexWrap:'wrap',gap:12}}>
                     <div>
-                        <Title level={2} style={{margin:0,background:'linear-gradient(135deg,#6366f1,#8b5cf6)',WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent'}}>
+                        <Title level={2} style={{margin:0,background:'linear-gradient(135deg,var(--brand-primary),var(--brand-accent))',WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent'}}>
                             Transfer Rezervasyonları
                         </Title>
                         <Text type="secondary" style={{fontSize:12}}>
                             {filteredBookings.length} rezervasyon
-                            {activeFilterCount>0&&<Badge count={activeFilterCount} style={{marginLeft:8,background:'#6366f1'}}/>}
+                            {activeFilterCount>0&&<Badge count={activeFilterCount} style={{marginLeft:8,background:'var(--brand-primary)'}}/>}
                         </Text>
                     </div>
                     <Space wrap>
@@ -1568,7 +1568,7 @@ const TransfersPage: React.FC = () => {
                         </Dropdown>
 
                         <Button type="primary" icon={<CarOutlined/>} onClick={() => setCreateModalVisible(true)}
-                            style={{borderRadius:8,background:'linear-gradient(135deg,#6366f1,#8b5cf6)',border:'none'}}>
+                            style={{borderRadius:8,background:'linear-gradient(135deg,var(--brand-primary),var(--brand-accent))',border:'none'}}>
                             Yeni Transfer
                         </Button>
                     </Space>
@@ -1640,7 +1640,7 @@ const TransfersPage: React.FC = () => {
                                 });
                             }
                         }}>Düzenle</Button>,
-                        !isEditing && <Button key="paxEdit" icon={<EditOutlined/>} onClick={()=>{ if (selectedBooking) { setDetailModalVisible(false); openPaxModal(selectedBooking); } }} style={{background:'#eef2ff',borderColor:'#6366f1',color:'#6366f1',fontWeight:600}}>Düzenle</Button>,
+                        !isEditing && <Button key="paxEdit" icon={<EditOutlined/>} onClick={()=>{ if (selectedBooking) { setDetailModalVisible(false); openPaxModal(selectedBooking); } }} style={{background:'var(--brand-primary-08)',borderColor:'var(--brand-primary)',color:'var(--brand-primary)',fontWeight:600}}>Düzenle</Button>,
                         !isEditing && <Button key="print" icon={<PrinterOutlined/>} onClick={handlePrint}>Yazdır</Button>,
                         !isEditing && <Button key="pdf" type="primary" icon={<FilePdfOutlined/>} onClick={handleExportPDF} style={{background:'#ef4444',border:'none'}}>PDF</Button>,
                         isEditing && <Button key="cancelEdit" onClick={()=>setIsEditing(false)}>İptal</Button>,
@@ -1653,7 +1653,7 @@ const TransfersPage: React.FC = () => {
                             <div style={{padding:'10px 16px',borderRadius:8,background:getStatusConf(selectedBooking).bg,borderLeft:`4px solid ${getStatusConf(selectedBooking).color}`,display:'flex',alignItems:'center',gap:12}}>
                                 <Text strong style={{color:getStatusConf(selectedBooking).color,fontSize:15}}>{getStatusConf(selectedBooking).label}</Text>
                                 <Text type="secondary" style={{fontSize:12}}>Transfer: {dayjs(selectedBooking.pickupDateTime).format('DD MMMM YYYY HH:mm')}</Text>
-                                {getAirportForRow(selectedBooking)&&<Tag style={{fontWeight:700,background:'#eef2ff',borderColor:'#6366f1',color:'#6366f1'}}>✈ {getAirportForRow(selectedBooking)}</Tag>}
+                                {getAirportForRow(selectedBooking)&&<Tag style={{fontWeight:700,background:'var(--brand-primary-08)',borderColor:'var(--brand-primary)',color:'var(--brand-primary)'}}>✈ {getAirportForRow(selectedBooking)}</Tag>}
                             </div>
                             
                             {!isEditing ? (
@@ -1674,7 +1674,7 @@ const TransfersPage: React.FC = () => {
                                         <Descriptions.Item label="Bırakış Yeri"><EnvironmentItem text={getDropoff(selectedBooking)} color="red"/></Descriptions.Item>
                                         {getAirportForRow(selectedBooking)&&(
                                             <Descriptions.Item label="Havalimanı Kodu">
-                                                <Tag style={{fontWeight:700,fontSize:13,letterSpacing:1,background:'#eef2ff',borderColor:'#6366f1',color:'#6366f1'}}>✈ {getAirportForRow(selectedBooking)}</Tag>
+                                                <Tag style={{fontWeight:700,fontSize:13,letterSpacing:1,background:'var(--brand-primary-08)',borderColor:'var(--brand-primary)',color:'var(--brand-primary)'}}>✈ {getAirportForRow(selectedBooking)}</Tag>
                                             </Descriptions.Item>
                                         )}
                                         <Descriptions.Item label="Tarih & Saat"><CalendarOutlined/> {dayjs(selectedBooking.pickupDateTime).format('DD MMMM YYYY')} — {dayjs(selectedBooking.pickupDateTime).format('HH:mm')}</Descriptions.Item>
@@ -1729,7 +1729,7 @@ const TransfersPage: React.FC = () => {
                                     })()}
                                     <div style={{textAlign:'right'}}>
                                         <Text type="secondary">Toplam Tutar</Text>
-                                        <Title level={3} style={{margin:0,background:'linear-gradient(135deg,#6366f1,#8b5cf6)',WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent'}}>₺{selectedBooking.price?.toLocaleString('tr-TR')}</Title>
+                                        <Title level={3} style={{margin:0,background:'linear-gradient(135deg,var(--brand-primary),var(--brand-accent))',WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent'}}>₺{selectedBooking.price?.toLocaleString('tr-TR')}</Title>
                                     </div>
                                     {selectedBooking.status==='PENDING'&&(
                                         <div style={{borderTop:'1px solid #f0f0f0',paddingTop:16,display:'flex',justifyContent:'flex-end',gap:8}}>
@@ -1830,12 +1830,12 @@ const TransfersPage: React.FC = () => {
 
                 {/* Pool Modal */}
                 <Modal
-                    title={<Space><TeamOutlined style={{color:'#6366f1'}}/>Havuza Aktar</Space>}
+                    title={<Space><TeamOutlined style={{color:'var(--brand-primary)'}}/>Havuza Aktar</Space>}
                     open={poolModalOpen}
                     onCancel={() => setPoolModalOpen(false)}
                     onOk={handleConfirmPool}
                     okText="Onayla ve Havuza At" cancelText="İptal"
-                    okButtonProps={{ style: { background: '#6366f1' } }}
+                    okButtonProps={{ style: { background: 'var(--brand-primary)' } }}
                 >
                     <div style={{ marginBottom: 16 }}>
                         <Text type="secondary">Rezervasyon No: </Text><Text strong>{activePoolBooking?.bookingNumber}</Text>
@@ -1871,7 +1871,7 @@ const TransfersPage: React.FC = () => {
                         <div>
                             {/* ─── HEADER ─── */}
                             <div style={{
-                                background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a78bfa 100%)',
+                                background: 'linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-accent) 50%, var(--brand-primary) 100%)',
                                 padding: '16px 22px',
                                 position: 'relative',
                                 overflow: 'hidden',
@@ -1922,18 +1922,18 @@ const TransfersPage: React.FC = () => {
                                     <div>
                                         <div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>Müşteri</div>
                                         <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                            <UserOutlined style={{ color: '#6366f1', marginRight: 4 }} />{paxModalBooking.passengerName}
+                                            <UserOutlined style={{ color: 'var(--brand-primary)', marginRight: 4 }} />{paxModalBooking.passengerName}
                                         </div>
                                     </div>
                                     <div>
                                         <div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>Araç</div>
                                         <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                            <CarOutlined style={{ color: '#6366f1', marginRight: 4 }} />{paxModalBooking.metadata?.vehicleType || paxModalBooking.vehicleType || '—'}
+                                            <CarOutlined style={{ color: 'var(--brand-primary)', marginRight: 4 }} />{paxModalBooking.metadata?.vehicleType || paxModalBooking.vehicleType || '—'}
                                         </div>
                                     </div>
                                     <div style={{ textAlign: 'right' }}>
                                         <div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>Mevcut Fiyat</div>
-                                        <div style={{ fontSize: 16, fontWeight: 800, color: '#6366f1', marginTop: 2, fontFamily: 'monospace' }}>
+                                        <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--brand-primary)', marginTop: 2, fontFamily: 'monospace' }}>
                                             ₺{paxOriginalPrice.toLocaleString('tr-TR')}
                                         </div>
                                     </div>
@@ -1946,7 +1946,7 @@ const TransfersPage: React.FC = () => {
                                     boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
                                 }}>
                                     <div style={{ fontSize: 12, fontWeight: 700, color: '#1e293b', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 }}>
-                                        <UserOutlined style={{ color: '#6366f1', marginRight: 6 }} />Müşteri Bilgileri
+                                        <UserOutlined style={{ color: 'var(--brand-primary)', marginRight: 6 }} />Müşteri Bilgileri
                                     </div>
                                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                                         <div>
@@ -1971,7 +1971,7 @@ const TransfersPage: React.FC = () => {
                                     boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
                                 }}>
                                     <div style={{ fontSize: 12, fontWeight: 700, color: '#1e293b', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 }}>
-                                        <CalendarOutlined style={{ color: '#6366f1', marginRight: 6 }} />Transfer Detayları
+                                        <CalendarOutlined style={{ color: 'var(--brand-primary)', marginRight: 6 }} />Transfer Detayları
                                     </div>
                                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                                         <div style={{ gridColumn: '1 / span 2' }}>
@@ -2025,13 +2025,13 @@ const TransfersPage: React.FC = () => {
                                 {/* ─── Pricing Type Badge ─── */}
                                 <div style={{
                                     display: 'flex', alignItems: 'center', gap: 8,
-                                    background: paxIsPerPerson ? '#eff6ff' : '#f5f3ff',
-                                    border: `1px solid ${paxIsPerPerson ? '#bfdbfe' : '#ddd6fe'}`,
+                                    background: paxIsPerPerson ? '#eff6ff' : 'var(--brand-primary-08)',
+                                    border: `1px solid ${paxIsPerPerson ? '#bfdbfe' : 'var(--brand-primary-15)'}`,
                                     borderRadius: 10, padding: '8px 12px', marginBottom: 12, fontSize: 12,
                                 }}>
                                     <span style={{ fontSize: 16 }}>{paxIsPerPerson ? '👥' : '🚗'}</span>
                                     <div style={{ flex: 1 }}>
-                                        <span style={{ fontWeight: 700, color: paxIsPerPerson ? '#1d4ed8' : '#6d28d9' }}>
+                                        <span style={{ fontWeight: 700, color: paxIsPerPerson ? '#1d4ed8' : 'var(--brand-accent)' }}>
                                             {paxIsPerPerson ? 'Kişi Başı Fiyatlı' : 'Sabit Araç Fiyatlı'}
                                         </span>
                                         <span style={{ color: '#64748b', marginLeft: 6 }}>
@@ -2058,7 +2058,7 @@ const TransfersPage: React.FC = () => {
                                     </div>
                                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
                                         {([
-                                            { key: 'adults' as const, label: 'Yetişkin', sub: '13+ yaş', val: paxAdults, min: 1, color: '#6366f1', bg: '#eef2ff' },
+                                            { key: 'adults' as const, label: 'Yetişkin', sub: '13+ yaş', val: paxAdults, min: 1, color: 'var(--brand-primary)', bg: 'var(--brand-primary-08)' },
                                             { key: 'children' as const, label: 'Çocuk', sub: '3-12 yaş', val: paxChildren, min: 0, color: '#f59e0b', bg: '#fef3c7' },
                                             { key: 'infants' as const, label: 'Bebek', sub: '0-2 yaş', val: paxInfants, min: 0, color: '#ec4899', bg: '#fce7f3' },
                                         ] as const).map(item => (
@@ -2111,7 +2111,7 @@ const TransfersPage: React.FC = () => {
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                                             {paxList.map((p, idx) => {
                                                 const typeLabel = p.type === 'child' ? 'Çocuk' : p.type === 'infant' ? 'Bebek' : 'Yetişkin';
-                                                const typeColor = p.type === 'child' ? '#f59e0b' : p.type === 'infant' ? '#ec4899' : '#6366f1';
+                                                const typeColor = p.type === 'child' ? '#f59e0b' : p.type === 'infant' ? '#ec4899' : 'var(--brand-primary)';
                                                 return (
                                                     <div key={idx} style={{
                                                         display: 'flex', gap: 6, alignItems: 'center',
@@ -2157,7 +2157,7 @@ const TransfersPage: React.FC = () => {
                                 }}>
                                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                                         <span style={{ fontSize: 12, fontWeight: 700, color: '#1e293b', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                                            <DollarOutlined style={{ color: '#6366f1', marginRight: 6 }} />Fiyat Hesaplama
+                                            <DollarOutlined style={{ color: 'var(--brand-primary)', marginRight: 6 }} />Fiyat Hesaplama
                                         </span>
                                     </div>
 
@@ -2169,9 +2169,9 @@ const TransfersPage: React.FC = () => {
                                                 style={{
                                                     padding: '8px 10px', borderRadius: 8, fontSize: 12, fontWeight: 700,
                                                     cursor: 'pointer', transition: 'all 0.2s',
-                                                    border: paxPricingMode === 'auto' ? '2px solid #6366f1' : '1px solid #e5e7eb',
-                                                    background: paxPricingMode === 'auto' ? '#eef2ff' : '#fff',
-                                                    color: paxPricingMode === 'auto' ? '#4f46e5' : '#64748b',
+                                                    border: paxPricingMode === 'auto' ? '2px solid var(--brand-primary)' : '1px solid #e5e7eb',
+                                                    background: paxPricingMode === 'auto' ? 'var(--brand-primary-08)' : '#fff',
+                                                    color: paxPricingMode === 'auto' ? 'var(--brand-accent)' : '#64748b',
                                                 }}
                                             >
                                                 ⚡ Otomatik
@@ -2183,9 +2183,9 @@ const TransfersPage: React.FC = () => {
                                             style={{
                                                 padding: '8px 10px', borderRadius: 8, fontSize: 12, fontWeight: 700,
                                                 cursor: 'pointer', transition: 'all 0.2s',
-                                                border: paxPricingMode === 'keep' ? '2px solid #6366f1' : '1px solid #e5e7eb',
-                                                background: paxPricingMode === 'keep' ? '#eef2ff' : '#fff',
-                                                color: paxPricingMode === 'keep' ? '#4f46e5' : '#64748b',
+                                                border: paxPricingMode === 'keep' ? '2px solid var(--brand-primary)' : '1px solid #e5e7eb',
+                                                background: paxPricingMode === 'keep' ? 'var(--brand-primary-08)' : '#fff',
+                                                color: paxPricingMode === 'keep' ? 'var(--brand-accent)' : '#64748b',
                                             }}
                                         >
                                             🔒 Sabit Tut
@@ -2196,9 +2196,9 @@ const TransfersPage: React.FC = () => {
                                             style={{
                                                 padding: '8px 10px', borderRadius: 8, fontSize: 12, fontWeight: 700,
                                                 cursor: 'pointer', transition: 'all 0.2s',
-                                                border: paxPricingMode === 'manual' ? '2px solid #6366f1' : '1px solid #e5e7eb',
-                                                background: paxPricingMode === 'manual' ? '#eef2ff' : '#fff',
-                                                color: paxPricingMode === 'manual' ? '#4f46e5' : '#64748b',
+                                                border: paxPricingMode === 'manual' ? '2px solid var(--brand-primary)' : '1px solid #e5e7eb',
+                                                background: paxPricingMode === 'manual' ? 'var(--brand-primary-08)' : '#fff',
+                                                color: paxPricingMode === 'manual' ? 'var(--brand-accent)' : '#64748b',
                                             }}
                                         >
                                             ✏️ Elle Gir
@@ -2326,11 +2326,11 @@ const TransfersPage: React.FC = () => {
                                         height: 44, padding: '0 24px', borderRadius: 10, border: 'none',
                                         background: paxPriceDiff !== 0
                                             ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
-                                            : 'linear-gradient(135deg, #6366f1 0%, #7c3aed 100%)',
+                                            : 'linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-accent) 100%)',
                                         color: '#fff', fontSize: 14, fontWeight: 700,
                                         cursor: paxSaving ? 'wait' : 'pointer',
                                         display: 'flex', alignItems: 'center', gap: 8,
-                                        boxShadow: '0 4px 14px rgba(99,102,241,0.35)',
+                                        boxShadow: '0 4px 14px var(--brand-primary-33)',
                                         opacity: paxSaving ? 0.7 : 1,
                                     }}
                                 >
@@ -2393,8 +2393,8 @@ const TransfersPage: React.FC = () => {
                         border-radius: 2px;
                         transition: background 0.2s, width 0.2s;
                     }
-                    .react-resizable-handle:hover::after { background: #6366f1; width: 4px; }
-                    .react-resizable-handle:active::after { background: #4338ca; width: 4px; }
+                    .react-resizable-handle:hover::after { background: var(--brand-primary); width: 4px; }
+                    .react-resizable-handle:active::after { background: var(--brand-accent); width: 4px; }
 
                     @media print {
                         .ant-layout-sider, .ant-layout-header, header, nav, aside,

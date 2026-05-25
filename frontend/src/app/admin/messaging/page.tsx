@@ -346,7 +346,7 @@ export default function MessagingPage() {
                         <Statistic
                             title={<Text type="secondary" style={{ fontSize: 12 }}>Toplam Kampanya</Text>}
                             value={stats?.totalCampaigns || 0}
-                            prefix={<RocketOutlined style={{ color: '#6366f1' }} />}
+                            prefix={<RocketOutlined style={{ color: 'var(--brand-primary)' }} />}
                         />
                     </Card>
                 </Col>
@@ -445,7 +445,7 @@ export default function MessagingPage() {
         <div>
             <Card style={{ borderRadius: 14, border: '1px solid #e2e8f0', maxWidth: 800, margin: '0 auto' }}>
                 <Title level={5} style={{ marginTop: 0 }}>
-                    <SendOutlined style={{ marginRight: 8, color: '#6366f1' }} />
+                    <SendOutlined style={{ marginRight: 8, color: 'var(--brand-primary)' }} />
                     Yeni Toplu Mesaj Gönder
                 </Title>
                 <Alert
@@ -510,7 +510,7 @@ export default function MessagingPage() {
                         display: 'flex', alignItems: 'center', justifyContent: 'space-between'
                     }}>
                         <div>
-                            <TeamOutlined style={{ marginRight: 8, color: '#6366f1' }} />
+                            <TeamOutlined style={{ marginRight: 8, color: 'var(--brand-primary)' }} />
                             <Text strong>Alıcılar: </Text>
                             {countLoading ? <Spin size="small" /> : (
                                 <Text style={{ color: '#16a34a', fontWeight: 700, fontSize: 16 }}>
@@ -531,7 +531,7 @@ export default function MessagingPage() {
                             size="large"
                             style={{
                                 height: 50, borderRadius: 12, fontWeight: 700, fontSize: 16,
-                                background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                                background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-accent))',
                                 border: 'none',
                             }}
                         >
@@ -568,7 +568,7 @@ export default function MessagingPage() {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 24 }}>
                         <div>
                             <Title level={2} style={{ margin: 0, color: '#1e293b' }}>
-                                <SendOutlined style={{ marginRight: 12, color: '#6366f1' }} />
+                                <SendOutlined style={{ marginRight: 12, color: 'var(--brand-primary)' }} />
                                 Toplu Mesajlaşma
                             </Title>
                             <Text type="secondary" style={{ fontSize: 13 }}>

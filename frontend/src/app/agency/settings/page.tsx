@@ -17,9 +17,9 @@ const SECTION_HEADER = ({ icon, title, subtitle }: { icon: React.ReactNode; titl
     <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 24 }}>
         <div style={{
             width: 44, height: 44, borderRadius: 12,
-            background: 'linear-gradient(135deg,#6366f1,#818cf8)',
+            background: 'linear-gradient(135deg,var(--brand-primary),var(--brand-primary))',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 20, color: '#fff', flexShrink: 0, boxShadow: '0 4px 12px rgba(99,102,241,0.3)'
+            fontSize: 20, color: '#fff', flexShrink: 0, boxShadow: '0 4px 12px var(--brand-primary-30)'
         }}>{icon}</div>
         <div>
             <div style={{ fontWeight: 700, fontSize: 16, color: '#1e293b' }}>{title}</div>
@@ -44,7 +44,7 @@ const cardStyle: React.CSSProperties = {
 const inputStyle: React.CSSProperties = { borderRadius: 10, height: 42 };
 const saveBtn = (loading: boolean, label: string) => (
     <Button type="primary" htmlType="submit" icon={<SaveOutlined />} size="large" loading={loading}
-        style={{ minWidth: 180, height: 46, borderRadius: 12, fontWeight: 700, background: 'linear-gradient(135deg,#6366f1,#818cf8)', border: 'none', boxShadow: '0 4px 14px rgba(99,102,241,0.35)' }}>
+        style={{ minWidth: 180, height: 46, borderRadius: 12, fontWeight: 700, background: 'linear-gradient(135deg,var(--brand-primary),var(--brand-primary))', border: 'none', boxShadow: '0 4px 14px var(--brand-primary-33)' }}>
         {label}
     </Button>
 );
@@ -181,7 +181,7 @@ export default function AgencySettingsPage() {
                                     padding: '9px 20px', borderRadius: 11, border: 'none', cursor: 'pointer',
                                     fontWeight: 600, fontSize: 13, transition: 'all 0.2s',
                                     background: activeTab === t.key ? '#fff' : 'transparent',
-                                    color: activeTab === t.key ? '#6366f1' : '#64748b',
+                                    color: activeTab === t.key ? 'var(--brand-primary)' : '#64748b',
                                     boxShadow: activeTab === t.key ? '0 2px 8px rgba(0,0,0,0.08)' : 'none'
                                 }}>
                                 {t.icon} {t.label}
@@ -259,7 +259,7 @@ export default function AgencySettingsPage() {
                                         <Input prefix={<PhoneOutlined style={{ color: '#cbd5e1' }} />} placeholder="+90 212 000 00 00" style={inputStyle} />
                                     </Form.Item>
                                     <Form.Item name="gsm" label={<FIELD_LABEL>GSM / Mobil</FIELD_LABEL>}>
-                                        <Input prefix={<PhoneOutlined style={{ color: '#6366f1' }} />} placeholder="+90 532 000 00 00" style={inputStyle} />
+                                        <Input prefix={<PhoneOutlined style={{ color: 'var(--brand-primary)' }} />} placeholder="+90 532 000 00 00" style={inputStyle} />
                                     </Form.Item>
                                     <Form.Item name="contactEmail" label={<FIELD_LABEL>E-Posta</FIELD_LABEL>} rules={[{ type: 'email', message: 'Geçerli e-posta girin' }]} style={{ gridColumn: '1 / -1' }}>
                                         <Input prefix={<MailOutlined style={{ color: '#cbd5e1' }} />} placeholder="info@firma.com" style={inputStyle} />
@@ -298,7 +298,7 @@ export default function AgencySettingsPage() {
                                     </Form.Item>
                                     <Form.Item name="iban" label={<FIELD_LABEL>IBAN</FIELD_LABEL>} style={{ gridColumn: '1 / -1' }}
                                         rules={[{ pattern: /^TR\d{2}\s?\d{4}\s?\d{4}\s?\d{4}\s?\d{4}\s?\d{4}\s?\d{2}$|^[A-Z]{2}\d{2}[A-Z0-9]{1,30}$/, message: 'Geçerli bir IBAN girin', warningOnly: true }]}>
-                                        <Input prefix={<CreditCardOutlined style={{ color: '#6366f1' }} />} placeholder="TR00 0000 0000 0000 0000 0000 00" style={{ ...inputStyle, letterSpacing: 1, fontFamily: 'monospace', fontSize: 14 }} maxLength={34} />
+                                        <Input prefix={<CreditCardOutlined style={{ color: 'var(--brand-primary)' }} />} placeholder="TR00 0000 0000 0000 0000 0000 00" style={{ ...inputStyle, letterSpacing: 1, fontFamily: 'monospace', fontSize: 14 }} maxLength={34} />
                                     </Form.Item>
                                     <Form.Item name="branchName" label={<FIELD_LABEL>Şube Adı</FIELD_LABEL>}>
                                         <Input prefix={<EnvironmentOutlined style={{ color: '#cbd5e1' }} />} placeholder="Ör: Kadıköy Şubesi" style={inputStyle} />

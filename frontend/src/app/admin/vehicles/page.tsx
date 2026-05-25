@@ -509,7 +509,7 @@ const VehiclesPage: React.FC = () => {
   };
 
   const USAGE_LABELS: Record<string, { label: string; color: string }> = {
-    TRANSFER: { label: 'Özel Transfer', color: '#6366f1' },
+    TRANSFER: { label: 'Özel Transfer', color: 'var(--brand-primary)' },
     SHUTTLE: { label: 'Shuttle', color: '#0ea5e9' },
     TOUR: { label: 'Tur', color: '#f59e0b' },
   };
@@ -532,7 +532,7 @@ const VehiclesPage: React.FC = () => {
             size="large"
             icon={<PlusOutlined />}
             onClick={handleNewVehicle}
-            style={{ background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)', border: 'none', fontWeight: 600, borderRadius: 8 }}
+            style={{ background: 'linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-accent) 100%)', border: 'none', fontWeight: 600, borderRadius: 8 }}
           >
             + Yeni Araç
           </Button>
@@ -592,7 +592,7 @@ const VehiclesPage: React.FC = () => {
         <Row gutter={[20, 20]}>
           {loading && (
             <Col span={24} style={{ textAlign: 'center', padding: 60 }}>
-              <div style={{ fontSize: 24, color: '#6366f1' }}>Yükleniyor...</div>
+              <div style={{ fontSize: 24, color: 'var(--brand-primary)' }}>Yükleniyor...</div>
             </Col>
           )}
           {!loading && filteredVehicles.length === 0 && (
@@ -616,7 +616,7 @@ const VehiclesPage: React.FC = () => {
                   style={{
                     borderRadius: 16,
                     overflow: 'hidden',
-                    border: v.isActive ? '1px solid #e0e7ff' : '1px solid #fee2e2',
+                    border: v.isActive ? '1px solid var(--brand-primary-10)' : '1px solid #fee2e2',
                     boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
                     transition: 'all 0.25s ease',
                     opacity: v.isActive ? 1 : 0.75,
@@ -723,7 +723,7 @@ const VehiclesPage: React.FC = () => {
                         </span>
                       )}
                       {v.hasBabySeat && (
-                        <span style={{ background: '#fdf4ff', color: '#9333ea', borderRadius: 4, padding: '2px 8px', fontSize: 11, fontWeight: 600 }}>
+                        <span style={{ background: '#fdf4ff', color: 'var(--brand-accent)', borderRadius: 4, padding: '2px 8px', fontSize: 11, fontWeight: 600 }}>
                           👶 Bebek
                         </span>
                       )}
@@ -809,9 +809,9 @@ const VehiclesPage: React.FC = () => {
                             flex: 1,
                             borderRadius: 6,
                             minWidth: 80,
-                            background: (v as any).driverId ? '#f0fdf4' : '#faf5ff',
-                            borderColor: (v as any).driverId ? '#16a34a' : '#9333ea',
-                            color: (v as any).driverId ? '#16a34a' : '#9333ea',
+                            background: (v as any).driverId ? '#f0fdf4' : 'var(--brand-primary-08)',
+                            borderColor: (v as any).driverId ? '#16a34a' : 'var(--brand-accent)',
+                            color: (v as any).driverId ? '#16a34a' : 'var(--brand-accent)',
                             fontWeight: 600,
                           }}
                         >
@@ -838,7 +838,7 @@ const VehiclesPage: React.FC = () => {
           open={driverModalVisible}
           title={
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <UserOutlined style={{ color: '#9333ea' }} />
+              <UserOutlined style={{ color: 'var(--brand-accent)' }} />
               <span>Şöför Ata{selectedVehicleForDriver ? ` — ${selectedVehicleForDriver.plateNumber}` : ''}</span>
             </div>
           }
@@ -900,7 +900,7 @@ const VehiclesPage: React.FC = () => {
                           loading={driverLoading}
                           onClick={() => handleAssignDriver(selectedVehicleForDriver!.id, driverId)}
                           style={{
-                            background: isCurrentDriver ? undefined : 'linear-gradient(135deg, #9333ea 0%, #7c3aed 100%)',
+                            background: isCurrentDriver ? undefined : 'linear-gradient(135deg, var(--brand-accent) 0%, var(--brand-accent) 100%)',
                             border: 'none',
                             color: isCurrentDriver ? undefined : 'white',
                           }}
@@ -915,7 +915,7 @@ const VehiclesPage: React.FC = () => {
                       <Avatar
                         src={getImageUrl(d.photo)}
                         icon={<UserOutlined />}
-                        style={{ background: isCurrentDriver ? '#16a34a' : '#9333ea' }}
+                        style={{ background: isCurrentDriver ? '#16a34a' : 'var(--brand-accent)' }}
                       />
                     }
                     title={
@@ -952,7 +952,7 @@ const VehiclesPage: React.FC = () => {
         >
           {/* Header */}
           <div style={{
-            background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a78bfa 100%)',
+            background: 'linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-accent) 50%, var(--brand-primary) 100%)',
             padding: '24px 32px 20px',
             borderRadius: '8px 8px 0 0',
           }}>
@@ -990,7 +990,7 @@ const VehiclesPage: React.FC = () => {
               {currentStep === 0 && (
                 <>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-                    <CarOutlined style={{ color: '#6366f1', fontSize: 16 }} />
+                    <CarOutlined style={{ color: 'var(--brand-primary)', fontSize: 16 }} />
                     <Text strong style={{ fontSize: 15, color: '#1e293b' }}>Temel Araç Bilgileri</Text>
                   </div>
                   <Row gutter={16}>
@@ -1074,7 +1074,7 @@ const VehiclesPage: React.FC = () => {
               {currentStep === 1 && (
                 <>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-                    <FileProtectOutlined style={{ color: '#6366f1', fontSize: 16 }} />
+                    <FileProtectOutlined style={{ color: 'var(--brand-primary)', fontSize: 16 }} />
                     <Text strong style={{ fontSize: 15, color: '#1e293b' }}>UETDS & Ruhsat Bilgileri</Text>
                     <Tag color="blue" style={{ marginLeft: 'auto', fontSize: 10 }}>UETDS Zorunlu</Tag>
                   </div>
@@ -1134,7 +1134,7 @@ const VehiclesPage: React.FC = () => {
                   <Divider style={{ margin: '16px 0' }} />
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-                    <SafetyOutlined style={{ color: '#7c3aed', fontSize: 16 }} />
+                    <SafetyOutlined style={{ color: 'var(--brand-accent)', fontSize: 16 }} />
                     <Text strong style={{ fontSize: 15, color: '#1e293b' }}>Kasko</Text>
                   </div>
                   <Row gutter={16}>
@@ -1150,7 +1150,7 @@ const VehiclesPage: React.FC = () => {
               {currentStep === 2 && (
                 <>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-                    <HomeOutlined style={{ color: '#6366f1', fontSize: 16 }} />
+                    <HomeOutlined style={{ color: 'var(--brand-primary)', fontSize: 16 }} />
                     <Text strong style={{ fontSize: 15, color: '#1e293b' }}>Mülkiyet Durumu</Text>
                   </div>
                   <Form.Item name="ownershipType" label="Araç Kime Ait?">
@@ -1249,7 +1249,7 @@ const VehiclesPage: React.FC = () => {
               {currentStep === 3 && (
                 <>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-                    <SettingOutlined style={{ color: '#6366f1', fontSize: 16 }} />
+                    <SettingOutlined style={{ color: 'var(--brand-primary)', fontSize: 16 }} />
                     <Text strong style={{ fontSize: 15, color: '#1e293b' }}>Araç Özellikleri & Fotoğraf</Text>
                   </div>
                   <Row gutter={16}>
@@ -1323,7 +1323,7 @@ const VehiclesPage: React.FC = () => {
                 <Button
                   type="primary"
                   onClick={() => setCurrentStep(prev => prev + 1)}
-                  style={{ borderRadius: 8, background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)', border: 'none', fontWeight: 600 }}
+                  style={{ borderRadius: 8, background: 'linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-accent) 100%)', border: 'none', fontWeight: 600 }}
                 >
                   İleri
                 </Button>

@@ -90,7 +90,7 @@ const AccountLayout: React.FC<AccountLayoutProps> = ({ children }) => {
                     <>
                         <div style={{
                             width: 36, height: 36, borderRadius: 10,
-                            background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                            background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-accent))',
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
                             flexShrink: 0, fontSize: 16, fontWeight: 800, color: '#fff',
                         }}>
@@ -123,12 +123,12 @@ const AccountLayout: React.FC<AccountLayoutProps> = ({ children }) => {
                                 border: 'none',
                                 cursor: 'pointer',
                                 background: active
-                                    ? 'linear-gradient(135deg, rgba(99,102,241,0.9), rgba(139,92,246,0.8))'
+                                    ? 'linear-gradient(135deg, var(--brand-primary), var(--brand-accent))'
                                     : 'transparent',
                                 color: active ? '#fff' : 'rgba(255,255,255,0.55)',
                                 fontSize: 14, fontWeight: active ? 600 : 400,
                                 transition: 'all 0.18s ease',
-                                boxShadow: active ? '0 4px 14px rgba(99,102,241,0.4)' : 'none',
+                                boxShadow: active ? '0 4px 14px var(--brand-primary-40)' : 'none',
                             }}
                             onMouseEnter={e => {
                                 if (!active) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.07)';
@@ -162,7 +162,7 @@ const AccountLayout: React.FC<AccountLayoutProps> = ({ children }) => {
                     }}>
                         <Avatar
                             size={36}
-                            style={{ background: 'linear-gradient(135deg,#6366f1,#8b5cf6)', fontWeight: 700, flexShrink: 0 }}
+                            style={{ background: 'linear-gradient(135deg,var(--brand-primary),var(--brand-accent))', fontWeight: 700, flexShrink: 0 }}
                         >
                             {initials}
                         </Avatar>
@@ -211,7 +211,7 @@ const AccountLayout: React.FC<AccountLayoutProps> = ({ children }) => {
                     style={{
                         position: 'absolute', right: -12, top: '50%', transform: 'translateY(-50%)',
                         width: 24, height: 24, borderRadius: '50%',
-                        background: '#4f46e5', border: '2px solid #1e1b4b',
+                        background: 'var(--brand-accent)', border: '2px solid #1e1b4b',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         cursor: 'pointer', color: '#fff', fontSize: 10,
                         boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
@@ -306,7 +306,7 @@ const AccountLayout: React.FC<AccountLayoutProps> = ({ children }) => {
                         >
                             <Avatar
                                 size={28}
-                                style={{ background: 'linear-gradient(135deg,#6366f1,#8b5cf6)', fontWeight: 700, fontSize: 11 }}
+                                style={{ background: 'linear-gradient(135deg,var(--brand-primary),var(--brand-accent))', fontWeight: 700, fontSize: 11 }}
                             >
                                 {initials}
                             </Avatar>

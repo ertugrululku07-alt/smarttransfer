@@ -49,7 +49,7 @@ export default function PoolTransfersPage() {
     const handleMoveToOperation = async (booking: any) => {
         Modal.confirm({
             title: 'Operasyona Aktar',
-            icon: <SendOutlined style={{ color: '#6366f1' }} />,
+            icon: <SendOutlined style={{ color: 'var(--brand-primary)' }} />,
             content: (
                 <div>
                     <p style={{ margin: '8px 0', color: '#64748b' }}>
@@ -69,7 +69,7 @@ export default function PoolTransfersPage() {
             okText: 'Operasyona Aktar',
             cancelText: 'İptal',
             okButtonProps: {
-                style: { background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', border: 'none', fontWeight: 600 }
+                style: { background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-accent))', border: 'none', fontWeight: 600 }
             },
             onOk: async () => {
                 setActionLoading(booking.id);
@@ -203,7 +203,7 @@ export default function PoolTransfersPage() {
                     </div>
                     {record.flightNumber && (
                         <div style={{
-                            marginTop: 5, fontSize: 12, color: '#6366f1', fontWeight: 600,
+                            marginTop: 5, fontSize: 12, color: 'var(--brand-primary)', fontWeight: 600,
                             display: 'flex', alignItems: 'center', gap: 4
                         }}>
                             ✈️ {record.flightNumber}
@@ -221,9 +221,9 @@ export default function PoolTransfersPage() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <div style={{
                             width: 32, height: 32, borderRadius: 8, flexShrink: 0,
-                            background: 'linear-gradient(135deg, #e0e7ff, #c7d2fe)',
+                            background: 'linear-gradient(135deg, var(--brand-primary-10), var(--brand-primary-15))',
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            fontWeight: 800, fontSize: 12, color: '#4338ca'
+                            fontWeight: 800, fontSize: 12, color: 'var(--brand-accent)'
                         }}>
                             {record.customer?.avatar || '?'}
                         </div>
@@ -289,9 +289,9 @@ export default function PoolTransfersPage() {
                             loading={actionLoading === record.id}
                             style={{
                                 width: '100%', borderRadius: 8, fontWeight: 600, fontSize: 12,
-                                background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                                background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-accent))',
                                 color: '#fff', border: 'none', height: 30,
-                                boxShadow: '0 2px 8px rgba(99,102,241,0.25)'
+                                boxShadow: '0 2px 8px var(--brand-primary-22)'
                             }}
                         >
                             Operasyona

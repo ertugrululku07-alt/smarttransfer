@@ -176,7 +176,7 @@ export default function AgencyContractsPage() {
     };
 
     const CAT_COLORS: Record<string, string> = {
-        SEDAN: '#6366f1', VAN: '#0891b2', VIP_VAN: '#7c3aed',
+        SEDAN: 'var(--brand-primary)', VAN: '#0891b2', VIP_VAN: 'var(--brand-accent)',
         MINIBUS: '#2563eb', BUS: '#ea580c', LUXURY: '#ca8a04',
     };
 
@@ -211,7 +211,7 @@ export default function AgencyContractsPage() {
                                 }}>
                                     <div style={{
                                         padding: '16px 20px',
-                                        background: 'linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%)',
+                                        background: 'linear-gradient(135deg, #f8fafc 0%, var(--brand-primary-08) 100%)',
                                         borderBottom: '1px solid #e2e8f0',
                                     }}>
                                         <div style={{ fontSize: 14, fontWeight: 700, color: '#1a1a2e' }}>
@@ -227,8 +227,8 @@ export default function AgencyContractsPage() {
                                                     style={{
                                                         padding: '12px 16px', cursor: 'pointer',
                                                         display: 'flex', alignItems: 'center', gap: 12,
-                                                        background: isSel ? '#eef2ff08' : 'transparent',
-                                                        borderLeft: isSel ? '4px solid #6366f1' : '4px solid transparent',
+                                                        background: isSel ? 'var(--brand-primary-08)' : 'transparent',
+                                                        borderLeft: isSel ? '4px solid var(--brand-primary)' : '4px solid transparent',
                                                         transition: 'all 0.15s', borderBottom: '1px solid #f8fafc',
                                                     }}
                                                     onMouseEnter={e => { if (!isSel) e.currentTarget.style.background = '#f8fafc'; }}
@@ -236,7 +236,7 @@ export default function AgencyContractsPage() {
                                                 >
                                                     <div style={{
                                                         width: 36, height: 36, borderRadius: 10,
-                                                        background: isSel ? '#6366f1' : '#e2e8f0',
+                                                        background: isSel ? 'var(--brand-primary)' : '#e2e8f0',
                                                         display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                                                     }}>
                                                         <BankOutlined style={{ fontSize: 15, color: isSel ? '#fff' : '#94a3b8' }} />
@@ -244,7 +244,7 @@ export default function AgencyContractsPage() {
                                                     <div style={{ flex: 1, minWidth: 0 }}>
                                                         <div style={{
                                                             fontSize: 13, fontWeight: isSel ? 700 : 600,
-                                                            color: isSel ? '#6366f1' : '#1e293b',
+                                                            color: isSel ? 'var(--brand-primary)' : '#1e293b',
                                                             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                                                         }}>{ag.name}</div>
                                                         <div style={{ fontSize: 11, color: '#94a3b8' }}>{ag.email}</div>
@@ -265,7 +265,7 @@ export default function AgencyContractsPage() {
                                 }}>
                                     <div style={{
                                         padding: '16px 20px',
-                                        background: 'linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%)',
+                                        background: 'linear-gradient(135deg, #f8fafc 0%, var(--brand-primary-08) 100%)',
                                         borderBottom: '1px solid #e2e8f0',
                                     }}>
                                         <div style={{ fontSize: 14, fontWeight: 700, color: '#1a1a2e' }}>Araç Tipleri</div>
@@ -276,7 +276,7 @@ export default function AgencyContractsPage() {
                                             <div style={{ padding: 24, textAlign: 'center', color: '#94a3b8', fontSize: 12 }}>Önce acente seçin</div>
                                         ) : vehicleTypes.map(vt => {
                                             const isSel = selectedVT?.id === vt.id;
-                                            const catColor = CAT_COLORS[vt.category] || '#6366f1';
+                                            const catColor = CAT_COLORS[vt.category] || 'var(--brand-primary)';
                                             return (
                                                 <div key={vt.id} onClick={() => handleSelectVT(vt)}
                                                     style={{
@@ -327,16 +327,16 @@ export default function AgencyContractsPage() {
                                         {/* Title bar */}
                                         <div style={{
                                             padding: '16px 24px',
-                                            background: 'linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%)',
+                                            background: 'linear-gradient(135deg, #f8fafc 0%, var(--brand-primary-08) 100%)',
                                             borderBottom: '1px solid #e2e8f0',
                                             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                                         }}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                                                 <div style={{
                                                     width: 44, height: 44, borderRadius: 14,
-                                                    background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                                                    background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-accent))',
                                                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                    boxShadow: '0 4px 12px rgba(99,102,241,0.3)',
+                                                    boxShadow: '0 4px 12px var(--brand-primary-30)',
                                                 }}>
                                                     <FileTextOutlined style={{ fontSize: 20, color: '#fff' }} />
                                                 </div>
@@ -349,9 +349,9 @@ export default function AgencyContractsPage() {
                                             </div>
                                             <Button type="primary" icon={<SaveOutlined />} onClick={() => form.submit()} loading={saving}
                                                 style={{
-                                                    background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                                                    background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-accent))',
                                                     border: 'none', borderRadius: 10, fontWeight: 600, height: 40,
-                                                    boxShadow: '0 4px 12px rgba(99,102,241,0.25)',
+                                                    boxShadow: '0 4px 12px var(--brand-primary-22)',
                                                 }}>
                                                 Kaydet
                                             </Button>
@@ -380,7 +380,7 @@ export default function AgencyContractsPage() {
                                                     <div style={{ borderRadius: 12, border: '1px solid #e2e8f0', overflow: 'hidden', marginBottom: 28 }}>
                                                         <div style={{
                                                             display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr',
-                                                            background: 'linear-gradient(135deg, #f8fafc, #eef2ff)',
+                                                            background: 'linear-gradient(135deg, #f8fafc, var(--brand-primary-08))',
                                                             borderBottom: '1px solid #e2e8f0',
                                                         }}>
                                                             <div style={thStyle}>Para Birimi</div>

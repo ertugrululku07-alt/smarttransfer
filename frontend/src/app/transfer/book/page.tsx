@@ -772,7 +772,7 @@ const TransferBookingContent: React.FC = () => {
                         subTitle={paymentError || 'Kredi kartınızdan çekim yapılamadı. Lütfen tekrar deneyin.'}
                         extra={[
                             <Button type="primary" key="retry" size="large" loading={loading} onClick={retryPayment}
-                                style={{ background: '#6366f1', border: 'none' }}>
+                                style={{ background: 'var(--brand-primary)', border: 'none' }}>
                                 Tekrar Dene
                             </Button>,
                             <Button key="home" size="large" onClick={() => router.push('/')}>
@@ -1354,7 +1354,7 @@ const TransferBookingContent: React.FC = () => {
                                         allowClear
                                     />
                                     <Button type="primary" loading={couponLoading} onClick={validateCoupon}
-                                        style={{ background: '#4f46e5', borderColor: '#4f46e5' }}>Uygula</Button>
+                                        style={{ background: 'var(--brand-accent)', borderColor: 'var(--brand-accent)' }}>Uygula</Button>
                                 </Space.Compact>
                                 {couponResult && (
                                     <div style={{ marginBottom: 16, padding: '8px 12px', background: '#f0fdf4', borderRadius: 8, border: '1px solid #bbf7d0' }}>
@@ -1406,7 +1406,7 @@ const TransferBookingContent: React.FC = () => {
                                         loading={loading}
                                         style={{
                                             minWidth: 200,
-                                            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                            background: 'linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-accent) 100%)',
                                             border: 'none',
                                             height: 50,
                                             fontSize: 18

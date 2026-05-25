@@ -10,17 +10,35 @@
   --background: #ffffff;
   --foreground: #171717;
 
-  /* Brand colors — overridden at runtime by ThemeContext based on the active
-     site theme (Admin → Site Ayarları → Özel Tema). All purple/violet
-     hardcoded values across the codebase should reference these variables. */
+  /* Brand colors — defaults below are overridden at runtime by ThemeContext
+     based on the active site theme (Admin → Site Ayarları → Özel Tema).
+     All components use var(--brand-primary) / var(--brand-accent). */
   --brand-primary: #667eea;
   --brand-accent: #764ba2;
   --brand-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  --brand-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+  --brand-shadow: 0 8px 25px rgba(102,126,234,0.4);
+  --brand-primary-08: #667eea14;
+  --brand-primary-10: #667eea1a;
+  --brand-primary-15: #667eea26;
+  --brand-primary-18: #667eea2e;
+  --brand-primary-20: #667eea33;
+  --brand-primary-22: #667eea38;
+  --brand-primary-30: #667eea4d;
+  --brand-primary-33: #667eea54;
+  --brand-primary-40: #667eea66;
+  --brand-primary-50: #667eea80;
+  --brand-primary-60: #667eea99;
+  --brand-primary-66: #667eeaa8;
+  --brand-accent-10: #764ba21a;
+  --brand-accent-15: #764ba226;
+  --brand-accent-20: #764ba233;
+  --brand-accent-30: #764ba24d;
+  --brand-accent-40: #764ba266;
+  --brand-accent-50: #764ba280;
 
   /* Premium Color Palette */
-  --primary-gradient-start: #667eea;
-  --primary-gradient-end: #764ba2;
+  --primary-gradient-start: var(--brand-primary);
+  --primary-gradient-end: var(--brand-accent);
   --secondary-gradient-start: #f093fb;
   --secondary-gradient-end: #f5576c;
   --success-gradient-start: #4facfe;
@@ -29,8 +47,8 @@
   --warning-gradient-end: #fee140;
 
   /* Semantic Colors */
-  --primary-color: #667eea;
-  --secondary-color: #764ba2;
+  --primary-color: var(--brand-primary);
+  --secondary-color: var(--brand-accent);
   --accent-color: #f5576c;
   --success-color: #00f2fe;
   --warning-color: #fee140;

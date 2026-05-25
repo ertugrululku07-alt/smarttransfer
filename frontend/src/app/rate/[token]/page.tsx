@@ -257,8 +257,8 @@ const styles: Record<string, React.CSSProperties> = {
     bookingTag: {
         display: 'inline-block',
         padding: '4px 12px',
-        background: '#eef2ff',
-        color: '#4338ca',
+        background: 'var(--brand-primary-08)',
+        color: 'var(--brand-accent)',
         borderRadius: 999,
         fontSize: 12,
         fontWeight: 700,

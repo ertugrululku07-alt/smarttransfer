@@ -288,10 +288,32 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   useEffect(() => {
     if (typeof document === 'undefined') return;
     const root = document.documentElement;
-    root.style.setProperty('--brand-primary', theme.primaryColor);
-    root.style.setProperty('--brand-accent', theme.accentColor);
-    root.style.setProperty('--brand-gradient', `linear-gradient(135deg, ${theme.primaryColor} 0%, ${theme.accentColor} 100%)`);
-    root.style.setProperty('--brand-shadow', `0 8px 25px ${theme.primaryColor}66`);
+    const p = theme.primaryColor;
+    const a = theme.accentColor;
+    root.style.setProperty('--brand-primary', p);
+    root.style.setProperty('--brand-accent', a);
+    root.style.setProperty('--brand-gradient', `linear-gradient(135deg, ${p} 0%, ${a} 100%)`);
+    root.style.setProperty('--brand-shadow', `0 8px 25px ${p}66`);
+    // Alpha variants for primary
+    root.style.setProperty('--brand-primary-08', `${p}14`);
+    root.style.setProperty('--brand-primary-10', `${p}1a`);
+    root.style.setProperty('--brand-primary-15', `${p}26`);
+    root.style.setProperty('--brand-primary-18', `${p}2e`);
+    root.style.setProperty('--brand-primary-20', `${p}33`);
+    root.style.setProperty('--brand-primary-22', `${p}38`);
+    root.style.setProperty('--brand-primary-30', `${p}4d`);
+    root.style.setProperty('--brand-primary-33', `${p}54`);
+    root.style.setProperty('--brand-primary-40', `${p}66`);
+    root.style.setProperty('--brand-primary-50', `${p}80`);
+    root.style.setProperty('--brand-primary-60', `${p}99`);
+    root.style.setProperty('--brand-primary-66', `${p}a8`);
+    // Alpha variants for accent
+    root.style.setProperty('--brand-accent-10', `${a}1a`);
+    root.style.setProperty('--brand-accent-15', `${a}26`);
+    root.style.setProperty('--brand-accent-20', `${a}33`);
+    root.style.setProperty('--brand-accent-30', `${a}4d`);
+    root.style.setProperty('--brand-accent-40', `${a}66`);
+    root.style.setProperty('--brand-accent-50', `${a}80`);
   }, [theme.primaryColor, theme.accentColor]);
 
   return (

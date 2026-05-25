@@ -146,8 +146,8 @@ const ContactPage: React.FC = () => {
     }
   };
 
-  const accent = theme.primaryColor || '#667eea';
-  const accentAlt = theme.accentColor || '#764ba2';
+  const accent = theme.primaryColor || 'var(--brand-primary)';
+  const accentAlt = theme.accentColor || 'var(--brand-accent)';
 
   if (loading) {
     return (

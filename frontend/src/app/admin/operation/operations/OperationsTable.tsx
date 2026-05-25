@@ -110,7 +110,7 @@ const SortableRow = ({ children, ...props }: any) => {
                 ...childProps,
                 children: (
                     <div {...attributes} {...listeners} style={{ cursor: 'grab', display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <HolderOutlined style={{ color: '#6366f1' }} />
+                        <HolderOutlined style={{ color: 'var(--brand-primary)' }} />
                         {childProps.children}
                     </div>
                 ),
@@ -700,7 +700,7 @@ export default function OperationsTable({
                 const configs: Record<string, { color: string; bg: string; label: string; icon: string }> = {
                     DEPARTURE: { color: '#f97316', bg: '#fff7ed', label: 'Gidiş', icon: '✈️' },
                     ARRIVAL: { color: '#10b981', bg: '#f0fdf4', label: 'Dönüş', icon: '🛬' },
-                    INTER: { color: '#8b5cf6', bg: '#faf5ff', label: 'Ara', icon: '🚗' },
+                    INTER: { color: 'var(--brand-accent)', bg: 'var(--brand-primary-08)', label: 'Ara', icon: '🚗' },
                 };
                 const config = configs[dir] || { color: '#6b7280', bg: '#f3f4f6', label: dir, icon: '📍' };
                 return (
@@ -819,10 +819,10 @@ export default function OperationsTable({
                     'BANK_TRANSFER': {
                         icon: '🏧',
                         label: 'Havale',
-                        gradient: 'linear-gradient(135deg, #faf5ff 0%, #ede9fe 100%)',
-                        border: '#c4b5fd',
-                        color: '#6d28d9',
-                        glow: '0 0 8px rgba(139,92,246,0.15)',
+                        gradient: 'linear-gradient(135deg, var(--brand-primary-08) 0%, var(--brand-primary-10) 100%)',
+                        border: 'var(--brand-primary-20)',
+                        color: 'var(--brand-accent)',
+                        glow: '0 0 8px var(--brand-accent-15)',
                     },
                 };
 
@@ -1060,10 +1060,10 @@ export default function OperationsTable({
                     CONFIRMED:           { color: '#1d4ed8', bg: '#dbeafe', label: 'Onaylandı' },
                     PASSENGER_PICKED_UP: { color: '#0e7490', bg: '#cffafe', label: 'Yolcu Alındı' },
                     IN_PROGRESS:         { color: '#0e7490', bg: '#cffafe', label: 'Yolcu Alındı' },
-                    ON_THE_WAY:          { color: '#7c3aed', bg: '#ede9fe', label: 'Yolda' },
+                    ON_THE_WAY:          { color: 'var(--brand-accent)', bg: 'var(--brand-primary-10)', label: 'Yolda' },
                     IN_OPERATION:        { color: '#1d4ed8', bg: '#bfdbfe', label: 'Operasyonda' },
                     OPERASYONDA:         { color: '#1d4ed8', bg: '#bfdbfe', label: 'Operasyonda' },
-                    DRIVER_ASSIGNED:     { color: '#7c3aed', bg: '#ede9fe', label: 'Şöför Atandı' },
+                    DRIVER_ASSIGNED:     { color: 'var(--brand-accent)', bg: 'var(--brand-primary-10)', label: 'Şöför Atandı' },
                     DRIVER_READ:         { color: '#0891b2', bg: '#cffafe', label: 'Şöför Okudu' },
                     COMPLETED:           { color: '#15803d', bg: '#dcfce7', label: 'Tamamlandı' },
                     CANCELLED:           { color: '#dc2626', bg: '#fee2e2', label: 'İptal' },
@@ -1260,9 +1260,9 @@ export default function OperationsTable({
                                 if (e.key === 'Escape') setEditingCell(null);
                             }}
                             style={{
-                                fontWeight: 700, color: '#7c3aed', background: '#f5f3ff',
+                                fontWeight: 700, color: 'var(--brand-accent)', background: 'var(--brand-primary-08)',
                                 padding: '2px 6px', borderRadius: 4, fontSize: 12,
-                                border: '2px solid #8b5cf6', outline: 'none', width: '75px',
+                                border: '2px solid var(--brand-accent)', outline: 'none', width: '75px',
                                 fontFamily: 'monospace'
                             }}
                         />
@@ -1275,9 +1275,9 @@ export default function OperationsTable({
                         title="Çift tıklayarak uçuş saatini düzenleyin"
                         style={{
                             fontSize: 12, fontWeight: 700, fontFamily: 'monospace',
-                            color: '#7c3aed', background: '#faf5ff',
+                            color: 'var(--brand-accent)', background: 'var(--brand-primary-08)',
                             padding: '2px 8px', borderRadius: 4,
-                            border: '1px solid #ede9fe', cursor: 'pointer'
+                            border: '1px solid var(--brand-primary-10)', cursor: 'pointer'
                         }}
                     >
                         {ft || <span style={{ color: '#d1d5db', fontWeight: 400 }}>—</span>}
@@ -1324,12 +1324,12 @@ export default function OperationsTable({
                     >
                         <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
                             {hasPassengers && (
-                                <span style={{ fontSize: 8, color: '#6366f1', transition: 'transform 0.2s' }}>
+                                <span style={{ fontSize: 8, color: 'var(--brand-primary)', transition: 'transform 0.2s' }}>
                                     {isExpanded ? <DownOutlined /> : <RightOutlined />}
                                 </span>
                             )}
                             <span style={{
-                                fontSize: 12, fontWeight: 800, color: hasPassengers ? '#6366f1' : '#1e293b',
+                                fontSize: 12, fontWeight: 800, color: hasPassengers ? 'var(--brand-primary)' : '#1e293b',
                                 fontFamily: 'monospace'
                             }}>
                                 {total}
@@ -1460,8 +1460,8 @@ export default function OperationsTable({
                 }
 
                 const menuItems: any[] = [
-                    { key: 'detail', icon: <EyeOutlined style={{ color: '#6366f1' }} />, label: <span style={{ fontWeight: 600 }}>Detay Görüntüle</span>, onClick: () => onOpenBookingDetail?.(record) },
-                    { key: 'editRes', icon: <EditOutlined style={{ color: '#6366f1' }} />, label: <span style={{ fontWeight: 600 }}>Rezervasyonu Düzenle</span>, onClick: () => onEditReservation?.(record) },
+                    { key: 'detail', icon: <EyeOutlined style={{ color: 'var(--brand-primary)' }} />, label: <span style={{ fontWeight: 600 }}>Detay Görüntüle</span>, onClick: () => onOpenBookingDetail?.(record) },
+                    { key: 'editRes', icon: <EditOutlined style={{ color: 'var(--brand-primary)' }} />, label: <span style={{ fontWeight: 600 }}>Rezervasyonu Düzenle</span>, onClick: () => onEditReservation?.(record) },
                     { type: 'divider' },
                     { key: 'pool', icon: <InboxOutlined style={{ color: '#f59e0b' }} />, label: <span style={{ fontWeight: 600 }}>Havuza Gönder</span>, onClick: () => onPoolTransfer?.(record) },
                     { key: 'return', icon: <UndoOutlined style={{ color: '#3b82f6' }} />, label: <span style={{ fontWeight: 600 }}>Geri Al (Rezervasyona)</span>, onClick: () => onReturnToReservation?.(record) },
@@ -1472,7 +1472,7 @@ export default function OperationsTable({
                 menuItems.push(
                     { type: 'divider' },
                     { key: 'uetds', icon: <img src="/icons/logo-uetds.png" alt="UETDS" style={{ width: 14, height: 14, opacity: 0.7, filter: 'grayscale(100%)' }} onError={(e) => (e.currentTarget.style.display = 'none')} />, label: <span style={{ fontWeight: 600, color: '#334155' }}>UETDS'ye Gönder</span>, onClick: () => onUetdsSubmit?.(record) },
-                    { key: 'message', icon: <MessageOutlined style={{ color: '#6366f1' }} />, label: <span style={{ fontWeight: 600 }}>Mesaj Gönder</span>, onClick: () => onOpenMessageModal?.(record) },
+                    { key: 'message', icon: <MessageOutlined style={{ color: 'var(--brand-primary)' }} />, label: <span style={{ fontWeight: 600 }}>Mesaj Gönder</span>, onClick: () => onOpenMessageModal?.(record) },
                     { type: 'divider' },
                     { key: 'cancel', icon: <StopOutlined style={{ color: '#ef4444' }} />, label: <span style={{ fontWeight: 600, color: '#ef4444' }}>İptal Et</span>, onClick: () => onCancelBooking?.(record) },
                 );
@@ -1623,11 +1623,11 @@ export default function OperationsTable({
                 .react-resizable-handle::after {
                     content: ''; position: absolute; right: 3px;
                     top: 50%; transform: translateY(-50%);
-                    width: 3px; height: 50%; background: rgba(99,102,241,0.3);
+                    width: 3px; height: 50%; background: var(--brand-primary-30);
                     border-radius: 2px; transition: all 0.15s;
                 }
                 .react-resizable-handle:hover::after {
-                    background: #6366f1; height: 70%; width: 4px;
+                    background: var(--brand-primary); height: 70%; width: 4px;
                 }
 
                 /* ── KILL DEFAULT HOVER (low specificity, placed first) ── */
@@ -1661,7 +1661,7 @@ export default function OperationsTable({
 
                 /* ── EXPANDED ROW ── */
                 .ops-table .ant-table-expanded-row > td { padding: 4px 8px !important; background: #f8fafc !important; }
-                .ops-table .ant-table-expanded-row:hover > td { background: #eef2ff !important; }
+                .ops-table .ant-table-expanded-row:hover > td { background: var(--brand-primary-08) !important; }
                 .ops-table .ant-table-row-expand-icon-cell { display: none !important; width: 0 !important; padding: 0 !important; }
                 .ops-table th.ant-table-row-expand-icon-cell { display: none !important; width: 0 !important; padding: 0 !important; }
             `}</style>
@@ -1750,12 +1750,12 @@ export default function OperationsTable({
                                                     display: 'flex', alignItems: 'center', gap: 6,
                                                     background: '#fff', border: '1px solid #e2e8f0', borderRadius: 6,
                                                     padding: '4px 10px', minWidth: 140,
-                                                    borderLeft: `3px solid ${p.isMain ? '#6366f1' : typeColor(p.type)}`
+                                                    borderLeft: `3px solid ${p.isMain ? 'var(--brand-primary)' : typeColor(p.type)}`
                                                 }}>
                                                     <span style={{
                                                         width: 18, height: 18, borderRadius: '50%', display: 'inline-flex',
                                                         alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 800,
-                                                        background: p.isMain ? '#6366f1' : typeColor(p.type), color: '#fff', flexShrink: 0
+                                                        background: p.isMain ? 'var(--brand-primary)' : typeColor(p.type), color: '#fff', flexShrink: 0
                                                     }}>{p.num}</span>
                                                     <div style={{ minWidth: 0 }}>
                                                         <div style={{ fontSize: 11, fontWeight: 600, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>

@@ -137,7 +137,7 @@ export default function LoyaltyPage() {
                 name: 'Yeni Seviye',
                 minPoints: (last?.minPoints || 0) + 1000,
                 discountPercent: (last?.discountPercent || 0) + 5,
-                color: '#667eea',
+                color: 'var(--brand-primary)',
                 icon: '⭐'
             }]
         });
@@ -176,7 +176,7 @@ export default function LoyaltyPage() {
             key: 'user',
             render: (_: any, r: Member) => (
                 <Space>
-                    <Avatar icon={<UserOutlined />} src={r.avatar} style={{ background: r.tier?.color || '#4f46e5' }} />
+                    <Avatar icon={<UserOutlined />} src={r.avatar} style={{ background: r.tier?.color || 'var(--brand-accent)' }} />
                     <div>
                         <Text strong>{r.fullName}</Text>
                         <br />
@@ -199,7 +199,7 @@ export default function LoyaltyPage() {
             dataIndex: 'totalPoints',
             key: 'points',
             sorter: (a: Member, b: Member) => a.totalPoints - b.totalPoints,
-            render: (p: number) => <Text strong style={{ color: '#4f46e5' }}>{p.toLocaleString('tr-TR')}</Text>
+            render: (p: number) => <Text strong style={{ color: 'var(--brand-accent)' }}>{p.toLocaleString('tr-TR')}</Text>
         },
         {
             title: 'Seviye İndirimi',
@@ -235,7 +235,7 @@ export default function LoyaltyPage() {
                             <Space>
                                 <Button icon={<ReloadOutlined />} onClick={() => { fetchSettings(); fetchMembers(); }}>Yenile</Button>
                                 <Button type="primary" icon={<SaveOutlined />} loading={saving} onClick={handleSaveSettings}
-                                    style={{ background: '#4f46e5', borderColor: '#4f46e5' }}>
+                                    style={{ background: 'var(--brand-accent)', borderColor: 'var(--brand-accent)' }}>
                                     Ayarları Kaydet
                                 </Button>
                             </Space>

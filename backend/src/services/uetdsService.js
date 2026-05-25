@@ -94,9 +94,6 @@ function buildSoapEnvelope(bodyXml /*, wsUsername, wsPassword */) {
 }
 
 // ── SOAP call helper ─────────────────────────────────────────────────────────
-// servis.turkiye.gov.tr requires BOTH:
-//   1) HTTP Basic Auth at the gateway/transport level (without it → HTTP 401)
-//   2) Body-level <wsuser> for UETDS service-level authentication
 async function callSoap(serviceUrl, soapAction, envelopeXml, basicAuth) {
     const url = serviceUrl || DEFAULT_SERVICE_URL;
     try {
@@ -104,6 +101,8 @@ async function callSoap(serviceUrl, soapAction, envelopeXml, basicAuth) {
             'Content-Type': 'text/xml; charset=utf-8',
             'SOAPAction': soapAction,
         };
+        // Also send HTTP Basic Auth — some UETDS gateways accept either WS-Security
+        // or Basic Auth at the HTTP layer. Sending both is safe.
         if (basicAuth && basicAuth.username) {
             const token = Buffer.from(`${basicAuth.username}:${basicAuth.password || ''}`).toString('base64');
             headers['Authorization'] = `Basic ${token}`;
@@ -204,20 +203,20 @@ function toHHmm(date) {
 async function seferEkle(credentials, sefer) {
     const bodyXml = `
         <uet:seferEkle>
-            <wsuser>
-                <kullaniciAdi>${xmlEscape(credentials.username)}</kullaniciAdi>
-                <sifre>${xmlEscape(credentials.password)}</sifre>
-            </wsuser>
-            <ariziSeferBilgileriInput>
-                <aracPlaka>${xmlEscape(sefer.aracPlaka)}</aracPlaka>
-                <seferAciklama>${xmlEscape(sefer.seferAciklama || '')}</seferAciklama>
-                <hareketTarihi>${toIsoDateTime(sefer.baslangicTarih)}</hareketTarihi>
-                <hareketSaati>${toHHmm(sefer.baslangicTarih)}</hareketSaati>
-                <aracTelefonu>${xmlEscape(sefer.aracTelefonu || '')}</aracTelefonu>
-                <firmaSeferNo>${xmlEscape(sefer.firmaSeferNo || '')}</firmaSeferNo>
-                <seferBitisTarihi>${toIsoDateTime(sefer.bitisTarih)}</seferBitisTarihi>
-                <seferBitisSaati>${toHHmm(sefer.bitisTarih)}</seferBitisSaati>
-            </ariziSeferBilgileriInput>
+            <uet:wsuser>
+                <uet:kullaniciAdi>${xmlEscape(credentials.username)}</uet:kullaniciAdi>
+                <uet:sifre>${xmlEscape(credentials.password)}</uet:sifre>
+            </uet:wsuser>
+            <uet:ariziSeferBilgileriInput>
+                <uet:aracPlaka>${xmlEscape(sefer.aracPlaka)}</uet:aracPlaka>
+                <uet:seferAciklama>${xmlEscape(sefer.seferAciklama || '')}</uet:seferAciklama>
+                <uet:hareketTarihi>${toIsoDateTime(sefer.baslangicTarih)}</uet:hareketTarihi>
+                <uet:hareketSaati>${toHHmm(sefer.baslangicTarih)}</uet:hareketSaati>
+                <uet:aracTelefonu>${xmlEscape(sefer.aracTelefonu || '')}</uet:aracTelefonu>
+                <uet:firmaSeferNo>${xmlEscape(sefer.firmaSeferNo || '')}</uet:firmaSeferNo>
+                <uet:seferBitisTarihi>${toIsoDateTime(sefer.bitisTarih)}</uet:seferBitisTarihi>
+                <uet:seferBitisSaati>${toHHmm(sefer.bitisTarih)}</uet:seferBitisSaati>
+            </uet:ariziSeferBilgileriInput>
         </uet:seferEkle>`;
 
     const envelope = buildSoapEnvelope(bodyXml, credentials.username, credentials.password);
@@ -268,12 +267,12 @@ async function seferEkle(credentials, sefer) {
 async function seferIptal(credentials, uetdsSeferReferansNo, iptalAciklama = 'İptal') {
     const bodyXml = `
         <uet:seferIptal>
-            <wsuser>
-                <kullaniciAdi>${xmlEscape(credentials.username)}</kullaniciAdi>
-                <sifre>${xmlEscape(credentials.password)}</sifre>
-            </wsuser>
-            <uetdsSeferReferansNo>${xmlEscape(uetdsSeferReferansNo)}</uetdsSeferReferansNo>
-            <iptalAciklama>${xmlEscape(iptalAciklama)}</iptalAciklama>
+            <uet:wsuser>
+                <uet:kullaniciAdi>${xmlEscape(credentials.username)}</uet:kullaniciAdi>
+                <uet:sifre>${xmlEscape(credentials.password)}</uet:sifre>
+            </uet:wsuser>
+            <uet:uetdsSeferReferansNo>${xmlEscape(uetdsSeferReferansNo)}</uet:uetdsSeferReferansNo>
+            <uet:iptalAciklama>${xmlEscape(iptalAciklama)}</uet:iptalAciklama>
         </uet:seferIptal>`;
 
     const envelope = buildSoapEnvelope(bodyXml, credentials.username, credentials.password);
@@ -310,22 +309,22 @@ async function seferIptal(credentials, uetdsSeferReferansNo, iptalAciklama = 'İ
 async function yolcuEkle(credentials, uetdsSeferReferansNo, yolcu) {
     const bodyXml = `
         <uet:yolcuEkle>
-            <wsuser>
-                <kullaniciAdi>${xmlEscape(credentials.username)}</kullaniciAdi>
-                <sifre>${xmlEscape(credentials.password)}</sifre>
-            </wsuser>
-            <uetdsSeferReferansNo>${xmlEscape(uetdsSeferReferansNo)}</uetdsSeferReferansNo>
-            <seferYolcuBilgileriInput>
-                <uyrukUlke>${xmlEscape(yolcu.uyrukUlke || yolcu.uyruk || 'TR')}</uyrukUlke>
-                <tcKimlikPasaportNo>${xmlEscape(yolcu.tcKimlikPasaportNo || yolcu.tcKimlikNo || '')}</tcKimlikPasaportNo>
-                <cinsiyet>${xmlEscape(yolcu.cinsiyet || 'E')}</cinsiyet>
-                <adi>${xmlEscape(yolcu.adi)}</adi>
-                <soyadi>${xmlEscape(yolcu.soyadi)}</soyadi>
-                <koltukNo>${xmlEscape(yolcu.koltukNo || '1')}</koltukNo>
-                <telefonNo>${xmlEscape(yolcu.telefon || yolcu.telefonNo || '')}</telefonNo>
-                <grupId>${xmlEscape(yolcu.grupId || '0')}</grupId>
-                <hesKodu>${xmlEscape(yolcu.hesKodu || '')}</hesKodu>
-            </seferYolcuBilgileriInput>
+            <uet:wsuser>
+                <uet:kullaniciAdi>${xmlEscape(credentials.username)}</uet:kullaniciAdi>
+                <uet:sifre>${xmlEscape(credentials.password)}</uet:sifre>
+            </uet:wsuser>
+            <uet:uetdsSeferReferansNo>${xmlEscape(uetdsSeferReferansNo)}</uet:uetdsSeferReferansNo>
+            <uet:seferYolcuBilgileriInput>
+                <uet:uyrukUlke>${xmlEscape(yolcu.uyrukUlke || yolcu.uyruk || 'TR')}</uet:uyrukUlke>
+                <uet:tcKimlikPasaportNo>${xmlEscape(yolcu.tcKimlikPasaportNo || yolcu.tcKimlikNo || '')}</uet:tcKimlikPasaportNo>
+                <uet:cinsiyet>${xmlEscape(yolcu.cinsiyet || 'E')}</uet:cinsiyet>
+                <uet:adi>${xmlEscape(yolcu.adi)}</uet:adi>
+                <uet:soyadi>${xmlEscape(yolcu.soyadi)}</uet:soyadi>
+                <uet:koltukNo>${xmlEscape(yolcu.koltukNo || '1')}</uet:koltukNo>
+                <uet:telefonNo>${xmlEscape(yolcu.telefon || yolcu.telefonNo || '')}</uet:telefonNo>
+                <uet:grupId>${xmlEscape(yolcu.grupId || '0')}</uet:grupId>
+                <uet:hesKodu>${xmlEscape(yolcu.hesKodu || '')}</uet:hesKodu>
+            </uet:seferYolcuBilgileriInput>
         </uet:yolcuEkle>`;
 
     const envelope = buildSoapEnvelope(bodyXml, credentials.username, credentials.password);
@@ -362,22 +361,22 @@ async function yolcuEkle(credentials, uetdsSeferReferansNo, yolcu) {
 async function personelEkle(credentials, uetdsSeferReferansNo, personel) {
     const bodyXml = `
         <uet:personelEkle>
-            <wsuser>
-                <kullaniciAdi>${xmlEscape(credentials.username)}</kullaniciAdi>
-                <sifre>${xmlEscape(credentials.password)}</sifre>
-            </wsuser>
-            <uetdsSeferReferansNo>${xmlEscape(uetdsSeferReferansNo)}</uetdsSeferReferansNo>
-            <seferPersonelBilgileriInput>
-                <turKodu>${xmlEscape(personel.turKodu || personel.gorevTuru || '1')}</turKodu>
-                <uyrukUlke>${xmlEscape(personel.uyrukUlke || 'TR')}</uyrukUlke>
-                <tcKimlikPasaportNo>${xmlEscape(personel.tcKimlikPasaportNo || personel.tcKimlikNo || '')}</tcKimlikPasaportNo>
-                <cinsiyet>${xmlEscape(personel.cinsiyet || 'E')}</cinsiyet>
-                <adi>${xmlEscape(personel.adi)}</adi>
-                <soyadi>${xmlEscape(personel.soyadi)}</soyadi>
-                <telefon>${xmlEscape(personel.telefon || personel.telefonNo || '')}</telefon>
-                <adres>${xmlEscape(personel.adres || '')}</adres>
-                <hesKodu>${xmlEscape(personel.hesKodu || '')}</hesKodu>
-            </seferPersonelBilgileriInput>
+            <uet:wsuser>
+                <uet:kullaniciAdi>${xmlEscape(credentials.username)}</uet:kullaniciAdi>
+                <uet:sifre>${xmlEscape(credentials.password)}</uet:sifre>
+            </uet:wsuser>
+            <uet:uetdsSeferReferansNo>${xmlEscape(uetdsSeferReferansNo)}</uet:uetdsSeferReferansNo>
+            <uet:seferPersonelBilgileriInput>
+                <uet:turKodu>${xmlEscape(personel.turKodu || personel.gorevTuru || '1')}</uet:turKodu>
+                <uet:uyrukUlke>${xmlEscape(personel.uyrukUlke || 'TR')}</uet:uyrukUlke>
+                <uet:tcKimlikPasaportNo>${xmlEscape(personel.tcKimlikPasaportNo || personel.tcKimlikNo || '')}</uet:tcKimlikPasaportNo>
+                <uet:cinsiyet>${xmlEscape(personel.cinsiyet || 'E')}</uet:cinsiyet>
+                <uet:adi>${xmlEscape(personel.adi)}</uet:adi>
+                <uet:soyadi>${xmlEscape(personel.soyadi)}</uet:soyadi>
+                <uet:telefon>${xmlEscape(personel.telefon || personel.telefonNo || '')}</uet:telefon>
+                <uet:adres>${xmlEscape(personel.adres || '')}</uet:adres>
+                <uet:hesKodu>${xmlEscape(personel.hesKodu || '')}</uet:hesKodu>
+            </uet:seferPersonelBilgileriInput>
         </uet:personelEkle>`;
 
     const envelope = buildSoapEnvelope(bodyXml, credentials.username, credentials.password);
@@ -393,40 +392,30 @@ async function personelEkle(credentials, uetdsSeferReferansNo, personel) {
 }
 
 /**
- * Test UETDS credentials using kullaniciKontrol.
+ * Test UETDS credentials with the simplest possible auth-only call.
  *
- * Per the official WSDL XSD, kullaniciKontrol takes kullaniciAdi and sifre
- * DIRECTLY as children (NOT wrapped in <wsuser>). This is different from
- * other operations like seferEkle which use <wsuser>.
- *
- * XSD definition (from servis.turkiye.gov.tr WSDL):
- *   <complexType name="kullaniciKontrol">
- *     <sequence>
- *       <element minOccurs="0" name="kullaniciAdi" type="xs:string"/>
- *       <element minOccurs="0" name="sifre" type="xs:string"/>
- *     </sequence>
- *   </complexType>
- *
- * Response: uetdsFirmaSonuc with sonucKodu, sonucMesaji, firmaUnvan, belgeNo, etc.
- *   sonucKodu=0 → credentials valid (returns firm info)
- *   sonucKodu=1 + "KULLANICI ADI YADA SIFRE HATALI" → wrong creds
+ * Why firmaIletisimBilgisiListele instead of kullaniciKontrol:
+ *   kullaniciKontrol in practice returns "Eksik Parametre" because the UETDS
+ *   gateway expects additional context (IP/firma) that the bare username+password
+ *   schema doesn't include. firmaIletisimBilgisiListele takes ONLY <wsuser> and
+ *   returns the company's contact list — perfect for an auth check:
+ *     • sonucKodu=0 → credentials valid
+ *     • sonucKodu=1 + "KULLANICI ADI YADA SIFRE HATALI" → wrong creds
+ *     • HTTP 500 "Yetki Hatası" → IP not whitelisted
  */
 async function testCredentials(credentials) {
-    const serviceUrl = credentials.serviceUrl || DEFAULT_SERVICE_URL;
-    console.log(`[UETDS SOAP] testCredentials: username=${credentials.username}, serviceUrl=${serviceUrl}`);
+    console.log(`[UETDS SOAP] testCredentials: username=${credentials.username}, serviceUrl=${credentials.serviceUrl || DEFAULT_SERVICE_URL}`);
 
-    // kullaniciKontrol — NO <wsuser> wrapper per XSD!
-    // Child elements MUST be unqualified (no uet: prefix) because
-    // the XSD has no elementFormDefault="qualified".
     const bodyXml = `
-        <uet:kullaniciKontrol>
-            <kullaniciAdi>${xmlEscape(credentials.username)}</kullaniciAdi>
-            <sifre>${xmlEscape(credentials.password)}</sifre>
-        </uet:kullaniciKontrol>`;
+        <uet:firmaIletisimBilgisiListele>
+            <uet:wsuser>
+                <uet:kullaniciAdi>${xmlEscape(credentials.username)}</uet:kullaniciAdi>
+                <uet:sifre>${xmlEscape(credentials.password)}</uet:sifre>
+            </uet:wsuser>
+        </uet:firmaIletisimBilgisiListele>`;
 
-    const envelope = buildSoapEnvelope(bodyXml);
-    console.log(`[UETDS SOAP] testCredentials SOAP request:\n${envelope}`);
-    const result = await callSoap(serviceUrl, SOAP_ACTIONS.kullaniciKontrol, envelope, { username: credentials.username, password: credentials.password });
+    const envelope = buildSoapEnvelope(bodyXml, credentials.username, credentials.password);
+    const result = await callSoap(credentials.serviceUrl, SOAP_ACTIONS.firmaIletisimBilgisiListele, envelope, { username: credentials.username, password: credentials.password });
 
     console.log(`[UETDS SOAP] testCredentials response: status=${result.status}, success=${result.success}, error=${result.error || 'none'}`);
     if (result.data) {
@@ -441,52 +430,44 @@ async function testCredentials(credentials) {
 
     const raw = typeof result.data === 'string' ? result.data : '';
 
-    // Check for gateway-level / WS-Security auth failures
-    const isGatewayAuthError = raw.includes('InvalidSecurity') || raw.includes('InvalidSecurityToken') ||
-        raw.includes('FailedAuthentication') || raw.includes('wsse:FailedCheck');
-    if (isGatewayAuthError) {
-        return { success: false, error: 'Gateway kimlik doğrulama hatası (WS-Security). IP yetkilendirmesi kontrol edin.' };
+    // Check for WS-Security / auth failures at the gateway level
+    const isAuthError = raw.includes('InvalidSecurity') || raw.includes('InvalidSecurityToken') ||
+        raw.includes('FailedAuthentication') || raw.includes('wsse:FailedCheck') ||
+        raw.includes('Authentication') || raw.includes('Unauthorized');
+
+    if (isAuthError) {
+        return { success: false, error: 'Kullanıcı adı veya şifre hatalı (WS-Security)' };
     }
 
-    // HTTP 401/403 = gateway rejected (IP whitelist or cert issue)
-    if (result.status === 401 || result.status === 403) {
-        return { success: false, error: `Erişim reddedildi (HTTP ${result.status}). Sunucu IP adresinin UETDS'de yetkilendirildiğinden emin olun.` };
-    }
-
-    // HTTP 500 with SOAP fault
+    // HTTP 500 with generic "Client Error" usually means wrong namespace/SOAPAction
     if (result.status === 500) {
         const fault = extractSoapFault(result.data);
         return { success: false, error: `Sunucu hatası: ${fault || 'HTTP 500'}` };
     }
 
     // Parse SOAP response for the UETDS business result code.
-    // kullaniciKontrol response type: uetdsFirmaSonuc
-    //   sonucKodu=0 → success (returns firmaUnvan, belgeNo, belgeTuru, unetNo)
-    //   sonucKodu=1 → error (sonucMesaji e.g. "KULLANICI ADI YADA SIFRE HATALI")
-    const sonucKodu = extractXmlValue(result.data, 'sonucKodu');
-    const sonucMesaji = (extractXmlValue(result.data, 'sonucMesaji') || '').trim();
+    // UETDS convention: sonucKodu="0" -> success, anything else -> error (the
+    // sonucMesaji field describes the problem, e.g. "KULLANICI ADI YADA SIFRE HATALI").
+    if (result.success) {
+        const sonucKodu = extractXmlValue(result.data, 'sonucKodu');
+        const sonucMesaji = (extractXmlValue(result.data, 'sonucMesaji') || '').trim();
 
-    if (sonucKodu === '0') {
-        const firmaUnvan = extractXmlValue(result.data, 'firmaUnvan') || '';
-        const belgeNo = extractXmlValue(result.data, 'belgeNo') || '';
-        const detail = [firmaUnvan, belgeNo].filter(Boolean).join(' — ');
-        return { success: true, message: detail ? `Bağlantı başarılı — ${detail}` : 'Bağlantı başarılı — kimlik doğrulandı' };
-    }
+        if (sonucKodu === '0') {
+            return { success: true, message: sonucMesaji ? `Bağlantı başarılı — ${sonucMesaji}` : 'Bağlantı başarılı — kimlik doğrulandı' };
+        }
 
-    if (sonucKodu !== null && sonucMesaji) {
-        return { success: false, error: sonucMesaji };
-    }
+        if (sonucMesaji) {
+            return { success: false, error: sonucMesaji };
+        }
 
-    // No sonucKodu found — check for SOAP fault or generic error
-    const fault = extractSoapFault(result.data);
-    if (fault) {
-        return { success: false, error: fault };
+        // Non-zero sonucKodu without message, or no parsable response → treat as failure.
+        return { success: false, error: `UETDS yanıt verdi ancak doğrulama başarısız (sonucKodu=${sonucKodu || 'bilinmiyor'})` };
     }
 
     // Fallback
     return {
         success: false,
-        error: result.error || `Beklenmeyen yanıt (HTTP ${result.status}). Lütfen sunucu loglarını kontrol edin.`,
+        error: extractSoapFault(result.data) || result.error || 'Bağlantı kurulamadı — Sunucu yanıt vermedi',
     };
 }
 

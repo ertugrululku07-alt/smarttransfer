@@ -47,7 +47,7 @@ interface CurrencySummary {
 // Dynamic color palette for currencies (auto-assigned based on index)
 const COLOR_PALETTE = [
     { bg: '#eff6ff', border: '#93c5fd', text: '#2563eb' },
-    { bg: '#f5f3ff', border: '#c4b5fd', text: '#7c3aed' },
+    { bg: 'var(--brand-primary-08)', border: 'var(--brand-primary-20)', text: 'var(--brand-accent)' },
     { bg: '#f0fdf4', border: '#86efac', text: '#16a34a' },
     { bg: '#fef3c7', border: '#fcd34d', text: '#d97706' },
     { bg: '#fdf2f8', border: '#f9a8d4', text: '#db2777' },

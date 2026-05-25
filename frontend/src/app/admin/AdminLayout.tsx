@@ -230,7 +230,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, selectedKey = 'dash
           {collapsed ? (
             <div style={{
               width: 36, height: 36, borderRadius: 10,
-              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              background: 'linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-accent) 100%)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               color: '#fff', fontWeight: 800, fontSize: 14, letterSpacing: -0.5,
             }}>
@@ -240,7 +240,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, selectedKey = 'dash
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <div style={{
                 width: 36, height: 36, borderRadius: 10,
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                background: 'linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-accent) 100%)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 color: '#fff', fontWeight: 800, fontSize: 14, flexShrink: 0,
               }}>
@@ -714,7 +714,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, selectedKey = 'dash
                 <Avatar
                   size={34}
                   style={{
-                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    background: 'linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-accent) 100%)',
                     fontWeight: 700,
                     fontSize: 13,
                   }}
@@ -764,7 +764,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, selectedKey = 'dash
           font-size: 13px;
         }
         .ant-layout-sider .ant-menu-dark .ant-menu-item-selected {
-          background: rgba(102, 126, 234, 0.2) !important;
+          background: var(--brand-primary-20) !important;
         }
         .ant-layout-sider .ant-menu-dark .ant-menu-sub {
           background: rgba(0,0,0,0.15) !important;

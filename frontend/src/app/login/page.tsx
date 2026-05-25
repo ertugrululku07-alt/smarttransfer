@@ -91,7 +91,7 @@ const LoginPage: React.FC = () => {
         .login-right::before {
           content: ''; position: absolute; inset: 0;
           background:
-            radial-gradient(circle at 20% 30%, rgba(102,126,234,0.15) 0%, transparent 50%),
+            radial-gradient(circle at 20% 30%, var(--brand-primary-15) 0%, transparent 50%),
             radial-gradient(circle at 80% 70%, rgba(118,75,162,0.15) 0%, transparent 50%),
             linear-gradient(135deg, rgba(255,255,255,0.02) 0%, transparent 100%);
           opacity: 1; z-index: 1;
@@ -102,7 +102,7 @@ const LoginPage: React.FC = () => {
         }
         .login-orb-1 {
           width: 300px; height: 300px; top: -80px; right: -60px;
-          background: rgba(99,102,241,0.3);
+          background: var(--brand-primary-30);
         }
         .login-orb-2 {
           width: 250px; height: 250px; bottom: -60px; left: -40px;
@@ -130,23 +130,23 @@ const LoginPage: React.FC = () => {
         }
         .login-input .ant-input:focus, .login-input .ant-input-affix-wrapper:focus,
         .login-input .ant-input-affix-wrapper-focused {
-          border-color: #6366f1 !important;
-          box-shadow: 0 0 0 3px rgba(99,102,241,0.1) !important;
+          border-color: var(--brand-primary) !important;
+          box-shadow: 0 0 0 3px var(--brand-primary-10) !important;
         }
         .login-input .ant-input:hover, .login-input .ant-input-affix-wrapper:hover {
-          border-color: #a5b4fc !important;
+          border-color: var(--brand-primary-20) !important;
         }
         .login-btn {
           height: 50px !important; border-radius: 14px !important;
           font-size: 15px !important; font-weight: 700 !important;
-          background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%) !important;
+          background: linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-accent) 100%) !important;
           border: none !important; letter-spacing: 0.3px;
-          box-shadow: 0 6px 20px rgba(99,102,241,0.35) !important;
+          box-shadow: 0 6px 20px var(--brand-primary-33) !important;
           transition: all 0.25s !important;
         }
         .login-btn:hover {
           transform: translateY(-1px) !important;
-          box-shadow: 0 10px 28px rgba(99,102,241,0.4) !important;
+          box-shadow: 0 10px 28px var(--brand-primary-40) !important;
         }
         .login-btn:active { transform: translateY(0) !important; }
         @media (max-width: 768px) {
@@ -154,7 +154,7 @@ const LoginPage: React.FC = () => {
           .login-right { display: none; }
           .login-left {
             padding: 24px 20px; min-height: 100vh; min-height: 100dvh;
-            background: linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%);
+            background: linear-gradient(180deg, #f8fafc 0%, var(--brand-primary-08) 100%);
           }
           .login-card-anim { max-width: 100%; }
         }
@@ -183,16 +183,16 @@ const LoginPage: React.FC = () => {
                 <>
                   <div style={{
                     width: 60, height: 60, borderRadius: 18, margin: '0 auto 16px',
-                    background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                    background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-accent))',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    boxShadow: '0 8px 24px rgba(99,102,241,0.3)',
+                    boxShadow: '0 8px 24px var(--brand-primary-30)',
                   }}>
                     <span style={{ fontSize: 24, fontWeight: 900, color: '#fff', fontFamily: 'monospace' }}>
                       {branding.siteNameHighlight ? branding.siteNameHighlight.substring(0, 2).toUpperCase() : 'ST'}
                     </span>
                   </div>
                   <h1 style={{ fontSize: 26, fontWeight: 800, color: '#1a1a2e', margin: '0 0 4px', letterSpacing: -0.5 }}>
-                    {branding.siteNameHighlight || 'Smart'}<span style={{ color: '#6366f1' }}>{branding.siteName || 'Transfer'}</span>
+                    {branding.siteNameHighlight || 'Smart'}<span style={{ color: 'var(--brand-primary)' }}>{branding.siteName || 'Transfer'}</span>
                   </h1>
                 </>
               )}
@@ -281,7 +281,7 @@ const LoginPage: React.FC = () => {
               letterSpacing: -0.5, lineHeight: 1.2,
             }}>
               Transfer Yönetiminde<br />
-              <span style={{ color: '#a5b4fc' }}>Yeni Nesil</span> Çözüm
+              <span style={{ color: 'var(--brand-primary-20)' }}>Yeni Nesil</span> Çözüm
             </h2>
             <p style={{
               fontSize: 14, color: 'rgba(255,255,255,0.5)', margin: '0 0 36px',

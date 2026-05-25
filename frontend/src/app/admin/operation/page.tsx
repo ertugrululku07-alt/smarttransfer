@@ -125,7 +125,7 @@ export default function OperationDashboard() {
 
     const getStatusColor = (status: string) => {
         const map: Record<string, string> = {
-            PENDING: '#f59e0b', CONFIRMED: '#6366f1', IN_PROGRESS: '#8b5cf6',
+            PENDING: '#f59e0b', CONFIRMED: 'var(--brand-primary)', IN_PROGRESS: 'var(--brand-accent)',
             COMPLETED: '#10b981', CANCELLED: '#ef4444', IN_POOL: '#06b6d4'
         };
         return map[status] || '#6b7280';
@@ -342,7 +342,7 @@ export default function OperationDashboard() {
                 const isUrgent = mins <= 60 && mins >= 0;
                 return (
                     <Space>
-                        <Avatar style={{ background: isUrgent ? '#ef4444' : '#6366f1', fontSize: 11 }} size={32}>
+                        <Avatar style={{ background: isUrgent ? '#ef4444' : 'var(--brand-primary)', fontSize: 11 }} size={32}>
                             {r.contactName?.charAt(0)?.toUpperCase() || '?'}
                         </Avatar>
                         <div>
@@ -416,7 +416,7 @@ export default function OperationDashboard() {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
                         <div>
                             <Title level={3} style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
-                                <DashboardOutlined style={{ color: '#6366f1' }} />
+                                <DashboardOutlined style={{ color: 'var(--brand-primary)' }} />
                                 Operasyon Merkezi
                             </Title>
                             <Text type="secondary" style={{ fontSize: 12 }}>
@@ -436,10 +436,10 @@ export default function OperationDashboard() {
                     {/* ── KPI Cards ── */}
                     <Row gutter={[12, 12]} style={{ marginBottom: 20 }}>
                         {[
-                            { label: 'Bugün Toplam', value: stats.todayCount, color: '#6366f1', icon: <CalendarOutlined /> },
+                            { label: 'Bugün Toplam', value: stats.todayCount, color: 'var(--brand-primary)', icon: <CalendarOutlined /> },
                             { label: 'Beklemede', value: stats.pending, color: '#f59e0b', icon: <ClockCircleOutlined /> },
                             { label: 'Onaylı', value: stats.confirmed, color: '#3b82f6', icon: <CheckCircleOutlined /> },
-                            { label: 'Aktif Sefer', value: stats.inProgress, color: '#8b5cf6', icon: <ThunderboltOutlined />, pulse: true },
+                            { label: 'Aktif Sefer', value: stats.inProgress, color: 'var(--brand-accent)', icon: <ThunderboltOutlined />, pulse: true },
                             { label: 'Havuzda', value: stats.inPool, color: '#06b6d4', icon: <AimOutlined /> },
                             { label: 'Tamamlanan', value: stats.completed, color: '#10b981', icon: <StarOutlined /> },
                         ].map((item, idx) => (
@@ -484,7 +484,7 @@ export default function OperationDashboard() {
                             <Card
                                 title={
                                     <Space>
-                                        <CompassOutlined style={{ color: '#6366f1' }} />
+                                        <CompassOutlined style={{ color: 'var(--brand-primary)' }} />
                                         <span>Canlı Konum Haritası</span>
                                         <Badge count={onlineDriversWithLoc.length} style={{ background: '#10b981' }} showZero />
                                     </Space>
@@ -549,7 +549,7 @@ export default function OperationDashboard() {
                                 <Card
                                     title={
                                         <Space>
-                                            <Badge status="processing" color="#8b5cf6" />
+                                            <Badge status="processing" color="var(--brand-accent)" />
                                             <span>Aktif Seferler</span>
                                             <Tag color="purple">{activeBookings.length}</Tag>
                                         </Space>
@@ -562,15 +562,15 @@ export default function OperationDashboard() {
                                         {activeBookings.map(b => (
                                             <div key={b.id}
                                                 style={{
-                                                    background: 'linear-gradient(135deg, #8b5cf615, #6366f108)',
+                                                    background: 'linear-gradient(135deg, var(--brand-accent-15), var(--brand-primary-08))',
                                                     borderRadius: 10, padding: '10px 12px',
-                                                    borderLeft: '3px solid #8b5cf6', cursor: 'pointer'
+                                                    borderLeft: '3px solid var(--brand-accent)', cursor: 'pointer'
                                                 }}
                                                 onClick={() => openDetail(b)}
                                             >
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                     <Space size={6}>
-                                                        <Avatar size={28} style={{ background: '#8b5cf6', fontSize: 11 }}>
+                                                        <Avatar size={28} style={{ background: 'var(--brand-accent)', fontSize: 11 }}>
                                                             {b.contactName?.charAt(0)}
                                                         </Avatar>
                                                         <div>
@@ -578,7 +578,7 @@ export default function OperationDashboard() {
                                                             <div style={{ fontSize: 11, color: '#888' }}>{b.bookingNumber}</div>
                                                         </div>
                                                     </Space>
-                                                    <Badge status="processing" color="#8b5cf6" text={<span style={{ fontSize: 10 }}>Yolda</span>} />
+                                                    <Badge status="processing" color="var(--brand-accent)" text={<span style={{ fontSize: 10 }}>Yolda</span>} />
                                                 </div>
                                                 <div style={{ marginTop: 6, fontSize: 11, color: '#6b7280' }}>
                                                     <span style={{ color: '#10b981' }}>↑</span> {b.pickup?.location?.substring(0, 20)} →{' '}
@@ -629,11 +629,11 @@ export default function OperationDashboard() {
                                                     cursor: 'pointer', transition: 'all 0.2s'
                                                 }}
                                                     onClick={() => openDriverLog(d)}
-                                                    onMouseEnter={e => (e.currentTarget.style.borderColor = '#6366f1')}
+                                                    onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--brand-primary)')}
                                                     onMouseLeave={e => (e.currentTarget.style.borderColor = isOnline ? '#10b98130' : '#f0f0f0')}
                                                 >
                                                     <Badge dot status={isOnline ? 'success' : 'default'}>
-                                                        <Avatar src={getImageUrl(d.avatar)} size={34} style={{ background: '#6366f1' }}>
+                                                        <Avatar src={getImageUrl(d.avatar)} size={34} style={{ background: 'var(--brand-primary)' }}>
                                                             {d.firstName?.charAt(0)}
                                                         </Avatar>
                                                     </Badge>
@@ -656,7 +656,7 @@ export default function OperationDashboard() {
                                                         )}
                                                         {hasFreshLocation ? (
                                                             <div>
-                                                                <EnvironmentOutlined style={{ color: '#6366f1', fontSize: 10 }} />
+                                                                <EnvironmentOutlined style={{ color: 'var(--brand-primary)', fontSize: 10 }} />
                                                             </div>
                                                         ) : loc ? (
                                                             <Tooltip title={`Konum ${locAge ? Math.round(locAge/60000) + ' dk önce' : 'bilinmiyor'}`}>
@@ -709,10 +709,10 @@ export default function OperationDashboard() {
                             >
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, width: '100%' }}>
                                     {[
-                                        { label: 'Operasyon Tablosu', icon: <DashboardOutlined />, link: '/admin/operation/operations', color: '#6366f1' },
+                                        { label: 'Operasyon Tablosu', icon: <DashboardOutlined />, link: '/admin/operation/operations', color: 'var(--brand-primary)' },
                                         { label: 'Havuz Yönetimi', icon: <AimOutlined />, link: '/admin/operation/pool', color: '#06b6d4', badge: stats.inPool },
                                         { label: 'Partner Transferleri', icon: <TeamOutlined />, link: '/admin/operation/partner-transfers', color: '#f59e0b' },
-                                        { label: 'Araç Takibi', icon: <CarOutlined />, link: '/admin/vehicle-tracking', color: '#8b5cf6' },
+                                        { label: 'Araç Takibi', icon: <CarOutlined />, link: '/admin/vehicle-tracking', color: 'var(--brand-accent)' },
                                         { label: 'Rezervasyon Yönetimi', icon: <CalendarOutlined />, link: '/admin/transfers', color: '#10b981' },
                                     ].map((item, i) => (
                                         <div key={i}
@@ -763,7 +763,7 @@ export default function OperationDashboard() {
                                     <Progress
                                         percent={100}
                                         showInfo={false}
-                                        strokeColor={{ from: '#6366f1', to: '#8b5cf6' }}
+                                        strokeColor={{ from: 'var(--brand-primary)', to: 'var(--brand-accent)' }}
                                         size="small"
                                         style={{ marginTop: -4 }}
                                     />
@@ -777,7 +777,7 @@ export default function OperationDashboard() {
                 <Drawer
                     title={
                         <Space>
-                            <Avatar style={{ background: '#6366f1' }}>{selectedBooking?.contactName?.charAt(0)}</Avatar>
+                            <Avatar style={{ background: 'var(--brand-primary)' }}>{selectedBooking?.contactName?.charAt(0)}</Avatar>
                             <div>
                                 <div style={{ fontWeight: 600 }}>{selectedBooking?.contactName}</div>
                                 <Tag color="blue" style={{ fontSize: 11 }}>{selectedBooking?.bookingNumber}</Tag>
@@ -861,7 +861,7 @@ export default function OperationDashboard() {
                 <Drawer
                     title={
                         <Space>
-                            <HistoryOutlined style={{ color: '#6366f1' }} />
+                            <HistoryOutlined style={{ color: 'var(--brand-primary)' }} />
                             <div>
                                 <div style={{ fontWeight: 600 }}>{selectedDriverForLog?.fullName}</div>
                                 <div style={{ fontSize: 11, color: '#888' }}>Bağlantı Geçmişi</div>

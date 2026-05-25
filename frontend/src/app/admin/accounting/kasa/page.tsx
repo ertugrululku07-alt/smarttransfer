@@ -70,7 +70,7 @@ const CATEGORIES = [
 ];
 
 const SOURCE_CFG: Record<string, { label: string; color: string }> = {
-    MANUAL: { label: 'Manuel', color: '#6366f1' },
+    MANUAL: { label: 'Manuel', color: 'var(--brand-primary)' },
     BOOKING: { label: 'Rezervasyon', color: '#16a34a' },
     INVOICE: { label: 'Fatura', color: '#2563eb' },
     AGENCY: { label: 'Acente', color: '#d97706' },
@@ -424,7 +424,7 @@ const KasaPage: React.FC = () => {
                                     }}>
                                         <div style={{
                                             width: 28, height: 28, borderRadius: 8,
-                                            background: 'linear-gradient(135deg, #6366f1, #818cf8)',
+                                            background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-primary))',
                                             display: 'flex', alignItems: 'center', justifyContent: 'center',
                                             fontSize: 12, color: '#fff', fontWeight: 800
                                         }}>{cur.slice(0, 2)}</div>

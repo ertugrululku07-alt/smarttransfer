@@ -76,7 +76,7 @@ const VehicleDetailContent: React.FC = () => {
                         <Col span={6}><StatCard icon={<ThunderboltOutlined />} label="KM" value={fmtKm(tracking.totalKm || 0)} gradient="linear-gradient(135deg,#0891b2,#22d3ee)" /></Col>
                         <Col span={6}><StatCard icon={<DollarOutlined />} label="Gider" value={fmtTRY(totalExpense)} gradient="linear-gradient(135deg,#dc2626,#f87171)" /></Col>
                         <Col span={6}><StatCard icon={<SafetyOutlined />} label="Sigorta" value={`${(tracking.insurance || []).length}`} gradient="linear-gradient(135deg,#16a34a,#4ade80)" /></Col>
-                        <Col span={6}><StatCard icon={<ToolOutlined />} label="Bakım" value={`${(tracking.maintenance || []).length}`} gradient="linear-gradient(135deg,#7c3aed,#a78bfa)" /></Col>
+                        <Col span={6}><StatCard icon={<ToolOutlined />} label="Bakım" value={`${(tracking.maintenance || []).length}`} gradient="linear-gradient(135deg,var(--brand-accent),var(--brand-primary))" /></Col>
                     </Row>
                     <Card title="Giderler"><Text>Detaylı gider tabloları ve grafikler burada yer almaktadır.</Text></Card>
                 </div>

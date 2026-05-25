@@ -221,7 +221,7 @@ const PersonnelCreatePage = () => {
                                 </span>
                             </div>
                         </div>
-                        <Badge count="UETDS" style={{ backgroundColor: '#6366f1', fontSize: 10, fontWeight: 700, padding: '0 8px' }} />
+                        <Badge count="UETDS" style={{ backgroundColor: 'var(--brand-primary)', fontSize: 10, fontWeight: 700, padding: '0 8px' }} />
                     </div>
 
                     {/* Steps indicator */}
@@ -252,7 +252,7 @@ const PersonnelCreatePage = () => {
                         >
                             {/* ─── STEP 0: Kisisel Bilgiler ─── */}
                             <div style={{ display: currentStep === 0 ? 'block' : 'none' }}>
-                                <Section icon={<UserOutlined />} title="Kisisel Bilgiler" subtitle="Kimlik ve temel bilgiler" color="#6366f1">
+                                <Section icon={<UserOutlined />} title="Kisisel Bilgiler" subtitle="Kimlik ve temel bilgiler" color="var(--brand-primary)">
                                     <Row gutter={20}>
                                         <Col xs={24} md={8}>
                                             <Form.Item name="firstName" label="Ad" rules={[{ required: true, message: 'Ad zorunludur' }]}>
@@ -296,7 +296,7 @@ const PersonnelCreatePage = () => {
                                         </Col>
                                         <Col xs={24} md={6}>
                                             <Form.Item name="nationality" label={
-                                                <span><GlobalOutlined style={{ marginRight: 4 }} />Uyruk <Tooltip title="UETDS zorunlu"><Badge count="UETDS" style={{ backgroundColor: '#6366f1', fontSize: 8, marginLeft: 6 }} /></Tooltip></span>
+                                                <span><GlobalOutlined style={{ marginRight: 4 }} />Uyruk <Tooltip title="UETDS zorunlu"><Badge count="UETDS" style={{ backgroundColor: 'var(--brand-primary)', fontSize: 8, marginLeft: 6 }} /></Tooltip></span>
                                             } rules={[{ required: true, message: 'Uyruk zorunludur' }]}>
                                                 <Select size="large" showSearch optionFilterProp="label"
                                                     options={NATIONALITY_OPTIONS} placeholder="Secin" />
@@ -446,12 +446,12 @@ const PersonnelCreatePage = () => {
                                 <Section icon={<SafetyCertificateOutlined />} title="Belgeler ve Yetkinlikler" subtitle="Ehliyet, SRC ve psikoteknik — UETDS zorunlu alanlar" color="#ef4444">
                                     {/* Ehliyet */}
                                     <div style={{
-                                        background: '#faf5ff', border: '1px solid #e9d5ff', borderRadius: 12,
+                                        background: 'var(--brand-primary-08)', border: '1px solid #e9d5ff', borderRadius: 12,
                                         padding: '16px 20px', marginBottom: 16
                                     }}>
-                                        <div style={{ fontSize: 13, fontWeight: 700, color: '#7c3aed', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--brand-accent)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
                                             <CarOutlined /> Ehliyet Bilgileri
-                                            <Badge count="UETDS" style={{ backgroundColor: '#6366f1', fontSize: 8, marginLeft: 4 }} />
+                                            <Badge count="UETDS" style={{ backgroundColor: 'var(--brand-primary)', fontSize: 8, marginLeft: 4 }} />
                                         </div>
                                         <Row gutter={20}>
                                             <Col xs={24} md={8}>
@@ -472,14 +472,14 @@ const PersonnelCreatePage = () => {
                                             </Col>
                                             <Col xs={24} md={8}>
                                                 <Form.Item name="licenseNumber" label={
-                                                    <span>Ehliyet Belge No <Tooltip title="UETDS zorunlu alan"><Badge count="UETDS" style={{ backgroundColor: '#6366f1', fontSize: 8, marginLeft: 6 }} /></Tooltip></span>
+                                                    <span>Ehliyet Belge No <Tooltip title="UETDS zorunlu alan"><Badge count="UETDS" style={{ backgroundColor: 'var(--brand-primary)', fontSize: 8, marginLeft: 6 }} /></Tooltip></span>
                                                 }>
                                                     <Input placeholder="Ehliyet seri numarasi" size="large" style={{ borderRadius: 10 }} />
                                                 </Form.Item>
                                             </Col>
                                             <Col xs={24} md={8}>
                                                 <Form.Item name="licenseExpiry" label={
-                                                    <span>Gecerlilik Tarihi <Tooltip title="UETDS zorunlu alan"><Badge count="UETDS" style={{ backgroundColor: '#6366f1', fontSize: 8, marginLeft: 6 }} /></Tooltip></span>
+                                                    <span>Gecerlilik Tarihi <Tooltip title="UETDS zorunlu alan"><Badge count="UETDS" style={{ backgroundColor: 'var(--brand-primary)', fontSize: 8, marginLeft: 6 }} /></Tooltip></span>
                                                 }>
                                                     <DatePicker style={{ width: '100%', borderRadius: 10 }} format="DD.MM.YYYY" size="large" />
                                                 </Form.Item>
@@ -494,7 +494,7 @@ const PersonnelCreatePage = () => {
                                     }}>
                                         <div style={{ fontSize: 13, fontWeight: 700, color: '#2563eb', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
                                             <SafetyCertificateOutlined /> SRC Belgesi
-                                            <Badge count="UETDS" style={{ backgroundColor: '#6366f1', fontSize: 8, marginLeft: 4 }} />
+                                            <Badge count="UETDS" style={{ backgroundColor: 'var(--brand-primary)', fontSize: 8, marginLeft: 4 }} />
                                         </div>
                                         <Row gutter={20}>
                                             <Col xs={24} md={8}>
@@ -587,7 +587,7 @@ const PersonnelCreatePage = () => {
                                 <div style={{ display: 'flex', gap: 10 }}>
                                     {currentStep < 4 && (
                                         <Button type="primary" onClick={() => setCurrentStep(s => s + 1)}
-                                            style={{ borderRadius: 10, height: 44, paddingInline: 24, background: '#6366f1' }}>
+                                            style={{ borderRadius: 10, height: 44, paddingInline: 24, background: 'var(--brand-primary)' }}>
                                             Devam
                                         </Button>
                                     )}

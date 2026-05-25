@@ -158,7 +158,7 @@ const AdminAgenciesPage = () => {
                     <Avatar size={40} icon={<ShopOutlined />}
                         style={{
                             background: r.status === 'ACTIVE'
-                                ? 'linear-gradient(135deg, #6366f1, #8b5cf6)'
+                                ? 'linear-gradient(135deg, var(--brand-primary), var(--brand-accent))'
                                 : r.status === 'SUSPENDED' ? '#ef4444' : '#94a3b8',
                             flexShrink: 0
                         }} />
@@ -181,12 +181,12 @@ const AdminAgenciesPage = () => {
                         {r.contactName}
                     </div>
                     <div style={{ fontSize: 11, color: '#64748b', display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <MailOutlined style={{ color: '#6366f1', fontSize: 10 }} />
+                        <MailOutlined style={{ color: 'var(--brand-primary)', fontSize: 10 }} />
                         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 160 }}>{r.email}</span>
                     </div>
                     {r.phone && (
                         <div style={{ fontSize: 11, color: '#64748b', display: 'flex', alignItems: 'center', gap: 4, marginTop: 1 }}>
-                            <PhoneOutlined style={{ color: '#6366f1', fontSize: 10 }} />
+                            <PhoneOutlined style={{ color: 'var(--brand-primary)', fontSize: 10 }} />
                             <span>{r.phone}</span>
                         </div>
                     )}
@@ -221,7 +221,7 @@ const AdminAgenciesPage = () => {
                             display: 'flex', alignItems: 'center', gap: 4,
                             background: '#f1f5f9', borderRadius: 8, padding: '3px 8px'
                         }}>
-                            <UserOutlined style={{ color: '#6366f1', fontSize: 11 }} />
+                            <UserOutlined style={{ color: 'var(--brand-primary)', fontSize: 11 }} />
                             <span style={{ fontWeight: 700, fontSize: 12, color: '#1e293b' }}>{r._count?.users || 0}</span>
                         </div>
                     </Tooltip>
@@ -265,7 +265,7 @@ const AdminAgenciesPage = () => {
                     <Tooltip title="Düzenle">
                         <Button size="small" type="text" icon={<EditOutlined />}
                             onClick={() => handleEdit(r)}
-                            style={{ color: '#6366f1', borderRadius: 6 }} />
+                            style={{ color: 'var(--brand-primary)', borderRadius: 6 }} />
                     </Tooltip>
                     <Tooltip title="Sil">
                         <Popconfirm title="Bu acenteyi silmek istediğinize emin misiniz?"
@@ -290,9 +290,9 @@ const AdminAgenciesPage = () => {
                         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                             <div style={{
                                 width: 48, height: 48, borderRadius: 14,
-                                background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                                background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-accent))',
                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                color: '#fff', fontSize: 22, boxShadow: '0 4px 14px #6366f140'
+                                color: '#fff', fontSize: 22, boxShadow: '0 4px 14px var(--brand-primary-40)'
                             }}><ShopOutlined /></div>
                             <div>
                                 <Title level={3} style={{ margin: 0, color: '#1e293b' }}>Alt Acenteler (B2B)</Title>
@@ -308,8 +308,8 @@ const AdminAgenciesPage = () => {
                                 onClick={handleCreate}
                                 style={{
                                     borderRadius: 8,
-                                    background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-                                    border: 'none', boxShadow: '0 2px 8px #6366f140'
+                                    background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-accent))',
+                                    border: 'none', boxShadow: '0 2px 8px var(--brand-primary-40)'
                                 }}>
                                 Yeni Acente Ekle
                             </Button>
@@ -319,7 +319,7 @@ const AdminAgenciesPage = () => {
                     {/* ── Stats Cards ── */}
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12, marginBottom: 20 }}>
                         {[
-                            { label: 'Toplam', value: stats.total, color: '#6366f1', icon: <ShopOutlined /> },
+                            { label: 'Toplam', value: stats.total, color: 'var(--brand-primary)', icon: <ShopOutlined /> },
                             { label: 'Aktif', value: stats.active, color: '#10b981', icon: <CheckCircleOutlined /> },
                             { label: 'Pasif', value: stats.inactive, color: '#94a3b8', icon: <ClockCircleOutlined /> },
                             { label: 'Askıda', value: stats.suspended, color: '#ef4444', icon: <StopOutlined /> },
@@ -390,7 +390,7 @@ const AdminAgenciesPage = () => {
                                 width: 36, height: 36, borderRadius: 10,
                                 background: editingAgency
                                     ? 'linear-gradient(135deg, #f59e0b, #d97706)'
-                                    : 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                                    : 'linear-gradient(135deg, var(--brand-primary), var(--brand-accent))',
                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                                 color: '#fff', fontSize: 16
                             }}>{editingAgency ? <EditOutlined /> : <ShopOutlined />}</div>

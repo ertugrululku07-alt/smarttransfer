@@ -109,7 +109,7 @@ const ResizableTitle = (props: any) => {
 const DroppableShuttleRun = ({ runId, children }: { runId: string, children: React.ReactNode }) => {
     const { isOver, setNodeRef } = useDroppable({ id: runId });
     return (
-        <div ref={setNodeRef} style={{ transition: 'all 0.2s', border: isOver ? '2px dashed #6366f1' : 'none', borderRadius: 12 }}>
+        <div ref={setNodeRef} style={{ transition: 'all 0.2s', border: isOver ? '2px dashed var(--brand-primary)' : 'none', borderRadius: 12 }}>
             {children}
         </div>
     );
@@ -163,18 +163,18 @@ const ColSortableItem = ({
                 display: 'flex',
                 alignItems: 'center',
                 gap: 10,
-                background: isDragging ? '#ede9fe' : '#fff',
+                background: isDragging ? 'var(--brand-primary-10)' : '#fff',
                 border: '1px solid #e5e7eb',
                 borderRadius: 8,
                 padding: '8px 12px',
                 cursor: 'auto',
-                boxShadow: isDragging ? '0 4px 16px rgba(99,102,241,0.2)' : 'none',
+                boxShadow: isDragging ? '0 4px 16px var(--brand-primary-20)' : 'none',
             }}
         >
             <div
                 {...attributes}
                 {...listeners}
-                style={{ cursor: 'grab', color: '#a78bfa', fontSize: 16, padding: '0 4px', flexShrink: 0 }}
+                style={{ cursor: 'grab', color: 'var(--brand-primary)', fontSize: 16, padding: '0 4px', flexShrink: 0 }}
                 title="Sürükleyerek sırayı değiştir"
             >
                 ⠿
@@ -931,7 +931,7 @@ export default function OperationsPage() {
                     record, 'customerNote',
                     <Popover
                         content={<div style={{ maxWidth: 280, whiteSpace: 'pre-wrap' }}>{note}</div>}
-                        title={<span style={{ color: '#6366f1' }}>✏️ Müşteri Notu</span>}
+                        title={<span style={{ color: 'var(--brand-primary)' }}>✏️ Müşteri Notu</span>}
                     >
                         <div style={{
                             fontSize: 10, color: '#374151',
@@ -986,7 +986,7 @@ export default function OperationsPage() {
                 const summary = last?.text || '';
                 return (
                     <Popover
-                        title={<span style={{ color: '#7c3aed' }}>🛬 Karşılamacı Notları ({notes.length})</span>}
+                        title={<span style={{ color: 'var(--brand-accent)' }}>🛬 Karşılamacı Notları ({notes.length})</span>}
                         content={(
                             <div style={{ maxWidth: 320, maxHeight: 280, overflowY: 'auto' }}>
                                 {notes.map((n: any, idx: number) => (
@@ -1004,8 +1004,8 @@ export default function OperationsPage() {
                         )}
                     >
                         <div style={{
-                            fontSize: 10, color: '#5b21b6',
-                            background: '#ede9fe', border: '1px solid #c4b5fd',
+                            fontSize: 10, color: 'var(--brand-accent)',
+                            background: 'var(--brand-primary-10)', border: '1px solid var(--brand-primary-20)',
                             borderRadius: 5, padding: '2px 6px',
                             cursor: 'pointer', maxWidth: 125, overflow: 'hidden',
                             textOverflow: 'ellipsis', whiteSpace: 'nowrap',
@@ -1431,7 +1431,7 @@ export default function OperationsPage() {
                 }
 
                 const menuItems: any[] = [
-                    { key: 'detail', icon: <EyeOutlined style={{ color: '#6366f1' }} />, label: <span style={{ fontWeight: 600 }}>Detay Görüntüle</span>, onClick: () => setDetailModal({ visible: true, booking: record }) },
+                    { key: 'detail', icon: <EyeOutlined style={{ color: 'var(--brand-primary)' }} />, label: <span style={{ fontWeight: 600 }}>Detay Görüntüle</span>, onClick: () => setDetailModal({ visible: true, booking: record }) },
                     { type: 'divider' },
                     { key: 'pool', icon: <InboxOutlined style={{ color: '#f59e0b' }} />, label: <span style={{ fontWeight: 600 }}>Havuza Gönder</span>, onClick: () => {
                         const totalCollected = (record.total || 0) - (record.discount || 0);
@@ -1447,7 +1447,7 @@ export default function OperationsPage() {
                     { key: 'uetds', icon: <img src="/icons/logo-uetds.png" alt="UETDS" style={{ width: 14, height: 14, opacity: 0.7, filter: 'grayscale(100%)' }} onError={(e) => (e.currentTarget.style.display = 'none')} />, label: <span style={{ fontWeight: 600, color: '#334155' }}>UETDS'ye Gönder</span>, onClick: () => {
                         handleAdminUetdsSubmit(record);
                     }},
-                    { key: 'message', icon: <MessageOutlined style={{ color: '#6366f1' }} />, label: <span style={{ fontWeight: 600 }}>Mesaj Gönder</span>, onClick: () => handleOpenMessageModal(record.driverId) },
+                    { key: 'message', icon: <MessageOutlined style={{ color: 'var(--brand-primary)' }} />, label: <span style={{ fontWeight: 600 }}>Mesaj Gönder</span>, onClick: () => handleOpenMessageModal(record.driverId) },
                     { type: 'divider' },
                     { key: 'cancel', icon: <StopOutlined style={{ color: '#ef4444' }} />, label: <span style={{ fontWeight: 600, color: '#ef4444' }}>İptal Et</span>, onClick: () => setCancelModal({ booking: record, reason: '' }) },
                 );
@@ -2982,7 +2982,7 @@ export default function OperationsPage() {
                         background: #dbeafe !important;
                     }
                     .completed-row-private td {
-                        background: #faf5ff !important;
+                        background: var(--brand-primary-08) !important;
                     }
                     .completed-row-private:hover td {
                         background: #f3e8ff !important;
@@ -3035,7 +3035,7 @@ export default function OperationsPage() {
                                             cursor: 'pointer',
                                             fontWeight: 600,
                                             fontSize: 12,
-                                            background: filters.direction === key ? '#6366f1' : '#f3f4f6',
+                                            background: filters.direction === key ? 'var(--brand-primary)' : '#f3f4f6',
                                             color: filters.direction === key ? '#fff' : '#374151',
                                             transition: 'all 0.15s',
                                         }}
@@ -3068,7 +3068,7 @@ export default function OperationsPage() {
                                             borderRadius: 6,
                                             fontWeight: 600,
                                             fontSize: 12,
-                                            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                            background: 'linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-accent) 100%)',
                                             border: 'none'
                                         }}
                                     >
@@ -3166,7 +3166,7 @@ export default function OperationsPage() {
                                                         }}
                                                             style={{ padding: '5px 8px', cursor: 'pointer', borderRadius: 4, display: 'flex', alignItems: 'center', gap: 8, background: isHidden ? '#f9fafb' : '#fff', marginBottom: 2 }}
                                                         >
-                                                            {isHidden ? <EyeInvisibleOutlined style={{ color: '#9ca3af' }} /> : <EyeOutlined style={{ color: '#6366f1' }} />}
+                                                            {isHidden ? <EyeInvisibleOutlined style={{ color: '#9ca3af' }} /> : <EyeOutlined style={{ color: 'var(--brand-primary)' }} />}
                                                             <span style={{ fontSize: 12, color: isHidden ? '#9ca3af' : '#111' }}>{col.label}</span>
                                                         </div>
                                                     );
@@ -3210,7 +3210,7 @@ export default function OperationsPage() {
                                                     <div key={col.key} onClick={() => toggleShuttleCol(col.key)}
                                                         style={{ padding: '5px 8px', cursor: 'pointer', borderRadius: 4, display: 'flex', alignItems: 'center', gap: 8, background: col.hidden ? '#f9fafb' : '#fff', marginBottom: 2 }}
                                                     >
-                                                        {col.hidden ? <EyeInvisibleOutlined style={{ color: '#9ca3af' }} /> : <EyeOutlined style={{ color: '#6366f1' }} />}
+                                                        {col.hidden ? <EyeInvisibleOutlined style={{ color: '#9ca3af' }} /> : <EyeOutlined style={{ color: 'var(--brand-primary)' }} />}
                                                         <span style={{ fontSize: 12, color: col.hidden ? '#9ca3af' : '#111' }}>{col.label}</span>
                                                     </div>
                                                 ))}
@@ -3236,7 +3236,7 @@ export default function OperationsPage() {
                                         onClick={toggleFullscreen}
                                         style={{
                                             borderRadius: 6,
-                                            background: isFullscreen ? '#6366f1' : undefined,
+                                            background: isFullscreen ? 'var(--brand-primary)' : undefined,
                                             color: isFullscreen ? '#fff' : undefined,
                                             border: isFullscreen ? 'none' : undefined,
                                         }}
@@ -3509,7 +3509,7 @@ export default function OperationsPage() {
                                         <Text style={{ fontSize: 11, color: '#2563eb', fontWeight: 600 }}>
                                             Toplam Yolcu: {activeRuns.reduce((sum: number, r: any) => sum + r.bookings.reduce((paxSum: number, b: any) => paxSum + ((b.adults || 1) + (b.children || 0) + (b.infants || 0)), 0), 0)}
                                         </Text>
-                                        <Text style={{ fontSize: 11, color: '#9333ea', fontWeight: 600 }}>
+                                        <Text style={{ fontSize: 11, color: 'var(--brand-accent)', fontWeight: 600 }}>
                                             Atanan Sefer: {activeRuns.filter((r: any) => r.driverId).length} / {activeRuns.length}
                                         </Text>
                                     </>);
@@ -3692,7 +3692,7 @@ export default function OperationsPage() {
                                                 ? '0 2px 12px rgba(22,163,74,0.12), 0 0 0 1.5px #bbf7d0'
                                                 : isPartial
                                                 ? '0 2px 12px rgba(217,119,6,0.10), 0 0 0 1.5px #fde68a'
-                                                : '0 2px 8px rgba(99,102,241,0.06), 0 0 0 1px #e0e7ff',
+                                                : '0 2px 8px var(--brand-primary-08), 0 0 0 1px var(--brand-primary-10)',
                                             marginBottom: 6,
                                             transition: 'box-shadow 0.2s',
                                             opacity: run.locked ? 0.92 : 1,
@@ -3705,13 +3705,13 @@ export default function OperationsPage() {
                                                     ? 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)'
                                                     : isPartial
                                                     ? 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)'
-                                                    : 'linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%)',
-                                                borderBottom: `2px solid ${isAssigned ? '#86efac' : isPartial ? '#fcd34d' : '#c4b5fd'}`,
+                                                    : 'linear-gradient(135deg, var(--brand-primary-08) 0%, var(--brand-primary-10) 100%)',
+                                                borderBottom: `2px solid ${isAssigned ? '#86efac' : isPartial ? '#fcd34d' : 'var(--brand-primary-20)'}`,
                                             }}>
                                                 {/* Departure Time Badge */}
                                                 <div
                                                     style={{
-                                                        background: 'linear-gradient(135deg, #4f46e5, #7c3aed)',
+                                                        background: 'linear-gradient(135deg, var(--brand-accent), var(--brand-accent))',
                                                         color: '#fff',
                                                         borderRadius: 10,
                                                         padding: '6px 14px',
@@ -3733,19 +3733,19 @@ export default function OperationsPage() {
                                                 {/* Route Info */}
                                                 <div style={{ flex: 1, minWidth: 0 }}>
                                                     <div style={{ fontWeight: 800, fontSize: 14, color: '#1e1b4b', marginBottom: 3, display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden' }}>
-                                                        <span style={{ color: '#7c3aed', fontSize: 13 }}>🚌</span>
+                                                        <span style={{ color: 'var(--brand-accent)', fontSize: 13 }}>🚌</span>
                                                         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{run.routeName || 'İsimsiz Rota'}</span>
                                                         <Button
                                                             type="text" size="small"
                                                             icon={<EditOutlined />}
                                                             onClick={() => setEditRunModal({ run, time: run.departureTime, name: run.routeName || '' })}
-                                                            style={{ padding: '0 4px', color: '#6366f1', fontSize: 11, flexShrink: 0 }}
+                                                            style={{ padding: '0 4px', color: 'var(--brand-primary)', fontSize: 11, flexShrink: 0 }}
                                                         />
                                                     </div>
-                                                    <div style={{ fontSize: 11, color: '#6d28d9', display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
-                                                        <span style={{ fontWeight: 700, background: '#ede9fe', color: '#5b21b6', padding: '1px 7px', borderRadius: 8 }}>📍 {run.bookings.length} durak</span>
+                                                    <div style={{ fontSize: 11, color: 'var(--brand-accent)', display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                                                        <span style={{ fontWeight: 700, background: 'var(--brand-primary-10)', color: 'var(--brand-accent)', padding: '1px 7px', borderRadius: 8 }}>📍 {run.bookings.length} durak</span>
                                                         {run.bookings.slice(0, 4).map((b: any) => (
-                                                            <span key={b.id} style={{ opacity: 0.75, background: '#f5f3ff', borderRadius: 4, padding: '1px 5px', fontSize: 10 }}>{b.contactName?.split(' ')[0]}</span>
+                                                            <span key={b.id} style={{ opacity: 0.75, background: 'var(--brand-primary-08)', borderRadius: 4, padding: '1px 5px', fontSize: 10 }}>{b.contactName?.split(' ')[0]}</span>
                                                         ))}
                                                         {run.bookings.length > 4 && <span style={{ fontSize: 10, color: '#94a3b8' }}>+{run.bookings.length - 4}</span>}
                                                     </div>
@@ -3774,7 +3774,7 @@ export default function OperationsPage() {
                                                     <div style={{ fontSize: 9, color: '#94a3b8', fontWeight: 700, marginTop: 1 }}>/{capacity} PAX</div>
                                                 </div>
 
-                                                <div style={{ width: 1, height: 36, background: '#c4b5fd', margin: '0 4px' }} />
+                                                <div style={{ width: 1, height: 36, background: 'var(--brand-primary-20)', margin: '0 4px' }} />
 
                                                 {/* Assignment Controls */}
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -3926,7 +3926,7 @@ export default function OperationsPage() {
                                                         display: 'grid', 
                                                         gridTemplateColumns: shuttleCols.filter(c => !c.hidden).map(c => `${c.width}px`).join(' '),
                                                         minWidth: 'max-content',
-                                                        background: 'linear-gradient(135deg, #f5f3ff, #ede9fe)', borderBottom: '1px solid #c4b5fd', padding: '0 4px'
+                                                        background: 'linear-gradient(135deg, var(--brand-primary-08), var(--brand-primary-10))', borderBottom: '1px solid var(--brand-primary-20)', padding: '0 4px'
                                                     }}>
                                                         {shuttleCols.filter(c => !c.hidden).map((col, colIdx) => (
                                                             <div 
@@ -3937,7 +3937,7 @@ export default function OperationsPage() {
                                                                 }}
                                                                 onDragOver={(e) => {
                                                                     e.preventDefault();
-                                                                    e.currentTarget.style.borderLeft = '3px solid #7c3aed';
+                                                                    e.currentTarget.style.borderLeft = '3px solid var(--brand-accent)';
                                                                 }}
                                                                 onDragLeave={(e) => {
                                                                     e.currentTarget.style.borderLeft = 'none';
@@ -3960,7 +3960,7 @@ export default function OperationsPage() {
                                                                     });
                                                                 }}
                                                                 style={{ 
-                                                                    padding: '7px 8px', fontSize: 10, fontWeight: 800, color: '#5b21b6', position: 'relative', 
+                                                                    padding: '7px 8px', fontSize: 10, fontWeight: 800, color: 'var(--brand-accent)', position: 'relative', 
                                                                     letterSpacing: 0.5, textTransform: 'uppercase',
                                                                     cursor: col.key !== 'sort' ? 'grab' : 'default',
                                                                     userSelect: 'none',
@@ -3987,7 +3987,7 @@ export default function OperationsPage() {
                                                                         transition: 'all 0.2s',
                                                                     }} 
                                                                     onMouseEnter={(e) => {
-                                                                        e.currentTarget.style.background = '#7c3aed';
+                                                                        e.currentTarget.style.background = 'var(--brand-accent)';
                                                                         e.currentTarget.style.width = '4px';
                                                                     }}
                                                                     onMouseLeave={(e) => {
@@ -4036,7 +4036,7 @@ export default function OperationsPage() {
                                                                                 <span style={{ cursor: 'grab', color: '#9ca3af' }}>⠿</span>
                                                                             </div>
                                                                         );
-                                                                        case 'index': return <span style={{ fontWeight: 800, color: '#5b21b6' }}>{idx + 1}</span>;
+                                                                        case 'index': return <span style={{ fontWeight: 800, color: 'var(--brand-accent)' }}>{idx + 1}</span>;
                                                                         case 'customer': {
                                                                             const agencyName = b.agencyName || b.agency?.name || b.partnerName;
                                                                             return (
@@ -4047,7 +4047,7 @@ export default function OperationsPage() {
                                                                                 >
                                                                                     <div style={{ fontWeight: 700, fontSize: 12, color: '#1e1b4b' }}>{b.contactName}</div>
                                                                                     <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 1 }}>
-                                                                                        <div style={{ fontSize: 9, color: '#7c3aed', opacity: 0.8 }}>{b.bookingNumber}</div>
+                                                                                        <div style={{ fontSize: 9, color: 'var(--brand-accent)', opacity: 0.8 }}>{b.bookingNumber}</div>
                                                                                         {agencyName ? (
                                                                                             <span style={{ fontSize: 9, background: '#eff6ff', color: '#1d4ed8', padding: '0px 4px', borderRadius: 3, fontWeight: 700 }}>{agencyName}</span>
                                                                                         ) : (
@@ -4115,7 +4115,7 @@ export default function OperationsPage() {
                                                                                     ✈️ {b.flightNumber || '-'}
                                                                                 </span>
                                                                                 {(b.flightTime || b.metadata?.flightTime) && (
-                                                                                    <span style={{ fontSize: 10, color: '#6366f1', fontWeight: 700 }}>
+                                                                                    <span style={{ fontSize: 10, color: 'var(--brand-primary)', fontWeight: 700 }}>
                                                                                         🕐 {b.flightTime || b.metadata?.flightTime}
                                                                                     </span>
                                                                                 )}
@@ -4166,9 +4166,9 @@ export default function OperationsPage() {
                                                                                 },
                                                                                 'BANK_TRANSFER': {
                                                                                     icon: '🏧', label: 'Havale',
-                                                                                    gradient: 'linear-gradient(135deg, #faf5ff, #ede9fe)',
-                                                                                    border: '#c4b5fd', color: '#6d28d9',
-                                                                                    glow: '0 0 8px rgba(139,92,246,0.15)',
+                                                                                    gradient: 'linear-gradient(135deg, var(--brand-primary-08), var(--brand-primary-10))',
+                                                                                    border: 'var(--brand-primary-20)', color: 'var(--brand-accent)',
+                                                                                    glow: '0 0 8px var(--brand-accent-15)',
                                                                                 },
                                                                             };
 
@@ -4230,7 +4230,7 @@ export default function OperationsPage() {
                                                                         case 'bookingType': {
                                                                             const bt = (b.bookingType || (b.agencyId ? 'B2B' : (b.metadata?.creationSource === 'ADMIN_MANUAL' ? 'SYSTEM' : 'DIRECT'))).toUpperCase();
                                                                             const cfg: any = {
-                                                                                B2B:    { label: 'B2B',    bg: '#eef2ff', color: '#4338ca', border: '#c7d2fe' },
+                                                                                B2B:    { label: 'B2B',    bg: 'var(--brand-primary-08)', color: 'var(--brand-accent)', border: 'var(--brand-primary-15)' },
                                                                                 DIRECT: { label: 'Direkt', bg: '#f0fdf4', color: '#15803d', border: '#bbf7d0' },
                                                                                 SYSTEM: { label: 'Sistem', bg: '#fef3c7', color: '#92400e', border: '#fde68a' },
                                                                             };
@@ -4270,7 +4270,7 @@ export default function OperationsPage() {
                                                                             return (
                                                                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
                                                                                     {extras.map((e: any, i: number) => (
-                                                                                        <span key={i} style={{ fontSize: 10, background: '#f3e8ff', color: '#7c3aed', padding: '1px 6px', borderRadius: 4, border: '1px solid #e9d5ff', whiteSpace: 'nowrap' }}>
+                                                                                        <span key={i} style={{ fontSize: 10, background: '#f3e8ff', color: 'var(--brand-accent)', padding: '1px 6px', borderRadius: 4, border: '1px solid #e9d5ff', whiteSpace: 'nowrap' }}>
                                                                                             {e.quantity || 1}x {e.name || e.serviceName || 'Ekstra'}
                                                                                         </span>
                                                                                     ))}
@@ -4430,7 +4430,7 @@ export default function OperationsPage() {
                                                                             const last = gNotes[gNotes.length - 1];
                                                                             return (
                                                                                 <Popover
-                                                                                    title={<span style={{ color: '#7c3aed' }}>🛬 Karşılamacı Notları ({gNotes.length})</span>}
+                                                                                    title={<span style={{ color: 'var(--brand-accent)' }}>🛬 Karşılamacı Notları ({gNotes.length})</span>}
                                                                                     content={(
                                                                                         <div style={{ maxWidth: 320, maxHeight: 280, overflowY: 'auto' }}>
                                                                                             {gNotes.map((n: any, idx: number) => (
@@ -4448,8 +4448,8 @@ export default function OperationsPage() {
                                                                                     )}
                                                                                 >
                                                                                     <span style={{
-                                                                                        fontSize: 11, color: '#5b21b6',
-                                                                                        background: '#ede9fe', border: '1px solid #c4b5fd',
+                                                                                        fontSize: 11, color: 'var(--brand-accent)',
+                                                                                        background: 'var(--brand-primary-10)', border: '1px solid var(--brand-primary-20)',
                                                                                         borderRadius: 5, padding: '2px 6px',
                                                                                         cursor: 'pointer', fontWeight: 600,
                                                                                         whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
@@ -4474,15 +4474,15 @@ export default function OperationsPage() {
                                                                                     display: 'grid', 
                                                                                     gridTemplateColumns: shuttleCols.filter(c => !c.hidden).map(c => `${c.width}px`).join(' '),
                                                                                     minWidth: 'max-content',
-                                                                                    background: dnd.isDragging ? '#e0e7ff' : rowBg,
-                                                                                    borderBottom: '1px solid #ede9fe',
+                                                                                    background: dnd.isDragging ? 'var(--brand-primary-10)' : rowBg,
+                                                                                    borderBottom: '1px solid var(--brand-primary-10)',
                                                                                     padding: '0 4px',
                                                                                     transition: 'background 0.15s',
                                                                                 }}
                                                                             >
                                                                                 {shuttleCols.filter(c => !c.hidden).map(col => (
                                                                                     <div key={col.key} style={{ padding: '7px 8px', overflow: 'hidden', display: 'flex', alignItems: 'center' }} {...(col.key === 'sort' ? dnd.listeners : {})}>
-                                                                                        {col.key === 'sort' ? <div {...dnd.attributes} style={{ display: 'flex', justifyContent: 'center', cursor: 'grab', color: '#a78bfa', fontSize: 14 }}>⠿</div> : renderCell(col.key)}
+                                                                                        {col.key === 'sort' ? <div {...dnd.attributes} style={{ display: 'flex', justifyContent: 'center', cursor: 'grab', color: 'var(--brand-primary)', fontSize: 14 }}>⠿</div> : renderCell(col.key)}
                                                                                     </div>
                                                                                 ))}
                                                                             </div>
@@ -4494,7 +4494,7 @@ export default function OperationsPage() {
                                                     </div>
                                                     
                                                     {run.bookings.length === 0 && (
-                                                        <div style={{ padding: '24px', textAlign: 'center', color: '#a78bfa', fontSize: 12, background: '#faf5ff', borderTop: '1px dashed #c4b5fd' }}>
+                                                        <div style={{ padding: '24px', textAlign: 'center', color: 'var(--brand-primary)', fontSize: 12, background: 'var(--brand-primary-08)', borderTop: '1px dashed var(--brand-primary-20)' }}>
                                                             🚌 Henüz yolcu yok. Yolcuları buraya sürükleyebilirsiniz.
                                                         </div>
                                                     )}
@@ -4884,13 +4884,13 @@ export default function OperationsPage() {
                         }}>
                             <Space size={12} wrap>
                                 <span style={{
-                                    background: 'linear-gradient(135deg, #4f46e5, #7c3aed)',
+                                    background: 'linear-gradient(135deg, var(--brand-accent), var(--brand-accent))',
                                     color: '#fff', borderRadius: 8, padding: '3px 12px',
                                     fontSize: 12, fontWeight: 800,
                                 }}>
                                     {completedBookings.length} Operasyon
                                 </span>
-                                <span style={{ fontSize: 11, fontWeight: 600, color: '#7c3aed', background: '#faf5ff', padding: '2px 8px', borderRadius: 6 }}>
+                                <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--brand-accent)', background: 'var(--brand-primary-08)', padding: '2px 8px', borderRadius: 6 }}>
                                     🚗 Özel: {completedBookings.filter((b: any) => b.transferType === 'PRIVATE').length}
                                 </span>
                                 <span style={{ fontSize: 11, fontWeight: 600, color: '#2563eb', background: '#eff6ff', padding: '2px 8px', borderRadius: 6 }}>
@@ -5014,8 +5014,8 @@ export default function OperationsPage() {
                                 expandable={{
                                     rowExpandable: (record: any) => record._isTrip,
                                     expandedRowRender: (record: any) => (
-                                        <div style={{ background: '#f8fafc', padding: '8px 16px', borderLeft: '3px solid #6366f1', margin: '-8px -16px' }}>
-                                            <div style={{ fontSize: 11, fontWeight: 700, color: '#4338ca', marginBottom: 6 }}>
+                                        <div style={{ background: '#f8fafc', padding: '8px 16px', borderLeft: '3px solid var(--brand-primary)', margin: '-8px -16px' }}>
+                                            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--brand-accent)', marginBottom: 6 }}>
                                                 🚌 Bu seferdeki {record._passengerCount} müşteri ({record._totalPax} yolcu)
                                             </div>
                                             <Table
@@ -5025,7 +5025,7 @@ export default function OperationsPage() {
                                                 dataSource={record._bookings}
                                                 style={{ fontSize: 11 }}
                                                 columns={[
-                                                    { title: '#', key: 'idx', width: 40, render: (_: any, __: any, idx: number) => <Text style={{ fontSize: 11, fontWeight: 700, color: '#6366f1' }}>{idx + 1}</Text> },
+                                                    { title: '#', key: 'idx', width: 40, render: (_: any, __: any, idx: number) => <Text style={{ fontSize: 11, fontWeight: 700, color: 'var(--brand-primary)' }}>{idx + 1}</Text> },
                                                     { title: 'REZ. NO', dataIndex: 'bookingNumber', width: 110, render: (v: string) => <Tag color="blue" style={{ fontSize: 10, margin: 0 }}>{v || '—'}</Tag> },
                                                     { title: 'MÜŞTERİ', key: 'customer', width: 160, render: (_: any, b: any) => (
                                                         <div style={{ lineHeight: 1.3 }}>
@@ -5052,7 +5052,7 @@ export default function OperationsPage() {
                                                         return <Tooltip title={loc}><span style={{ fontSize: 10 }}>🏁 {loc}</span></Tooltip>;
                                                     } },
                                                     { title: 'ALIŞ', key: 'pickedUpAt', width: 60, align: 'center' as const, render: (_: any, b: any) => b.pickedUpAt ? <span style={{ fontSize: 10, fontWeight: 700, color: '#16a34a' }}>{dayjs(b.pickedUpAt).format('HH:mm')}</span> : <span style={{ color: '#d1d5db' }}>—</span> },
-                                                    { title: 'VARIŞ', key: 'droppedOffAt', width: 60, align: 'center' as const, render: (_: any, b: any) => b.droppedOffAt ? <span style={{ fontSize: 10, fontWeight: 700, color: '#7c3aed' }}>{dayjs(b.droppedOffAt).format('HH:mm')}</span> : <span style={{ color: '#d1d5db' }}>—</span> },
+                                                    { title: 'VARIŞ', key: 'droppedOffAt', width: 60, align: 'center' as const, render: (_: any, b: any) => b.droppedOffAt ? <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--brand-accent)' }}>{dayjs(b.droppedOffAt).format('HH:mm')}</span> : <span style={{ color: '#d1d5db' }}>—</span> },
                                                     { title: 'ÜCRET', key: 'price', width: 90, align: 'right' as const, render: (_: any, b: any) => {
                                                         const p = b.price || b.total || 0; const cur = b.currency || 'TRY';
                                                         const sym: Record<string,string> = { TRY: '₺', USD: '$', EUR: '€', GBP: '£' };
@@ -5087,7 +5087,7 @@ export default function OperationsPage() {
                                         render: (val: string) => (
                                             <div style={{ lineHeight: 1.3 }}>
                                                 <div style={{ fontSize: 11, fontWeight: 600, color: '#1e1b4b' }}>{dayjs(val).format('DD.MM.YYYY')}</div>
-                                                <div style={{ fontSize: 13, fontWeight: 800, color: '#4f46e5' }}>{dayjs(val).format('HH:mm')}</div>
+                                                <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--brand-accent)' }}>{dayjs(val).format('HH:mm')}</div>
                                             </div>
                                         )
                                     },
@@ -5150,7 +5150,7 @@ export default function OperationsPage() {
                                             if (record._isTrip) {
                                                 return (
                                                     <div style={{ lineHeight: 1.3 }}>
-                                                        <div style={{ fontWeight: 700, fontSize: 12, color: '#4338ca' }}>
+                                                        <div style={{ fontWeight: 700, fontSize: 12, color: 'var(--brand-accent)' }}>
                                                             👥 {record._passengerCount} müşteri
                                                         </div>
                                                         <div style={{ fontSize: 10, color: '#6b7280' }}>+ tıkla → detay</div>
@@ -5230,7 +5230,7 @@ export default function OperationsPage() {
                                                 return (
                                                     <span style={{
                                                         fontWeight: 800, color: '#fff', fontSize: 13,
-                                                        background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', borderRadius: 6, padding: '2px 8px',
+                                                        background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-accent))', borderRadius: 6, padding: '2px 8px',
                                                     }}>{record._totalPax}</span>
                                                 );
                                             }
@@ -5245,8 +5245,8 @@ export default function OperationsPage() {
                                             return (
                                                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                                                     <span style={{
-                                                        fontWeight: 800, color: '#4f46e5', fontSize: 13,
-                                                        background: '#eef2ff', borderRadius: 6, padding: '2px 8px',
+                                                        fontWeight: 800, color: 'var(--brand-accent)', fontSize: 13,
+                                                        background: 'var(--brand-primary-08)', borderRadius: 6, padding: '2px 8px',
                                                     }}>{total}</span>
                                                     {(children > 0 || infants > 0) && (
                                                         <span style={{ fontSize: 9, color: '#94a3b8', fontWeight: 600, marginTop: 2 }}>{parts.join('+')}</span>
@@ -5306,7 +5306,7 @@ export default function OperationsPage() {
                                         },
                                         render: (_: any, record: any) => {
                                             if (!record.droppedOffAt) return <span style={{ color: '#d1d5db', fontSize: 10 }}>—</span>;
-                                            return <span style={{ fontSize: 11, fontWeight: 700, color: '#7c3aed' }}>{dayjs(record.droppedOffAt).format('HH:mm')}</span>;
+                                            return <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--brand-accent)' }}>{dayjs(record.droppedOffAt).format('HH:mm')}</span>;
                                         }
                                     },
                                     {
@@ -5482,7 +5482,7 @@ export default function OperationsPage() {
                         onCancel={() => setShuttleColEditVisible(false)}
                         width={640}
                     >
-                        <div style={{ marginBottom: 10, fontSize: 12, color: '#6366f1', background: '#f5f3ff', padding: '6px 12px', borderRadius: 6 }}>
+                        <div style={{ marginBottom: 10, fontSize: 12, color: 'var(--brand-primary)', background: 'var(--brand-primary-08)', padding: '6px 12px', borderRadius: 6 }}>
                             💡 Sütunları sürükleyerek sırasını değiştirebilirsiniz.
                         </div>
                         <DndContext
@@ -5624,7 +5624,7 @@ export default function OperationsPage() {
                                 <div style={{ marginBottom: 12, fontSize: 14, fontWeight: 600, color: '#374151' }}>
                                     📊 Durum Renkleri
                                 </div>
-                                <div style={{ marginBottom: 12, fontSize: 12, color: '#6366f1', background: '#f0f4ff', padding: '8px 12px', borderRadius: 6 }}>
+                                <div style={{ marginBottom: 12, fontSize: 12, color: 'var(--brand-primary)', background: '#f0f4ff', padding: '8px 12px', borderRadius: 6 }}>
                                     💡 Her durum için satır arka plan rengini seçin.
                                 </div>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -5723,7 +5723,7 @@ export default function OperationsPage() {
                         )}
                     >
                         <div style={{ background: '#f8fafc', borderRadius: 8, padding: 16 }}>
-                            <div style={{ marginBottom: 12, fontSize: 12, color: '#6366f1', background: '#f0f4ff', padding: '8px 12px', borderRadius: 6 }}>
+                            <div style={{ marginBottom: 12, fontSize: 12, color: 'var(--brand-primary)', background: '#f0f4ff', padding: '8px 12px', borderRadius: 6 }}>
                                 💡 Her kolon için özel başlık belirleyebilirsiniz. Boş bırakırsanız varsayılan başlık kullanılır.
                             </div>
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, maxHeight: 500, overflowY: 'auto', padding: 4 }}>
@@ -5839,7 +5839,7 @@ export default function OperationsPage() {
                                         placeholder="Örn: Şoför hasta, sefer iptal edildi, araç arızalı, vb..."
                                         value={returnModal.reason}
                                         onChange={(e) => setReturnModal(prev => prev ? { ...prev, reason: e.target.value } : null)}
-                                        style={{ resize: 'none', borderColor: returnModal.reason?.trim() ? '#6366f1' : '#fca5a5' }}
+                                        style={{ resize: 'none', borderColor: returnModal.reason?.trim() ? 'var(--brand-primary)' : '#fca5a5' }}
                                         maxLength={500}
                                         showCount
                                     />
@@ -5869,7 +5869,7 @@ export default function OperationsPage() {
                                 PENDING: { color: '#d97706', label: 'Bekliyor' },
                                 COMPLETED: { color: '#16a34a', label: 'Tamamlandı' },
                                 CANCELLED: { color: '#dc2626', label: 'İptal' },
-                                IN_OPERATION: { color: '#7c3aed', label: 'Operasyonda' },
+                                IN_OPERATION: { color: 'var(--brand-accent)', label: 'Operasyonda' },
                                 POOL: { color: '#f59e0b', label: 'Havuzda' },
                             };
                             const st = statusMap[b.status] || { color: '#6b7280', label: b.status };
@@ -5879,7 +5879,7 @@ export default function OperationsPage() {
                                 <div>
                                     {/* Header */}
                                     <div style={{
-                                        background: 'linear-gradient(135deg, #4f46e5, #7c3aed)',
+                                        background: 'linear-gradient(135deg, var(--brand-accent), var(--brand-accent))',
                                         padding: '20px 24px',
                                         color: '#fff',
                                         display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start'
@@ -5942,16 +5942,16 @@ export default function OperationsPage() {
 
                                         {/* Status Change */}
                                         <div style={{
-                                            background: '#f5f3ff', borderRadius: 12, padding: '16px 20px',
+                                            background: 'var(--brand-primary-08)', borderRadius: 12, padding: '16px 20px',
                                             border: '1px solid #e9d5ff', marginBottom: 16
                                         }}>
-                                            <div style={{ fontSize: 12, fontWeight: 700, color: '#5b21b6', marginBottom: 10 }}>DURUM DEĞİŞTİR</div>
+                                            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--brand-accent)', marginBottom: 10 }}>DURUM DEĞİŞTİR</div>
                                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                                                 {[
                                                     { value: 'CONFIRMED', label: '✅ Onayla', color: '#2563eb' },
                                                     { value: 'COMPLETED', label: '🏁 Tamamla', color: '#16a34a' },
                                                     { value: 'CANCELLED', label: '❌ İptal', color: '#dc2626' },
-                                                    { value: 'IN_OPERATION', label: '🚗 Operasyonda', color: '#7c3aed' },
+                                                    { value: 'IN_OPERATION', label: '🚗 Operasyonda', color: 'var(--brand-accent)' },
                                                 ].map(opt => (
                                                     <Button
                                                         key={opt.value}
@@ -5989,10 +5989,10 @@ export default function OperationsPage() {
                                                     fontWeight: 800,
                                                     fontSize: 14,
                                                     height: 48,
-                                                    background: 'linear-gradient(135deg, #6366f1, #7c3aed)',
+                                                    background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-accent))',
                                                     color: '#fff',
                                                     border: 'none',
-                                                    boxShadow: '0 4px 14px rgba(99,102,241,0.3)',
+                                                    boxShadow: '0 4px 14px var(--brand-primary-30)',
                                                 }}
                                             >
                                                 ✏️ Düzenle
@@ -6099,7 +6099,7 @@ export default function OperationsPage() {
                                 <div>
                                     {/* Header */}
                                     <div style={{
-                                        background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
+                                        background: 'linear-gradient(135deg, var(--brand-accent) 0%, var(--brand-accent) 100%)',
                                         padding: '20px 28px',
                                         color: '#fff',
                                     }}>
@@ -6111,7 +6111,7 @@ export default function OperationsPage() {
                                             </div>
                                             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                                                 <span style={{ background: st.bg, color: st.color, padding: '4px 14px', borderRadius: 20, fontWeight: 700, fontSize: 12 }}>{st.label}</span>
-                                                <span style={{ background: b.transferType === 'SHUTTLE' ? '#dbeafe' : '#f3e8ff', color: b.transferType === 'SHUTTLE' ? '#1e40af' : '#7c3aed', padding: '4px 14px', borderRadius: 20, fontWeight: 700, fontSize: 12 }}>
+                                                <span style={{ background: b.transferType === 'SHUTTLE' ? '#dbeafe' : '#f3e8ff', color: b.transferType === 'SHUTTLE' ? '#1e40af' : 'var(--brand-accent)', padding: '4px 14px', borderRadius: 20, fontWeight: 700, fontSize: 12 }}>
                                                     {b.transferType === 'SHUTTLE' ? 'Shuttle' : 'Özel'}
                                                 </span>
                                                 <span style={{ background: 'rgba(255,255,255,0.2)', color: '#fff', padding: '4px 14px', borderRadius: 20, fontWeight: 700, fontSize: 12 }}>
@@ -6154,7 +6154,7 @@ export default function OperationsPage() {
                                             <div style={{ background: '#eff6ff', borderRadius: 10, padding: '10px 14px' }}>
                                                 <div style={{ fontSize: 10, color: '#64748b', fontWeight: 600 }}>TARİH / SAAT</div>
                                                 <div style={{ fontSize: 14, fontWeight: 800, color: '#1e40af' }}>{b.pickupDateTime ? dayjs(b.pickupDateTime).format('DD.MM.YYYY') : '—'}</div>
-                                                <div style={{ fontSize: 16, fontWeight: 900, color: '#4f46e5' }}>{b.pickupDateTime ? dayjs(b.pickupDateTime).format('HH:mm') : ''}</div>
+                                                <div style={{ fontSize: 16, fontWeight: 900, color: 'var(--brand-accent)' }}>{b.pickupDateTime ? dayjs(b.pickupDateTime).format('HH:mm') : ''}</div>
                                             </div>
                                             <div style={{ background: '#f0fdf4', borderRadius: 10, padding: '10px 14px' }}>
                                                 <div style={{ fontSize: 10, color: '#64748b', fontWeight: 600 }}>UÇUŞ</div>
@@ -6321,7 +6321,7 @@ export default function OperationsPage() {
                                                         // Open inline edit by double-clicking on booking number (navigate to the row)
                                                         message.info('Tablodan çift tıklayarak düzenleyebilirsiniz');
                                                     }}
-                                                    style={{ borderRadius: 8, fontWeight: 700, background: '#6366f1', border: 'none' }}
+                                                    style={{ borderRadius: 8, fontWeight: 700, background: 'var(--brand-primary)', border: 'none' }}
                                                 >
                                                     Düzenle
                                                 </Button>
@@ -6331,7 +6331,7 @@ export default function OperationsPage() {
                                                     { key: 'print', icon: <PrinterOutlined />, label: 'Yazdır', onClick: () => {
                                                         const printWindow = window.open('', '_blank');
                                                         if (printWindow) {
-                                                            printWindow.document.write(`<html><head><title>${b.bookingNumber}</title><style>body{font-family:Arial,sans-serif;padding:20px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ddd;padding:8px;text-align:left}th{background:#f3f4f6;font-size:12px}h2{color:#4f46e5}</style></head><body>`);
+                                                            printWindow.document.write(`<html><head><title>${b.bookingNumber}</title><style>body{font-family:Arial,sans-serif;padding:20px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ddd;padding:8px;text-align:left}th{background:#f3f4f6;font-size:12px}h2{color:var(--brand-accent)}</style></head><body>`);
                                                             printWindow.document.write(`<h2>Transfer Detayı — ${b.bookingNumber}</h2>`);
                                                             printWindow.document.write(`<p><strong>Tarih:</strong> ${b.pickupDateTime ? dayjs(b.pickupDateTime).format('DD.MM.YYYY HH:mm') : '—'}</p>`);
                                                             printWindow.document.write(`<p><strong>Alış:</strong> ${pickup}</p>`);
@@ -6607,10 +6607,10 @@ export default function OperationsPage() {
                                                             style={{
                                                                 display: 'flex', alignItems: 'flex-start', gap: 10,
                                                                 padding: '10px 12px', marginBottom: 6,
-                                                                background: 'linear-gradient(135deg, #f5f3ff, #ede9fe)',
+                                                                background: 'linear-gradient(135deg, var(--brand-primary-08), var(--brand-primary-10))',
                                                                 borderRadius: 10, cursor: 'pointer',
-                                                                border: '1px solid #ddd6fe',
-                                                                borderLeft: '4px solid #7c3aed',
+                                                                border: '1px solid var(--brand-primary-15)',
+                                                                borderLeft: '4px solid var(--brand-accent)',
                                                                 transition: 'transform 0.12s, box-shadow 0.12s',
                                                             }}
                                                             onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.transform = 'translateX(-2px)'; (e.currentTarget as HTMLDivElement).style.boxShadow = '0 4px 12px rgba(124,58,237,0.15)'; }}
@@ -6620,12 +6620,12 @@ export default function OperationsPage() {
                                                             <div style={{ flex: 1, minWidth: 0 }}>
                                                                 <div style={{ fontWeight: 700, fontSize: 13, color: '#4c1d95' }}>
                                                                     {c.bookingNumber}
-                                                                    {c.passenger && <span style={{ fontWeight: 400, color: '#6d28d9', marginLeft: 6 }}>{c.passenger}</span>}
-                                                                    {c.count > 1 && <span style={{ fontSize: 10, background: '#7c3aed', color: '#fff', borderRadius: 8, padding: '1px 6px', marginLeft: 6 }}>{c.count} not</span>}
+                                                                    {c.passenger && <span style={{ fontWeight: 400, color: 'var(--brand-accent)', marginLeft: 6 }}>{c.passenger}</span>}
+                                                                    {c.count > 1 && <span style={{ fontSize: 10, background: 'var(--brand-accent)', color: '#fff', borderRadius: 8, padding: '1px 6px', marginLeft: 6 }}>{c.count} not</span>}
                                                                 </div>
-                                                                <div style={{ fontSize: 11, color: '#5b21b6', marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.lastNote}</div>
+                                                                <div style={{ fontSize: 11, color: 'var(--brand-accent)', marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.lastNote}</div>
                                                             </div>
-                                                            <div style={{ color: '#7c3aed', fontSize: 16, alignSelf: 'center' }}>›</div>
+                                                            <div style={{ color: 'var(--brand-accent)', fontSize: 16, alignSelf: 'center' }}>›</div>
                                                         </div>
                                                     ))}
                                                 </div>
@@ -6720,7 +6720,7 @@ export default function OperationsPage() {
                                     <span style={{ fontWeight: 700, color: '#1e293b' }}>{sosDetailModal.driverName}</span>
                                     {sosDetailModal.driverPhone && (<>
                                         <span style={{ color: '#94a3b8', fontWeight: 600 }}>Telefon:</span>
-                                        <a href={`tel:${sosDetailModal.driverPhone}`} style={{ fontWeight: 700, color: '#6366f1' }}>📞 {sosDetailModal.driverPhone}</a>
+                                        <a href={`tel:${sosDetailModal.driverPhone}`} style={{ fontWeight: 700, color: 'var(--brand-primary)' }}>📞 {sosDetailModal.driverPhone}</a>
                                     </>)}
                                     <span style={{ color: '#94a3b8', fontWeight: 600 }}>Tür:</span>
                                     <span style={{ fontWeight: 700 }}>
@@ -6741,7 +6741,7 @@ export default function OperationsPage() {
                                         <span style={{ color: '#94a3b8', fontWeight: 600 }}>Konum:</span>
                                         <span
                                             onClick={() => setSosMapModal({ lat: sosDetailModal.lat, lng: sosDetailModal.lng, address: sosDetailModal.address })}
-                                            style={{ color: '#6366f1', fontWeight: 700, cursor: 'pointer', textDecoration: 'underline' }}
+                                            style={{ color: 'var(--brand-primary)', fontWeight: 700, cursor: 'pointer', textDecoration: 'underline' }}
                                         >
                                             📍 {sosDetailModal.lat.toFixed(5)}, {sosDetailModal.lng.toFixed(5)} (Haritada Göster)
                                         </span>
@@ -6785,7 +6785,7 @@ export default function OperationsPage() {
                                     href={sosMapModal ? `https://www.google.com/maps?q=${sosMapModal.lat},${sosMapModal.lng}` : '#'}
                                     target="_blank"
                                     rel="noreferrer"
-                                    style={{ fontSize: 12, color: '#6366f1' }}
+                                    style={{ fontSize: 12, color: 'var(--brand-primary)' }}
                                 >
                                     Google Maps'te Aç ↗
                                 </a>

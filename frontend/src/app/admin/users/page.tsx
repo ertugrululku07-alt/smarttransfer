@@ -30,10 +30,10 @@ interface User {
 }
 
 const ROLE_CONFIG: Record<string, { label: string; color: string; bg: string; icon: React.ReactNode }> = {
-  SUPER_ADMIN:    { label: 'Süper Yönetici', color: '#7c3aed', bg: '#f5f3ff', icon: <SafetyCertificateOutlined /> },
-  TENANT_ADMIN:   { label: 'Yönetici',       color: '#6366f1', bg: '#eef2ff', icon: <SafetyCertificateOutlined /> },
-  TENANT_MANAGER: { label: 'Müdür',          color: '#8b5cf6', bg: '#f5f3ff', icon: <SafetyCertificateOutlined /> },
-  TENANT_STAFF:   { label: 'Personel',       color: '#a78bfa', bg: '#f5f3ff', icon: <IdcardOutlined /> },
+  SUPER_ADMIN:    { label: 'Süper Yönetici', color: 'var(--brand-accent)', bg: 'var(--brand-primary-08)', icon: <SafetyCertificateOutlined /> },
+  TENANT_ADMIN:   { label: 'Yönetici',       color: 'var(--brand-primary)', bg: 'var(--brand-primary-08)', icon: <SafetyCertificateOutlined /> },
+  TENANT_MANAGER: { label: 'Müdür',          color: 'var(--brand-accent)', bg: 'var(--brand-primary-08)', icon: <SafetyCertificateOutlined /> },
+  TENANT_STAFF:   { label: 'Personel',       color: 'var(--brand-primary)', bg: 'var(--brand-primary-08)', icon: <IdcardOutlined /> },
   PARTNER:        { label: 'Partner',        color: '#f59e0b', bg: '#fffbeb', icon: <TeamOutlined /> },
   DRIVER:         { label: 'Şoför',          color: '#3b82f6', bg: '#eff6ff', icon: <CarOutlined /> },
   CUSTOMER:       { label: 'Müşteri',        color: '#10b981', bg: '#ecfdf5', icon: <UserOutlined /> },
@@ -236,7 +236,7 @@ const AdminUsersPage: React.FC = () => {
               type="text"
               icon={<EditOutlined />}
               onClick={() => handleEditUser(record)}
-              style={{ color: '#6366f1', borderRadius: 6 }}
+              style={{ color: 'var(--brand-primary)', borderRadius: 6 }}
             />
           </Tooltip>
           <Switch
@@ -260,9 +260,9 @@ const AdminUsersPage: React.FC = () => {
             <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
               <div style={{
                 width: 48, height: 48, borderRadius: 14,
-                background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-accent))',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                color: '#fff', fontSize: 22, boxShadow: '0 4px 14px #6366f140'
+                color: '#fff', fontSize: 22, boxShadow: '0 4px 14px var(--brand-primary-40)'
               }}><TeamOutlined /></div>
               <div>
                 <Title level={3} style={{ margin: 0, color: '#1e293b' }}>Kullanıcı Yönetimi</Title>
@@ -279,8 +279,8 @@ const AdminUsersPage: React.FC = () => {
                 onClick={handleNewUser}
                 style={{
                   borderRadius: 10, fontWeight: 600, height: 40,
-                  background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-                  border: 'none', boxShadow: '0 4px 12px #6366f140'
+                  background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-accent))',
+                  border: 'none', boxShadow: '0 4px 12px var(--brand-primary-40)'
                 }}
               >Yeni Kullanıcı</Button>
             </Space>
@@ -289,7 +289,7 @@ const AdminUsersPage: React.FC = () => {
           {/* Stats */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 20 }}>
             {[
-              { label: 'Toplam', value: stats.total, color: '#6366f1', icon: <TeamOutlined /> },
+              { label: 'Toplam', value: stats.total, color: 'var(--brand-primary)', icon: <TeamOutlined /> },
               { label: 'Aktif', value: stats.active, color: '#10b981', icon: <CheckCircleOutlined /> },
               { label: 'Yönetici', value: stats.admin, color: '#f59e0b', icon: <SafetyCertificateOutlined /> },
               { label: 'Şoför', value: stats.driver, color: '#3b82f6', icon: <CarOutlined /> },
@@ -380,7 +380,7 @@ const AdminUsersPage: React.FC = () => {
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <div style={{
                 width: 36, height: 36, borderRadius: 10,
-                background: editingUser ? 'linear-gradient(135deg, #f59e0b, #d97706)' : 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                background: editingUser ? 'linear-gradient(135deg, #f59e0b, #d97706)' : 'linear-gradient(135deg, var(--brand-primary), var(--brand-accent))',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 color: '#fff', fontSize: 16
               }}>{editingUser ? <EditOutlined /> : <PlusOutlined />}</div>
@@ -406,7 +406,7 @@ const AdminUsersPage: React.FC = () => {
                 loading={submitting}
                 style={{
                   borderRadius: 8, fontWeight: 600,
-                  background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', border: 'none'
+                  background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-accent))', border: 'none'
                 }}
               >Kaydet</Button>
             </div>

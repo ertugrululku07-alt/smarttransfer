@@ -318,7 +318,7 @@ export default function InvoicesPage() {
   return (
     <>
       <Card
-        title={<span><FileTextOutlined style={{ marginRight: 8, color: '#6366f1' }} /> Faturalar</span>}
+        title={<span><FileTextOutlined style={{ marginRight: 8, color: 'var(--brand-primary)' }} /> Faturalar</span>}
         size="small"
         extra={
           <Space>

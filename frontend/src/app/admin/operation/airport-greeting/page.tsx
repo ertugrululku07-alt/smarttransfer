@@ -32,7 +32,7 @@ const GREETING_STATUS: Record<string, { label: string; color: string; bg: string
     DELAYED:    { label: 'Rötar',         color: '#ea580c', bg: '#fff7ed', border: '#fdba74', icon: <ExclamationCircleOutlined /> },
     LANDED:     { label: 'Uçak İndi',     color: '#2563eb', bg: '#eff6ff', border: '#93c5fd', icon: <CheckCircleOutlined /> },
     CANCELLED:  { label: 'İptal',         color: '#dc2626', bg: '#fef2f2', border: '#fca5a5', icon: <CloseCircleOutlined /> },
-    MET:        { label: 'Karşılandı',    color: '#7c3aed', bg: '#f3e8ff', border: '#ddd6fe', icon: <UserOutlined /> },
+    MET:        { label: 'Karşılandı',    color: 'var(--brand-accent)', bg: '#f3e8ff', border: 'var(--brand-primary-15)', icon: <UserOutlined /> },
     HANDED_OFF: { label: 'Teslim Edildi', color: '#16a34a', bg: '#f0fdf4', border: '#86efac', icon: <CheckCircleOutlined /> },
     NO_SHOW:    { label: 'Gelmedi',       color: '#64748b', bg: '#f8fafc', border: '#cbd5e1', icon: <CloseCircleOutlined /> },
 };
@@ -262,7 +262,7 @@ export default function AirportGreetingPage() {
                             </a>
                         )}
                         <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 2 }}>
-                            <Badge count={pax} style={{ backgroundColor: '#6366f1', fontSize: 9, height: 16, lineHeight: '16px' }} />
+                            <Badge count={pax} style={{ backgroundColor: 'var(--brand-primary)', fontSize: 9, height: 16, lineHeight: '16px' }} />
                             <span style={{ marginLeft: 4 }}>kişi</span>
                             {r.specialRequests && (
                                 <Tooltip title={r.specialRequests}>
@@ -790,8 +790,8 @@ export default function AirportGreetingPage() {
 
                                             {/* Customer Info from booking */}
                                             {rec && (
-                                                <div style={{ background: '#faf5ff', borderRadius: 8, padding: 12, border: '1px solid #e9d5ff', marginBottom: 16 }}>
-                                                    <div style={{ fontSize: 9, color: '#7c3aed', fontWeight: 700, textTransform: 'uppercase', marginBottom: 6 }}>Bu Uçuştaki Müşteri</div>
+                                                <div style={{ background: 'var(--brand-primary-08)', borderRadius: 8, padding: 12, border: '1px solid #e9d5ff', marginBottom: 16 }}>
+                                                    <div style={{ fontSize: 9, color: 'var(--brand-accent)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 6 }}>Bu Uçuştaki Müşteri</div>
                                                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                                                         <div>
                                                             <div style={{ fontWeight: 700, fontSize: 13, color: '#1e293b' }}>{rec.passengerName}</div>
@@ -800,7 +800,7 @@ export default function AirportGreetingPage() {
                                                         {rec.passengerPhone && (
                                                             <a href={`tel:${rec.passengerPhone}`} style={{
                                                                 display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px',
-                                                                background: '#7c3aed', color: '#fff', borderRadius: 6, fontSize: 11,
+                                                                background: 'var(--brand-accent)', color: '#fff', borderRadius: 6, fontSize: 11,
                                                                 fontWeight: 600, textDecoration: 'none', height: 'fit-content',
                                                             }}>
                                                                 <PhoneOutlined /> Ara

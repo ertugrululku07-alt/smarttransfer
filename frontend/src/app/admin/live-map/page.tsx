@@ -316,7 +316,7 @@ const LiveMapPage = () => {
                     background: '#fff', borderBottom: '1px solid #e2e8f0', flexShrink: 0, flexWrap: 'wrap'
                 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginRight: 12 }}>
-                        <AimOutlined style={{ fontSize: 18, color: '#6366f1' }} />
+                        <AimOutlined style={{ fontSize: 18, color: 'var(--brand-primary)' }} />
                         <span style={{ fontWeight: 700, fontSize: 15, color: '#1e293b' }}>Filo Takip</span>
                     </div>
                     {[
@@ -384,8 +384,8 @@ const LiveMapPage = () => {
                             {routePoints.length > 0 && (<>
                                 <div style={{ borderTop: '1px solid #e2e8f0', margin: '4px 0' }} />
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                                    <span style={{ width: 12, height: 3, background: '#6366f1', display: 'inline-block', borderRadius: 2 }} />
-                                    <span style={{ color: '#6366f1', fontWeight: 600 }}>Rota</span>
+                                    <span style={{ width: 12, height: 3, background: 'var(--brand-primary)', display: 'inline-block', borderRadius: 2 }} />
+                                    <span style={{ color: 'var(--brand-primary)', fontWeight: 600 }}>Rota</span>
                                 </div>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
                                     <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#0891b2', display: 'inline-block' }} />
@@ -431,7 +431,7 @@ const LiveMapPage = () => {
                                 {selectedDriverId && (
                                     <div style={{ background: '#f8fafc', padding: '10px 12px', borderRadius: 8, fontSize: 12, border: '1px solid #e2e8f0' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                                            <HistoryOutlined style={{ color: '#6366f1' }} />
+                                            <HistoryOutlined style={{ color: 'var(--brand-primary)' }} />
                                             <span style={{ fontWeight: 600, color: '#475569', flex: 1 }}>Geçmiş Rota</span>
                                             <DatePicker 
                                                 size="small" 
@@ -463,9 +463,9 @@ const LiveMapPage = () => {
                                                         <div style={{ fontSize: 9, color: '#64748b', fontWeight: 600 }}>MAX HIZ</div>
                                                         <div style={{ fontSize: 14, fontWeight: 800, color: routeStats.maxSpeed > 120 ? '#dc2626' : '#a16207' }}>{routeStats.maxSpeed} km/s</div>
                                                     </div>
-                                                    <div style={{ background: '#faf5ff', padding: '6px 8px', borderRadius: 6, textAlign: 'center' }}>
+                                                    <div style={{ background: 'var(--brand-primary-08)', padding: '6px 8px', borderRadius: 6, textAlign: 'center' }}>
                                                         <div style={{ fontSize: 9, color: '#64748b', fontWeight: 600 }}>DURAKLAMALAR</div>
-                                                        <div style={{ fontSize: 14, fontWeight: 800, color: '#7c3aed' }}>{routeStats.stopCount}</div>
+                                                        <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--brand-accent)' }}>{routeStats.stopCount}</div>
                                                     </div>
                                                 </div>
                                                 <div style={{ fontSize: 10, color: '#64748b', marginBottom: 6, display: 'flex', justifyContent: 'space-between' }}>
@@ -488,8 +488,8 @@ const LiveMapPage = () => {
 
                                                 {/* Stops List */}
                                                 {routeStops.length > 0 && (
-                                                    <div style={{ background: '#faf5ff', border: '1px solid #e9d5ff', borderRadius: 6, padding: '6px 8px' }}>
-                                                        <div style={{ fontSize: 11, fontWeight: 700, color: '#7c3aed', marginBottom: 4 }}>
+                                                    <div style={{ background: 'var(--brand-primary-08)', border: '1px solid #e9d5ff', borderRadius: 6, padding: '6px 8px' }}>
+                                                        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--brand-accent)', marginBottom: 4 }}>
                                                             <ClockCircleOutlined /> Duraklamalar ({routeStops.length}) — Toplam {routeStats.totalStopMin >= 60 ? `${Math.floor(routeStats.totalStopMin / 60)} sa ${routeStats.totalStopMin % 60} dk` : `${routeStats.totalStopMin} dk`}
                                                         </div>
                                                         <div style={{ maxHeight: 120, overflowY: 'auto' }}>
@@ -504,7 +504,7 @@ const LiveMapPage = () => {
                                                                     </span>
                                                                     <span style={{
                                                                         fontWeight: 700,
-                                                                        color: stop.durationMin >= 30 ? '#7c3aed' : '#2563eb',
+                                                                        color: stop.durationMin >= 30 ? 'var(--brand-accent)' : '#2563eb',
                                                                         background: stop.durationMin >= 30 ? '#f3e8ff' : '#eff6ff',
                                                                         padding: '1px 6px', borderRadius: 4
                                                                     }}>

@@ -1144,7 +1144,7 @@ const HomePage: React.FC = () => {
             <Form.Item label={t('booking.notes')} name="notes"><Input.TextArea rows={3} placeholder={t('booking.notesPlaceholder')} /></Form.Item>
             <Divider style={{ margin: '12px 0' }} />
             <div style={{ marginBottom: 8 }}>
-              <Text strong style={{ fontSize: 13, color: '#4f46e5' }}>Kupon Kodu</Text>
+              <Text strong style={{ fontSize: 13, color: 'var(--brand-accent)' }}>Kupon Kodu</Text>
             </div>
             <Space.Compact style={{ width: '100%' }}>
               <Input
@@ -1155,7 +1155,7 @@ const HomePage: React.FC = () => {
                 allowClear
               />
               <Button type="primary" loading={couponLoading} onClick={validateCoupon}
-                style={{ background: '#4f46e5', borderColor: '#4f46e5' }}>Uygula</Button>
+                style={{ background: 'var(--brand-accent)', borderColor: 'var(--brand-accent)' }}>Uygula</Button>
             </Space.Compact>
             {couponResult && (
               <div style={{ marginTop: 8, padding: '8px 12px', background: '#f0fdf4', borderRadius: 8, border: '1px solid #bbf7d0' }}>

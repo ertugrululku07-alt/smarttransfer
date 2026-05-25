@@ -91,7 +91,7 @@ export default function TimesheetsPage() {
 
   return (
     <div style={{ display: 'grid', gap: 12 }}>
-      <Card size="small" title={<span><ClockCircleOutlined style={{ marginRight: 8, color: '#6366f1' }} /> Puantaj / Zaman Çizelgesi</span>}
+      <Card size="small" title={<span><ClockCircleOutlined style={{ marginRight: 8, color: 'var(--brand-primary)' }} /> Puantaj / Zaman Çizelgesi</span>}
         extra={
           <Space>
             <Select placeholder="Personel" allowClear style={{ width: 200 }} value={employeeId} onChange={(v)=>{ setEmployeeId(v); setTimeout(load, 0); }} options={employees.map(e=>({ value: e.id, label: `${e.firstName} ${e.lastName}` }))} showSearch optionFilterProp="label" />

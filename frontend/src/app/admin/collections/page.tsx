@@ -186,11 +186,11 @@ export default function DriverCollectionsPage() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <div style={{
                         width: 32, height: 32, borderRadius: 10,
-                        background: 'linear-gradient(135deg, #EEF2FF, #E0E7FF)',
+                        background: 'linear-gradient(135deg, var(--brand-primary-08), var(--brand-primary-10))',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        border: '1px solid #C7D2FE', flexShrink: 0
+                        border: '1px solid var(--brand-primary-15)', flexShrink: 0
                     }}>
-                        <CarOutlined style={{ color: '#4F46E5', fontSize: 14 }} />
+                        <CarOutlined style={{ color: 'var(--brand-accent)', fontSize: 14 }} />
                     </div>
                     <Text strong style={{ fontSize: 13 }}>{driver.fullName}</Text>
                 </div>
@@ -353,7 +353,7 @@ export default function DriverCollectionsPage() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                     <div style={{
                         width: 44, height: 44, borderRadius: 14,
-                        background: 'linear-gradient(135deg, #4F46E5, #6366F1)',
+                        background: 'linear-gradient(135deg, var(--brand-accent), var(--brand-primary))',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         boxShadow: '0 4px 12px rgba(79,70,229,0.3)'
                     }}>
@@ -442,22 +442,22 @@ export default function DriverCollectionsPage() {
                 </Col>
                 <Col xs={24} sm={12} md={6}>
                     <Card style={statCardStyle(
-                        'linear-gradient(135deg, #F5F3FF, #EDE9FE)', '#C4B5FD'
+                        'linear-gradient(135deg, var(--brand-primary-08), var(--brand-primary-10))', 'var(--brand-primary-20)'
                     )} bodyStyle={{ padding: '20px 24px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-                            <DollarOutlined style={{ fontSize: 18, color: '#7C3AED' }} />
-                            <Text style={{ fontSize: 12, color: '#5B21B6', fontWeight: 600, letterSpacing: 0.3 }}>
+                            <DollarOutlined style={{ fontSize: 18, color: 'var(--brand-accent)' }} />
+                            <Text style={{ fontSize: 12, color: 'var(--brand-accent)', fontWeight: 600, letterSpacing: 0.3 }}>
                                 TOPLAM TUTAR
                             </Text>
                         </div>
                         {Object.entries(displayedTotals).length > 0 ? (
                             Object.entries(displayedTotals).map(([currency, amount]) => (
-                                <div key={currency} style={{ fontSize: 24, fontWeight: 900, color: '#7C3AED', letterSpacing: -0.5 }}>
+                                <div key={currency} style={{ fontSize: 24, fontWeight: 900, color: 'var(--brand-accent)', letterSpacing: -0.5 }}>
                                     {formatCurrency(amount, currency)}
                                 </div>
                             ))
                         ) : (
-                            <div style={{ fontSize: 24, fontWeight: 900, color: '#7C3AED' }}>₺0,00</div>
+                            <div style={{ fontSize: 24, fontWeight: 900, color: 'var(--brand-accent)' }}>₺0,00</div>
                         )}
                     </Card>
                 </Col>

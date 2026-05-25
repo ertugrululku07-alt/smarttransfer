@@ -505,7 +505,7 @@ export default function DefinitionsPage() {
         {
             title: 'Oran', dataIndex: 'rate', key: 'rate',
             render: (val: any) => (
-                <span style={{ fontSize: 14, fontWeight: 700, color: '#6366f1', background: '#eef2ff', padding: '2px 10px', borderRadius: 6 }}>%{val}</span>
+                <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--brand-primary)', background: 'var(--brand-primary-08)', padding: '2px 10px', borderRadius: 6 }}>%{val}</span>
             )
         },
         {
@@ -522,7 +522,7 @@ export default function DefinitionsPage() {
                 <Space size={4}>
                     <Tooltip title="Düzenle">
                         <Button size="small" type="text" icon={<EditOutlined />} onClick={() => openVatModal(record)}
-                            style={{ color: '#6366f1', borderRadius: 6 }} />
+                            style={{ color: 'var(--brand-primary)', borderRadius: 6 }} />
                     </Tooltip>
                     <Popconfirm title="Silmek istediğinize emin misiniz?" onConfirm={() => deleteVat(record.id)} okText="Evet" cancelText="Hayır">
                         <Tooltip title="Sil">
@@ -561,7 +561,7 @@ export default function DefinitionsPage() {
                 <Space size={4}>
                     <Tooltip title="Düzenle">
                         <Button size="small" type="text" icon={<EditOutlined />} onClick={() => openCurrencyModal(record)}
-                            style={{ color: '#6366f1', borderRadius: 6 }} />
+                            style={{ color: 'var(--brand-primary)', borderRadius: 6 }} />
                     </Tooltip>
                     <Popconfirm title="Silmek istediğinize emin misiniz?" onConfirm={() => deleteCurrency(record.id)} okText="Evet" cancelText="Hayır">
                         <Tooltip title="Sil">
@@ -579,14 +579,14 @@ export default function DefinitionsPage() {
             label: <span><PercentageOutlined /> KDV Oranları</span>,
             children: (
                 <div>
-                    <SectionHeader icon={<PercentageOutlined />} title="KDV Oranları" subtitle="Faturalarda kullanılacak vergi oranlarını yönetin" color="#6366f1" />
+                    <SectionHeader icon={<PercentageOutlined />} title="KDV Oranları" subtitle="Faturalarda kullanılacak vergi oranlarını yönetin" color="var(--brand-primary)" />
                     <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
-                        <StatCard icon={<PercentageOutlined />} label="Toplam Tanım" value={definitions.vatRates?.length || 0} color="#6366f1" />
+                        <StatCard icon={<PercentageOutlined />} label="Toplam Tanım" value={definitions.vatRates?.length || 0} color="var(--brand-primary)" />
                         <StatCard icon={<StarFilled />} label="Varsayılan Oran" value={definitions.vatRates?.find((v: any) => v.isDefault)?.rate ? `%${definitions.vatRates.find((v: any) => v.isDefault).rate}` : '—'} color="#10b981" />
                     </div>
                     <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'flex-end' }}>
                         <Button type="primary" icon={<PlusOutlined />} onClick={() => openVatModal()}
-                            style={{ borderRadius: 8, fontWeight: 600, background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}>
+                            style={{ borderRadius: 8, fontWeight: 600, background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-accent))' }}>
                             Yeni KDV Oranı Ekle
                         </Button>
                     </div>
@@ -714,7 +714,7 @@ export default function DefinitionsPage() {
 
                         {/* Sender & Options Card */}
                         <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
-                            <div style={{ background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)', padding: '18px 22px', color: '#fff' }}>
+                            <div style={{ background: 'linear-gradient(135deg, var(--brand-accent), var(--brand-accent))', padding: '18px 22px', color: '#fff' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                                     <SendOutlined style={{ fontSize: 22 }} />
                                     <div>
@@ -822,34 +822,34 @@ export default function DefinitionsPage() {
             label: <span><FileTextOutlined /> Voucher Şablonu</span>,
             children: (
                 <div>
-                    <SectionHeader icon={<FileTextOutlined />} title="Voucher E-posta Şablonu" subtitle="Rezervasyon onay e-postasının HTML şablonunu düzenleyin" color="#8b5cf6" />
+                    <SectionHeader icon={<FileTextOutlined />} title="Voucher E-posta Şablonu" subtitle="Rezervasyon onay e-postasının HTML şablonunu düzenleyin" color="var(--brand-accent)" />
 
                     <div style={{
-                        background: 'linear-gradient(135deg, #faf5ff, #f3e8ff)', border: '1px solid #d8b4fe',
+                        background: 'linear-gradient(135deg, var(--brand-primary-08), #f3e8ff)', border: '1px solid #d8b4fe',
                         borderRadius: 12, padding: '14px 18px', marginBottom: 24,
                         display: 'flex', alignItems: 'flex-start', gap: 10
                     }}>
-                        <InfoCircleOutlined style={{ color: '#8b5cf6', fontSize: 18, marginTop: 2 }} />
+                        <InfoCircleOutlined style={{ color: 'var(--brand-accent)', fontSize: 18, marginTop: 2 }} />
                         <div>
                             <Text strong style={{ color: '#6b21a8', fontSize: 13 }}>Şablon Değişkenleri</Text>
                             <div style={{ color: '#581c87', fontSize: 12, marginTop: 2, lineHeight: 1.8 }}>
                                 Şablonda aşağıdaki değişkenleri kullanabilirsiniz (çift süslü parantez ile):<br/>
-                                <code style={{ background: '#ede9fe', padding: '1px 6px', borderRadius: 4 }}>{'{{bookingNumber}}'}</code>{' '}
-                                <code style={{ background: '#ede9fe', padding: '1px 6px', borderRadius: 4 }}>{'{{passengerName}}'}</code>{' '}
-                                <code style={{ background: '#ede9fe', padding: '1px 6px', borderRadius: 4 }}>{'{{passengerEmail}}'}</code>{' '}
-                                <code style={{ background: '#ede9fe', padding: '1px 6px', borderRadius: 4 }}>{'{{passengerPhone}}'}</code>{' '}
-                                <code style={{ background: '#ede9fe', padding: '1px 6px', borderRadius: 4 }}>{'{{pickup}}'}</code>{' '}
-                                <code style={{ background: '#ede9fe', padding: '1px 6px', borderRadius: 4 }}>{'{{dropoff}}'}</code>{' '}
-                                <code style={{ background: '#ede9fe', padding: '1px 6px', borderRadius: 4 }}>{'{{date}}'}</code>{' '}
-                                <code style={{ background: '#ede9fe', padding: '1px 6px', borderRadius: 4 }}>{'{{time}}'}</code>{' '}
-                                <code style={{ background: '#ede9fe', padding: '1px 6px', borderRadius: 4 }}>{'{{vehicleType}}'}</code>{' '}
-                                <code style={{ background: '#ede9fe', padding: '1px 6px', borderRadius: 4 }}>{'{{flightNumber}}'}</code>{' '}
-                                <code style={{ background: '#ede9fe', padding: '1px 6px', borderRadius: 4 }}>{'{{price}}'}</code>{' '}
-                                <code style={{ background: '#ede9fe', padding: '1px 6px', borderRadius: 4 }}>{'{{currency}}'}</code>{' '}
-                                <code style={{ background: '#ede9fe', padding: '1px 6px', borderRadius: 4 }}>{'{{totalPassengers}}'}</code>{' '}
-                                <code style={{ background: '#ede9fe', padding: '1px 6px', borderRadius: 4 }}>{'{{companyName}}'}</code>{' '}
-                                <code style={{ background: '#ede9fe', padding: '1px 6px', borderRadius: 4 }}>{'{{companyPhone}}'}</code>{' '}
-                                <code style={{ background: '#ede9fe', padding: '1px 6px', borderRadius: 4 }}>{'{{companyEmail}}'}</code>
+                                <code style={{ background: 'var(--brand-primary-10)', padding: '1px 6px', borderRadius: 4 }}>{'{{bookingNumber}}'}</code>{' '}
+                                <code style={{ background: 'var(--brand-primary-10)', padding: '1px 6px', borderRadius: 4 }}>{'{{passengerName}}'}</code>{' '}
+                                <code style={{ background: 'var(--brand-primary-10)', padding: '1px 6px', borderRadius: 4 }}>{'{{passengerEmail}}'}</code>{' '}
+                                <code style={{ background: 'var(--brand-primary-10)', padding: '1px 6px', borderRadius: 4 }}>{'{{passengerPhone}}'}</code>{' '}
+                                <code style={{ background: 'var(--brand-primary-10)', padding: '1px 6px', borderRadius: 4 }}>{'{{pickup}}'}</code>{' '}
+                                <code style={{ background: 'var(--brand-primary-10)', padding: '1px 6px', borderRadius: 4 }}>{'{{dropoff}}'}</code>{' '}
+                                <code style={{ background: 'var(--brand-primary-10)', padding: '1px 6px', borderRadius: 4 }}>{'{{date}}'}</code>{' '}
+                                <code style={{ background: 'var(--brand-primary-10)', padding: '1px 6px', borderRadius: 4 }}>{'{{time}}'}</code>{' '}
+                                <code style={{ background: 'var(--brand-primary-10)', padding: '1px 6px', borderRadius: 4 }}>{'{{vehicleType}}'}</code>{' '}
+                                <code style={{ background: 'var(--brand-primary-10)', padding: '1px 6px', borderRadius: 4 }}>{'{{flightNumber}}'}</code>{' '}
+                                <code style={{ background: 'var(--brand-primary-10)', padding: '1px 6px', borderRadius: 4 }}>{'{{price}}'}</code>{' '}
+                                <code style={{ background: 'var(--brand-primary-10)', padding: '1px 6px', borderRadius: 4 }}>{'{{currency}}'}</code>{' '}
+                                <code style={{ background: 'var(--brand-primary-10)', padding: '1px 6px', borderRadius: 4 }}>{'{{totalPassengers}}'}</code>{' '}
+                                <code style={{ background: 'var(--brand-primary-10)', padding: '1px 6px', borderRadius: 4 }}>{'{{companyName}}'}</code>{' '}
+                                <code style={{ background: 'var(--brand-primary-10)', padding: '1px 6px', borderRadius: 4 }}>{'{{companyPhone}}'}</code>{' '}
+                                <code style={{ background: 'var(--brand-primary-10)', padding: '1px 6px', borderRadius: 4 }}>{'{{companyEmail}}'}</code>
                             </div>
                         </div>
                     </div>
@@ -898,8 +898,8 @@ export default function DefinitionsPage() {
                             size="large"
                             style={{
                                 borderRadius: 10, fontWeight: 700, height: 44, paddingInline: 32,
-                                background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)',
-                                border: 'none', boxShadow: '0 4px 12px #8b5cf640'
+                                background: 'linear-gradient(135deg, var(--brand-accent), var(--brand-accent))',
+                                border: 'none', boxShadow: '0 4px 12px var(--brand-accent-40)'
                             }}
                         >
                             Şablonu Kaydet
@@ -1150,7 +1150,7 @@ export default function DefinitionsPage() {
                             overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.04)'
                         }}>
                             <div style={{
-                                background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                                background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-accent))',
                                 padding: '18px 22px', color: '#fff'
                             }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -1180,7 +1180,7 @@ export default function DefinitionsPage() {
                                     background: '#f8fafc', border: '1px solid #e2e8f0'
                                 }}>
                                     <div style={{ fontSize: 11, color: '#64748b' }}>
-                                        <ThunderboltOutlined style={{ color: '#6366f1' }} /> Uçuşa <strong>{timeDefinitions.privateTransferMinHours} saatten</strong> az kaldıysa özel transfer <span style={{ color: '#ef4444', fontWeight: 700 }}>gösterilmez</span>
+                                        <ThunderboltOutlined style={{ color: 'var(--brand-primary)' }} /> Uçuşa <strong>{timeDefinitions.privateTransferMinHours} saatten</strong> az kaldıysa özel transfer <span style={{ color: '#ef4444', fontWeight: 700 }}>gösterilmez</span>
                                     </div>
                                 </div>
                             </div>
@@ -1455,9 +1455,9 @@ export default function DefinitionsPage() {
                         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                             <div style={{
                                 width: 48, height: 48, borderRadius: 14,
-                                background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                                background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-accent))',
                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                color: '#fff', fontSize: 22, boxShadow: '0 4px 14px #6366f140'
+                                color: '#fff', fontSize: 22, boxShadow: '0 4px 14px var(--brand-primary-40)'
                             }}>⚙</div>
                             <div>
                                 <Title level={3} style={{ margin: 0, color: '#1e293b' }}>Sistem Tanımlamaları</Title>
@@ -1493,7 +1493,7 @@ export default function DefinitionsPage() {
             {/* VAT Modal */}
             <Modal
                 title={<div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <PercentageOutlined style={{ color: '#6366f1' }} />
+                    <PercentageOutlined style={{ color: 'var(--brand-primary)' }} />
                     <span>{editingItem ? "KDV Oranını Düzenle" : "Yeni KDV Oranı Ekle"}</span>
                 </div>}
                 open={vatModalVisible}
@@ -1550,7 +1550,7 @@ export default function DefinitionsPage() {
             {/* Voucher Preview Modal */}
             <Modal
                 title={<div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <EyeOutlined style={{ color: '#8b5cf6' }} />
+                    <EyeOutlined style={{ color: 'var(--brand-accent)' }} />
                     <span>Voucher Önizleme</span>
                 </div>}
                 open={previewVisible}

@@ -89,7 +89,7 @@ const SectionCard = ({ title, extra, children, style }: { title?: string; extra?
 const STATUS_MAP: Record<string, { label: string; color: string }> = {
   PENDING: { label: 'Bekleyen', color: '#f59e0b' },
   CONFIRMED: { label: 'Onaylanan', color: '#3b82f6' },
-  IN_PROGRESS: { label: 'Devam Eden', color: '#8b5cf6' },
+  IN_PROGRESS: { label: 'Devam Eden', color: 'var(--brand-accent)' },
   COMPLETED: { label: 'Tamamlanan', color: '#10b981' },
   CANCELLED: { label: 'Iptal', color: '#ef4444' },
   NO_SHOW: { label: 'Gelmedi', color: '#6b7280' },
@@ -137,14 +137,14 @@ const AdminDashboardPage: React.FC = () => {
   const recentCols = [
     {
       title: 'Rezervasyon', dataIndex: 'bookingNumber', width: 130,
-      render: (v: string) => <span style={{ fontWeight: 700, fontSize: 13, color: '#6366f1' }}>{v}</span>
+      render: (v: string) => <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--brand-primary)' }}>{v}</span>
     },
     {
       title: 'Musteri', dataIndex: 'contactName', ellipsis: true,
       render: (v: string, r: any) => (
         <div>
           <div style={{ fontWeight: 600, fontSize: 13 }}>{v}</div>
-          {r.agency && <div style={{ fontSize: 11, color: '#8b5cf6' }}>{r.agency.name}</div>}
+          {r.agency && <div style={{ fontSize: 11, color: 'var(--brand-accent)' }}>{r.agency.name}</div>}
         </div>
       )
     },
@@ -191,7 +191,7 @@ const AdminDashboardPage: React.FC = () => {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 16 }}>
           <KpiCard icon="$" label="Aylik Gelir" value={`${currSymbol}${fmt(k.totalRevenue)}`}
             sub={`Bugun: ${currSymbol}${fmt(k.todayRevenue)}`} growth={k.revenueGrowth}
-            color="#6366f1" bg="linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)" />
+            color="var(--brand-primary)" bg="linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-accent) 100%)" />
           <KpiCard icon="B" label="Toplam Rezervasyon" value={fmt(k.totalBookings)}
             sub={`Bu ay: ${k.thisMonthBookings} | Bugun: ${k.todayBookings}`} growth={k.bookingGrowth}
             color="#ec4899" bg="linear-gradient(135deg, #ec4899 0%, #f43f5e 100%)" />
@@ -208,10 +208,10 @@ const AdminDashboardPage: React.FC = () => {
           {[
             { label: 'Bekleyen', value: k.pendingBookings, color: '#f59e0b', bg: '#fffbeb' },
             { label: 'Onaylanan', value: k.confirmedBookings, color: '#3b82f6', bg: '#eff6ff' },
-            { label: 'Devam Eden', value: k.inProgressBookings, color: '#8b5cf6', bg: '#f5f3ff' },
+            { label: 'Devam Eden', value: k.inProgressBookings, color: 'var(--brand-accent)', bg: 'var(--brand-primary-08)' },
             { label: 'Tamamlanan', value: k.completedBookings, color: '#10b981', bg: '#ecfdf5' },
             { label: 'Iptal', value: k.cancelledBookings, color: '#ef4444', bg: '#fef2f2' },
-            { label: 'Soforler', value: `${k.onlineDrivers}/${k.totalDrivers}`, color: '#6366f1', bg: '#eef2ff' },
+            { label: 'Soforler', value: `${k.onlineDrivers}/${k.totalDrivers}`, color: 'var(--brand-primary)', bg: 'var(--brand-primary-08)' },
           ].map((item, i) => (
             <div key={i} style={{
               background: item.bg, borderRadius: 12, padding: '14px 16px',
@@ -231,8 +231,8 @@ const AdminDashboardPage: React.FC = () => {
               <AreaChart data={c.revenueChart}>
                 <defs>
                   <linearGradient id="gRev" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#6366f1" stopOpacity={0.25} />
-                    <stop offset="100%" stopColor="#6366f1" stopOpacity={0} />
+                    <stop offset="0%" stopColor="var(--brand-primary)" stopOpacity={0.25} />
+                    <stop offset="100%" stopColor="var(--brand-primary)" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
@@ -242,7 +242,7 @@ const AdminDashboardPage: React.FC = () => {
                   contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 8px 24px rgba(0,0,0,0.12)', padding: '10px 14px' }}
                   formatter={(v: any) => [`${currSymbol}${fmt(v)}`, 'Gelir']}
                 />
-                <Area type="monotone" dataKey="revenue" stroke="#6366f1" strokeWidth={2.5} fillOpacity={1} fill="url(#gRev)" />
+                <Area type="monotone" dataKey="revenue" stroke="var(--brand-primary)" strokeWidth={2.5} fillOpacity={1} fill="url(#gRev)" />
               </AreaChart>
             </ResponsiveContainer>
           </SectionCard>
@@ -274,8 +274,8 @@ const AdminDashboardPage: React.FC = () => {
                 <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} stroke="#cbd5e1" />
                 <Tooltip contentStyle={{ borderRadius: 10, border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }} />
                 <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12 }} />
-                <Bar yAxisId="left" dataKey="revenue" fill="#6366f1" radius={[6, 6, 0, 0]} name={`Gelir (${currCode})`} />
-                <Bar yAxisId="right" dataKey="bookings" fill="#e0e7ff" radius={[6, 6, 0, 0]} name="Rezervasyon" />
+                <Bar yAxisId="left" dataKey="revenue" fill="var(--brand-primary)" radius={[6, 6, 0, 0]} name={`Gelir (${currCode})`} />
+                <Bar yAxisId="right" dataKey="bookings" fill="var(--brand-primary-10)" radius={[6, 6, 0, 0]} name="Rezervasyon" />
               </BarChart>
             </ResponsiveContainer>
           </SectionCard>
@@ -284,7 +284,7 @@ const AdminDashboardPage: React.FC = () => {
           <SectionCard title="Performans & Filo">
             <div style={{ marginBottom: 20 }}>
               {[
-                { label: 'Arac Kullanim Orani', value: k.vehicleUtilization, color: '#6366f1' },
+                { label: 'Arac Kullanim Orani', value: k.vehicleUtilization, color: 'var(--brand-primary)' },
                 { label: `Aktif Sofor (${k.onlineDrivers}/${k.totalDrivers})`, value: k.totalDrivers > 0 ? Math.round(k.onlineDrivers / k.totalDrivers * 100) : 0, color: '#10b981' },
                 { label: `Onay Orani`, value: k.totalBookings > 0 ? Math.round((k.completedBookings + k.confirmedBookings + k.inProgressBookings) / k.totalBookings * 100) : 0, color: '#0ea5e9' },
               ].map((m, i) => (
@@ -303,7 +303,7 @@ const AdminDashboardPage: React.FC = () => {
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                   {c.vehicleTypes.map((vt: any, i: number) => (
                     <Tag key={i} style={{ borderRadius: 20, padding: '4px 14px', fontWeight: 600, fontSize: 12, border: '1px solid #e2e8f0', background: '#f8fafc' }}>
-                      {vt.name} <Badge count={vt.count} style={{ backgroundColor: '#6366f1', marginLeft: 6 }} />
+                      {vt.name} <Badge count={vt.count} style={{ backgroundColor: 'var(--brand-primary)', marginLeft: 6 }} />
                     </Tag>
                   ))}
                 </div>
@@ -315,7 +315,7 @@ const AdminDashboardPage: React.FC = () => {
                 {c.topAgencies.map((a: any, i: number) => (
                   <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #f1f5f9' }}>
                     <span style={{ fontSize: 13, fontWeight: 500, color: '#334155' }}>{i + 1}. {a.name}</span>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: '#6366f1' }}>{a.count} rez.</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--brand-primary)' }}>{a.count} rez.</span>
                   </div>
                 ))}
               </div>
@@ -325,7 +325,7 @@ const AdminDashboardPage: React.FC = () => {
 
         {/* ── Recent Bookings ── */}
         <SectionCard title="Son Rezervasyonlar" extra={
-          <a href="/admin/transfers" style={{ fontSize: 13, color: '#6366f1', fontWeight: 600, textDecoration: 'none' }}>Tumunu Gor &rarr;</a>
+          <a href="/admin/transfers" style={{ fontSize: 13, color: 'var(--brand-primary)', fontWeight: 600, textDecoration: 'none' }}>Tumunu Gor &rarr;</a>
         }>
           <Table
             dataSource={recentBookings}

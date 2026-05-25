@@ -115,10 +115,10 @@ const SiteSettingsPage: React.FC = () => {
         { from: 'Bodrum Havalimanı', to: 'Bodrum', img: 'https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=400&h=250&fit=crop', price: '40' },
     ]);
     const [featureItems, setFeatureItems] = useState<{ title: string; desc: string; color: string }[]>([
-        { title: 'Güvenilir Hizmet', desc: 'Lisanslı şoförler, sigortalı araçlar ve güvenli yolculuk garantisi.', color: '#667eea' },
+        { title: 'Güvenilir Hizmet', desc: 'Lisanslı şoförler, sigortalı araçlar ve güvenli yolculuk garantisi.', color: 'var(--brand-primary)' },
         { title: '7/24 Müşteri Desteği', desc: 'Gece gündüz demeden ulaşabileceğiniz destek ekibi.', color: '#00b96b' },
         { title: 'Anında Onay', desc: 'Rezervasyonunuz anında onaylanır, bekleme yok.', color: '#faad14' },
-        { title: 'Premium Araçlar', desc: 'Konforlu, bakımlı ve lüks araç filosu.', color: '#764ba2' },
+        { title: 'Premium Araçlar', desc: 'Konforlu, bakımlı ve lüks araç filosu.', color: 'var(--brand-accent)' },
         { title: 'Geniş Kapsama Alanı', desc: 'Havalimanı, otel ve şehirler arası geniş hizmet ağı.', color: '#13c2c2' },
         { title: 'Müşteri Memnuniyeti', desc: 'Yüksek müşteri memnuniyeti ile kaliteli hizmet.', color: '#eb2f96' },
     ]);
@@ -135,8 +135,8 @@ const SiteSettingsPage: React.FC = () => {
     // Custom theme state
     const [customTheme, setCustomTheme] = useState({
         name: '',
-        primaryColor: '#667eea',
-        accentColor: '#764ba2',
+        primaryColor: 'var(--brand-primary)',
+        accentColor: 'var(--brand-accent)',
         footerBg: '#0f172a',
         heroTitle: '',
         heroSubtitle: '',
@@ -406,7 +406,7 @@ const SiteSettingsPage: React.FC = () => {
     };
 
     const addFeatureItem = () => {
-        setFeatureItems([...featureItems, { title: '', desc: '', color: '#667eea' }]);
+        setFeatureItems([...featureItems, { title: '', desc: '', color: 'var(--brand-primary)' }]);
     };
 
     const updateFeatureItem = (idx: number, field: 'title' | 'desc' | 'color', value: string) => {
@@ -942,7 +942,7 @@ const SiteSettingsPage: React.FC = () => {
                                     ) : (
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                                             <span style={{
-                                                background: 'linear-gradient(135deg, #667eea, #764ba2)',
+                                                background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-accent))',
                                                 WebkitBackgroundClip: 'text',
                                                 WebkitTextFillColor: 'transparent',
                                                 fontWeight: 800, fontSize: 22,
@@ -966,7 +966,7 @@ const SiteSettingsPage: React.FC = () => {
                                     ) : (
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                                             <span style={{
-                                                background: 'linear-gradient(135deg, #667eea, #764ba2)',
+                                                background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-accent))',
                                                 WebkitBackgroundClip: 'text',
                                                 WebkitTextFillColor: 'transparent',
                                                 fontWeight: 800, fontSize: 22,
@@ -1499,7 +1499,7 @@ const SiteSettingsPage: React.FC = () => {
                                                 </Form.Item>
                                                 <Form.Item label="Renk" style={{ marginBottom: 0 }}>
                                                     <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                                                        {['#667eea', '#00b96b', '#faad14', '#764ba2', '#13c2c2', '#eb2f96', '#f5222d', '#1890ff'].map(c => (
+                                                        {['var(--brand-primary)', '#00b96b', '#faad14', 'var(--brand-accent)', '#13c2c2', '#eb2f96', '#f5222d', '#1890ff'].map(c => (
                                                             <div key={c} onClick={() => updateFeatureItem(idx, 'color', c)} style={{
                                                                 width: 24, height: 24, borderRadius: '50%', background: c,
                                                                 border: feature.color === c ? '2px solid #000' : '2px solid transparent',
@@ -1674,7 +1674,7 @@ const SiteSettingsPage: React.FC = () => {
                                         <Form.Item label="Ana Renk">
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                                                 <Input type="color" value={customTheme.primaryColor} onChange={e => setCustomTheme({ ...customTheme, primaryColor: e.target.value })} style={{ width: 60, padding: 0, height: 32 }} />
-                                                <Input value={customTheme.primaryColor} onChange={e => setCustomTheme({ ...customTheme, primaryColor: e.target.value })} placeholder="#667eea" />
+                                                <Input value={customTheme.primaryColor} onChange={e => setCustomTheme({ ...customTheme, primaryColor: e.target.value })} placeholder="var(--brand-primary)" />
                                             </div>
                                         </Form.Item>
                                     </Col>
@@ -1682,7 +1682,7 @@ const SiteSettingsPage: React.FC = () => {
                                         <Form.Item label="Vurgu Rengi">
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                                                 <Input type="color" value={customTheme.accentColor} onChange={e => setCustomTheme({ ...customTheme, accentColor: e.target.value })} style={{ width: 60, padding: 0, height: 32 }} />
-                                                <Input value={customTheme.accentColor} onChange={e => setCustomTheme({ ...customTheme, accentColor: e.target.value })} placeholder="#764ba2" />
+                                                <Input value={customTheme.accentColor} onChange={e => setCustomTheme({ ...customTheme, accentColor: e.target.value })} placeholder="var(--brand-accent)" />
                                             </div>
                                         </Form.Item>
                                     </Col>
@@ -2298,7 +2298,7 @@ const SiteSettingsPage: React.FC = () => {
                                     style={{ marginBottom: 12, background: '#fafafa' }}
                                     title={
                                         <Space>
-                                            <GlobalOutlined style={{ color: '#667eea' }} />
+                                            <GlobalOutlined style={{ color: 'var(--brand-primary)' }} />
                                             <Text strong>{lp.title || 'İsimsiz'}</Text>
                                             <Text type="secondary" style={{ fontSize: 12 }}>/transfer/{lp.slug}</Text>
                                         </Space>

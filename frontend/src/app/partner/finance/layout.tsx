@@ -52,7 +52,7 @@ export default function FinanceLayout({ children }: { children: React.ReactNode 
         .pa-side .pa-nav { display:flex; flex-direction:column; gap:2px; }
         .pa-side a { display:flex; align-items:center; gap:10px; padding: 10px 12px; border-radius: 10px; color: rgba(255,255,255,0.7); text-decoration:none; font-size: 13.5px; font-weight: 500; transition: all 0.15s ease; }
         .pa-side a:hover { background: rgba(255,255,255,0.06); color:#fff; }
-        .pa-side a.active { background: linear-gradient(135deg, rgba(99,102,241,0.18), rgba(99,102,241,0.05)); color: #fff; box-shadow: inset 3px 0 0 #6366f1; }
+        .pa-side a.active { background: linear-gradient(135deg, var(--brand-primary-18), var(--brand-primary-08)); color: #fff; box-shadow: inset 3px 0 0 var(--brand-primary); }
         .pa-side a .pa-ic { font-size: 16px; opacity: 0.9; }
         .pa-content { min-width: 0; }
         @media (max-width: 992px) {
@@ -64,7 +64,7 @@ export default function FinanceLayout({ children }: { children: React.ReactNode 
       <div className="ps-page-header" style={{ marginBottom: 14 }}>
         <div>
           <h1 className="ps-page-header__title">
-            <SafetyCertificateOutlined style={{ color: '#6366f1', marginRight: 8 }} />
+            <SafetyCertificateOutlined style={{ color: 'var(--brand-primary)', marginRight: 8 }} />
             Muhasebe & Finans
           </h1>
           <p className="ps-page-header__subtitle">

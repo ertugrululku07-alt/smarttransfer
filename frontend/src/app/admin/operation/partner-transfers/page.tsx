@@ -21,7 +21,7 @@ const { Text } = Typography;
 
 const STATUS_MAP: Record<string, { label: string; color: string; bg: string; border: string }> = {
     PENDING:      { label: 'Bekliyor',    color: '#d97706', bg: '#fffbeb', border: '#fcd34d' },
-    CONFIRMED:    { label: 'Onaylandı',   color: '#7c3aed', bg: '#f3e8ff', border: '#ddd6fe' },
+    CONFIRMED:    { label: 'Onaylandı',   color: 'var(--brand-accent)', bg: '#f3e8ff', border: 'var(--brand-primary-15)' },
     IN_PROGRESS:  { label: 'Yolda',       color: '#2563eb', bg: '#eff6ff', border: '#93c5fd' },
     COMPLETED:    { label: 'Tamamlandı',  color: '#16a34a', bg: '#f0fdf4', border: '#86efac' },
     CANCELLED:    { label: 'İptal',       color: '#dc2626', bg: '#fef2f2', border: '#fca5a5' },
@@ -121,7 +121,7 @@ export default function PartnerTransfersPage() {
                     <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
                         <div style={{
                             width: 36, height: 36, borderRadius: 9, flexShrink: 0,
-                            background: 'linear-gradient(135deg, #7c3aed, #a78bfa)',
+                            background: 'linear-gradient(135deg, var(--brand-accent), var(--brand-primary))',
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
                         }}>
                             <SwapOutlined style={{ color: '#fff', fontSize: 15 }} />
@@ -136,7 +136,7 @@ export default function PartnerTransfersPage() {
                                 </span>
                                 <Tag style={{
                                     margin: 0, fontSize: 9, borderRadius: 3, fontWeight: 700, lineHeight: '14px',
-                                    background: '#f3e8ff', color: '#7c3aed', border: '1px solid #ddd6fe', padding: '0 4px'
+                                    background: '#f3e8ff', color: 'var(--brand-accent)', border: '1px solid var(--brand-primary-15)', padding: '0 4px'
                                 }}>
                                     DIŞ OPERASYON
                                 </Tag>
@@ -173,18 +173,18 @@ export default function PartnerTransfersPage() {
             render: (_, record) => (
                 <div style={{
                     display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 8px',
-                    borderRadius: 7, background: 'linear-gradient(135deg, #f3e8ff, #ede9fe)',
-                    border: '1px solid #ddd6fe'
+                    borderRadius: 7, background: 'linear-gradient(135deg, #f3e8ff, var(--brand-primary-10))',
+                    border: '1px solid var(--brand-primary-15)'
                 }}>
                     <div style={{
                         width: 22, height: 22, borderRadius: 5, flexShrink: 0,
-                        background: 'linear-gradient(135deg, #7c3aed, #a78bfa)',
+                        background: 'linear-gradient(135deg, var(--brand-accent), var(--brand-primary))',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         fontWeight: 800, fontSize: 9, color: '#fff'
                     }}>
                         {record.partnerName?.charAt(0)?.toUpperCase() || 'P'}
                     </div>
-                    <span style={{ fontWeight: 700, fontSize: 11, color: '#5b21b6' }}>
+                    <span style={{ fontWeight: 700, fontSize: 11, color: 'var(--brand-accent)' }}>
                         {record.partnerName || '-'}
                     </span>
                 </div>
@@ -210,7 +210,7 @@ export default function PartnerTransfersPage() {
                             {dt ? dayjs(dt).format('DD MMM HH:mm') : '-'}
                         </div>
                         {record.flightNumber && (
-                            <div style={{ marginTop: 2, fontSize: 10, color: '#6366f1', fontWeight: 600 }}>
+                            <div style={{ marginTop: 2, fontSize: 10, color: 'var(--brand-primary)', fontWeight: 600 }}>
                                 ✈ {record.flightNumber}
                             </div>
                         )}
@@ -231,9 +231,9 @@ export default function PartnerTransfersPage() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                         <div style={{
                             width: 28, height: 28, borderRadius: 7, flexShrink: 0,
-                            background: 'linear-gradient(135deg, #e0e7ff, #c7d2fe)',
+                            background: 'linear-gradient(135deg, var(--brand-primary-10), var(--brand-primary-15))',
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            fontWeight: 800, fontSize: 10, color: '#4338ca'
+                            fontWeight: 800, fontSize: 10, color: 'var(--brand-accent)'
                         }}>
                             {initials}
                         </div>
@@ -430,7 +430,7 @@ export default function PartnerTransfersPage() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                         <div style={{
                             width: 42, height: 42, borderRadius: 12,
-                            background: 'linear-gradient(135deg, #7c3aed, #a78bfa)',
+                            background: 'linear-gradient(135deg, var(--brand-accent), var(--brand-primary))',
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
                             boxShadow: '0 4px 16px rgba(124,58,237,0.25)'
                         }}>
@@ -453,16 +453,16 @@ export default function PartnerTransfersPage() {
                         {/* Stats */}
                         <div style={{
                             display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px',
-                            background: '#f3e8ff', borderRadius: 8, border: '1px solid #ddd6fe'
+                            background: '#f3e8ff', borderRadius: 8, border: '1px solid var(--brand-primary-15)'
                         }}>
-                            <span style={{ fontWeight: 700, fontSize: 15, color: '#7c3aed' }}>{bookings.length}</span>
-                            <span style={{ fontSize: 11, color: '#a78bfa' }}>Toplam</span>
+                            <span style={{ fontWeight: 700, fontSize: 15, color: 'var(--brand-accent)' }}>{bookings.length}</span>
+                            <span style={{ fontSize: 11, color: 'var(--brand-primary)' }}>Toplam</span>
                         </div>
                         {Object.entries(partnerGroups).map(([name, count]) => (
                             <div key={name} style={{
                                 display: 'flex', alignItems: 'center', gap: 4, padding: '5px 10px',
-                                background: '#faf5ff', borderRadius: 8, border: '1px solid #e9d5ff',
-                                fontSize: 11, fontWeight: 600, color: '#7c3aed'
+                                background: 'var(--brand-primary-08)', borderRadius: 8, border: '1px solid #e9d5ff',
+                                fontSize: 11, fontWeight: 600, color: 'var(--brand-accent)'
                             }}>
                                 <TeamOutlined style={{ fontSize: 10 }} />
                                 {name}: <strong>{count as number}</strong>
@@ -486,7 +486,7 @@ export default function PartnerTransfersPage() {
                             type="primary"
                             style={{
                                 borderRadius: 8, fontWeight: 700,
-                                background: 'linear-gradient(135deg, #7c3aed, #a78bfa)',
+                                background: 'linear-gradient(135deg, var(--brand-accent), var(--brand-primary))',
                                 border: 'none',
                             }}
                         >
@@ -559,7 +559,7 @@ export default function PartnerTransfersPage() {
                         vertical-align: middle !important;
                     }
                     .ant-table-tbody > tr:hover > td {
-                        background: #faf5ff !important;
+                        background: var(--brand-primary-08) !important;
                     }
                     .ant-table-cell-fix-left, .ant-table-cell-fix-right {
                         background: inherit !important;

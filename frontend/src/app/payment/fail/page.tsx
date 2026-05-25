@@ -62,7 +62,7 @@ function PaymentFailContent() {
                                 icon={<CreditCardOutlined />}
                                 loading={retrying}
                                 onClick={handleRetry}
-                                style={{ borderRadius: 8, background: '#6366f1', border: 'none' }}
+                                style={{ borderRadius: 8, background: 'var(--brand-primary)', border: 'none' }}
                             >
                                 Tekrar Dene
                             </Button>

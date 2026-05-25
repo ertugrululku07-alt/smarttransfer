@@ -15,8 +15,8 @@ const roles = [
     subtitle: 'Bireysel Hesap',
     description: 'Transfer hizmetlerinden faydalanmak, rezervasyon yapmak ve özel fırsatlardan yararlanmak için kayıt olun.',
     icon: UserOutlined,
-    color: '#6366f1',
-    gradient: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+    color: 'var(--brand-primary)',
+    gradient: 'linear-gradient(135deg, var(--brand-primary), var(--brand-accent))',
     features: ['Online rezervasyon', 'Fiyat karşılaştırma', 'Geçmiş siparişler'],
     href: '/register/customer',
   },
@@ -37,8 +37,8 @@ const roles = [
     subtitle: 'B2B İş Ortaklığı',
     description: 'Kendi müşterilerinize transfer hizmeti sunun. Özel fiyatlar, komisyon ve yönetim paneline erişin.',
     icon: ShopOutlined,
-    color: '#7c3aed',
-    gradient: 'linear-gradient(135deg, #7c3aed, #a855f7)',
+    color: 'var(--brand-accent)',
+    gradient: 'linear-gradient(135deg, var(--brand-accent), var(--brand-accent))',
     features: ['Özel B2B fiyatlar', 'Komisyon sistemi', 'Acenta paneli'],
     href: '/register/agency',
   },
@@ -56,7 +56,7 @@ export default function RegisterPage() {
     <>
       <style>{`
         @keyframes regFadeUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-        .reg-page { min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; align-items: center; justify-content: center; background: linear-gradient(180deg, #f8fafc 0%, #eef2ff 50%, #f8fafc 100%); padding: 40px 20px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+        .reg-page { min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; align-items: center; justify-content: center; background: linear-gradient(180deg, #f8fafc 0%, var(--brand-primary-08) 50%, #f8fafc 100%); padding: 40px 20px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
         .reg-header { text-align: center; margin-bottom: 48px; animation: regFadeUp 0.5s ease both; }
         .reg-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; max-width: 1000px; width: 100%; }
         .reg-card { background: #fff; border-radius: 24px; overflow: hidden; cursor: pointer; border: 2px solid #f0f0f0; transition: all 0.3s ease; position: relative; animation: regFadeUp 0.5s ease both; }
@@ -70,9 +70,9 @@ export default function RegisterPage() {
           {/* Logo */}
           <div style={{
             width: 56, height: 56, borderRadius: 16, margin: '0 auto 16px',
-            background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+            background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-accent))',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 8px 24px rgba(99,102,241,0.25)',
+            boxShadow: '0 8px 24px var(--brand-primary-22)',
           }}>
             <span style={{ fontSize: 22, fontWeight: 900, color: '#fff', fontFamily: 'monospace' }}>ST</span>
           </div>
@@ -175,7 +175,7 @@ export default function RegisterPage() {
         <div style={{ marginTop: 40, textAlign: 'center', animation: 'regFadeUp 0.5s ease 0.5s both' }}>
           <p style={{ fontSize: 13, color: '#94a3b8' }}>
             Zaten hesabınız var mı?{' '}
-            <a href="/login" style={{ color: '#6366f1', fontWeight: 600, textDecoration: 'none' }}>
+            <a href="/login" style={{ color: 'var(--brand-primary)', fontWeight: 600, textDecoration: 'none' }}>
               Giriş Yapın
             </a>
           </p>

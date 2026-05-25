@@ -587,9 +587,9 @@ const PagesManagement: React.FC = () => {
             children: (
                 <div>
                     <div style={{
-                        background: 'linear-gradient(135deg, #667eea15, #764ba215)',
+                        background: 'linear-gradient(135deg, var(--brand-primary-15), var(--brand-accent-15))',
                         borderRadius: 12, padding: '16px 20px', marginBottom: 24,
-                        border: '1px solid #667eea20'
+                        border: '1px solid var(--brand-primary-20)'
                     }}>
                         <Text style={{ fontSize: 14 }}>
                             Bir transfer sitesinde olması gereken standart sayfaları tek tıkla oluşturun.
@@ -613,10 +613,10 @@ const PagesManagement: React.FC = () => {
                                     >
                                         <div style={{
                                             width: 52, height: 52, borderRadius: 14,
-                                            background: exists ? '#f6ffed' : 'linear-gradient(135deg, #667eea15, #764ba215)',
+                                            background: exists ? '#f6ffed' : 'linear-gradient(135deg, var(--brand-primary-15), var(--brand-accent-15))',
                                             display: 'flex', alignItems: 'center', justifyContent: 'center',
                                             margin: '0 auto 14px', fontSize: 24,
-                                            color: exists ? '#52c41a' : '#667eea',
+                                            color: exists ? '#52c41a' : 'var(--brand-primary)',
                                         }}>
                                             {exists ? <CheckCircleOutlined /> : <FileTextOutlined />}
                                         </div>
@@ -660,12 +660,12 @@ const PagesManagement: React.FC = () => {
             children: (
                 <div>
                     <div style={{
-                        background: 'linear-gradient(135deg, #667eea10, #764ba210)',
+                        background: 'linear-gradient(135deg, var(--brand-primary-10), var(--brand-accent-10))',
                         borderRadius: 12, padding: '20px 24px', marginBottom: 28,
-                        border: '1px solid #667eea15'
+                        border: '1px solid var(--brand-primary-15)'
                     }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 6 }}>
-                            <ShareAltOutlined style={{ fontSize: 20, color: '#667eea' }} />
+                            <ShareAltOutlined style={{ fontSize: 20, color: 'var(--brand-primary)' }} />
                             <Text strong style={{ fontSize: 16 }}>Sosyal Medya Hesapları</Text>
                         </div>
                         <Text type="secondary" style={{ fontSize: 13 }}>
@@ -756,7 +756,7 @@ const PagesManagement: React.FC = () => {
             <AdminLayout selectedKey="pages">
                 {/* ─── Page Header ─── */}
                 <div style={{
-                    background: 'linear-gradient(135deg, #667eea, #764ba2)',
+                    background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-accent))',
                     borderRadius: 16, padding: 'clamp(20px, 3vw, 32px)',
                     marginBottom: 28, position: 'relative', overflow: 'hidden',
                 }}>
@@ -823,9 +823,9 @@ const PagesManagement: React.FC = () => {
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                             <div style={{
                                 width: 36, height: 36, borderRadius: 10,
-                                background: editingPage ? '#e6f4ff' : 'linear-gradient(135deg, #667eea15, #764ba215)',
+                                background: editingPage ? '#e6f4ff' : 'linear-gradient(135deg, var(--brand-primary-15), var(--brand-accent-15))',
                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                color: editingPage ? '#1677ff' : '#667eea',
+                                color: editingPage ? '#1677ff' : 'var(--brand-primary)',
                             }}>
                                 {editingPage ? <EditOutlined /> : <PlusOutlined />}
                             </div>
@@ -875,7 +875,7 @@ const PagesManagement: React.FC = () => {
                         </Form.Item>
 
                         <Form.Item
-                            label={<span><PictureOutlined style={{ marginRight: 6, color: '#667eea' }} />Hero Arka Plan Görseli</span>}
+                            label={<span><PictureOutlined style={{ marginRight: 6, color: 'var(--brand-primary)' }} />Hero Arka Plan Görseli</span>}
                             name="heroImage"
                             extra="Sayfanın üst hero bölümünde arka plan olarak kullanılır. URL veya yükleyin."
                         >

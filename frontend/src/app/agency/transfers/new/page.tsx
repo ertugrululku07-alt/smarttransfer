@@ -754,7 +754,7 @@ const AgencyNewTransferPage = () => {
                     <div style={{ display: 'flex', alignItems: 'center', paddingBottom: 6 }}>
                         <div style={{
                             width: 40, height: 40, borderRadius: '50%',
-                            background: 'linear-gradient(135deg, #623ce4, #8b5cf6)',
+                            background: 'linear-gradient(135deg, #623ce4, var(--brand-accent))',
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
                             boxShadow: '0 4px 12px rgba(98,60,228,0.35)', flexShrink: 0
                         }}>
@@ -900,7 +900,7 @@ const AgencyNewTransferPage = () => {
                     style={{
                         marginTop: 28, width: '100%', height: 58, fontSize: 17, fontWeight: 700,
                         border: 'none', borderRadius: 14, cursor: loading ? 'not-allowed' : 'pointer',
-                        background: loading ? '#9ca3af' : 'linear-gradient(135deg, #623ce4 0%, #8b5cf6 50%, #a78bfa 100%)',
+                        background: loading ? '#9ca3af' : 'linear-gradient(135deg, #623ce4 0%, var(--brand-accent) 50%, var(--brand-primary) 100%)',
                         color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
                         boxShadow: loading ? 'none' : '0 8px 30px rgba(98,60,228,0.4)',
                         transition: 'all 0.3s ease', letterSpacing: 0.5
@@ -955,9 +955,9 @@ const AgencyNewTransferPage = () => {
                     </div>
                     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, minWidth: 90 }}>
                         <div style={{ display: 'flex', alignItems: 'center', width: '100%', gap: 6 }}>
-                            <div style={{ flex: 1, height: 1, background: 'linear-gradient(90deg, rgba(99,102,241,0.3), rgba(99,102,241,1))' }} />
-                            <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'linear-gradient(135deg, #6366f1, #818cf8)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, flexShrink: 0 }}>✈</div>
-                            <div style={{ flex: 1, height: 1, background: 'linear-gradient(90deg, rgba(99,102,241,1), rgba(99,102,241,0.3))' }} />
+                            <div style={{ flex: 1, height: 1, background: 'linear-gradient(90deg, var(--brand-primary-30), var(--brand-primary))' }} />
+                            <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-primary))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, flexShrink: 0 }}>✈</div>
+                            <div style={{ flex: 1, height: 1, background: 'linear-gradient(90deg, var(--brand-primary), var(--brand-primary-30))' }} />
                         </div>
                         {routeStats && (
                             <div style={{ display: 'flex', gap: 8 }}>
@@ -990,7 +990,7 @@ const AgencyNewTransferPage = () => {
                         <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase' }}>Yolcular</div>
                         <div style={{ color: '#fff', fontWeight: 700, fontSize: 12 }}>{passengerCounts.adults + passengerCounts.children + passengerCounts.babies} Kişi</div>
                     </div>
-                    <div style={{ background: 'linear-gradient(135deg, #6366f1, #818cf8)', borderRadius: 10, padding: '7px 14px', textAlign: 'center', boxShadow: '0 4px 12px rgba(99,102,241,0.4)' }}>
+                    <div style={{ background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-primary))', borderRadius: 10, padding: '7px 14px', textAlign: 'center', boxShadow: '0 4px 12px var(--brand-primary-40)' }}>
                         <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.8)', textTransform: 'uppercase' }}>Bulunan</div>
                         <div style={{ color: '#fff', fontWeight: 700, fontSize: 12 }}>{results.length} Araç</div>
                     </div>
@@ -1000,7 +1000,7 @@ const AgencyNewTransferPage = () => {
             {loading ? (
                 <div style={{ textAlign: 'center', padding: '80px 0' }}>
                     <Spin size="large" />
-                    <div style={{ marginTop: 16, color: '#6366f1', fontWeight: 600, fontSize: 15 }}>Araçlar aranıyor...</div>
+                    <div style={{ marginTop: 16, color: 'var(--brand-primary)', fontWeight: 600, fontSize: 15 }}>Araçlar aranıyor...</div>
                     <div style={{ color: '#94a3b8', marginTop: 6, fontSize: 13 }}>En uygun seçenekler listeleniyor</div>
                 </div>
             ) : searchError ? (
@@ -1024,8 +1024,8 @@ const AgencyNewTransferPage = () => {
                             boxShadow: '0 2px 12px rgba(0,0,0,0.05)', transition: 'all 0.22s ease'
                         }}
                         onMouseEnter={e => {
-                            (e.currentTarget as HTMLDivElement).style.boxShadow = '0 8px 28px rgba(99,102,241,0.14)';
-                            (e.currentTarget as HTMLDivElement).style.border = '1px solid rgba(99,102,241,0.25)';
+                            (e.currentTarget as HTMLDivElement).style.boxShadow = '0 8px 28px var(--brand-primary-15)';
+                            (e.currentTarget as HTMLDivElement).style.border = '1px solid var(--brand-primary-22)';
                             (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-2px)';
                         }}
                         onMouseLeave={e => {
@@ -1038,16 +1038,16 @@ const AgencyNewTransferPage = () => {
                                 width: 210, flexShrink: 0, minHeight: 155,
                                 background: result.isShuttle
                                     ? 'linear-gradient(135deg, #ecfdf5, #d1fae5)'
-                                    : 'linear-gradient(135deg, #f5f3ff, #ede9fe)',
+                                    : 'linear-gradient(135deg, var(--brand-primary-08), var(--brand-primary-10))',
                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                                 position: 'relative', overflow: 'hidden'
                             }}>
                                 {result.image
                                     ? <img src={result.image} alt={result.vehicleType} style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.9 }} />
-                                    : <CarOutlined style={{ fontSize: 54, color: result.isShuttle ? '#059669' : '#7c3aed', opacity: 0.25 }} />}
+                                    : <CarOutlined style={{ fontSize: 54, color: result.isShuttle ? '#059669' : 'var(--brand-accent)', opacity: 0.25 }} />}
                                 <div style={{ position: 'absolute', top: 10, left: 10, display: 'flex', flexDirection: 'column', gap: 5 }}>
                                     <span style={{
-                                        background: result.isShuttle ? 'linear-gradient(135deg,#059669,#10b981)' : 'linear-gradient(135deg,#4f46e5,#7c3aed)',
+                                        background: result.isShuttle ? 'linear-gradient(135deg,#059669,#10b981)' : 'linear-gradient(135deg,var(--brand-accent),var(--brand-accent))',
                                         color: '#fff', padding: '3px 11px', borderRadius: 50,
                                         fontSize: 10, fontWeight: 800, letterSpacing: 0.3,
                                         boxShadow: '0 2px 8px rgba(0,0,0,0.18)'
@@ -1112,10 +1112,10 @@ const AgencyNewTransferPage = () => {
                                 <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginBottom: 12 }}>{result.currency}</div>
                                 <button onClick={() => handleSelectVehicle(result)} style={{
                                     width: '100%', padding: '10px 0',
-                                    background: 'linear-gradient(135deg,#6366f1,#818cf8)',
+                                    background: 'linear-gradient(135deg,var(--brand-primary),var(--brand-primary))',
                                     color: '#fff', border: 'none', borderRadius: 11,
                                     fontSize: 13, fontWeight: 700, cursor: 'pointer',
-                                    boxShadow: '0 4px 14px rgba(99,102,241,0.45)', transition: 'all 0.18s'
+                                    boxShadow: '0 4px 14px var(--brand-primary-40)', transition: 'all 0.18s'
                                 }}
                                 onMouseEnter={e => (e.currentTarget.style.transform = 'scale(1.04)')}
                                 onMouseLeave={e => (e.currentTarget.style.transform = 'scale(1)')}>
@@ -1309,12 +1309,12 @@ const AgencyNewTransferPage = () => {
                     </div>
                     <div style={{ flex: 1, minWidth: 200 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5 }}>
-                            <span style={{ background: 'linear-gradient(135deg,#6366f1,#818cf8)', color: '#fff', padding: '2px 11px', borderRadius: 50, fontSize: 11, fontWeight: 700 }}>{selectedVehicle.vehicleType}</span>
+                            <span style={{ background: 'linear-gradient(135deg,var(--brand-primary),var(--brand-primary))', color: '#fff', padding: '2px 11px', borderRadius: 50, fontSize: 11, fontWeight: 700 }}>{selectedVehicle.vehicleType}</span>
                             <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12 }}>· {selectedVehicle.vendor}</span>
                         </div>
                         <div style={{ color: 'rgba(255,255,255,0.65)', fontSize: 13, marginBottom: 3 }}>
                             📍 <span style={{ fontWeight: 600 }}>{pickup}</span>
-                            <span style={{ color: '#6366f1', margin: '0 8px' }}>→</span>
+                            <span style={{ color: 'var(--brand-primary)', margin: '0 8px' }}>→</span>
                             <span style={{ fontWeight: 600 }}>{dropoff}</span>
                         </div>
                         <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12, display: 'flex', gap: 14 }}>
@@ -1328,7 +1328,7 @@ const AgencyNewTransferPage = () => {
                         <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: 1 }}>
                             {returnSelectedVehicle ? 'Toplam B2B' : 'B2B Fiyat'}
                         </div>
-                        <div style={{ fontSize: 28, fontWeight: 900, color: '#818cf8', lineHeight: 1.1 }}>
+                        <div style={{ fontSize: 28, fontWeight: 900, color: 'var(--brand-primary)', lineHeight: 1.1 }}>
                             {getCurrencySymbol(selectedVehicle.currency)}{((selectedVehicle.price || 0) + (returnSelectedVehicle?.price || 0)).toLocaleString('tr-TR')}
                         </div>
                         <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>
@@ -1343,7 +1343,7 @@ const AgencyNewTransferPage = () => {
                 {/* Section 1: Passenger Info */}
                 <div style={{ background: '#fff', borderRadius: 16, padding: '24px 28px', marginBottom: 14, boxShadow: '0 2px 10px rgba(0,0,0,0.04)', border: '1px solid #f1f5f9' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
-                        <div style={{ width: 34, height: 34, borderRadius: 10, background: 'linear-gradient(135deg,#6366f1,#818cf8)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, flexShrink: 0 }}>👤</div>
+                        <div style={{ width: 34, height: 34, borderRadius: 10, background: 'linear-gradient(135deg,var(--brand-primary),var(--brand-primary))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, flexShrink: 0 }}>👤</div>
                         <div>
                             <div style={{ fontWeight: 700, fontSize: 15, color: '#0f172a' }}>Yolcu Bilgileri</div>
                             <div style={{ fontSize: 12, color: '#94a3b8' }}>Ana yolcu iletişim bilgileri</div>
@@ -1464,7 +1464,7 @@ const AgencyNewTransferPage = () => {
                 {/* Section 3: Other Passengers */}
                 <div style={{ background: '#fff', borderRadius: 16, padding: '24px 28px', marginBottom: 14, boxShadow: '0 2px 10px rgba(0,0,0,0.04)', border: '1px solid #f1f5f9' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-                        <div style={{ width: 34, height: 34, borderRadius: 10, background: 'linear-gradient(135deg,#8b5cf6,#a78bfa)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, flexShrink: 0 }}>👥</div>
+                        <div style={{ width: 34, height: 34, borderRadius: 10, background: 'linear-gradient(135deg,var(--brand-accent),var(--brand-primary))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, flexShrink: 0 }}>👥</div>
                         <div>
                             <div style={{ fontWeight: 700, fontSize: 15, color: '#0f172a' }}>Diğer Yolcular</div>
                             <div style={{ fontSize: 12, color: '#94a3b8' }}>Yolcu sayısını artırdığınızda burası otomatik dolar</div>
@@ -1533,7 +1533,7 @@ const AgencyNewTransferPage = () => {
                                                 <div style={{ fontSize: 11, color: '#64748b' }}>
                                                     {getExtraServiceDisplayPrice(service)} {service.currency}
                                                     {service.currency !== (selectedVehicle?.currency || 'TRY') && (
-                                                        <span style={{ color: '#6366f1', fontWeight: 600, marginLeft: 4 }}>≈ {getExtraServiceEffectivePrice(service)} {selectedVehicle?.currency}</span>
+                                                        <span style={{ color: 'var(--brand-primary)', fontWeight: 600, marginLeft: 4 }}>≈ {getExtraServiceEffectivePrice(service)} {selectedVehicle?.currency}</span>
                                                     )}
                                                     {service.isPerPerson ? ' / kişi' : ' / adet'}
                                                 </div>
@@ -1616,7 +1616,7 @@ const AgencyNewTransferPage = () => {
                 {/* Section 6: Sale Price */}
                 <div style={{ background: 'linear-gradient(135deg,#0f172a,#1e293b)', borderRadius: 16, padding: '24px 28px', marginBottom: 24, boxShadow: '0 8px 28px rgba(0,0,0,0.2)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
-                        <div style={{ width: 34, height: 34, borderRadius: 10, background: 'linear-gradient(135deg,#6366f1,#818cf8)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, flexShrink: 0 }}>💰</div>
+                        <div style={{ width: 34, height: 34, borderRadius: 10, background: 'linear-gradient(135deg,var(--brand-primary),var(--brand-primary))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, flexShrink: 0 }}>💰</div>
                         <div>
                             <div style={{ fontWeight: 700, fontSize: 15, color: '#fff' }}>Satış Tutarı</div>
                             <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)' }}>Müşterinize satacağınız fiyatı belirleyin</div>
@@ -1635,8 +1635,8 @@ const AgencyNewTransferPage = () => {
                 <div style={{ textAlign: 'center', paddingBottom: 32 }}>
                     <Button type="primary" htmlType="submit" loading={loading} size="large" style={{
                         minWidth: 260, height: 52, fontSize: 15, fontWeight: 700,
-                        background: 'linear-gradient(135deg,#6366f1,#818cf8)', border: 'none', borderRadius: 14,
-                        boxShadow: '0 8px 24px rgba(99,102,241,0.4)'
+                        background: 'linear-gradient(135deg,var(--brand-primary),var(--brand-primary))', border: 'none', borderRadius: 14,
+                        boxShadow: '0 8px 24px var(--brand-primary-40)'
                     }}>
                         🎯 Rezervasyonu Tamamla
                     </Button>
@@ -1668,7 +1668,7 @@ const AgencyNewTransferPage = () => {
             <div style={{ maxWidth: 780, margin: '0 auto' }}>
                 {/* Success Hero */}
                 <div style={{
-                    background: 'linear-gradient(135deg, #623ce4 0%, #8b5cf6 50%, #a78bfa 100%)',
+                    background: 'linear-gradient(135deg, #623ce4 0%, var(--brand-accent) 50%, var(--brand-primary) 100%)',
                     borderRadius: 28, padding: '52px 40px', textAlign: 'center', marginBottom: 24,
                     position: 'relative', overflow: 'hidden',
                     boxShadow: '0 20px 60px rgba(98,60,228,0.35)'
@@ -1781,7 +1781,7 @@ const AgencyNewTransferPage = () => {
                         setPickup(''); setDropoff(''); setDate(null); setSelectedVehicle(null); setReturnSelectedVehicle(null);
                     }} style={{
                         padding: '14px 32px', borderRadius: 14, border: 'none', cursor: 'pointer',
-                        background: 'linear-gradient(135deg, #623ce4, #8b5cf6)', color: '#fff',
+                        background: 'linear-gradient(135deg, #623ce4, var(--brand-accent))', color: '#fff',
                         fontWeight: 700, fontSize: 15, boxShadow: '0 6px 20px rgba(98,60,228,0.35)'
                     }}>➕ Yeni Transfer</button>
                     <button onClick={() => window.open('/agency/transfers', '_blank')} style={{
@@ -1819,9 +1819,9 @@ const AgencyNewTransferPage = () => {
                 <div style={{
                     minHeight: '100vh',
                     background: currentStep === 'search'
-                        ? 'linear-gradient(160deg, #f5f3ff 0%, #ede9fe 30%, #e0f2fe 70%, #f0fdf4 100%)'
+                        ? 'linear-gradient(160deg, var(--brand-primary-08) 0%, var(--brand-primary-10) 30%, #e0f2fe 70%, #f0fdf4 100%)'
                         : currentStep === 'success'
-                        ? 'linear-gradient(160deg, #f0fdf4 0%, #dcfce7 30%, #f5f3ff 100%)'
+                        ? 'linear-gradient(160deg, #f0fdf4 0%, #dcfce7 30%, var(--brand-primary-08) 100%)'
                         : 'linear-gradient(160deg, #f8fafc 0%, #f1f5f9 100%)',
                     padding: '40px 24px',
                     borderRadius: 16,

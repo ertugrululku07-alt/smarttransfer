@@ -21,9 +21,9 @@ interface Vehicle { id: string; plateNumber: string; brand: string; model: strin
 
 const MAINT_TYPES = ['YAĞ DEĞİŞİMİ', 'LASTİK', 'FREN', 'AKÜ', 'FİLTRE', 'KAPORTA', 'MOTOR', 'ŞANZIMAN', 'AMORTISÖR', 'KLİMA', 'GENEL BAKIM', 'DİĞER'];
 const MAINT_COLORS: Record<string, string> = {
-    'YAĞ DEĞİŞİMİ': '#d97706', 'LASTİK': '#7c3aed', 'FREN': '#dc2626',
+    'YAĞ DEĞİŞİMİ': '#d97706', 'LASTİK': 'var(--brand-accent)', 'FREN': '#dc2626',
     'AKÜ': '#2563eb', 'FİLTRE': '#16a34a', 'KAPORTA': '#0891b2',
-    'MOTOR': '#ea580c', 'ŞANZIMAN': '#9333ea', 'GENEL BAKIM': '#6366f1',
+    'MOTOR': '#ea580c', 'ŞANZIMAN': 'var(--brand-accent)', 'GENEL BAKIM': 'var(--brand-primary)',
 };
 
 const MaintenancePage: React.FC = () => {
@@ -98,7 +98,7 @@ const MaintenancePage: React.FC = () => {
         { title: 'Açıklama', dataIndex: 'description', render: (v: string) => <Text>{v || '—'}</Text> },
         { title: 'KM', dataIndex: 'km', render: (v: number) => v ? `${v.toLocaleString('tr-TR')} km` : '—' },
         { title: 'Servis', dataIndex: 'workshop', render: (v: string) => <Text type="secondary">{v || '—'}</Text> },
-        { title: 'Maliyet', dataIndex: 'cost', align: 'right' as const, sorter: (a: any, b: any) => a.cost - b.cost, render: (v: number) => <Text style={{ color: '#7c3aed', fontWeight: 700, fontFamily: 'monospace' }}>{fmtTRY(v)}</Text> },
+        { title: 'Maliyet', dataIndex: 'cost', align: 'right' as const, sorter: (a: any, b: any) => a.cost - b.cost, render: (v: number) => <Text style={{ color: 'var(--brand-accent)', fontWeight: 700, fontFamily: 'monospace' }}>{fmtTRY(v)}</Text> },
         { title: 'Notlar', dataIndex: 'notes', render: (v: string) => <Text type="secondary" style={{ fontSize: 11 }}>{v || '—'}</Text> },
         {
             title: '', render: (_: any, r: any) => (
@@ -119,7 +119,7 @@ const MaintenancePage: React.FC = () => {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 24 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                             <Button icon={<ArrowLeftOutlined />} onClick={() => router.push('/admin/vehicle-tracking')} size="small" />
-                            <div style={{ width: 36, height: 36, borderRadius: 10, background: 'linear-gradient(135deg,#7c3aed,#a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: 18 }}>🔧</div>
+                            <div style={{ width: 36, height: 36, borderRadius: 10, background: 'linear-gradient(135deg,var(--brand-accent),var(--brand-accent))', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: 18 }}>🔧</div>
                             <div>
                                 <Title level={3} style={{ margin: 0, fontWeight: 800 }}>Bakım & Onarım</Title>
                                 <Text type="secondary">Araç bakım kayıtları · {selected?.plateNumber}</Text>
@@ -128,7 +128,7 @@ const MaintenancePage: React.FC = () => {
                         <Space>
                             <Button icon={<ReloadOutlined />} onClick={() => selected && fetchRecords(selected.id)} loading={loading}>Yenile</Button>
                             <Button type="primary" icon={<PlusOutlined />} onClick={openAdd} disabled={!selected}
-                                style={{ background: 'linear-gradient(135deg,#7c3aed,#a855f7)', border: 'none', fontWeight: 600, borderRadius: 8 }}>
+                                style={{ background: 'linear-gradient(135deg,var(--brand-accent),var(--brand-accent))', border: 'none', fontWeight: 600, borderRadius: 8 }}>
                                 Bakım Ekle
                             </Button>
                         </Space>
@@ -141,9 +141,9 @@ const MaintenancePage: React.FC = () => {
                                 {vehicles.map(v => (
                                     <div key={v.id} onClick={() => selectVehicle(v)} style={{
                                         padding: '8px 12px', borderRadius: 8, cursor: 'pointer', marginBottom: 4,
-                                        background: selected?.id === v.id ? 'linear-gradient(135deg,#7c3aed,#a855f7)' : '#f8fafc',
+                                        background: selected?.id === v.id ? 'linear-gradient(135deg,var(--brand-accent),var(--brand-accent))' : '#f8fafc',
                                         color: selected?.id === v.id ? 'white' : '#374151',
-                                        border: `1px solid ${selected?.id === v.id ? '#7c3aed' : '#f0f0f0'}`, transition: 'all 0.2s',
+                                        border: `1px solid ${selected?.id === v.id ? 'var(--brand-accent)' : '#f0f0f0'}`, transition: 'all 0.2s',
                                     }}>
                                         <div style={{ fontWeight: 600, fontSize: 12 }}>{v.brand} {v.model}</div>
                                         <div style={{ fontSize: 11, opacity: 0.75 }}>{v.plateNumber}</div>
@@ -153,8 +153,8 @@ const MaintenancePage: React.FC = () => {
                         </Col>
                         <Col xs={24} md={18}>
                             <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
-                                <Col xs={8}><Card variant="borderless" style={{ borderRadius: 10, background: 'linear-gradient(135deg,#faf5ff,#ede9fe)', border: '1px solid #c4b5fd' }} bodyStyle={{ padding: '12px 16px' }}>
-                                    <Statistic title={<Text style={{ color: '#7c3aed', fontSize: 11 }}>Toplam Bakım Gideri</Text>} value={totalCost} precision={2} suffix="₺" styles={{content: { color: '#7c3aed', fontSize: 16, fontWeight: 700 }}} />
+                                <Col xs={8}><Card variant="borderless" style={{ borderRadius: 10, background: 'linear-gradient(135deg,var(--brand-primary-08),var(--brand-primary-10))', border: '1px solid var(--brand-primary-20)' }} bodyStyle={{ padding: '12px 16px' }}>
+                                    <Statistic title={<Text style={{ color: 'var(--brand-accent)', fontSize: 11 }}>Toplam Bakım Gideri</Text>} value={totalCost} precision={2} suffix="₺" styles={{content: { color: 'var(--brand-accent)', fontSize: 16, fontWeight: 700 }}} />
                                 </Card></Col>
                                 <Col xs={8}><Card variant="borderless" style={{ borderRadius: 10, background: 'linear-gradient(135deg,#eff6ff,#dbeafe)', border: '1px solid #93c5fd' }} bodyStyle={{ padding: '12px 16px' }}>
                                     <Statistic title={<Text style={{ color: '#2563eb', fontSize: 11 }}>Toplam Kayıt</Text>} value={records.length} styles={{content: { color: '#2563eb', fontSize: 20, fontWeight: 700 }}} />
@@ -174,7 +174,7 @@ const MaintenancePage: React.FC = () => {
 
                 <Modal title={<div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>🔧 {editing ? 'Bakım Düzenle' : 'Bakım Ekle'} {selected && `— ${selected.plateNumber}`}</div>}
                     open={modalVisible} onOk={handleSave} onCancel={() => setModalVisible(false)} confirmLoading={submitting} okText="Kaydet" cancelText="İptal" width={560}
-                    okButtonProps={{ style: { background: 'linear-gradient(135deg,#7c3aed,#a855f7)', border: 'none' } }}>
+                    okButtonProps={{ style: { background: 'linear-gradient(135deg,var(--brand-accent),var(--brand-accent))', border: 'none' } }}>
                     <Divider style={{ margin: '12px 0' }} />
                     <Form form={form} layout="vertical">
                         <Row gutter={16}>

@@ -65,11 +65,11 @@ const LEAVE_TYPES = [
 ];
 
 const JOB_LABELS: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
-    DRIVER: { label: 'Şoför', color: '#6366f1', icon: <CarOutlined /> },
+    DRIVER: { label: 'Şoför', color: 'var(--brand-primary)', icon: <CarOutlined /> },
     OPERATION: { label: 'Operasyon', color: '#3b82f6', icon: <SettingOutlined /> },
     ACCOUNTANT: { label: 'Muhasebe', color: '#10b981', icon: <IdcardOutlined /> },
     RESERVATION: { label: 'Rezervasyon', color: '#f59e0b', icon: <CalendarOutlined /> },
-    MANAGER: { label: 'Yönetici', color: '#8b5cf6', icon: <SafetyCertificateOutlined /> },
+    MANAGER: { label: 'Yönetici', color: 'var(--brand-accent)', icon: <SafetyCertificateOutlined /> },
     GUIDE: { label: 'Rehber', color: '#ec4899', icon: <GlobalOutlined /> },
     AIRPORT_STAFF: { label: 'Karşılama Personeli', color: '#0ea5e9', icon: <CarOutlined /> },
 };
@@ -333,7 +333,7 @@ const PersonnelListPage = () => {
                         src={getImageUrl(r.photo)}
                         icon={<UserOutlined />}
                         size={42}
-                        style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', flexShrink: 0 }}
+                        style={{ background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-accent))', flexShrink: 0 }}
                     />
                     <div style={{ minWidth: 0 }}>
                         <div style={{ fontWeight: 700, fontSize: 13, color: '#1e293b' }}>
@@ -372,7 +372,7 @@ const PersonnelListPage = () => {
                 <div>
                     {r.phone && (
                         <div style={{ fontSize: 12, color: '#334155', display: 'flex', alignItems: 'center', gap: 4 }}>
-                            <PhoneOutlined style={{ color: '#6366f1', fontSize: 10 }} />
+                            <PhoneOutlined style={{ color: 'var(--brand-primary)', fontSize: 10 }} />
                             <span>{r.phone}</span>
                         </div>
                     )}
@@ -457,7 +457,7 @@ const PersonnelListPage = () => {
                     <div style={{ minWidth: 260, maxWidth: 320 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, paddingBottom: 8, borderBottom: '1px solid #f0f0f0' }}>
                             <Avatar src={getImageUrl(r.photo)} icon={<UserOutlined />} size={32}
-                                style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }} />
+                                style={{ background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-accent))' }} />
                             <div>
                                 <div style={{ fontWeight: 700, fontSize: 13, color: '#1e293b' }}>{r.firstName} {r.lastName}</div>
                                 <div style={{ fontSize: 11, color: '#94a3b8', fontFamily: 'monospace' }}>{r.tcNumber}</div>
@@ -507,7 +507,7 @@ const PersonnelListPage = () => {
                     <Tooltip title="Düzenle">
                         <Button size="small" type="text" icon={<EditOutlined />}
                             onClick={() => router.push(`/admin/personnel/${r.id}`)}
-                            style={{ color: '#6366f1', borderRadius: 6 }} />
+                            style={{ color: 'var(--brand-primary)', borderRadius: 6 }} />
                     </Tooltip>
                     <Tooltip title="İzin Ekle">
                         <Button size="small" type="text" icon={<CalendarOutlined />}
@@ -554,9 +554,9 @@ const PersonnelListPage = () => {
                         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                             <div style={{
                                 width: 48, height: 48, borderRadius: 14,
-                                background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                                background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-accent))',
                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                color: '#fff', fontSize: 22, boxShadow: '0 4px 14px #6366f140'
+                                color: '#fff', fontSize: 22, boxShadow: '0 4px 14px var(--brand-primary-40)'
                             }}><TeamOutlined /></div>
                             <div>
                                 <Title level={3} style={{ margin: 0, color: '#1e293b' }}>Personel Yönetimi</Title>
@@ -572,7 +572,7 @@ const PersonnelListPage = () => {
                             <Button icon={<ReloadOutlined />} onClick={fetchData} loading={loading} style={{ borderRadius: 8 }} />
                             <Button type="primary" icon={<PlusOutlined />}
                                 onClick={() => router.push('/admin/personnel/create')}
-                                style={{ borderRadius: 8, background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', border: 'none' }}>
+                                style={{ borderRadius: 8, background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-accent))', border: 'none' }}>
                                 Yeni Personel
                             </Button>
                         </Space>
@@ -581,7 +581,7 @@ const PersonnelListPage = () => {
                     {/* Stats */}
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 12, marginBottom: 20 }}>
                         {[
-                            { label: 'Toplam', value: stats.total, color: '#6366f1', icon: <TeamOutlined />, filter: 'ALL' },
+                            { label: 'Toplam', value: stats.total, color: 'var(--brand-primary)', icon: <TeamOutlined />, filter: 'ALL' },
                             { label: 'Aktif', value: stats.active, color: '#10b981', icon: <CheckCircleOutlined />, filter: 'ACTIVE' },
                             { label: 'İzinde', value: stats.onLeave, color: '#f59e0b', icon: <CalendarOutlined />, filter: 'ON_LEAVE' },
                             { label: 'Şoför', value: stats.drivers, color: '#3b82f6', icon: <CarOutlined />, filter: 'ALL' },
@@ -880,7 +880,7 @@ const PersonnelListPage = () => {
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                             <div style={{
                                 width: 36, height: 36, borderRadius: 10,
-                                background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                                background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-accent))',
                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                                 color: '#fff', fontSize: 16
                             }}><SettingOutlined /></div>
@@ -912,7 +912,7 @@ const PersonnelListPage = () => {
                                 </Select>
                             </Form.Item>
 
-                            <Divider style={{ fontSize: 13, color: '#6366f1', fontWeight: 600 }}>
+                            <Divider style={{ fontSize: 13, color: 'var(--brand-primary)', fontWeight: 600 }}>
                                 <CarOutlined /> Şöför Uygulaması Ayarları
                             </Divider>
 

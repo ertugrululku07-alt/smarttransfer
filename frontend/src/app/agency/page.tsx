@@ -209,8 +209,8 @@ const AgencyDashboard = () => {
     }
 
     const BAR_COLORS = [
-        '#3b82f6','#60a5fa','#2563eb','#7c3aed','#0ea5e9',
-        '#06b6d4','#3b82f6','#60a5fa','#2563eb','#7c3aed','#0ea5e9','#06b6d4'
+        '#3b82f6','#60a5fa','#2563eb','var(--brand-accent)','#0ea5e9',
+        '#06b6d4','#3b82f6','#60a5fa','#2563eb','var(--brand-accent)','#0ea5e9','#06b6d4'
     ];
 
     return (
@@ -289,7 +289,7 @@ const AgencyDashboard = () => {
                             title="Transfer Aşamasında"
                             value={stats?.inProgressTransfers ?? 0}
                             icon={<SyncOutlined spin={!!stats?.inProgressTransfers} />}
-                            gradient="linear-gradient(135deg, #4c1d95 0%, #8b5cf6 100%)"
+                            gradient="linear-gradient(135deg, #4c1d95 0%, var(--brand-accent) 100%)"
                             textColor="#ffffff"
                             subtitle="Onaylandı"
                         />

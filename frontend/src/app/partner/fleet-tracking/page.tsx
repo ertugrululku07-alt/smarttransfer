@@ -15,9 +15,9 @@ function fmt(v: number, c = 'TRY') {
 
 function Kpi({ icon, label, value, sub, accent }: { icon: React.ReactNode; label: string; value: string | number; sub?: string; accent?: string }) {
   return (
-    <div className="ps-card" style={{ padding: 16, borderTop: `3px solid ${accent || '#6366f1'}` }}>
+    <div className="ps-card" style={{ padding: 16, borderTop: `3px solid ${accent || 'var(--brand-primary)'}` }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <div style={{ width: 40, height: 40, borderRadius: 10, background: '#eef2ff', color: '#4f46e5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>{icon}</div>
+        <div style={{ width: 40, height: 40, borderRadius: 10, background: 'var(--brand-primary-08)', color: 'var(--brand-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>{icon}</div>
         <div style={{ minWidth: 0 }}>
           <div style={{ fontSize: 12, color: '#64748b' }}>{label}</div>
           <div style={{ fontSize: 20, fontWeight: 800, color: '#0f172a' }}>{value}</div>
@@ -68,12 +68,12 @@ export default function FleetDashboardPage() {
   return (
     <div style={{ display: 'grid', gap: 14 }}>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
-        <Kpi icon={<CarOutlined />} label="Araç Sayısı" value={`${k.activeVehicles} / ${k.vehicleCount}`} sub="aktif / toplam" accent="#6366f1" />
+        <Kpi icon={<CarOutlined />} label="Araç Sayısı" value={`${k.activeVehicles} / ${k.vehicleCount}`} sub="aktif / toplam" accent="var(--brand-primary)" />
         <Kpi icon={<SafetyOutlined />} label="Sigorta Uyarısı" value={(k.insurancesExpiringSoonCount || 0) + (k.insurancesExpiredCount || 0)} sub={`${k.insurancesExpiredCount} süresi geçti`} accent="#ef4444" />
         <Kpi icon={<AuditOutlined />} label="Muayene Uyarısı" value={(k.inspectionsExpiringSoonCount || 0) + (k.inspectionsExpiredCount || 0)} sub={`${k.inspectionsExpiredCount} süresi geçti`} accent="#f59e0b" />
         <Kpi icon={<ToolOutlined />} label="Bakım Yaklaşan" value={k.upcomingMaintenanceCount + k.kmOverdueCount} sub={`${k.kmOverdueCount} km doldu`} accent="#0ea5e9" />
         <Kpi icon={<FireOutlined />} label="Bu Ay Yakıt" value={fmt(k.fuelMonthTotal)} sub={`${k.fuelMonthLiters.toFixed(1)} L · ${k.fuelMonthCount} dolum`} accent="#10b981" />
-        <Kpi icon={<ToolOutlined />} label="Bu Ay Bakım" value={fmt(k.maintenanceMonthTotal)} sub={`${k.maintenanceMonthCount} işlem`} accent="#a855f7" />
+        <Kpi icon={<ToolOutlined />} label="Bu Ay Bakım" value={fmt(k.maintenanceMonthTotal)} sub={`${k.maintenanceMonthCount} işlem`} accent="var(--brand-accent)" />
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))', gap: 12 }}>
@@ -145,7 +145,7 @@ export default function FleetDashboardPage() {
           )}
         </Card>
 
-        <Card size="small" title={<span><ToolOutlined style={{ color: '#6366f1', marginRight: 8 }} /> Son Bakımlar</span>}>
+        <Card size="small" title={<span><ToolOutlined style={{ color: 'var(--brand-primary)', marginRight: 8 }} /> Son Bakımlar</span>}>
           {!data.recent.maintenance?.length ? <Empty description="Kayıt yok" /> : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               {data.recent.maintenance.map((m: any) => (

@@ -48,8 +48,8 @@ interface Account {
 const TYPE_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode; bg: string }> = {
     CUSTOMER: { label: 'Müşteri', color: '#2563eb', icon: <UserOutlined />, bg: '#eff6ff' },
     SUPPLIER: { label: 'Tedarikçi', color: '#16a34a', icon: <ShopOutlined />, bg: '#f0fdf4' },
-    AGENCY: { label: 'Acenta', color: '#7c3aed', icon: <BankOutlined />, bg: '#faf5ff' },
-    PARTNER: { label: 'Partner', color: '#9333ea', icon: <BankOutlined />, bg: '#faf5ff' },
+    AGENCY: { label: 'Acenta', color: 'var(--brand-accent)', icon: <BankOutlined />, bg: 'var(--brand-primary-08)' },
+    PARTNER: { label: 'Partner', color: 'var(--brand-accent)', icon: <BankOutlined />, bg: 'var(--brand-primary-08)' },
     PERSONNEL: { label: 'Personel', color: '#d97706', icon: <TeamOutlined />, bg: '#fffbeb' },
     OTHER: { label: 'Diğer', color: '#6b7280', icon: <FileTextOutlined />, bg: '#f9fafb' },
 };
@@ -60,7 +60,7 @@ const TRANSACTION_CONFIG: Record<TransactionType, { label: string; color: string
     DEBIT_IN: { label: 'Cari Giriş', color: '#16a34a' },
     CREDIT_OUT: { label: 'Cari Cikis', color: '#dc2626' },
     PURCHASE_INVOICE: { label: 'Alis Faturasi', color: '#2563eb' },
-    SALES_INVOICE: { label: 'Satis Faturasi', color: '#7c3aed' },
+    SALES_INVOICE: { label: 'Satis Faturasi', color: 'var(--brand-accent)' },
     STATEMENT: { label: 'Hesap Ekstresi', color: '#0891b2' },
 };
 
@@ -273,7 +273,7 @@ const AccountsPage: React.FC = () => {
     // ---- Personnel tx config ----
     const PERSONNEL_TX_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode; desc: string; isOut: boolean }> = {
         SALARY: { label: 'Maaş Ödemesi', color: '#2563eb', icon: <DollarOutlined />, desc: 'Aylık maaş ödemesini kayıt altına alır.', isOut: true },
-        HAKEDIS: { label: 'Hakediş Ödemesi', color: '#7c3aed', icon: <TrophyOutlined />, desc: 'Proje veya hizmet hakediş ödemesini kayıt eder.', isOut: true },
+        HAKEDIS: { label: 'Hakediş Ödemesi', color: 'var(--brand-accent)', icon: <TrophyOutlined />, desc: 'Proje veya hizmet hakediş ödemesini kayıt eder.', isOut: true },
         ADVANCE: { label: 'Avans', color: '#d97706', icon: <CreditCardOutlined />, desc: 'Personele avans ödemesi yapar.', isOut: true },
         PRIM: { label: 'Prim / Bonus', color: '#059669', icon: <GiftOutlined />, desc: 'Performans veya satış primini kayıt eder.', isOut: true },
         KESINTI: { label: 'Maaş Kesintisi', color: '#dc2626', icon: <ScissorOutlined />, desc: 'Maaştan yapılacak kesinti miktarını kayıt eder.', isOut: false },
@@ -296,8 +296,8 @@ const AccountsPage: React.FC = () => {
             },
             {
                 key: 'HAKEDIS',
-                icon: <TrophyOutlined style={{ color: '#7c3aed' }} />,
-                label: <span style={{ color: '#7c3aed', fontWeight: 600 }}>Hakediş Ödemesi</span>,
+                icon: <TrophyOutlined style={{ color: 'var(--brand-accent)' }} />,
+                label: <span style={{ color: 'var(--brand-accent)', fontWeight: 600 }}>Hakediş Ödemesi</span>,
                 onClick: () => openPersonnelTx(record, 'HAKEDIS'),
             },
             {
@@ -367,8 +367,8 @@ const AccountsPage: React.FC = () => {
                 },
                 {
                     key: 'SALES_INVOICE',
-                    icon: <ShoppingOutlined style={{ color: '#7c3aed' }} />,
-                    label: <span style={{ color: '#7c3aed', fontWeight: 600 }}>Satış Faturası</span>,
+                    icon: <ShoppingOutlined style={{ color: 'var(--brand-accent)' }} />,
+                    label: <span style={{ color: 'var(--brand-accent)', fontWeight: 600 }}>Satış Faturası</span>,
                     onClick: () => {
                         const params = new URLSearchParams({
                             tab: 'SALES',
@@ -434,7 +434,7 @@ const AccountsPage: React.FC = () => {
                             <div
                                 style={{
                                     fontWeight: 700, fontSize: 13, lineHeight: 1.3,
-                                    color: '#4f46e5', cursor: 'pointer',
+                                    color: 'var(--brand-accent)', cursor: 'pointer',
                                     display: 'inline',
                                 }}
                                 onClick={() => handleEdit(record)}
@@ -556,7 +556,7 @@ const AccountsPage: React.FC = () => {
                                 size="small"
                                 style={{
                                     borderRadius: 6,
-                                    background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+                                    background: 'linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-accent) 100%)',
                                     color: 'white',
                                     border: 'none',
                                     fontWeight: 600,
@@ -617,7 +617,7 @@ const AccountsPage: React.FC = () => {
                                 type="primary"
                                 icon={<PlusOutlined />}
                                 onClick={handleAdd}
-                                style={{ background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)', border: 'none', fontWeight: 600, borderRadius: 8 }}
+                                style={{ background: 'linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-accent) 100%)', border: 'none', fontWeight: 600, borderRadius: 8 }}
                             >
                                 + Yeni Cari Ekle
                             </Button>
@@ -671,10 +671,10 @@ const AccountsPage: React.FC = () => {
                                 styles={{ body: { padding: '16px 20px' } }}
                             >
                                 <Statistic
-                                    title={<Text style={{ color: stats.netBalance >= 0 ? '#2563eb' : '#7c3aed', fontWeight: 600 }}>Net Bakiye</Text>}
+                                    title={<Text style={{ color: stats.netBalance >= 0 ? '#2563eb' : 'var(--brand-accent)', fontWeight: 600 }}>Net Bakiye</Text>}
                                     value={Math.abs(stats.netBalance)}
                                     precision={2}
-                                    styles={{ content: { color: stats.netBalance >= 0 ? '#2563eb' : '#7c3aed', fontWeight: 700, fontSize: 22 } }}
+                                    styles={{ content: { color: stats.netBalance >= 0 ? '#2563eb' : 'var(--brand-accent)', fontWeight: 700, fontSize: 22 } }}
                                     prefix={<WalletOutlined />}
                                     suffix={stats.netBalance < 0 ? ' ₺ (Alacaklı)' : stats.netBalance > 0 ? ' ₺ (Borçlu)' : ' ₺'}
                                 />
@@ -705,9 +705,9 @@ const AccountsPage: React.FC = () => {
                                                 cursor: 'pointer',
                                                 padding: '4px 14px',
                                                 borderRadius: 20,
-                                                background: active ? (cfg?.color || '#6366f1') : '#f9fafb',
+                                                background: active ? (cfg?.color || 'var(--brand-primary)') : '#f9fafb',
                                                 color: active ? 'white' : (cfg?.color || '#374151'),
-                                                border: `1px solid ${active ? (cfg?.color || '#6366f1') : '#e5e7eb'}`,
+                                                border: `1px solid ${active ? (cfg?.color || 'var(--brand-primary)') : '#e5e7eb'}`,
                                                 fontSize: 12,
                                                 fontWeight: 600,
                                                 transition: 'all 0.2s ease',
@@ -779,7 +779,7 @@ const AccountsPage: React.FC = () => {
                 <Modal
                     title={
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                            <WalletOutlined style={{ color: '#6366f1' }} />
+                            <WalletOutlined style={{ color: 'var(--brand-primary)' }} />
                             <span>{editingAccount ? 'Cari Hesap Düzenle' : 'Yeni Cari Hesap Ekle'}</span>
                         </div>
                     }
@@ -790,7 +790,7 @@ const AccountsPage: React.FC = () => {
                     okText="Kaydet"
                     cancelText="İptal"
                     width={680}
-                    okButtonProps={{ style: { background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)', border: 'none' } }}
+                    okButtonProps={{ style: { background: 'linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-accent) 100%)', border: 'none' } }}
                 >
                     <Divider style={{ margin: '12px 0' }} />
                     <Form form={form} layout="vertical">
@@ -867,7 +867,7 @@ const AccountsPage: React.FC = () => {
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                             <div style={{
                                 width: 32, height: 32, borderRadius: 8,
-                                background: TRANSACTION_CONFIG[txType]?.color || '#6366f1',
+                                background: TRANSACTION_CONFIG[txType]?.color || 'var(--brand-primary)',
                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                             }}>
                                 {txType === 'DEBIT_IN' && <ArrowRightOutlined style={{ color: 'white' }} />}
@@ -889,7 +889,7 @@ const AccountsPage: React.FC = () => {
                     cancelText="Iptal"
                     width={480}
                     okButtonProps={{
-                        style: { background: TRANSACTION_CONFIG[txType]?.color || '#6366f1', border: 'none' }
+                        style: { background: TRANSACTION_CONFIG[txType]?.color || 'var(--brand-primary)', border: 'none' }
                     }}
                 >
                     <Divider style={{ margin: '12px 0' }} />
@@ -1018,7 +1018,7 @@ const AccountsPage: React.FC = () => {
                             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                                 <div style={{
                                     width: 40, height: 40, borderRadius: 10,
-                                    background: `linear-gradient(135deg, ${PERSONNEL_TX_CONFIG[personnelTxType]?.color || '#6366f1'} 0%, ${PERSONNEL_TX_CONFIG[personnelTxType]?.color || '#6366f1'}99 100%)`,
+                                    background: `linear-gradient(135deg, ${PERSONNEL_TX_CONFIG[personnelTxType]?.color || 'var(--brand-primary)'} 0%, ${PERSONNEL_TX_CONFIG[personnelTxType]?.color || 'var(--brand-primary)'}99 100%)`,
                                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                                     color: 'white', fontSize: 18,
                                 }}>
@@ -1039,7 +1039,7 @@ const AccountsPage: React.FC = () => {
                         width={520}
                         okButtonProps={{
                             style: {
-                                background: `linear-gradient(135deg, ${PERSONNEL_TX_CONFIG[personnelTxType]?.color || '#6366f1'} 0%, ${PERSONNEL_TX_CONFIG[personnelTxType]?.color || '#6366f1'}cc 100%)`,
+                                background: `linear-gradient(135deg, ${PERSONNEL_TX_CONFIG[personnelTxType]?.color || 'var(--brand-primary)'} 0%, ${PERSONNEL_TX_CONFIG[personnelTxType]?.color || 'var(--brand-primary)'}cc 100%)`,
                                 border: 'none', fontWeight: 600
                             },
                             icon: <CheckCircleOutlined />
@@ -1091,11 +1091,11 @@ const AccountsPage: React.FC = () => {
 
                         {/* İşlem açıklama banner */}
                         <div style={{
-                            background: `${PERSONNEL_TX_CONFIG[personnelTxType]?.color || '#6366f1'}11`,
-                            border: `1px solid ${PERSONNEL_TX_CONFIG[personnelTxType]?.color || '#6366f1'}33`,
+                            background: `${PERSONNEL_TX_CONFIG[personnelTxType]?.color || 'var(--brand-primary)'}11`,
+                            border: `1px solid ${PERSONNEL_TX_CONFIG[personnelTxType]?.color || 'var(--brand-primary)'}33`,
                             borderRadius: 8, padding: '8px 12px', marginBottom: 20,
                             display: 'flex', gap: 8, alignItems: 'center', fontSize: 12,
-                            color: PERSONNEL_TX_CONFIG[personnelTxType]?.color || '#6366f1',
+                            color: PERSONNEL_TX_CONFIG[personnelTxType]?.color || 'var(--brand-primary)',
                         }}>
                             <InfoCircleOutlined />
                             {PERSONNEL_TX_CONFIG[personnelTxType]?.desc}

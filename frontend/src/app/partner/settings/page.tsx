@@ -533,7 +533,7 @@ export default function SettingsPage() {
         )},
         { title: 'Tip / Yıl', key: 'type', render: (_: any, r: any) => (
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ padding: '2px 8px', borderRadius: 6, background: '#eef2ff', fontSize: 12, fontWeight: 600, color: '#4f46e5', border: '1px solid #c7d2fe' }}>{r.vehicleTypeDetails?.name || r.vehicleType}</span>
+                <span style={{ padding: '2px 8px', borderRadius: 6, background: 'var(--brand-primary-08)', fontSize: 12, fontWeight: 600, color: 'var(--brand-accent)', border: '1px solid var(--brand-primary-15)' }}>{r.vehicleTypeDetails?.name || r.vehicleType}</span>
                 <span style={{ fontSize: 12, color: '#94a3b8' }}>{r.year}</span>
             </div>
         )},
@@ -542,7 +542,7 @@ export default function SettingsPage() {
             <span style={{ padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: a ? '#d1fae5' : '#f1f5f9', color: a ? '#065f46' : '#94a3b8' }}>{a ? 'Aktif' : 'Pasif'}</span>
         )},
         { title: '', key: 'action', width: 50, render: (_: any, r: any) => (
-            <button onClick={() => handleEditVehicle(r)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6366f1', fontSize: 16 }}><EditOutlined /></button>
+            <button onClick={() => handleEditVehicle(r)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--brand-primary)', fontSize: 16 }}><EditOutlined /></button>
         )},
     ];
 
@@ -576,11 +576,11 @@ export default function SettingsPage() {
                                     <button key={t.key} onClick={() => setActiveTab(t.key)} style={{
                                         display: 'flex', alignItems: 'center', gap: 10,
                                         padding: '12px 16px', border: 'none', borderRadius: 12,
-                                        background: activeTab === t.key ? 'linear-gradient(135deg, #6366f1, #4f46e5)' : '#fff',
+                                        background: activeTab === t.key ? 'linear-gradient(135deg, var(--brand-primary), var(--brand-accent))' : '#fff',
                                         color: activeTab === t.key ? '#fff' : '#64748b',
                                         fontSize: 14, fontWeight: activeTab === t.key ? 700 : 500,
                                         cursor: 'pointer', transition: 'all 0.2s ease', whiteSpace: 'nowrap',
-                                        boxShadow: activeTab === t.key ? '0 4px 12px rgba(99,102,241,0.3)' : '0 1px 4px rgba(0,0,0,0.04)',
+                                        boxShadow: activeTab === t.key ? '0 4px 12px var(--brand-primary-30)' : '0 1px 4px rgba(0,0,0,0.04)',
                                     }}>
                                         <span style={{ fontSize: 16 }}>{t.icon}</span>{t.label}
                                     </button>
@@ -688,7 +688,7 @@ export default function SettingsPage() {
                                                             <button onClick={() => handleEditDriver(d)} style={{
                                                                 width: 34, height: 34, borderRadius: 8, border: '1px solid #e2e8f0',
                                                                 background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                                color: '#6366f1',
+                                                                color: 'var(--brand-primary)',
                                                             }}><EditOutlined /></button>
                                                         </Tooltip>
                                                         <Popconfirm title="Bu şoförü silmek istediğinize emin misiniz?" onConfirm={() => handleDeleteDriver(d.id)} okText="Evet" cancelText="Hayır">
@@ -712,7 +712,7 @@ export default function SettingsPage() {
                             {activeTab === 'bank' && (
                                 <div style={{ maxWidth: 560 }}>
                                     <div style={{ marginBottom: 24, padding: '16px 20px', background: '#f8fafc', borderRadius: 14, border: '1px solid #f1f5f9' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#6366f1', fontSize: 14, fontWeight: 600 }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'var(--brand-primary)', fontSize: 14, fontWeight: 600 }}>
                                             <BankOutlined style={{ fontSize: 18 }} /> Banka Hesap Bilgileri
                                         </div>
                                         <p style={{ fontSize: 13, color: '#64748b', margin: '6px 0 0' }}>Ödeme almak için banka bilgilerinizi ekleyin</p>
@@ -745,10 +745,10 @@ export default function SettingsPage() {
                                         </Form.Item>
                                         <button type="submit" style={{
                                             width: '100%', padding: '12px', border: 'none', borderRadius: 12, marginTop: 8,
-                                            background: 'linear-gradient(135deg, #6366f1, #4f46e5)',
+                                            background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-accent))',
                                             color: '#fff', fontSize: 15, fontWeight: 700, cursor: 'pointer',
                                             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                                            boxShadow: '0 4px 12px rgba(99,102,241,0.3)',
+                                            boxShadow: '0 4px 12px var(--brand-primary-30)',
                                         }}>
                                             <SaveOutlined /> Bilgileri Kaydet
                                         </button>
@@ -760,7 +760,7 @@ export default function SettingsPage() {
                             {activeTab === 'integrations' && (
                                 <div>
                                     <div style={{ marginBottom: 24, padding: '16px 20px', background: '#f8fafc', borderRadius: 14, border: '1px solid #f1f5f9' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#6366f1', fontSize: 15, fontWeight: 700 }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'var(--brand-primary)', fontSize: 15, fontWeight: 700 }}>
                                             <ApiOutlined style={{ fontSize: 18 }} /> Entegrasyon Tanımlamaları
                                         </div>
                                         <p style={{ fontSize: 13, color: '#64748b', margin: '6px 0 0' }}>
@@ -981,7 +981,7 @@ export default function SettingsPage() {
                                             <div style={{ border: '1px solid #f1f5f9', borderRadius: 16, padding: '20px 22px', background: '#fff' }}>
                                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginBottom: 14 }}>
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                                                        <div style={{ width: 42, height: 42, borderRadius: 12, background: 'linear-gradient(135deg, #6366f1, #4338ca)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>
+                                                        <div style={{ width: 42, height: 42, borderRadius: 12, background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-accent))', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>
                                                             <SafetyCertificateOutlined />
                                                         </div>
                                                         <div>
@@ -1098,7 +1098,7 @@ export default function SettingsPage() {
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                                                         <div style={{
                                                             width: 42, height: 42, borderRadius: 12,
-                                                            background: 'linear-gradient(135deg, #6366f1, #4f46e5)',
+                                                            background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-accent))',
                                                             color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18,
                                                         }}>
                                                             <MailOutlined />
@@ -1290,7 +1290,7 @@ export default function SettingsPage() {
                                                             <Upload showUploadList={false} customRequest={({ onSuccess }) => setTimeout(() => { messageApi.success('Belge yüklendi'); onSuccess?.("ok"); }, 1000)}>
                                                                 <button style={{
                                                                     padding: '6px 14px', border: '1px solid #e2e8f0', borderRadius: 8,
-                                                                    background: '#fff', fontSize: 12, fontWeight: 600, color: '#6366f1',
+                                                                    background: '#fff', fontSize: 12, fontWeight: 600, color: 'var(--brand-primary)',
                                                                     cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
                                                                 }}>
                                                                     <UploadOutlined /> Yükle
@@ -1377,9 +1377,9 @@ export default function SettingsPage() {
                                                             }}
                                                             style={{
                                                                 display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
-                                                                padding: '14px 10px', border: `2px solid ${isSelected ? '#6366f1' : '#e2e8f0'}`,
+                                                                padding: '14px 10px', border: `2px solid ${isSelected ? 'var(--brand-primary)' : '#e2e8f0'}`,
                                                                 borderRadius: 14, cursor: 'pointer', transition: 'all 0.2s',
-                                                                background: isSelected ? '#eef2ff' : '#fff',
+                                                                background: isSelected ? 'var(--brand-primary-08)' : '#fff',
                                                                 position: 'relative',
                                                             }}
                                                         >
@@ -1387,13 +1387,13 @@ export default function SettingsPage() {
                                                                 <div style={{
                                                                     position: 'absolute', top: -6, right: -6,
                                                                     width: 20, height: 20, borderRadius: '50%',
-                                                                    background: '#6366f1', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                                    background: 'var(--brand-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center',
                                                                 }}>
                                                                     <CheckCircleOutlined style={{ color: '#fff', fontSize: 12 }} />
                                                                 </div>
                                                             )}
-                                                            <CarOutlined style={{ fontSize: 22, color: isSelected ? '#6366f1' : '#94a3b8' }} />
-                                                            <div style={{ fontWeight: 700, fontSize: 13, color: isSelected ? '#4f46e5' : '#1e293b', textAlign: 'center' }}>{vt.name}</div>
+                                                            <CarOutlined style={{ fontSize: 22, color: isSelected ? 'var(--brand-primary)' : '#94a3b8' }} />
+                                                            <div style={{ fontWeight: 700, fontSize: 13, color: isSelected ? 'var(--brand-accent)' : '#1e293b', textAlign: 'center' }}>{vt.name}</div>
                                                             <div style={{ display: 'flex', gap: 8, fontSize: 11, color: '#64748b' }}>
                                                                 <span><TeamOutlined /> {vt.capacity}</span>
                                                                 <span>{vt.categoryDisplay}</span>
@@ -1488,10 +1488,10 @@ export default function SettingsPage() {
                                         disabled={savingVehicle}
                                         style={{
                                             flex: 2, padding: '12px', border: 'none', borderRadius: 12,
-                                            background: savingVehicle ? '#94a3b8' : 'linear-gradient(135deg, #6366f1, #4f46e5)',
+                                            background: savingVehicle ? '#94a3b8' : 'linear-gradient(135deg, var(--brand-primary), var(--brand-accent))',
                                             color: '#fff', fontSize: 14, fontWeight: 700, cursor: savingVehicle ? 'not-allowed' : 'pointer',
                                             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                                            boxShadow: '0 4px 12px rgba(99,102,241,0.3)',
+                                            boxShadow: '0 4px 12px var(--brand-primary-30)',
                                         }}
                                     >
                                         {savingVehicle ? <Spin size="small" /> : <><CheckCircleOutlined /> {editingVehicle ? 'Güncelle' : 'Araç Ekle'}</>}
@@ -1538,7 +1538,7 @@ export default function SettingsPage() {
                         </p>
                         <Input
                             size="large"
-                            prefix={<MailOutlined style={{ color: '#6366f1' }} />}
+                            prefix={<MailOutlined style={{ color: 'var(--brand-primary)' }} />}
                             placeholder="test@firmaniz.com"
                             value={emailTestModal.to}
                             onChange={(e) => setEmailTestModal({ ...emailTestModal, to: e.target.value })}
@@ -1644,10 +1644,10 @@ export default function SettingsPage() {
                                         disabled={savingDriver}
                                         style={{
                                             flex: 2, padding: '12px', border: 'none', borderRadius: 12,
-                                            background: savingDriver ? '#94a3b8' : 'linear-gradient(135deg, #6366f1, #4f46e5)',
+                                            background: savingDriver ? '#94a3b8' : 'linear-gradient(135deg, var(--brand-primary), var(--brand-accent))',
                                             color: '#fff', fontSize: 14, fontWeight: 700, cursor: savingDriver ? 'not-allowed' : 'pointer',
                                             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                                            boxShadow: '0 4px 12px rgba(99,102,241,0.3)',
+                                            boxShadow: '0 4px 12px var(--brand-primary-30)',
                                         }}
                                     >
                                         {savingDriver ? <Spin size="small" /> : <><CheckCircleOutlined /> {editingDriver ? 'Güncelle' : 'Şoför Ekle'}</>}

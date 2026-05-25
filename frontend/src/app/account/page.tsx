@@ -36,14 +36,14 @@ interface BookingItem {
 const STATUS_INFO: Record<string, { label: string; bg: string; text: string }> = {
     PENDING:     { label: 'Onay Bekliyor', bg: '#fff7ed', text: '#c2410c' },
     CONFIRMED:   { label: 'Onaylandı',    bg: '#ecfdf5', text: '#065f46' },
-    IN_PROGRESS: { label: 'Devam Ediyor', bg: '#ede9fe', text: '#5b21b6' },
+    IN_PROGRESS: { label: 'Devam Ediyor', bg: 'var(--brand-primary-10)', text: 'var(--brand-accent)' },
     COMPLETED:   { label: 'Tamamlandı',   bg: '#f0fdf4', text: '#166534' },
     CANCELLED:   { label: 'İptal',         bg: '#fef2f2', text: '#b91c1c' },
     NO_SHOW:     { label: 'Gelmedi',       bg: '#fef2f2', text: '#b91c1c' },
 };
 
 const STAT_CARDS = [
-    { key: 'active',    label: 'Aktif Transfer', icon: CarOutlined,    from: '#6366f1', to: '#8b5cf6' },
+    { key: 'active',    label: 'Aktif Transfer', icon: CarOutlined,    from: 'var(--brand-primary)', to: 'var(--brand-accent)' },
     { key: 'completed', label: 'Tamamlanan',     icon: HistoryOutlined, from: '#10b981', to: '#059669' },
     { key: 'rated',     label: 'Verilen Puan',   icon: StarFilled,      from: '#f59e0b', to: '#d97706' },
 ];
@@ -96,19 +96,19 @@ function ActiveTransferCard({ booking, onOpen }: { booking: BookingItem; onOpen:
         <div
             onClick={onOpen}
             style={{
-                background: 'linear-gradient(135deg, #4f46e5 0%, #6366f1 60%, #8b5cf6 100%)',
+                background: 'linear-gradient(135deg, var(--brand-accent) 0%, var(--brand-primary) 60%, var(--brand-accent) 100%)',
                 borderRadius: 20, padding: 28, marginBottom: 16, cursor: 'pointer',
-                boxShadow: '0 20px 40px -12px rgba(99,102,241,0.45)',
+                boxShadow: '0 20px 40px -12px var(--brand-primary-40)',
                 position: 'relative', overflow: 'hidden',
                 transition: 'transform 0.18s, box-shadow 0.18s',
             }}
             onMouseEnter={e => {
                 (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-2px)';
-                (e.currentTarget as HTMLDivElement).style.boxShadow = '0 28px 48px -12px rgba(99,102,241,0.55)';
+                (e.currentTarget as HTMLDivElement).style.boxShadow = '0 28px 48px -12px var(--brand-primary-50)';
             }}
             onMouseLeave={e => {
                 (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)';
-                (e.currentTarget as HTMLDivElement).style.boxShadow = '0 20px 40px -12px rgba(99,102,241,0.45)';
+                (e.currentTarget as HTMLDivElement).style.boxShadow = '0 20px 40px -12px var(--brand-primary-40)';
             }}
         >
             {/* decorative circles */}
@@ -189,9 +189,9 @@ function ActiveTransferCard({ booking, onOpen }: { booking: BookingItem; onOpen:
                             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
                                 <div style={{
                                     width: 42, height: 42, borderRadius: '50%',
-                                    background: 'linear-gradient(135deg,#c7d2fe,#a5b4fc)',
+                                    background: 'linear-gradient(135deg,var(--brand-primary-15),var(--brand-primary-20))',
                                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    fontWeight: 800, fontSize: 14, color: '#3730a3', flexShrink: 0,
+                                    fontWeight: 800, fontSize: 14, color: 'var(--brand-accent)', flexShrink: 0,
                                 }}>{driverInitials}</div>
                                 <div>
                                     <div style={{ color: '#fff', fontWeight: 700, fontSize: 14 }}>{booking.driver.fullName}</div>
@@ -239,7 +239,7 @@ function BookingMiniCard({ booking, onOpen }: { booking: BookingItem; onOpen: ()
             }}
             onMouseEnter={e => {
                 (e.currentTarget as HTMLDivElement).style.boxShadow = '0 4px 16px rgba(0,0,0,0.08)';
-                (e.currentTarget as HTMLDivElement).style.borderColor = '#c7d2fe';
+                (e.currentTarget as HTMLDivElement).style.borderColor = 'var(--brand-primary-15)';
             }}
             onMouseLeave={e => {
                 (e.currentTarget as HTMLDivElement).style.boxShadow = '0 1px 4px rgba(0,0,0,0.04)';
@@ -248,10 +248,10 @@ function BookingMiniCard({ booking, onOpen }: { booking: BookingItem; onOpen: ()
         >
             <div style={{
                 width: 40, height: 40, borderRadius: 10, flexShrink: 0,
-                background: 'linear-gradient(135deg,#ede9fe,#ddd6fe)',
+                background: 'linear-gradient(135deg,var(--brand-primary-10),var(--brand-primary-15))',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>
-                <CarOutlined style={{ color: '#6366f1', fontSize: 18 }} />
+                <CarOutlined style={{ color: 'var(--brand-primary)', fontSize: 18 }} />
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
@@ -315,18 +315,18 @@ export default function AccountDashboardPage() {
 
                     {/* Hero greeting */}
                     <div style={{
-                        background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 60%, #312e81 100%)',
+                        background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 60%, var(--brand-accent) 100%)',
                         borderRadius: 24, padding: '32px 36px', marginBottom: 24,
                         position: 'relative', overflow: 'hidden',
                         boxShadow: '0 16px 40px rgba(15,23,42,0.25)',
                     }}>
                         <div style={{
                             position: 'absolute', width: 300, height: 300, borderRadius: '50%',
-                            background: 'rgba(99,102,241,0.12)', top: -100, right: 60, pointerEvents: 'none'
+                            background: 'var(--brand-primary-10)', top: -100, right: 60, pointerEvents: 'none'
                         }} />
                         <div style={{
                             position: 'absolute', width: 180, height: 180, borderRadius: '50%',
-                            background: 'rgba(139,92,246,0.1)', bottom: -60, right: 220, pointerEvents: 'none'
+                            background: 'var(--brand-accent-10)', bottom: -60, right: 220, pointerEvents: 'none'
                         }} />
                         <div style={{ position: 'relative', zIndex: 1 }}>
                             <div style={{ color: 'rgba(199,210,254,0.7)', fontSize: 13, marginBottom: 4 }}>{greetWord} 👋</div>
@@ -386,21 +386,21 @@ export default function AccountDashboardPage() {
                         }}>
                             <div style={{
                                 width: 64, height: 64, borderRadius: '50%',
-                                background: 'linear-gradient(135deg,#ede9fe,#ddd6fe)',
+                                background: 'linear-gradient(135deg,var(--brand-primary-10),var(--brand-primary-15))',
                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                                 margin: '0 auto 16px',
                             }}>
-                                <CarOutlined style={{ color: '#6366f1', fontSize: 28 }} />
+                                <CarOutlined style={{ color: 'var(--brand-primary)', fontSize: 28 }} />
                             </div>
                             <div style={{ fontWeight: 700, color: '#0f172a', fontSize: 16, marginBottom: 6 }}>Aktif transfer yok</div>
                             <div style={{ color: '#94a3b8', fontSize: 13, marginBottom: 16 }}>Yeni bir transfer aramak için tıklayın</div>
                             <button
                                 onClick={() => router.push('/')}
                                 style={{
-                                    background: 'linear-gradient(135deg,#6366f1,#8b5cf6)',
+                                    background: 'linear-gradient(135deg,var(--brand-primary),var(--brand-accent))',
                                     color: '#fff', border: 'none', borderRadius: 10,
                                     padding: '10px 24px', fontSize: 14, fontWeight: 600, cursor: 'pointer',
-                                    boxShadow: '0 6px 16px rgba(99,102,241,0.35)',
+                                    boxShadow: '0 6px 16px var(--brand-primary-33)',
                                 }}
                             >
                                 Transfer Ara
@@ -426,7 +426,7 @@ export default function AccountDashboardPage() {
                             onClick={() => router.push('/account/bookings')}
                             style={{
                                 background: 'transparent', border: 'none', cursor: 'pointer',
-                                color: '#6366f1', fontWeight: 600, fontSize: 13,
+                                color: 'var(--brand-primary)', fontWeight: 600, fontSize: 13,
                                 display: 'flex', alignItems: 'center', gap: 4,
                             }}
                         >

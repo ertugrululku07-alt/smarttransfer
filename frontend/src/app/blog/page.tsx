@@ -141,7 +141,7 @@ export default async function BlogListPage({ searchParams }: { searchParams: Pro
                                         </Link>
                                         <div style={{ padding: 24, display: 'flex', flexDirection: 'column', flex: 1 }}>
                                             {p.category && (
-                                                <Link href={`/blog?kategori=${encodeURIComponent(p.category)}`} style={{ fontSize: 12, fontWeight: 700, color: '#667eea', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8, textDecoration: 'none' }}>
+                                                <Link href={`/blog?kategori=${encodeURIComponent(p.category)}`} style={{ fontSize: 12, fontWeight: 700, color: 'var(--brand-primary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8, textDecoration: 'none' }}>
                                                     {p.category}
                                                 </Link>
                                             )}

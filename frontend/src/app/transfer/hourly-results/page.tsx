@@ -267,7 +267,7 @@ function HourlyResultsContent() {
                                                             size="large"
                                                             onClick={() => handleSelectVehicle(vt)}
                                                             style={{
-                                                                background: theme.buttonGradient || 'linear-gradient(135deg, #667eea, #764ba2)',
+                                                                background: theme.buttonGradient || 'linear-gradient(135deg, var(--brand-primary), var(--brand-accent))',
                                                                 border: 'none', borderRadius: 10, fontWeight: 700, height: 44, minWidth: 140,
                                                             }}
                                                         >

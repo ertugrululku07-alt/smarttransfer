@@ -21,7 +21,7 @@ function relTime(t: string) {
 
 function TransferRow({ t, onClick }: { t: any; onClick: () => void }) {
   const isPending = t.status === 'PENDING' || t.status === 'WAITING';
-  const stripe = isPending ? '#f59e0b' : '#6366f1';
+  const stripe = isPending ? '#f59e0b' : 'var(--brand-primary)';
   const initials = (t.customer?.name || '?').split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase();
   return (
     <div className="ps-job" onClick={onClick} style={{ cursor: 'pointer' }}>
@@ -30,8 +30,8 @@ function TransferRow({ t, onClick }: { t: any; onClick: () => void }) {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{
-              width: 38, height: 38, borderRadius: 9, background: '#eef2ff',
-              color: '#6366f1', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: 38, height: 38, borderRadius: 9, background: 'var(--brand-primary-08)',
+              color: 'var(--brand-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontWeight: 700, fontSize: 12, flexShrink: 0,
             }}>{initials}</div>
             <div>
@@ -190,7 +190,7 @@ export default function MyTransfersPage() {
                       return (
                         <div key={run.runKey} className="ps-card" style={{ overflow: 'hidden' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '16px 20px', borderBottom: '1px solid var(--ps-border)', background: 'var(--ps-surface-2)', flexWrap: 'wrap' }}>
-                            <div style={{ border: '2px solid #6366f1', color: '#4f46e5', borderRadius: 10, padding: '6px 14px', textAlign: 'center', fontWeight: 900, fontSize: 20, minWidth: 72 }}>
+                            <div style={{ border: '2px solid var(--brand-primary)', color: 'var(--brand-accent)', borderRadius: 10, padding: '6px 14px', textAlign: 'center', fontWeight: 900, fontSize: 20, minWidth: 72 }}>
                               {run.departureTime}
                               <div style={{ fontSize: 9, fontWeight: 700, marginTop: 2, textTransform: 'uppercase', letterSpacing: '0.08em' }}>SEFER</div>
                             </div>

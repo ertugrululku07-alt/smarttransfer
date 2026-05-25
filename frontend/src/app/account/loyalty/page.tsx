@@ -160,7 +160,7 @@ export default function CustomerLoyaltyPage() {
                                         <Statistic
                                             title="Toplam Puanınız"
                                             value={totalPoints}
-                                            valueStyle={{ color: '#4f46e5', fontWeight: 800, fontSize: 28 }}
+                                            valueStyle={{ color: 'var(--brand-accent)', fontWeight: 800, fontSize: 28 }}
                                             prefix={<StarOutlined />}
                                         />
                                     </Col>

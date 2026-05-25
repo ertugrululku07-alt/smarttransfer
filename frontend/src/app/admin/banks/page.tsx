@@ -19,7 +19,7 @@ const { Option } = Select;
 
 // ── Currency colors ──
 const CURRENCY_COLORS: Record<string, string> = {
-    TRY: '#16a34a', USD: '#2563eb', EUR: '#7c3aed', GBP: '#0891b2',
+    TRY: '#16a34a', USD: '#2563eb', EUR: 'var(--brand-accent)', GBP: '#0891b2',
 };
 
 interface Bank {
@@ -174,10 +174,10 @@ export default function BanksPage() {
                             onClick={handleAddBank}
                             size="large"
                             style={{
-                                background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                                background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-accent))',
                                 border: 'none', borderRadius: 12, fontWeight: 600,
                                 height: 44, paddingInline: 24,
-                                boxShadow: '0 4px 14px rgba(99,102,241,0.3)'
+                                boxShadow: '0 4px 14px var(--brand-primary-30)'
                             }}
                         >
                             Yeni Banka Ekle
@@ -203,7 +203,7 @@ export default function BanksPage() {
                                 Banka hesaplarınızı ekleyerek ödeme takibi yapabilirsiniz
                             </Text>
                             <Button type="primary" size="large" icon={<PlusOutlined />} onClick={handleAddBank}
-                                style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', border: 'none', borderRadius: 10, fontWeight: 600, height: 42 }}>
+                                style={{ background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-accent))', border: 'none', borderRadius: 10, fontWeight: 600, height: 42 }}>
                                 İlk Bankayı Ekle
                             </Button>
                         </div>
@@ -222,15 +222,15 @@ export default function BanksPage() {
                                     {/* Bank Header */}
                                     <div style={{
                                         padding: '20px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                                        background: 'linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%)',
+                                        background: 'linear-gradient(135deg, #f8fafc 0%, var(--brand-primary-08) 100%)',
                                         borderBottom: '1px solid #e2e8f0',
                                     }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                                             <div style={{
                                                 width: 48, height: 48, borderRadius: 14,
-                                                background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                                                background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-accent))',
                                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                boxShadow: '0 4px 12px rgba(99,102,241,0.3)',
+                                                boxShadow: '0 4px 12px var(--brand-primary-30)',
                                             }}>
                                                 <BankOutlined style={{ fontSize: 22, color: '#fff' }} />
                                             </div>
@@ -238,13 +238,13 @@ export default function BanksPage() {
                                                 <div style={{ fontSize: 16, fontWeight: 700, color: '#1a1a2e' }}>{bank.name}</div>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2 }}>
                                                     {bank.code && (
-                                                        <Tag style={{ borderRadius: 6, fontWeight: 600, fontSize: 11, margin: 0, background: '#e0e7ff', color: '#6366f1', border: 'none' }}>
+                                                        <Tag style={{ borderRadius: 6, fontWeight: 600, fontSize: 11, margin: 0, background: 'var(--brand-primary-10)', color: 'var(--brand-primary)', border: 'none' }}>
                                                             {bank.code}
                                                         </Tag>
                                                     )}
                                                     {bank.website && (
                                                         <a href={bank.website} target="_blank" rel="noreferrer"
-                                                            style={{ fontSize: 11, color: '#6366f1', display: 'flex', alignItems: 'center', gap: 3 }}>
+                                                            style={{ fontSize: 11, color: 'var(--brand-primary)', display: 'flex', alignItems: 'center', gap: 3 }}>
                                                             <GlobalOutlined /> Web Sitesi
                                                         </a>
                                                     )}
@@ -270,12 +270,12 @@ export default function BanksPage() {
                                             <span style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.8 }}>
                                                 Banka Hesapları
                                                 {bank.accounts?.length > 0 && (
-                                                    <Badge count={bank.accounts.length} style={{ backgroundColor: '#6366f1', marginLeft: 8, fontSize: 10 }} />
+                                                    <Badge count={bank.accounts.length} style={{ backgroundColor: 'var(--brand-primary)', marginLeft: 8, fontSize: 10 }} />
                                                 )}
                                             </span>
                                             <Button size="small" type="link" icon={<PlusOutlined />}
                                                 onClick={() => handleAddAccount(bank.id)}
-                                                style={{ fontSize: 12, fontWeight: 600, color: '#6366f1', padding: 0 }}>
+                                                style={{ fontSize: 12, fontWeight: 600, color: 'var(--brand-primary)', padding: 0 }}>
                                                 Hesap Ekle
                                             </Button>
                                         </div>
@@ -294,12 +294,12 @@ export default function BanksPage() {
                                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                                             <div style={{ flex: 1, minWidth: 0 }}>
                                                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                                                                    <CreditCardOutlined style={{ color: '#6366f1', fontSize: 14 }} />
+                                                                    <CreditCardOutlined style={{ color: 'var(--brand-primary)', fontSize: 14 }} />
                                                                     <span style={{ fontWeight: 700, fontSize: 13, color: '#1e293b' }}>{account.accountName}</span>
                                                                     <Tag style={{
                                                                         borderRadius: 6, fontWeight: 700, fontSize: 10, margin: 0, border: 'none',
-                                                                        background: (CURRENCY_COLORS[account.currency] || '#6366f1') + '15',
-                                                                        color: CURRENCY_COLORS[account.currency] || '#6366f1',
+                                                                        background: (CURRENCY_COLORS[account.currency] || 'var(--brand-primary)') + '15',
+                                                                        color: CURRENCY_COLORS[account.currency] || 'var(--brand-primary)',
                                                                     }}>
                                                                         {account.currency}
                                                                     </Tag>
@@ -348,7 +348,7 @@ export default function BanksPage() {
                                                 <div style={{ fontSize: 13, color: '#94a3b8', fontWeight: 500 }}>Henüz hesap eklenmemiş</div>
                                                 <Button size="small" type="link" icon={<PlusOutlined />}
                                                     onClick={() => handleAddAccount(bank.id)}
-                                                    style={{ fontSize: 12, fontWeight: 600, color: '#6366f1', marginTop: 4 }}>
+                                                    style={{ fontSize: 12, fontWeight: 600, color: 'var(--brand-primary)', marginTop: 4 }}>
                                                     İlk Hesabı Ekle
                                                 </Button>
                                             </div>
@@ -365,7 +365,7 @@ export default function BanksPage() {
                             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                                 <div style={{
                                     width: 40, height: 40, borderRadius: 12,
-                                    background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                                    background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-accent))',
                                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                                 }}>
                                     <BankOutlined style={{ fontSize: 18, color: '#fff' }} />
@@ -381,7 +381,7 @@ export default function BanksPage() {
                         onCancel={() => setIsBankModalVisible(false)}
                         okText={editingBank ? 'Güncelle' : 'Kaydet'}
                         cancelText="İptal"
-                        okButtonProps={{ style: { background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', border: 'none', borderRadius: 8, fontWeight: 600 } }}
+                        okButtonProps={{ style: { background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-accent))', border: 'none', borderRadius: 8, fontWeight: 600 } }}
                         cancelButtonProps={{ style: { borderRadius: 8 } }}
                         styles={{ body: { paddingTop: 20 } }}
                         width={480}

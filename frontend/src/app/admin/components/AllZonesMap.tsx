@@ -62,13 +62,13 @@ const ZONE_PALETTE = [
     '#ef4444', // red
     '#10b981', // emerald
     '#f59e0b', // amber
-    '#8b5cf6', // violet
+    'var(--brand-accent)', // violet
     '#ec4899', // pink
     '#06b6d4', // cyan
     '#f97316', // orange
     '#14b8a6', // teal
-    '#a855f7', // purple
-    '#6366f1', // indigo
+    'var(--brand-accent)', // purple
+    'var(--brand-primary)', // indigo
     '#84cc16', // lime
     '#e11d48', // rose
     '#0ea5e9', // sky
@@ -465,13 +465,13 @@ const AllZonesMap: React.FC<AllZonesMapProps> = ({ zones, height = 600, onEditZo
                             onClick={onNewZone}
                             style={{
                                 width: '100%', padding: '8px 10px', borderRadius: 8,
-                                border: '2px dashed #c7d2fe', background: '#eef2ff',
-                                color: '#6366f1', fontWeight: 700, fontSize: 12,
+                                border: '2px dashed var(--brand-primary-15)', background: 'var(--brand-primary-08)',
+                                color: 'var(--brand-primary)', fontWeight: 700, fontSize: 12,
                                 cursor: 'pointer', transition: 'all 0.15s',
                                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                             }}
-                            onMouseEnter={e => { e.currentTarget.style.background = '#e0e7ff'; e.currentTarget.style.borderColor = '#a5b4fc'; }}
-                            onMouseLeave={e => { e.currentTarget.style.background = '#eef2ff'; e.currentTarget.style.borderColor = '#c7d2fe'; }}
+                            onMouseEnter={e => { e.currentTarget.style.background = 'var(--brand-primary-10)'; e.currentTarget.style.borderColor = 'var(--brand-primary-20)'; }}
+                            onMouseLeave={e => { e.currentTarget.style.background = 'var(--brand-primary-08)'; e.currentTarget.style.borderColor = 'var(--brand-primary-15)'; }}
                         >
                             + Yeni Bölge Çiz
                         </button>

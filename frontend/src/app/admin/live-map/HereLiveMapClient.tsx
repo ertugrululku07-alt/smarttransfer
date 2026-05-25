@@ -207,14 +207,14 @@ const HereLiveMapClient: React.FC<HereLiveMapClientProps> = ({ drivers, selected
                     {/* Main route line - fallback to all points if no segments */}
                     <Polyline
                         positions={routeSegments.length > 0 ? routeSegments[0] : allValidPoints}
-                        pathOptions={{ color: '#6366f1', weight: 5, opacity: 0.85, lineCap: 'round', lineJoin: 'round' }}
+                        pathOptions={{ color: 'var(--brand-primary)', weight: 5, opacity: 0.85, lineCap: 'round', lineJoin: 'round' }}
                     />
                     {/* Additional segments if any */}
                     {routeSegments.slice(1).map((seg, idx) => (
                         <Polyline
                             key={`seg-${idx}`}
                             positions={seg}
-                            pathOptions={{ color: '#6366f1', weight: 5, opacity: 0.85, lineCap: 'round', lineJoin: 'round' }}
+                            pathOptions={{ color: 'var(--brand-primary)', weight: 5, opacity: 0.85, lineCap: 'round', lineJoin: 'round' }}
                         />
                     ))}
 
@@ -256,8 +256,8 @@ const HereLiveMapClient: React.FC<HereLiveMapClientProps> = ({ drivers, selected
                             center={[stop.lat, stop.lng]}
                             radius={stop.durationMin >= 30 ? 20 : stop.durationMin >= 10 ? 16 : 12}
                             pathOptions={{
-                                color: stop.durationMin >= 30 ? '#7c3aed' : stop.durationMin >= 10 ? '#2563eb' : '#0891b2',
-                                fillColor: stop.durationMin >= 30 ? '#7c3aed' : stop.durationMin >= 10 ? '#2563eb' : '#0891b2',
+                                color: stop.durationMin >= 30 ? 'var(--brand-accent)' : stop.durationMin >= 10 ? '#2563eb' : '#0891b2',
+                                fillColor: stop.durationMin >= 30 ? 'var(--brand-accent)' : stop.durationMin >= 10 ? '#2563eb' : '#0891b2',
                                 fillOpacity: 0.15,
                                 weight: 1
                             }}
@@ -271,14 +271,14 @@ const HereLiveMapClient: React.FC<HereLiveMapClientProps> = ({ drivers, selected
                             radius={stop.durationMin >= 30 ? 12 : stop.durationMin >= 10 ? 10 : 8}
                             pathOptions={{
                                 color: '#fff',
-                                fillColor: stop.durationMin >= 30 ? '#7c3aed' : stop.durationMin >= 10 ? '#2563eb' : '#0891b2',
+                                fillColor: stop.durationMin >= 30 ? 'var(--brand-accent)' : stop.durationMin >= 10 ? '#2563eb' : '#0891b2',
                                 fillOpacity: 1,
                                 weight: 3
                             }}
                         >
                             <LTooltip direction="top" offset={[0, -5]} permanent={false}>
                                 <div style={{ fontWeight: 700, color: '#1e293b', fontSize: 12 }}>⏱ Duraklama #{idx + 1}</div>
-                                <div style={{ fontSize: 12, fontWeight: 700, color: stop.durationMin >= 30 ? '#7c3aed' : '#2563eb' }}>
+                                <div style={{ fontSize: 12, fontWeight: 700, color: stop.durationMin >= 30 ? 'var(--brand-accent)' : '#2563eb' }}>
                                     {stop.durationMin >= 60 ? `${Math.floor(stop.durationMin / 60)} sa ${stop.durationMin % 60} dk` : `${stop.durationMin} dakika`}
                                 </div>
                                 <div style={{ fontSize: 10, color: '#64748b', marginTop: 2 }}>

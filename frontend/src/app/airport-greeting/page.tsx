@@ -33,7 +33,7 @@ const GREETING_STATUS: Record<string, { label: string; color: string; bg: string
     DELAYED:    { label: 'Rötar',         color: '#ea580c', bg: '#fff7ed', border: '#fdba74', icon: <ExclamationCircleOutlined /> },
     LANDED:     { label: 'Uçak İndi',     color: '#2563eb', bg: '#eff6ff', border: '#93c5fd', icon: <CheckCircleOutlined /> },
     CANCELLED:  { label: 'İptal',         color: '#dc2626', bg: '#fef2f2', border: '#fca5a5', icon: <CloseCircleOutlined /> },
-    MET:        { label: 'Karşılandı',    color: '#7c3aed', bg: '#f3e8ff', border: '#ddd6fe', icon: <UserOutlined /> },
+    MET:        { label: 'Karşılandı',    color: 'var(--brand-accent)', bg: '#f3e8ff', border: 'var(--brand-primary-15)', icon: <UserOutlined /> },
     HANDED_OFF: { label: 'Teslim Edildi', color: '#16a34a', bg: '#f0fdf4', border: '#86efac', icon: <CheckCircleOutlined /> },
     NO_SHOW:    { label: 'Gelmedi',       color: '#64748b', bg: '#f8fafc', border: '#cbd5e1', icon: <CloseCircleOutlined /> },
 };
@@ -509,7 +509,7 @@ export default function AirportGreetingStandalonePage() {
                         <div style={{ fontWeight: 700, fontSize: 13, color: '#1e293b' }}>{r.passengerName || '-'}</div>
                         {renderPassengerPhone(r)}
                         <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 2 }}>
-                            <Badge count={pax} style={{ backgroundColor: '#6366f1', fontSize: 9, height: 16, lineHeight: '16px' }} />
+                            <Badge count={pax} style={{ backgroundColor: 'var(--brand-primary)', fontSize: 9, height: 16, lineHeight: '16px' }} />
                             <span style={{ marginLeft: 4 }}>kişi</span>
                             {r.specialRequests && (
                                 <Tooltip title={r.specialRequests}>
@@ -668,7 +668,7 @@ export default function AirportGreetingStandalonePage() {
                                 <Button size="small"
                                     icon={<SwapRightOutlined style={{ fontSize: 10 }} />}
                                     onClick={() => handleMovePassenger(r)}
-                                    style={{ borderRadius: 5, fontSize: 10, height: 24, flex: 1, color: '#6366f1', borderColor: '#c7d2fe' }}>
+                                    style={{ borderRadius: 5, fontSize: 10, height: 24, flex: 1, color: 'var(--brand-primary)', borderColor: 'var(--brand-primary-15)' }}>
                                     Sefer
                                 </Button>
                             )}
@@ -799,7 +799,7 @@ export default function AirportGreetingStandalonePage() {
                                     <div style={{ padding: '2px 6px', display: 'flex', alignItems: 'center', gap: 5 }}>
                                         <CarOutlined style={{ fontSize: 12 }} />
                                         <span style={{ fontSize: 12, fontWeight: 600 }}>Özel</span>
-                                        <Badge count={privateArrivals.length} style={{ backgroundColor: '#6366f1', fontSize: 9 }} />
+                                        <Badge count={privateArrivals.length} style={{ backgroundColor: 'var(--brand-primary)', fontSize: 9 }} />
                                     </div>
                                 ),
                             },
@@ -864,11 +864,11 @@ export default function AirportGreetingStandalonePage() {
                                             ))}
                                             <Badge
                                                 count={`${group.bookings.length} müşteri`}
-                                                style={{ backgroundColor: allDone ? '#86efac' : someMet ? '#c4b5fd' : '#fbbf24', color: allDone ? '#166534' : someMet ? '#5b21b6' : '#92400e', fontWeight: 700, fontSize: 9 }}
+                                                style={{ backgroundColor: allDone ? '#86efac' : someMet ? 'var(--brand-primary-20)' : '#fbbf24', color: allDone ? '#166534' : someMet ? 'var(--brand-accent)' : '#92400e', fontWeight: 700, fontSize: 9 }}
                                             />
                                             <Badge
                                                 count={`${group.pax} pax`}
-                                                style={{ backgroundColor: '#e0e7ff', color: '#4338ca', fontWeight: 700, fontSize: 9 }}
+                                                style={{ backgroundColor: 'var(--brand-primary-10)', color: 'var(--brand-accent)', fontWeight: 700, fontSize: 9 }}
                                             />
                                         </div>
                                     ),
@@ -944,7 +944,7 @@ export default function AirportGreetingStandalonePage() {
                                                             <span style={{
                                                                 display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                                                                 width: 22, height: 22, borderRadius: '50%',
-                                                                background: '#6366f1', color: '#fff', fontWeight: 800, fontSize: 10,
+                                                                background: 'var(--brand-primary)', color: '#fff', fontWeight: 800, fontSize: 10,
                                                             }}>{pax}</span>
                                                         </div>
 
@@ -1225,7 +1225,7 @@ export default function AirportGreetingStandalonePage() {
                                                 <a
                                                     href={`https://www.google.com/maps?q=${d.location.lat},${d.location.lng}`}
                                                     target="_blank" rel="noopener noreferrer"
-                                                    style={{ fontSize: 11, color: '#7c3aed', textDecoration: 'none' }}
+                                                    style={{ fontSize: 11, color: 'var(--brand-accent)', textDecoration: 'none' }}
                                                 >
                                                     <EnvironmentOutlined style={{ fontSize: 10, marginRight: 3 }} />
                                                     Haritada Aç ({d.location.lat.toFixed(4)}, {d.location.lng.toFixed(4)})
@@ -1453,8 +1453,8 @@ export default function AirportGreetingStandalonePage() {
 
                                             {/* Customer Info */}
                                             {rec && (
-                                                <div style={{ background: '#faf5ff', borderRadius: 8, padding: 12, border: '1px solid #e9d5ff', marginBottom: 16 }}>
-                                                    <div style={{ fontSize: 9, color: '#7c3aed', fontWeight: 700, textTransform: 'uppercase', marginBottom: 6 }}>Bu Uçuştaki Müşteri</div>
+                                                <div style={{ background: 'var(--brand-primary-08)', borderRadius: 8, padding: 12, border: '1px solid #e9d5ff', marginBottom: 16 }}>
+                                                    <div style={{ fontSize: 9, color: 'var(--brand-accent)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 6 }}>Bu Uçuştaki Müşteri</div>
                                                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                                                         <div>
                                                             <div style={{ fontWeight: 700, fontSize: 13, color: '#1e293b' }}>{rec.passengerName}</div>
@@ -1463,7 +1463,7 @@ export default function AirportGreetingStandalonePage() {
                                                         {rec.passengerPhone && (
                                                             <a href={`tel:${rec.passengerPhone}`} style={{
                                                                 display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px',
-                                                                background: '#7c3aed', color: '#fff', borderRadius: 6, fontSize: 11,
+                                                                background: 'var(--brand-accent)', color: '#fff', borderRadius: 6, fontSize: 11,
                                                                 fontWeight: 600, textDecoration: 'none', height: 'fit-content',
                                                             }}>
                                                                 <PhoneOutlined /> Ara
@@ -1623,7 +1623,7 @@ export default function AirportGreetingStandalonePage() {
                 {/* ═══ DRIVER SELECTION MODAL ═══ */}
                 <Modal
                     title={<div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <CarOutlined style={{ color: '#6366f1' }} />
+                        <CarOutlined style={{ color: 'var(--brand-primary)' }} />
                         <span>Şoför Seçin — Teslim Et</span>
                     </div>}
                     open={handoffModal.visible}
@@ -1633,7 +1633,7 @@ export default function AirportGreetingStandalonePage() {
                     cancelText="Vazgeç"
                     okButtonProps={{
                         disabled: !selectedDriver,
-                        style: { background: selectedDriver ? 'linear-gradient(135deg, #8b5cf6, #6366f1)' : undefined, border: 'none', fontWeight: 700 }
+                        style: { background: selectedDriver ? 'linear-gradient(135deg, var(--brand-accent), var(--brand-primary))' : undefined, border: 'none', fontWeight: 700 }
                     }}
                     width={500}
                 >
@@ -1647,7 +1647,7 @@ export default function AirportGreetingStandalonePage() {
                     </div>
                     {driverListLoading ? (
                         <div style={{ textAlign: 'center', padding: 30 }}>
-                            <LoadingOutlined style={{ fontSize: 24, color: '#6366f1' }} />
+                            <LoadingOutlined style={{ fontSize: 24, color: 'var(--brand-primary)' }} />
                             <div style={{ marginTop: 8, color: '#94a3b8', fontSize: 12 }}>Şoförler yükleniyor...</div>
                         </div>
                     ) : (
@@ -1660,15 +1660,15 @@ export default function AirportGreetingStandalonePage() {
                                     onClick={() => setSelectedDriver(d.userId || d.id)}
                                     style={{
                                         padding: '10px 14px', borderRadius: 10, cursor: 'pointer',
-                                        border: `2px solid ${selectedDriver === (d.userId || d.id) ? '#6366f1' : '#e2e8f0'}`,
-                                        background: selectedDriver === (d.userId || d.id) ? '#eef2ff' : '#fff',
+                                        border: `2px solid ${selectedDriver === (d.userId || d.id) ? 'var(--brand-primary)' : '#e2e8f0'}`,
+                                        background: selectedDriver === (d.userId || d.id) ? 'var(--brand-primary-08)' : '#fff',
                                         transition: 'all 0.15s',
                                         display: 'flex', alignItems: 'center', gap: 12,
                                     }}
                                 >
                                     <div style={{
                                         width: 36, height: 36, borderRadius: 8,
-                                        background: selectedDriver === (d.userId || d.id) ? 'linear-gradient(135deg, #6366f1, #8b5cf6)' : '#f1f5f9',
+                                        background: selectedDriver === (d.userId || d.id) ? 'linear-gradient(135deg, var(--brand-primary), var(--brand-accent))' : '#f1f5f9',
                                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                                         color: selectedDriver === (d.userId || d.id) ? '#fff' : '#64748b',
                                         fontWeight: 700, fontSize: 14,
@@ -1690,7 +1690,7 @@ export default function AirportGreetingStandalonePage() {
                                         </div>
                                     )}
                                     {selectedDriver === (d.userId || d.id) && (
-                                        <CheckCircleOutlined style={{ color: '#6366f1', fontSize: 18 }} />
+                                        <CheckCircleOutlined style={{ color: 'var(--brand-primary)', fontSize: 18 }} />
                                     )}
                                 </div>
                             ))}
@@ -1701,7 +1701,7 @@ export default function AirportGreetingStandalonePage() {
                 {/* ═══ SHUTTLE MOVE MODAL ═══ */}
                 <Modal
                     title={<div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <SwapRightOutlined style={{ color: '#6366f1' }} />
+                        <SwapRightOutlined style={{ color: 'var(--brand-primary)' }} />
                         <span>Sefer Değiştir</span>
                     </div>}
                     open={moveModal.visible}
@@ -1719,7 +1719,7 @@ export default function AirportGreetingStandalonePage() {
                     </div>
                     {shuttleRunsLoading ? (
                         <div style={{ textAlign: 'center', padding: 30 }}>
-                            <LoadingOutlined style={{ fontSize: 24, color: '#6366f1' }} />
+                            <LoadingOutlined style={{ fontSize: 24, color: 'var(--brand-primary)' }} />
                             <div style={{ marginTop: 8, color: '#94a3b8', fontSize: 12 }}>Seferler yükleniyor...</div>
                         </div>
                     ) : (
@@ -1746,10 +1746,10 @@ export default function AirportGreetingStandalonePage() {
                                     >
                                         <div style={{
                                             width: 44, height: 44, borderRadius: 10,
-                                            background: isCurrent ? '#dcfce7' : 'linear-gradient(135deg, #eef2ff, #e0e7ff)',
+                                            background: isCurrent ? '#dcfce7' : 'linear-gradient(135deg, var(--brand-primary-08), var(--brand-primary-10))',
                                             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
                                         }}>
-                                            <div style={{ fontWeight: 800, fontSize: 14, color: isCurrent ? '#16a34a' : '#4f46e5', lineHeight: 1 }}>
+                                            <div style={{ fontWeight: 800, fontSize: 14, color: isCurrent ? '#16a34a' : 'var(--brand-accent)', lineHeight: 1 }}>
                                                 {run.departureTime || '--:--'}
                                             </div>
                                             <div style={{ fontSize: 8, color: '#94a3b8', fontWeight: 600 }}>
@@ -1774,7 +1774,7 @@ export default function AirportGreetingStandalonePage() {
                                         {isCurrent ? (
                                             <Tag color="green" style={{ fontSize: 10, borderRadius: 6 }}>Mevcut</Tag>
                                         ) : (
-                                            <SwapRightOutlined style={{ color: '#6366f1', fontSize: 18 }} />
+                                            <SwapRightOutlined style={{ color: 'var(--brand-primary)', fontSize: 18 }} />
                                         )}
                                     </div>
                                 );

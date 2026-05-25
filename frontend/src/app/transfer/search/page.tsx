@@ -348,13 +348,13 @@ const TransferSearchContent: React.FC = () => {
                                 <div style={{
                                     marginBottom: 20, padding: '16px 20px', borderRadius: 14,
                                     background: roundTripStep === 'outbound'
-                                        ? 'linear-gradient(135deg, #667eea20, #764ba220)'
+                                        ? 'linear-gradient(135deg, var(--brand-primary-20), var(--brand-accent-20))'
                                         : 'linear-gradient(135deg, #10b98120, #059669 20)',
-                                    border: roundTripStep === 'outbound' ? '1px solid #667eea40' : '1px solid #10b98140',
+                                    border: roundTripStep === 'outbound' ? '1px solid var(--brand-primary-40)' : '1px solid #10b98140',
                                     display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12
                                 }}>
                                     <div>
-                                        <Text strong style={{ fontSize: 15, color: roundTripStep === 'outbound' ? '#667eea' : '#059669' }}>
+                                        <Text strong style={{ fontSize: 15, color: roundTripStep === 'outbound' ? 'var(--brand-primary)' : '#059669' }}>
                                             {roundTripStep === 'outbound' ? '1️⃣ Gidiş Aracını Seçin' : '2️⃣ Dönüş Aracını Seçin'}
                                         </Text>
                                         <div style={{ fontSize: 13, color: '#64748b', marginTop: 4 }}>
@@ -468,8 +468,8 @@ const TransferSearchContent: React.FC = () => {
                                         </Col>
                                         <Col xs={24} md={6} style={{ padding: 24, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center' }}>
                                             <Text type="secondary" delete>{formatPrice(Math.round(result.price * 1.2), result.currency)}</Text>
-                                            <Title level={2} style={{ color: '#667eea', margin: '4px 0 16px', fontSize: 28 }}>{formatPrice(result.price, result.currency)}</Title>
-                                            <Button type="primary" size="large" block onClick={() => handleBook(result.id, result.matchedMasterTime)} style={{ background: roundTripStep === 'return' ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', border: 'none' }}>
+                                            <Title level={2} style={{ color: 'var(--brand-primary)', margin: '4px 0 16px', fontSize: 28 }}>{formatPrice(result.price, result.currency)}</Title>
+                                            <Button type="primary" size="large" block onClick={() => handleBook(result.id, result.matchedMasterTime)} style={{ background: roundTripStep === 'return' ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : 'linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-accent) 100%)', border: 'none' }}>
                                                 {isRoundTrip ? (roundTripStep === 'outbound' ? 'Gidiş Seç →' : 'Dönüş Seç ✓') : 'Hemen Seç'}
                                             </Button>
                                         </Col>

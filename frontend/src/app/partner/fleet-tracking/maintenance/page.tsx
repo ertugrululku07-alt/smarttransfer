@@ -97,7 +97,7 @@ export default function MaintenancePage() {
 
   return (
     <>
-      <Card size="small" title={<span><ToolOutlined style={{ marginRight: 8, color: '#6366f1' }} /> Bakım & Onarım</span>}
+      <Card size="small" title={<span><ToolOutlined style={{ marginRight: 8, color: 'var(--brand-primary)' }} /> Bakım & Onarım</span>}
         extra={
           <Space>
             <Select placeholder="Araç" allowClear style={{ width: 160 }} value={filter.vehicleId} onChange={(v) => { setFilter({ ...filter, vehicleId: v }); setTimeout(load, 0); }} options={vehicles.map((x: any) => ({ value: x.id, label: x.plate }))} showSearch optionFilterProp="label" />

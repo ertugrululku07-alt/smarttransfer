@@ -76,7 +76,7 @@ export default function CollectionsPage() {
 
   return (
     <>
-      <Card title={<span><DollarOutlined style={{ marginRight: 8, color: '#6366f1' }} /> Şoför Tahsilatları</span>} size="small"
+      <Card title={<span><DollarOutlined style={{ marginRight: 8, color: 'var(--brand-primary)' }} /> Şoför Tahsilatları</span>} size="small"
         extra={
           <Space>
             <Select placeholder="Tüm durumlar" allowClear style={{ width: 160 }} value={status} onChange={(v)=>{ setStatus(v); setTimeout(load, 0); }} options={Object.keys(STATUS_LABELS).map(k=>({value:k,label:STATUS_LABELS[k]}))} />

@@ -41,7 +41,7 @@ export default function ReportsPage() {
 
   return (
     <div style={{ display: 'grid', gap: 14 }}>
-      <Card size="small" title={<span><BarChartOutlined style={{ marginRight: 8, color: '#6366f1' }} /> Dönemsel Raporlar</span>}
+      <Card size="small" title={<span><BarChartOutlined style={{ marginRight: 8, color: 'var(--brand-primary)' }} /> Dönemsel Raporlar</span>}
         extra={
           <Space>
             <DatePicker.RangePicker value={range} onChange={(v) => setRange(v)} />
@@ -58,7 +58,7 @@ export default function ReportsPage() {
             <Stat label="Alış Maliyeti" value={fmt(income.costs.total)} accent="#ef4444" icon={<FallOutlined />} />
             <Stat label="Brüt Kâr" value={fmt(income.grossProfit)} accent={income.grossProfit >= 0 ? '#10b981' : '#ef4444'} />
             <Stat label="Operasyon Gideri" value={fmt(income.operatingExpenses.total)} accent="#f59e0b" />
-            <Stat label="Personel Gideri" value={fmt(income.payroll.total)} accent="#a855f7" />
+            <Stat label="Personel Gideri" value={fmt(income.payroll.total)} accent="var(--brand-accent)" />
             <Stat label="EBIT (Faaliyet Kârı)" value={fmt(income.ebit)} accent={income.ebit >= 0 ? '#10b981' : '#ef4444'} bold />
           </div>
         ) : <Empty />}
@@ -162,7 +162,7 @@ export default function ReportsPage() {
 
 function Stat({ label, value, accent, icon, bold }: { label: string; value: string; accent?: string; icon?: React.ReactNode; bold?: boolean }) {
   return (
-    <div style={{ border: '1px solid #e2e8f0', borderRadius: 10, padding: '12px 14px', background: '#fff', borderLeft: `3px solid ${accent || '#6366f1'}` }}>
+    <div style={{ border: '1px solid #e2e8f0', borderRadius: 10, padding: '12px 14px', background: '#fff', borderLeft: `3px solid ${accent || 'var(--brand-primary)'}` }}>
       <div style={{ fontSize: 11, color: '#64748b' }}>{icon} {label}</div>
       <div style={{ fontSize: bold ? 20 : 17, fontWeight: bold ? 800 : 700, color: '#0f172a', marginTop: 4 }}>{value}</div>
     </div>

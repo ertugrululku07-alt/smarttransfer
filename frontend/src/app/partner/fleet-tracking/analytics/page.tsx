@@ -41,7 +41,7 @@ export default function FleetAnalyticsPage() {
 
   return (
     <div style={{ display: 'grid', gap: 14 }}>
-      <Card size="small" title={<span><BarChartOutlined style={{ marginRight: 8, color: '#6366f1' }} /> Filo Maliyet Analizi</span>}
+      <Card size="small" title={<span><BarChartOutlined style={{ marginRight: 8, color: 'var(--brand-primary)' }} /> Filo Maliyet Analizi</span>}
         extra={
           <Select value={months} onChange={(v) => setMonths(v)} style={{ width: 130 }} options={[
             { value: 3, label: 'Son 3 ay' }, { value: 6, label: 'Son 6 ay' }, { value: 12, label: 'Son 12 ay' }, { value: 24, label: 'Son 24 ay' }, { value: 36, label: 'Son 36 ay' },
@@ -50,7 +50,7 @@ export default function FleetAnalyticsPage() {
       >
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
           <div className="ps-kpi" style={{ borderLeft: '3px solid #10b981' }}><div className="ps-kpi__label"><FireOutlined /> Yakıt</div><div className="ps-kpi__value">{fmt(t.fuel)}</div></div>
-          <div className="ps-kpi" style={{ borderLeft: '3px solid #6366f1' }}><div className="ps-kpi__label"><ToolOutlined /> Bakım & Onarım</div><div className="ps-kpi__value">{fmt(t.maintenance)}</div></div>
+          <div className="ps-kpi" style={{ borderLeft: '3px solid var(--brand-primary)' }}><div className="ps-kpi__label"><ToolOutlined /> Bakım & Onarım</div><div className="ps-kpi__value">{fmt(t.maintenance)}</div></div>
           <div className="ps-kpi" style={{ borderLeft: '3px solid #f59e0b' }}><div className="ps-kpi__label"><AuditOutlined /> Muayene</div><div className="ps-kpi__value">{fmt(t.inspection)}</div></div>
           <div className="ps-kpi" style={{ borderLeft: '3px solid #ef4444' }}><div className="ps-kpi__label"><SafetyOutlined /> Sigorta</div><div className="ps-kpi__value">{fmt(t.insurance)}</div></div>
           <div className="ps-kpi" style={{ borderLeft: '3px solid #0f172a', background: '#f8fafc' }}><div className="ps-kpi__label">Genel Toplam</div><div className="ps-kpi__value">{fmt(t.grand)}</div></div>
@@ -65,7 +65,7 @@ export default function FleetAnalyticsPage() {
                 <div style={{ fontSize: 12, color: '#64748b', fontFamily: 'monospace' }}>{m.month}</div>
                 <div style={{ display: 'grid', gap: 3 }}>
                   {m.fuel > 0 && <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr 100px', gap: 8, alignItems: 'center', fontSize: 11 }}><span>Yakıt</span><Bar value={m.fuel} max={maxMonth} color="#10b981" /><span style={{ textAlign: 'right' }}>{fmt(m.fuel)}</span></div>}
-                  {m.maintenance > 0 && <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr 100px', gap: 8, alignItems: 'center', fontSize: 11 }}><span>Bakım</span><Bar value={m.maintenance} max={maxMonth} color="#6366f1" /><span style={{ textAlign: 'right' }}>{fmt(m.maintenance)}</span></div>}
+                  {m.maintenance > 0 && <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr 100px', gap: 8, alignItems: 'center', fontSize: 11 }}><span>Bakım</span><Bar value={m.maintenance} max={maxMonth} color="var(--brand-primary)" /><span style={{ textAlign: 'right' }}>{fmt(m.maintenance)}</span></div>}
                   {m.inspection > 0 && <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr 100px', gap: 8, alignItems: 'center', fontSize: 11 }}><span>Muayene</span><Bar value={m.inspection} max={maxMonth} color="#f59e0b" /><span style={{ textAlign: 'right' }}>{fmt(m.inspection)}</span></div>}
                   {m.insurance > 0 && <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr 100px', gap: 8, alignItems: 'center', fontSize: 11 }}><span>Sigorta</span><Bar value={m.insurance} max={maxMonth} color="#ef4444" /><span style={{ textAlign: 'right' }}>{fmt(m.insurance)}</span></div>}
                 </div>
@@ -103,7 +103,7 @@ export default function FleetAnalyticsPage() {
               {data.maintenanceByType.map((m: any) => (
                 <div key={m.type} style={{ display: 'grid', gridTemplateColumns: '140px 1fr 100px', gap: 8, alignItems: 'center', fontSize: 12 }}>
                   <Tag>{m.type}</Tag>
-                  <Bar value={m.total} max={data.maintenanceByType[0].total || 1} color="#6366f1" />
+                  <Bar value={m.total} max={data.maintenanceByType[0].total || 1} color="var(--brand-primary)" />
                   <span style={{ textAlign: 'right', fontWeight: 700 }}>{fmt(m.total)}</span>
                 </div>
               ))}

@@ -227,7 +227,7 @@ const ReservationEditModal: React.FC<ReservationEditModalProps> = ({ open, booki
                 {booking && (
                     <div>
                         {/* Header */}
-                        <div style={{ background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a78bfa 100%)', padding: '16px 22px', position: 'relative', overflow: 'hidden' }}>
+                        <div style={{ background: 'linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-accent) 50%, var(--brand-primary) 100%)', padding: '16px 22px', position: 'relative', overflow: 'hidden' }}>
                             <div style={{ position: 'absolute', top: -30, right: -30, width: 140, height: 140, borderRadius: '50%', background: 'rgba(255,255,255,0.08)' }} />
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'relative', zIndex: 1 }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -249,25 +249,25 @@ const ReservationEditModal: React.FC<ReservationEditModalProps> = ({ open, booki
                                 <div>
                                     <div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>Müşteri</div>
                                     <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                        <UserOutlined style={{ color: '#6366f1', marginRight: 4 }} />{contactName || '—'}
+                                        <UserOutlined style={{ color: 'var(--brand-primary)', marginRight: 4 }} />{contactName || '—'}
                                     </div>
                                 </div>
                                 <div>
                                     <div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>Araç</div>
                                     <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                        <CarOutlined style={{ color: '#6366f1', marginRight: 4 }} />{booking.metadata?.vehicleType || booking.vehicleType || '—'}
+                                        <CarOutlined style={{ color: 'var(--brand-primary)', marginRight: 4 }} />{booking.metadata?.vehicleType || booking.vehicleType || '—'}
                                     </div>
                                 </div>
                                 <div style={{ textAlign: 'right' }}>
                                     <div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>Mevcut Fiyat</div>
-                                    <div style={{ fontSize: 16, fontWeight: 800, color: '#6366f1', marginTop: 2, fontFamily: 'monospace' }}>₺{originalPrice.toLocaleString('tr-TR')}</div>
+                                    <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--brand-primary)', marginTop: 2, fontFamily: 'monospace' }}>₺{originalPrice.toLocaleString('tr-TR')}</div>
                                 </div>
                             </div>
 
                             {/* Customer */}
                             <div style={{ background: '#fff', borderRadius: 12, padding: '12px 14px', border: '1px solid #e8ecf1', marginBottom: 12, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
                                 <div style={{ fontSize: 12, fontWeight: 700, color: '#1e293b', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 }}>
-                                    <UserOutlined style={{ color: '#6366f1', marginRight: 6 }} />Müşteri Bilgileri
+                                    <UserOutlined style={{ color: 'var(--brand-primary)', marginRight: 6 }} />Müşteri Bilgileri
                                 </div>
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                                     <div>
@@ -288,7 +288,7 @@ const ReservationEditModal: React.FC<ReservationEditModalProps> = ({ open, booki
                             {/* Transfer details */}
                             <div style={{ background: '#fff', borderRadius: 12, padding: '12px 14px', border: '1px solid #e8ecf1', marginBottom: 12, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
                                 <div style={{ fontSize: 12, fontWeight: 700, color: '#1e293b', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 }}>
-                                    <CalendarOutlined style={{ color: '#6366f1', marginRight: 6 }} />Transfer Detayları
+                                    <CalendarOutlined style={{ color: 'var(--brand-primary)', marginRight: 6 }} />Transfer Detayları
                                 </div>
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                                     <div style={{ gridColumn: '1 / span 2' }}>
@@ -387,10 +387,10 @@ const ReservationEditModal: React.FC<ReservationEditModalProps> = ({ open, booki
                             </div>
 
                             {/* Pricing badge */}
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: isPerPerson ? '#eff6ff' : '#f5f3ff', border: `1px solid ${isPerPerson ? '#bfdbfe' : '#ddd6fe'}`, borderRadius: 10, padding: '8px 12px', marginBottom: 12, fontSize: 12 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: isPerPerson ? '#eff6ff' : 'var(--brand-primary-08)', border: `1px solid ${isPerPerson ? '#bfdbfe' : 'var(--brand-primary-15)'}`, borderRadius: 10, padding: '8px 12px', marginBottom: 12, fontSize: 12 }}>
                                 <span style={{ fontSize: 16 }}>{isPerPerson ? '👥' : '🚗'}</span>
                                 <div style={{ flex: 1 }}>
-                                    <span style={{ fontWeight: 700, color: isPerPerson ? '#1d4ed8' : '#6d28d9' }}>{isPerPerson ? 'Kişi Başı Fiyatlı' : 'Sabit Araç Fiyatlı'}</span>
+                                    <span style={{ fontWeight: 700, color: isPerPerson ? '#1d4ed8' : 'var(--brand-accent)' }}>{isPerPerson ? 'Kişi Başı Fiyatlı' : 'Sabit Araç Fiyatlı'}</span>
                                     <span style={{ color: '#64748b', marginLeft: 6 }}>
                                         {isPerPerson ? `Birim: ₺${perSeatPrice.toLocaleString('tr-TR', { maximumFractionDigits: 2 })} / kişi  ·  Mevcut: ${originalPax} kişi` : 'Yolcu sayısı değişse bile araç fiyatı sabit kalır'}
                                     </span>
@@ -405,7 +405,7 @@ const ReservationEditModal: React.FC<ReservationEditModalProps> = ({ open, booki
                                 </div>
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
                                     {([
-                                        { key: 'adults' as const, label: 'Yetişkin', sub: '13+ yaş', val: adults, min: 1, color: '#6366f1', bg: '#eef2ff' },
+                                        { key: 'adults' as const, label: 'Yetişkin', sub: '13+ yaş', val: adults, min: 1, color: 'var(--brand-primary)', bg: 'var(--brand-primary-08)' },
                                         { key: 'children' as const, label: 'Çocuk', sub: '3-12 yaş', val: children, min: 0, color: '#f59e0b', bg: '#fef3c7' },
                                         { key: 'infants' as const, label: 'Bebek', sub: '0-2 yaş', val: infants, min: 0, color: '#ec4899', bg: '#fce7f3' },
                                     ] as const).map(item => (
@@ -435,7 +435,7 @@ const ReservationEditModal: React.FC<ReservationEditModalProps> = ({ open, booki
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                                         {paxList.map((p, idx) => {
                                             const typeLabel = p.type === 'child' ? 'Çocuk' : p.type === 'infant' ? 'Bebek' : 'Yetişkin';
-                                            const typeColor = p.type === 'child' ? '#f59e0b' : p.type === 'infant' ? '#ec4899' : '#6366f1';
+                                            const typeColor = p.type === 'child' ? '#f59e0b' : p.type === 'infant' ? '#ec4899' : 'var(--brand-primary)';
                                             return (
                                                 <div key={idx} style={{ display: 'flex', gap: 6, alignItems: 'center', background: '#f9fafb', borderRadius: 8, padding: '6px 8px', border: '1px solid #f0f0f0' }}>
                                                     <Tag color={typeColor} style={{ borderRadius: 10, fontSize: 10, minWidth: 64, textAlign: 'center', margin: 0, fontWeight: 700 }}>{idx + 1}. {typeLabel}</Tag>
@@ -453,24 +453,24 @@ const ReservationEditModal: React.FC<ReservationEditModalProps> = ({ open, booki
                             <div style={{ background: '#fff', borderRadius: 12, padding: '14px 16px', border: `2px solid ${priceDiff > 0 ? '#fca5a5' : priceDiff < 0 ? '#86efac' : '#e8ecf1'}`, marginBottom: 4, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                                     <span style={{ fontSize: 12, fontWeight: 700, color: '#1e293b', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                                        <DollarOutlined style={{ color: '#6366f1', marginRight: 6 }} />Fiyat Hesaplama
+                                        <DollarOutlined style={{ color: 'var(--brand-primary)', marginRight: 6 }} />Fiyat Hesaplama
                                     </span>
                                 </div>
                                 <div style={{ display: 'grid', gridTemplateColumns: isPerPerson ? 'repeat(3, 1fr)' : 'repeat(2, 1fr)', gap: 6, marginBottom: 12 }}>
                                     {isPerPerson && (
                                         <button onClick={() => setPricingMode('auto')}
-                                            style={{ padding: '8px 10px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', border: pricingMode === 'auto' ? '2px solid #6366f1' : '1px solid #e5e7eb', background: pricingMode === 'auto' ? '#eef2ff' : '#fff', color: pricingMode === 'auto' ? '#4f46e5' : '#64748b' }}>
+                                            style={{ padding: '8px 10px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', border: pricingMode === 'auto' ? '2px solid var(--brand-primary)' : '1px solid #e5e7eb', background: pricingMode === 'auto' ? 'var(--brand-primary-08)' : '#fff', color: pricingMode === 'auto' ? 'var(--brand-accent)' : '#64748b' }}>
                                             ⚡ Otomatik
                                             <div style={{ fontSize: 9, fontWeight: 500, marginTop: 2, opacity: 0.8 }}>Kişi başına yansıt</div>
                                         </button>
                                     )}
                                     <button onClick={() => setPricingMode('keep')}
-                                        style={{ padding: '8px 10px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', border: pricingMode === 'keep' ? '2px solid #6366f1' : '1px solid #e5e7eb', background: pricingMode === 'keep' ? '#eef2ff' : '#fff', color: pricingMode === 'keep' ? '#4f46e5' : '#64748b' }}>
+                                        style={{ padding: '8px 10px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', border: pricingMode === 'keep' ? '2px solid var(--brand-primary)' : '1px solid #e5e7eb', background: pricingMode === 'keep' ? 'var(--brand-primary-08)' : '#fff', color: pricingMode === 'keep' ? 'var(--brand-accent)' : '#64748b' }}>
                                         🔒 Sabit Tut
                                         <div style={{ fontSize: 9, fontWeight: 500, marginTop: 2, opacity: 0.8 }}>Fiyatı değiştirme</div>
                                     </button>
                                     <button onClick={() => setPricingMode('manual')}
-                                        style={{ padding: '8px 10px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', border: pricingMode === 'manual' ? '2px solid #6366f1' : '1px solid #e5e7eb', background: pricingMode === 'manual' ? '#eef2ff' : '#fff', color: pricingMode === 'manual' ? '#4f46e5' : '#64748b' }}>
+                                        style={{ padding: '8px 10px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', border: pricingMode === 'manual' ? '2px solid var(--brand-primary)' : '1px solid #e5e7eb', background: pricingMode === 'manual' ? 'var(--brand-primary-08)' : '#fff', color: pricingMode === 'manual' ? 'var(--brand-accent)' : '#64748b' }}>
                                         ✏️ Elle Gir
                                         <div style={{ fontSize: 9, fontWeight: 500, marginTop: 2, opacity: 0.8 }}>Yeni toplam</div>
                                     </button>
@@ -531,7 +531,7 @@ const ReservationEditModal: React.FC<ReservationEditModalProps> = ({ open, booki
                                 Vazgeç
                             </button>
                             <button onClick={handleSave} disabled={saving}
-                                style={{ height: 44, padding: '0 24px', borderRadius: 10, border: 'none', background: priceDiff !== 0 ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : 'linear-gradient(135deg, #6366f1 0%, #7c3aed 100%)', color: '#fff', fontSize: 14, fontWeight: 700, cursor: saving ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 4px 14px rgba(99,102,241,0.35)', opacity: saving ? 0.7 : 1 }}>
+                                style={{ height: 44, padding: '0 24px', borderRadius: 10, border: 'none', background: priceDiff !== 0 ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : 'linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-accent) 100%)', color: '#fff', fontSize: 14, fontWeight: 700, cursor: saving ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 4px 14px var(--brand-primary-33)', opacity: saving ? 0.7 : 1 }}>
                                 {saving ? <Spin size="small" /> : <CheckCircleOutlined />}
                                 {priceDiff !== 0 ? `Kaydet  ·  ₺${computedNewPrice.toLocaleString('tr-TR')}` : 'Kaydet'}
                             </button>

@@ -40,7 +40,7 @@ interface ActivityLog {
 const ACTION_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode; bg: string }> = {
   CREATE: { label: 'Oluşturma', color: '#10b981', icon: <PlusCircleOutlined />, bg: '#ecfdf5' },
   UPDATE: { label: 'Güncelleme', color: '#3b82f6', icon: <EditOutlined />, bg: '#eff6ff' },
-  PATCH: { label: 'Değişiklik', color: '#8b5cf6', icon: <SwapOutlined />, bg: '#f5f3ff' },
+  PATCH: { label: 'Değişiklik', color: 'var(--brand-accent)', icon: <SwapOutlined />, bg: 'var(--brand-primary-08)' },
   DELETE: { label: 'Silme', color: '#ef4444', icon: <DeleteOutlined />, bg: '#fef2f2' },
   CANCEL: { label: 'İptal', color: '#f59e0b', icon: <ExclamationCircleOutlined />, bg: '#fffbeb' },
 };
@@ -182,7 +182,7 @@ export default function LogsPage() {
       render: (val: string) => (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <Avatar size={28} style={{
-            background: val ? 'linear-gradient(135deg, #6366f1, #8b5cf6)' : '#e2e8f0',
+            background: val ? 'linear-gradient(135deg, var(--brand-primary), var(--brand-accent))' : '#e2e8f0',
             fontSize: 11, fontWeight: 700
           }}>
             {val ? val[0].toUpperCase() : <SafetyCertificateOutlined />}
@@ -275,7 +275,7 @@ export default function LogsPage() {
             size="small"
             icon={<EyeOutlined />}
             onClick={() => showLogDetails(record)}
-            style={{ color: '#6366f1', borderRadius: 6 }}
+            style={{ color: 'var(--brand-primary)', borderRadius: 6 }}
           />
         </Tooltip>
       )
@@ -297,8 +297,8 @@ export default function LogsPage() {
         <span style={{ fontSize: 12, color: '#64748b', fontWeight: 500 }}>{key}</span>
         <span style={{
           fontSize: 12, fontWeight: 600, fontFamily: typeof value === 'number' ? 'monospace' : 'inherit',
-          color: isPriceField ? '#ef4444' : isStatusField ? '#6366f1' : isSensitive ? '#94a3b8' : '#1e293b',
-          background: isPriceField ? '#fef2f2' : isStatusField ? '#eef2ff' : 'transparent',
+          color: isPriceField ? '#ef4444' : isStatusField ? 'var(--brand-primary)' : isSensitive ? '#94a3b8' : '#1e293b',
+          background: isPriceField ? '#fef2f2' : isStatusField ? 'var(--brand-primary-08)' : 'transparent',
           padding: isPriceField || isStatusField ? '1px 8px' : '0',
           borderRadius: 4
         }}>
@@ -319,9 +319,9 @@ export default function LogsPage() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                 <div style={{
                   width: 48, height: 48, borderRadius: 14,
-                  background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                  background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-accent))',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  color: '#fff', fontSize: 22, boxShadow: '0 4px 14px #6366f140'
+                  color: '#fff', fontSize: 22, boxShadow: '0 4px 14px var(--brand-primary-40)'
                 }}><DatabaseOutlined /></div>
                 <div>
                   <Title level={3} style={{ margin: 0, color: '#1e293b' }}>Sistem İşlem Logları</Title>
@@ -341,7 +341,7 @@ export default function LogsPage() {
             {/* Stats */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12, marginBottom: 20 }}>
               {[
-                { label: 'Toplam Log', value: stats.total, color: '#6366f1', icon: <DatabaseOutlined />, key: 'total' },
+                { label: 'Toplam Log', value: stats.total, color: 'var(--brand-primary)', icon: <DatabaseOutlined />, key: 'total' },
                 { label: 'Oluşturma', value: stats.creates, color: '#10b981', icon: <PlusCircleOutlined />, key: 'CREATE' },
                 { label: 'Güncelleme', value: stats.updates, color: '#3b82f6', icon: <EditOutlined />, key: 'UPDATE' },
                 { label: 'Silme / İptal', value: stats.deletes, color: '#ef4444', icon: <DeleteOutlined />, key: 'DELETE' },

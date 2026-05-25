@@ -276,7 +276,7 @@ export default function CampaignsPage() {
                             <Space>
                                 <Button icon={<ReloadOutlined />} onClick={() => { fetchCampaigns(); fetchStats(); }}>Yenile</Button>
                                 <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}
-                                    style={{ background: '#4f46e5', borderColor: '#4f46e5' }}>
+                                    style={{ background: 'var(--brand-accent)', borderColor: 'var(--brand-accent)' }}>
                                     Yeni Kampanya
                                 </Button>
                             </Space>
@@ -288,7 +288,7 @@ export default function CampaignsPage() {
                         <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
                             <Col xs={12} sm={6}>
                                 <Card styles={{ body: { padding: 16 } }}>
-                                    <Statistic title="Aktif Kampanyalar" value={stats.activeCampaigns} valueStyle={{ color: '#4f46e5' }} prefix={<GiftOutlined />} />
+                                    <Statistic title="Aktif Kampanyalar" value={stats.activeCampaigns} valueStyle={{ color: 'var(--brand-accent)' }} prefix={<GiftOutlined />} />
                                 </Card>
                             </Col>
                             <Col xs={12} sm={6}>
