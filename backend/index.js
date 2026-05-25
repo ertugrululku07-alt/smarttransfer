@@ -234,6 +234,10 @@ app.use('/api/kasa', tenantMiddleware, kasaRoutes);
 const operationsRoutes = require('./src/routes/operations');
 app.use('/api/operations', tenantMiddleware, operationsRoutes);
 
+// UETDS submission queue & history (admin operations)
+const uetdsRoutes = require('./src/routes/uetds');
+app.use('/api/uetds', tenantMiddleware, uetdsRoutes);
+
 // Zones routes
 const zonesRoutes = require('./src/routes/zones');
 app.use('/api/zones', tenantMiddleware, zonesRoutes);

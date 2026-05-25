@@ -141,7 +141,9 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, selectedKey = 'dash
               case 'driver-tracking':
               case 'operations-list':
               case 'pool-transfers':
-              case 'partner-transfers': return 'operations';
+              case 'partner-transfers':
+              case 'airport-greeting':
+              case 'uetds-submission': return 'operations';
               case 'accounting-dashboard':
               case 'accounting-accounts':
               case 'accounting-invoices':
@@ -320,6 +322,11 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, selectedKey = 'dash
                   key: 'airport-greeting',
                   label: 'Havalimanı Karşılama',
                   onClick: () => router.push('/admin/operation/airport-greeting')
+                },
+                {
+                  key: 'uetds-submission',
+                  label: 'UETDS Gönderimi',
+                  onClick: () => router.push('/admin/operation/uetds')
                 }
               ]
             },
