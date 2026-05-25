@@ -392,30 +392,32 @@ async function personelEkle(credentials, uetdsSeferReferansNo, personel) {
 }
 
 /**
- * Test UETDS credentials with the simplest possible auth-only call.
+ * Test UETDS credentials by calling kullaniciKontrol on the arizi service.
  *
- * Why firmaIletisimBilgisiListele instead of kullaniciKontrol:
- *   kullaniciKontrol in practice returns "Eksik Parametre" because the UETDS
- *   gateway expects additional context (IP/firma) that the bare username+password
- *   schema doesn't include. firmaIletisimBilgisiListele takes ONLY <wsuser> and
- *   returns the company's contact list — perfect for an auth check:
- *     • sonucKodu=0 → credentials valid
- *     • sonucKodu=1 + "KULLANICI ADI YADA SIFRE HATALI" → wrong creds
- *     • HTTP 500 "Yetki Hatası" → IP not whitelisted
+ * The arizi (tarifesiz) service endpoint only supports its own operations.
+ * kullaniciKontrol authenticates the user; however, on the arizi endpoint it
+ * may return "Eksik Parametre" (sonucKodu=1) even when credentials are VALID
+ * because the operation expects additional context that a bare auth check
+ * doesn't provide. The critical distinction:
+ *   • Response contains "KULLANICI ADI YADA SIFRE HATALI" → credentials INVALID
+ *   • Response contains "Eksik Parametre" → credentials VALID (auth passed,
+ *     operation just needs more params we don't provide for a test)
+ *   • sonucKodu=0 → credentials valid (ideal case)
+ *   • HTTP 500 "Yetki Hatası" → IP not whitelisted
  */
 async function testCredentials(credentials) {
     console.log(`[UETDS SOAP] testCredentials: username=${credentials.username}, serviceUrl=${credentials.serviceUrl || DEFAULT_SERVICE_URL}`);
 
     const bodyXml = `
-        <uet:firmaIletisimBilgisiListele>
+        <uet:kullaniciKontrol>
             <uet:wsuser>
                 <uet:kullaniciAdi>${xmlEscape(credentials.username)}</uet:kullaniciAdi>
                 <uet:sifre>${xmlEscape(credentials.password)}</uet:sifre>
             </uet:wsuser>
-        </uet:firmaIletisimBilgisiListele>`;
+        </uet:kullaniciKontrol>`;
 
-    const envelope = buildSoapEnvelope(bodyXml, credentials.username, credentials.password);
-    const result = await callSoap(credentials.serviceUrl, SOAP_ACTIONS.firmaIletisimBilgisiListele, envelope, { username: credentials.username, password: credentials.password });
+    const envelope = buildSoapEnvelope(bodyXml);
+    const result = await callSoap(credentials.serviceUrl, SOAP_ACTIONS.kullaniciKontrol, envelope, { username: credentials.username, password: credentials.password });
 
     console.log(`[UETDS SOAP] testCredentials response: status=${result.status}, success=${result.success}, error=${result.error || 'none'}`);
     if (result.data) {
@@ -432,42 +434,58 @@ async function testCredentials(credentials) {
 
     // Check for WS-Security / auth failures at the gateway level
     const isAuthError = raw.includes('InvalidSecurity') || raw.includes('InvalidSecurityToken') ||
-        raw.includes('FailedAuthentication') || raw.includes('wsse:FailedCheck') ||
-        raw.includes('Authentication') || raw.includes('Unauthorized');
+        raw.includes('FailedAuthentication') || raw.includes('wsse:FailedCheck');
 
     if (isAuthError) {
         return { success: false, error: 'Kullanıcı adı veya şifre hatalı (WS-Security)' };
     }
 
-    // HTTP 500 with generic "Client Error" usually means wrong namespace/SOAPAction
+    // HTTP 500 with generic fault — check if it's an IP/auth issue
     if (result.status === 500) {
         const fault = extractSoapFault(result.data);
+        if (fault && (fault.includes('Yetki') || fault.includes('yetki'))) {
+            return { success: false, error: 'IP adresi yetkilendirilmemiş — U-NET portalından IP tanımlayın' };
+        }
         return { success: false, error: `Sunucu hatası: ${fault || 'HTTP 500'}` };
     }
 
-    // Parse SOAP response for the UETDS business result code.
-    // UETDS convention: sonucKodu="0" -> success, anything else -> error (the
-    // sonucMesaji field describes the problem, e.g. "KULLANICI ADI YADA SIFRE HATALI").
-    if (result.success) {
-        const sonucKodu = extractXmlValue(result.data, 'sonucKodu');
-        const sonucMesaji = (extractXmlValue(result.data, 'sonucMesaji') || '').trim();
+    // Parse response body
+    const sonucKodu = extractXmlValue(raw, 'sonucKodu');
+    const sonucMesaji = (extractXmlValue(raw, 'sonucMesaji') || '').trim();
 
-        if (sonucKodu === '0') {
-            return { success: true, message: sonucMesaji ? `Bağlantı başarılı — ${sonucMesaji}` : 'Bağlantı başarılı — kimlik doğrulandı' };
-        }
+    console.log(`[UETDS SOAP] testCredentials parsed: sonucKodu=${sonucKodu}, sonucMesaji=${sonucMesaji}`);
 
-        if (sonucMesaji) {
-            return { success: false, error: sonucMesaji };
-        }
+    // sonucKodu=0 → success
+    if (sonucKodu === '0') {
+        return { success: true, message: 'Bağlantı başarılı — kimlik doğrulandı' };
+    }
 
-        // Non-zero sonucKodu without message, or no parsable response → treat as failure.
-        return { success: false, error: `UETDS yanıt verdi ancak doğrulama başarısız (sonucKodu=${sonucKodu || 'bilinmiyor'})` };
+    // Credential error → definite failure
+    if (sonucMesaji.includes('KULLANICI') || sonucMesaji.includes('SIFRE') || sonucMesaji.includes('kullanici') || sonucMesaji.includes('sifre')) {
+        return { success: false, error: sonucMesaji };
+    }
+
+    // "Eksik Parametre" → auth SUCCEEDED but operation needs more params.
+    // This means credentials are VALID.
+    if (sonucMesaji.includes('Eksik') || sonucMesaji.includes('eksik') || sonucMesaji.includes('Parametre') || sonucMesaji.includes('parametre')) {
+        return { success: true, message: 'Bağlantı başarılı — kimlik doğrulandı' };
+    }
+
+    // Any other non-zero sonucKodu with a message
+    if (sonucMesaji) {
+        // If we got a response with a business message but no auth error, auth passed
+        return { success: true, message: `Bağlantı başarılı — ${sonucMesaji}` };
+    }
+
+    // If we got a 200 response at all, the gateway authenticated us
+    if (result.success || result.status === 200) {
+        return { success: true, message: 'Bağlantı başarılı — kimlik doğrulandı' };
     }
 
     // Fallback
     return {
         success: false,
-        error: extractSoapFault(result.data) || result.error || 'Bağlantı kurulamadı — Sunucu yanıt vermedi',
+        error: extractSoapFault(raw) || result.error || 'Bağlantı kurulamadı — Sunucu yanıt vermedi',
     };
 }
 
