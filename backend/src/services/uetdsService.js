@@ -59,12 +59,27 @@ function xmlEscape(str) {
         .replace(/'/g, '&apos;');
 }
 
+// ── SOAP namespaces & SOAPAction values (from WSDL) ──────────────────────────
+// WSDL: https://servis.turkiye.gov.tr/services/g2g/kdgm/uetdsarizi?wsdl
+// Service: UdhbUetdsAriziService (Tarifesiz Yolcu / Arızı)
+// targetNamespace: http://uetds.unetws.udhb.gov.tr/
+const UETDS_NS = 'http://uetds.unetws.udhb.gov.tr/';
+
+// SOAPAction URIs per WSDL binding (soap:operation soapAction="...")
+const SOAP_ACTIONS = {
+    seferEkle:       'http://uetds.unetws.udhb.gov.tr/uetdsytsarizi/seferEkle',
+    seferIptal:      'http://uetds.unetws.udhb.gov.tr/uetdsytsarizi/seferIptal',
+    yolcuEkle:       'http://uetds.unetws.udhb.gov.tr/uetdsytsarizi/yolcuEkle',
+    personelEkle:    'http://uetds.unetws.udhb.gov.tr/uetdsytsarizi/personelEkle',
+    kullaniciKontrol:'http://uetds.unetws.udhb.gov.tr/uetdsytsarizi/kullaniciKontrol',
+};
+
 // ── Build SOAP envelope with WS-Security ─────────────────────────────────────
 function buildSoapEnvelope(username, password, bodyXml) {
     return `<?xml version="1.0" encoding="UTF-8"?>
 <soapenv:Envelope 
     xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
-    xmlns:uet="http://uetds.udhb.gov.tr/">
+    xmlns:uet="${UETDS_NS}">
     <soapenv:Header>
         <wsse:Security 
             xmlns:wsse="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd"
@@ -185,7 +200,7 @@ async function seferEkle(credentials, sefer) {
         </uet:seferEkle>`;
 
     const envelope = buildSoapEnvelope(credentials.username, credentials.password, bodyXml);
-    const result = await callSoap(credentials.serviceUrl, 'seferEkle', envelope);
+    const result = await callSoap(credentials.serviceUrl, SOAP_ACTIONS.seferEkle, envelope);
 
     const uetdsSeferId = extractXmlValue(result.data, 'uetdsSeferId') || extractXmlValue(result.data, 'seferId');
     const refNo = extractXmlValue(result.data, 'referansNo') || extractXmlValue(result.data, 'sonucKodu');
@@ -229,7 +244,7 @@ async function seferIptal(credentials, uetdsSeferId) {
         </uet:seferIptal>`;
 
     const envelope = buildSoapEnvelope(credentials.username, credentials.password, bodyXml);
-    const result = await callSoap(credentials.serviceUrl, 'seferIptal', envelope);
+    const result = await callSoap(credentials.serviceUrl, SOAP_ACTIONS.seferIptal, envelope);
     const hata = extractSoapFault(result.data) || extractXmlValue(result.data, 'sonucMesaji');
 
     return {
@@ -263,7 +278,7 @@ async function yolcuEkle(credentials, uetdsSeferId, yolcu) {
         </uet:yolcuEkle>`;
 
     const envelope = buildSoapEnvelope(credentials.username, credentials.password, bodyXml);
-    const result = await callSoap(credentials.serviceUrl, 'yolcuEkle', envelope);
+    const result = await callSoap(credentials.serviceUrl, SOAP_ACTIONS.yolcuEkle, envelope);
     const hata = extractSoapFault(result.data) || extractXmlValue(result.data, 'sonucMesaji');
 
     return {
@@ -297,7 +312,7 @@ async function personelEkle(credentials, uetdsSeferId, personel) {
         </uet:personelEkle>`;
 
     const envelope = buildSoapEnvelope(credentials.username, credentials.password, bodyXml);
-    const result = await callSoap(credentials.serviceUrl, 'personelEkle', envelope);
+    const result = await callSoap(credentials.serviceUrl, SOAP_ACTIONS.personelEkle, envelope);
     const hata = extractSoapFault(result.data) || extractXmlValue(result.data, 'sonucMesaji');
 
     return {
@@ -309,29 +324,23 @@ async function personelEkle(credentials, uetdsSeferId, personel) {
 }
 
 /**
- * Test UNet credentials by making a lightweight seferEkle call
- * (we intentionally send an incomplete sefer to see if auth works;
- *  a 'BASARILI' or auth-specific error reveals credential validity)
+ * Test UETDS credentials using the kullaniciKontrol operation from WSDL.
+ * This is a dedicated auth check — much more reliable than sending a dummy seferEkle.
  */
 async function testCredentials(credentials) {
     console.log(`[UETDS SOAP] testCredentials: username=${credentials.username}, serviceUrl=${credentials.serviceUrl || DEFAULT_SERVICE_URL}`);
     
+    // Use kullaniciKontrol — the WSDL-defined operation for credential verification
     const bodyXml = `
-        <uet:seferEkle>
+        <uet:kullaniciKontrol>
             <uet:wsuser>
                 <uet:kullaniciAdi>${xmlEscape(credentials.username)}</uet:kullaniciAdi>
                 <uet:sifre>${xmlEscape(credentials.password)}</uet:sifre>
             </uet:wsuser>
-            <uet:seferBilgileri>
-                <uet:aracPlaka>TEST</uet:aracPlaka>
-                <uet:yetkiBelgeNo>${xmlEscape(credentials.yetkiBelgeNo)}</uet:yetkiBelgeNo>
-                <uet:baslangicTarih>01.01.2099 00:00</uet:baslangicTarih>
-                <uet:bitisTarih>01.01.2099 01:00</uet:bitisTarih>
-            </uet:seferBilgileri>
-        </uet:seferEkle>`;
+        </uet:kullaniciKontrol>`;
 
     const envelope = buildSoapEnvelope(credentials.username, credentials.password, bodyXml);
-    const result = await callSoap(credentials.serviceUrl, 'seferEkle', envelope);
+    const result = await callSoap(credentials.serviceUrl, SOAP_ACTIONS.kullaniciKontrol, envelope);
 
     console.log(`[UETDS SOAP] testCredentials response: status=${result.status}, success=${result.success}, error=${result.error || 'none'}`);
     if (result.data) {
@@ -339,27 +348,56 @@ async function testCredentials(credentials) {
         console.log(`[UETDS SOAP] testCredentials response body (first 500 chars): ${rawStr}`);
     }
 
-    // Check for auth failures
+    // Network / connection error
+    if (!result.data && result.error) {
+        return { success: false, error: `Bağlantı hatası: ${result.error}` };
+    }
+
     const raw = typeof result.data === 'string' ? result.data : '';
-    const isAuthError = raw.includes('Authentication') || raw.includes('Unauthorized') ||
-        raw.includes('InvalidSecurity') || raw.includes('Kimlik doğrulama') ||
-        raw.includes('InvalidSecurityToken') || raw.includes('FailedAuthentication') ||
-        raw.includes('Security header') || raw.includes('wsse:FailedCheck');
+
+    // Check for WS-Security / auth failures at the gateway level
+    const isAuthError = raw.includes('InvalidSecurity') || raw.includes('InvalidSecurityToken') ||
+        raw.includes('FailedAuthentication') || raw.includes('wsse:FailedCheck') ||
+        raw.includes('Authentication') || raw.includes('Unauthorized');
 
     if (isAuthError) {
-        return { success: false, error: 'Kullanıcı adı veya şifre hatalı' };
+        return { success: false, error: 'Kullanıcı adı veya şifre hatalı (WS-Security)' };
     }
 
-    // If we get a field validation error or any non-auth SOAP response, auth passed!
-    const isValidationError = raw.includes('zorunlu') || raw.includes('hatalı') ||
-        raw.includes('plaka') || raw.includes('BASARISIZ') || raw.includes('Fault') ||
-        raw.includes('sonucKodu') || raw.includes('sonucMesaji') || raw.includes('Envelope');
-
-    if (result.success || isValidationError) {
-        return { success: true, message: 'Bağlantı başarılı — kimlik doğrulandı' };
+    // HTTP 500 with generic "Client Error" usually means wrong namespace/SOAPAction
+    if (result.status === 500) {
+        const fault = extractSoapFault(result.data);
+        return { success: false, error: `Sunucu hatası: ${fault || 'HTTP 500'}` };
     }
 
-    // Connection error (network, timeout, etc.)
+    // If we get an HTTP 200 response, the credentials are valid
+    // (even if the SOAP body contains a business error like "kullanıcı bulunamadı",
+    //  that means the gateway accepted the auth and forwarded to the backend)
+    if (result.success) {
+        // Check for explicit success indicators
+        const sonucKodu = extractXmlValue(result.data, 'sonucKodu');
+        const sonucMesaji = extractXmlValue(result.data, 'sonucMesaji');
+        
+        if (sonucKodu === '0' || sonucKodu === '1' || raw.includes('BASARILI')) {
+            return { success: true, message: 'Bağlantı başarılı — kimlik doğrulandı' };
+        }
+        
+        // Even a validation error at HTTP 200 means auth passed
+        if (sonucMesaji) {
+            // Check if message indicates auth failure at the business logic level
+            if (sonucMesaji.toLowerCase().includes('kullanıcı') && sonucMesaji.toLowerCase().includes('hatalı')) {
+                return { success: false, error: `Kullanıcı adı veya şifre hatalı: ${sonucMesaji}` };
+            }
+            return { success: true, message: `Bağlantı başarılı — ${sonucMesaji}` };
+        }
+
+        // Got a 200 response with a SOAP envelope — auth is working
+        if (raw.includes('Envelope')) {
+            return { success: true, message: 'Bağlantı başarılı — kimlik doğrulandı' };
+        }
+    }
+
+    // Fallback
     return {
         success: false,
         error: extractSoapFault(result.data) || result.error || 'Bağlantı kurulamadı — Sunucu yanıt vermedi',
