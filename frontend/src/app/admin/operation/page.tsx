@@ -532,6 +532,7 @@ export default function OperationDashboard() {
                                     pagination={false}
                                     size="small"
                                     loading={loading}
+                                    childrenColumnName="nested_children_disabled"
                                     locale={{ emptyText: <Empty description="Yaklaşan transfer yok" /> }}
                                     rowClassName={(r: Booking) => {
                                         const mins = dayjs(r.pickupDateTime).diff(dayjs(), 'minute');
