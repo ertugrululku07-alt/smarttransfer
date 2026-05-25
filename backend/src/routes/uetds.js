@@ -496,11 +496,18 @@ async function submitOneItem({ tenantId, userId, item, config, bookings, drivers
         const seferAciklama = item.kind === 'RUN'
             ? `[SHUTTLE] ${meta.pickup || ''} → ${lastMeta.dropoff || ''} (${bookingsForItem.length} rez.)`
             : `${meta.pickup || ''} → ${meta.dropoff || ''} (${primary.bookingNumber})`;
+        // UETDS expects "DD.MM.YYYY HH:mm" format for date fields
+        const fmtUetdsDate = (d) => {
+            const dt = d instanceof Date ? d : new Date(d);
+            if (isNaN(dt.getTime())) return '';
+            const pad = (n) => String(n).padStart(2, '0');
+            return `${pad(dt.getDate())}.${pad(dt.getMonth() + 1)}.${dt.getFullYear()} ${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
+        };
         seferResult = await uetdsService.seferEkle(credentials, {
-            aracPlaka: vehicle.plateNumber,
+            aracPlaka: (vehicle.plateNumber || '').replace(/\s+/g, '').toUpperCase(),
             seferAciklama,
-            baslangicTarih,
-            bitisTarih,
+            baslangicTarih: fmtUetdsDate(baslangicTarih),
+            bitisTarih: fmtUetdsDate(bitisTarih),
             baslangicIl, baslangicIlce, bitisIl, bitisIlce,
         });
         seferResult.rawResponse = (seferResult.rawResponse || '').substring(0, 4000);
