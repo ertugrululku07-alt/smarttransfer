@@ -358,10 +358,41 @@ router.post('/test-uetds', authMiddleware, async (req, res) => {
             });
         }
 
+        // Also run a quick seferEkle test with dummy data to diagnose operation-level auth
+        let seferDiag = null;
+        if (result.success && (provider === 'TURKIYE_GOV' || provider === 'OFFICIAL')) {
+            try {
+                const uetdsService = require('../services/uetdsService');
+                const serviceUrl = (provider === 'TURKIYE_GOV')
+                    ? (environment === 'production'
+                        ? 'https://servis.turkiye.gov.tr/services/g2g/kdgm/uetdsarizi'
+                        : 'https://servis.turkiye.gov.tr/services/g2g/kdgm/test/uetdsarizi')
+                    : 'https://aracws.unetds.com/services/UetdsAracTahsisliService';
+                const seferRes = await uetdsService.seferEkle(
+                    { username, password, serviceUrl },
+                    {
+                        aracPlaka: '34TEST001',
+                        seferAciklama: 'Baglanti testi',
+                        baslangicTarih: new Date(Date.now() + 24 * 3600000),
+                        bitisTarih: new Date(Date.now() + 26 * 3600000),
+                        firmaSeferNo: 'DIAG-' + Date.now(),
+                        aracTelefonu: '05001234567',
+                    }
+                );
+                seferDiag = {
+                    success: seferRes.success,
+                    errorMessage: seferRes.errorMessage,
+                    rawResponse: (seferRes.rawResponse || '').substring(0, 500),
+                };
+            } catch (e) {
+                seferDiag = { success: false, errorMessage: e.message };
+            }
+        }
+
         if (result.success) {
-            res.json({ success: true, message: result.message || 'Bağlantı başarılı' });
+            res.json({ success: true, message: result.message || 'Bağlantı başarılı', seferDiag });
         } else {
-            res.status(400).json({ success: false, error: result.error || 'Bağlantı başarısız' });
+            res.status(400).json({ success: false, error: result.error || 'Bağlantı başarısız', seferDiag });
         }
     } catch (error) {
         console.error('Test UETDS error:', error);
