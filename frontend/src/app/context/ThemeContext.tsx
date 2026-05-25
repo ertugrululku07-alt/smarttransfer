@@ -281,6 +281,19 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return null;
   };
 
+  // Inject the active theme colors as CSS variables on <html> so that any
+  // component anywhere in the tree can reference them via var(--brand-primary)
+  // / var(--brand-accent). This makes the brand color override the system
+  // EVERYWHERE (public site, admin panel, partner panel) without per-file edits.
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const root = document.documentElement;
+    root.style.setProperty('--brand-primary', theme.primaryColor);
+    root.style.setProperty('--brand-accent', theme.accentColor);
+    root.style.setProperty('--brand-gradient', `linear-gradient(135deg, ${theme.primaryColor} 0%, ${theme.accentColor} 100%)`);
+    root.style.setProperty('--brand-shadow', `0 8px 25px ${theme.primaryColor}66`);
+  }, [theme.primaryColor, theme.accentColor]);
+
   return (
     <ThemeContext.Provider value={{ theme, themeKey, setThemeKey, loading }}>
       {theme.decorationCss && (

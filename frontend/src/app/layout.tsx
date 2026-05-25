@@ -8,6 +8,7 @@ import { CurrencyProvider } from "./context/CurrencyContext";
 import { ThemeProvider } from "./context/ThemeContext";
 import { BrandingProvider } from "./context/BrandingContext";
 import { LanguageProvider } from "./context/LanguageContext";
+import AntThemeWrapper from "./context/AntThemeWrapper";
 import LiveChatWidget from "./components/LiveChatWidget";
 import ServiceWorkerRegister from "./components/ServiceWorkerRegister";
 
@@ -317,13 +318,15 @@ export default async function RootLayout({
           <SocketProvider>
             <CurrencyProvider>
               <ThemeProvider>
-                <BrandingProvider>
-                  <LanguageProvider>
-                    {children}
-                    <LiveChatWidget />
-                    <ServiceWorkerRegister />
-                  </LanguageProvider>
-                </BrandingProvider>
+                <AntThemeWrapper>
+                  <BrandingProvider>
+                    <LanguageProvider>
+                      {children}
+                      <LiveChatWidget />
+                      <ServiceWorkerRegister />
+                    </LanguageProvider>
+                  </BrandingProvider>
+                </AntThemeWrapper>
               </ThemeProvider>
             </CurrencyProvider>
           </SocketProvider>

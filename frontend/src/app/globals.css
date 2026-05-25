@@ -10,6 +10,14 @@
   --background: #ffffff;
   --foreground: #171717;
 
+  /* Brand colors — overridden at runtime by ThemeContext based on the active
+     site theme (Admin → Site Ayarları → Özel Tema). All purple/violet
+     hardcoded values across the codebase should reference these variables. */
+  --brand-primary: #667eea;
+  --brand-accent: #764ba2;
+  --brand-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  --brand-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+
   /* Premium Color Palette */
   --primary-gradient-start: #667eea;
   --primary-gradient-end: #764ba2;
