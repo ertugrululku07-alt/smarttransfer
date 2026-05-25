@@ -818,4 +818,17 @@ router.delete('/submission/:id', authMiddleware, async (req, res) => {
     }
 });
 
+// ── GET /api/uetds/server-ip ────────────────────────────────────────────────
+// Returns the outbound IP of this server (needed for UETDS IP whitelist)
+router.get('/server-ip', authMiddleware, async (req, res) => {
+    try {
+        if (!requireAdmin(req, res)) return;
+        const axios = require('axios');
+        const result = await axios.get('https://api.ipify.org?format=json', { timeout: 10000 });
+        res.json({ success: true, ip: result.data.ip });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'IP alınamadı: ' + error.message });
+    }
+});
+
 module.exports = router;
