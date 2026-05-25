@@ -44,13 +44,14 @@ async function loadUetdsConfig(tenantId) {
     const provider = u.provider || 'OFFICIAL';
     const environment = u.environment || 'production';
     let serviceUrl = null;
-    if (provider === 'TURKIYE_GOV') {
+    // T.C. UDHB UETDS — Tarifesiz Yolcu (Arızı) servisi
+    // Transfer / taksi / VIP shuttle bildirimleri için "uetdsarizi" endpoint kullanılır.
+    // NOTE: UETDS yetki kapsamı IP whitelist'lidir; gönderim yapacak sunucunun
+    // çıkış IP'si UETDS portalından yetki listesine eklenmiş olmalıdır.
+    if (provider === 'TURKIYE_GOV' || provider === 'OFFICIAL') {
         serviceUrl = environment === 'production'
             ? 'https://servis.turkiye.gov.tr/services/g2g/kdgm/uetdsarizi'
             : 'https://servis.turkiye.gov.tr/services/g2g/kdgm/test/uetdsarizi';
-    } else if (provider === 'OFFICIAL') {
-        // UNet doğrudan SOAP erişimi
-        serviceUrl = 'https://aracws.unetds.com/services/UetdsAracTahsisliService';
     }
     return {
         ok: true,
