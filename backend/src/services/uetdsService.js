@@ -45,7 +45,8 @@ function decrypt(encryptedText) {
 }
 
 // ── Default UETDS SOAP endpoint ──────────────────────────────────────────────
-const DEFAULT_SERVICE_URL = 'https://aracws.unetgs.com/services/UetdsAracTahsisliService';
+// Tarifesiz Yolcu (D2 belgesi) servisi — UNet doğrudan erişim
+const DEFAULT_SERVICE_URL = 'https://aracws.unetds.com/services/UetdsAracTahsisliService';
 
 // ── XML Escaping ─────────────────────────────────────────────────────────────
 function xmlEscape(str) {
@@ -144,8 +145,19 @@ function extractSoapFault(xml) {
 }
 
 // ── Format date for UETDS (dd.MM.yyyy HH:mm) ────────────────────────────────
+// Smart: if already in "DD.MM.YYYY HH:mm" format, pass through unchanged.
+// Otherwise parse as Date and format.
 function formatUetdsDate(date) {
+    if (!date) return '';
+    // Already formatted string? (DD.MM.YYYY HH:mm)
+    if (typeof date === 'string' && /^\d{2}\.\d{2}\.\d{4} \d{2}:\d{2}$/.test(date.trim())) {
+        return date.trim();
+    }
     const d = new Date(date);
+    if (isNaN(d.getTime())) {
+        console.warn(`[UETDS] formatUetdsDate: geçersiz tarih değeri: ${date}`);
+        return typeof date === 'string' ? date : '';
+    }
     const dd = String(d.getDate()).padStart(2, '0');
     const mm = String(d.getMonth() + 1).padStart(2, '0');
     const yyyy = d.getFullYear();
@@ -197,13 +209,22 @@ async function seferEkle(credentials, sefer) {
         || (result.status && result.status >= 400 ? `HTTP ${result.status}` : null)
         || (!result.data ? 'Sunucudan boş yanıt alındı' : null);
 
+    // Build rawResponse: prefer actual data, fall back to error message
+    let rawResponse;
+    if (result.data) {
+        rawResponse = typeof result.data === 'string' ? result.data : JSON.stringify(result.data);
+    } else {
+        rawResponse = result.error || 'Sunucudan yanıt alınamadı (data=null)';
+    }
+
     return {
         success: result.success && !!uetdsSeferId,
         uetdsSeferId,
         refNo,
+        status: result.status,
         errorMessage: !uetdsSeferId ? (hataMsg || 'Bilinmeyen hata') : null,
         rawRequest: envelope,
-        rawResponse: typeof result.data === 'string' ? result.data : JSON.stringify(result.data),
+        rawResponse,
     };
 }
 

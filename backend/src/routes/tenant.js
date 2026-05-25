@@ -351,8 +351,10 @@ router.post('/test-uetds', authMiddleware, async (req, res) => {
             });
         } else {
             const uetdsService = require('../services/uetdsService');
+            // OFFICIAL provider: UNet doğrudan SOAP erişimi
+            const serviceUrl = 'https://aracws.unetds.com/services/UetdsAracTahsisliService';
             result = await uetdsService.testCredentials({
-                username, password, yetkiBelgeNo: '', serviceUrl: null
+                username, password, yetkiBelgeNo: '', serviceUrl
             });
         }
 
@@ -425,6 +427,8 @@ router.post('/uetds-submit', authMiddleware, async (req, res) => {
             serviceUrl = env === 'production'
                 ? 'https://servis.turkiye.gov.tr/services/g2g/kdgm/uetdsarizi'
                 : 'https://servis.turkiye.gov.tr/services/g2g/kdgm/test/uetdsarizi';
+        } else if (provider === 'OFFICIAL') {
+            serviceUrl = 'https://aracws.unetds.com/services/UetdsAracTahsisliService';
         }
         const credentials = {
             username: uetdsSettings.username,

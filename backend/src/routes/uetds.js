@@ -48,6 +48,9 @@ async function loadUetdsConfig(tenantId) {
         serviceUrl = environment === 'production'
             ? 'https://servis.turkiye.gov.tr/services/g2g/kdgm/uetdsarizi'
             : 'https://servis.turkiye.gov.tr/services/g2g/kdgm/test/uetdsarizi';
+    } else if (provider === 'OFFICIAL') {
+        // UNet doğrudan SOAP erişimi
+        serviceUrl = 'https://aracws.unetds.com/services/UetdsAracTahsisliService';
     }
     return {
         ok: true,
@@ -496,18 +499,12 @@ async function submitOneItem({ tenantId, userId, item, config, bookings, drivers
         const seferAciklama = item.kind === 'RUN'
             ? `[SHUTTLE] ${meta.pickup || ''} → ${lastMeta.dropoff || ''} (${bookingsForItem.length} rez.)`
             : `${meta.pickup || ''} → ${meta.dropoff || ''} (${primary.bookingNumber})`;
-        // UETDS expects "DD.MM.YYYY HH:mm" format for date fields
-        const fmtUetdsDate = (d) => {
-            const dt = d instanceof Date ? d : new Date(d);
-            if (isNaN(dt.getTime())) return '';
-            const pad = (n) => String(n).padStart(2, '0');
-            return `${pad(dt.getDate())}.${pad(dt.getMonth() + 1)}.${dt.getFullYear()} ${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
-        };
+        // Pass raw Date objects — formatUetdsDate inside seferEkle handles the formatting
         seferResult = await uetdsService.seferEkle(credentials, {
             aracPlaka: (vehicle.plateNumber || '').replace(/\s+/g, '').toUpperCase(),
             seferAciklama,
-            baslangicTarih: fmtUetdsDate(baslangicTarih),
-            bitisTarih: fmtUetdsDate(bitisTarih),
+            baslangicTarih,
+            bitisTarih,
             baslangicIl, baslangicIlce, bitisIl, bitisIlce,
         });
         seferResult.rawResponse = (seferResult.rawResponse || '').substring(0, 4000);
