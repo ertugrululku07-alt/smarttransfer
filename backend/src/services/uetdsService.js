@@ -99,17 +99,26 @@ async function callSoap(serviceUrl, soapAction, envelopeXml) {
         const response = await axios.post(url, envelopeXml, {
             headers: {
                 'Content-Type': 'text/xml; charset=utf-8',
-                'SOAPAction': `"${fullAction}"`,
+                'SOAPAction': fullAction,
+                'Accept': 'text/xml,application/xml,application/soap+xml',
             },
             timeout: 30000,
             validateStatus: () => true, // Accept all HTTP status codes
         });
+        const dataStr = typeof response.data === 'string'
+            ? response.data
+            : (response.data ? JSON.stringify(response.data) : '');
+        console.log(`[UETDS SOAP] ${fullAction} -> HTTP ${response.status}, body length=${dataStr.length}`);
+        if (response.status >= 400 || dataStr.length < 50) {
+            console.log(`[UETDS SOAP] Response (first 1000 chars): ${dataStr.substring(0, 1000)}`);
+        }
         return {
             success: response.status >= 200 && response.status < 300,
             status: response.status,
             data: response.data,
         };
     } catch (error) {
+        console.error(`[UETDS SOAP] Network error for ${fullAction}:`, error.message);
         return {
             success: false,
             status: 0,
@@ -181,13 +190,18 @@ async function seferEkle(credentials, sefer) {
 
     const uetdsSeferId = extractXmlValue(result.data, 'uetdsSeferId') || extractXmlValue(result.data, 'seferId');
     const refNo = extractXmlValue(result.data, 'referansNo') || extractXmlValue(result.data, 'sonucKodu');
-    const hataMsg = extractSoapFault(result.data) || extractXmlValue(result.data, 'sonucMesaji');
+    const hataMsg = extractSoapFault(result.data)
+        || extractXmlValue(result.data, 'sonucMesaji')
+        || extractXmlValue(result.data, 'hataAciklamasi')
+        || result.error
+        || (result.status && result.status >= 400 ? `HTTP ${result.status}` : null)
+        || (!result.data ? 'Sunucudan boş yanıt alındı' : null);
 
     return {
         success: result.success && !!uetdsSeferId,
         uetdsSeferId,
         refNo,
-        errorMessage: (!uetdsSeferId && hataMsg) ? hataMsg : null,
+        errorMessage: !uetdsSeferId ? (hataMsg || 'Bilinmeyen hata') : null,
         rawRequest: envelope,
         rawResponse: typeof result.data === 'string' ? result.data : JSON.stringify(result.data),
     };

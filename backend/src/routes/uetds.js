@@ -511,6 +511,7 @@ async function submitOneItem({ tenantId, userId, item, config, bookings, drivers
             baslangicIl, baslangicIlce, bitisIl, bitisIlce,
         });
         seferResult.rawResponse = (seferResult.rawResponse || '').substring(0, 4000);
+        seferResult.rawRequest = (seferResult.rawRequest || '').substring(0, 4000);
     }
 
     // Persist submission row
@@ -532,7 +533,7 @@ async function submitOneItem({ tenantId, userId, item, config, bookings, drivers
                 passengerCount: passengers.length,
                 bookingNumbers: bookingsForItem.map(b => b.bookingNumber),
             },
-            response: { sefer: seferResult.rawResponse },
+            response: { sefer: seferResult.rawResponse, request: seferResult.rawRequest || null, httpStatus: seferResult.status || null },
             submittedAt: seferResult.success ? new Date() : null,
         }
     });
