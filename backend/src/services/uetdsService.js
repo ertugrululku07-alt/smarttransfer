@@ -76,24 +76,17 @@ const SOAP_ACTIONS = {
 };
 
 // ── Build SOAP envelope ──────────────────────────────────────────────────────
-// The UETDS gateway requires WS-Security UsernameToken auth. Even though the
-// body also carries <wsuser>, the gateway-level WS-Security must be present;
-// without it the gateway responds with HTTP 401 "Authentication Required".
-function buildSoapEnvelope(bodyXml, wsUsername, wsPassword) {
-    const securityHeader = (wsUsername && wsPassword) ? `
-        <wsse:Security
-            xmlns:wsse="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd">
-            <wsse:UsernameToken>
-                <wsse:Username>${xmlEscape(wsUsername)}</wsse:Username>
-                <wsse:Password Type="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordText">${xmlEscape(wsPassword)}</wsse:Password>
-            </wsse:UsernameToken>
-        </wsse:Security>` : '';
+// T.C. UETDS service uses body-level <wsuser> for authentication.
+// WS-Security UsernameToken is NOT used by this service; sending it in addition
+// to body wsuser causes the backend to read the wrong identity and return
+// "KULLANICI ADI YADA SIFRE HATALI". HTTP Basic Auth on the wire handles
+// any gateway-level requirements (no WS-Security header needed here).
+function buildSoapEnvelope(bodyXml /*, wsUsername, wsPassword */) {
     return `<?xml version="1.0" encoding="UTF-8"?>
 <soapenv:Envelope 
     xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
     xmlns:uet="${UETDS_NS}">
-    <soapenv:Header>${securityHeader}
-    </soapenv:Header>
+    <soapenv:Header/>
     <soapenv:Body>
         ${bodyXml}
     </soapenv:Body>
