@@ -75,15 +75,24 @@ const SOAP_ACTIONS = {
 };
 
 // ── Build SOAP envelope ──────────────────────────────────────────────────────
-// WSDL defines NO WS-Security policy. Auth is via <wsuser> in SOAP body.
-// Sending WS-Security with mustUnderstand="1" causes HTTP 401 at the gateway
-// because the backend doesn't support/expect it.
-function buildSoapEnvelope(bodyXml) {
+// The UETDS gateway requires WS-Security UsernameToken auth. Even though the
+// body also carries <wsuser>, the gateway-level WS-Security must be present;
+// without it the gateway responds with HTTP 401 "Authentication Required".
+function buildSoapEnvelope(bodyXml, wsUsername, wsPassword) {
+    const securityHeader = (wsUsername && wsPassword) ? `
+        <wsse:Security
+            xmlns:wsse="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd">
+            <wsse:UsernameToken>
+                <wsse:Username>${xmlEscape(wsUsername)}</wsse:Username>
+                <wsse:Password Type="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordText">${xmlEscape(wsPassword)}</wsse:Password>
+            </wsse:UsernameToken>
+        </wsse:Security>` : '';
     return `<?xml version="1.0" encoding="UTF-8"?>
 <soapenv:Envelope 
     xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
     xmlns:uet="${UETDS_NS}">
-    <soapenv:Header/>
+    <soapenv:Header>${securityHeader}
+    </soapenv:Header>
     <soapenv:Body>
         ${bodyXml}
     </soapenv:Body>
@@ -91,14 +100,21 @@ function buildSoapEnvelope(bodyXml) {
 }
 
 // ── SOAP call helper ─────────────────────────────────────────────────────────
-async function callSoap(serviceUrl, soapAction, envelopeXml) {
+async function callSoap(serviceUrl, soapAction, envelopeXml, basicAuth) {
     const url = serviceUrl || DEFAULT_SERVICE_URL;
     try {
+        const headers = {
+            'Content-Type': 'text/xml; charset=utf-8',
+            'SOAPAction': soapAction,
+        };
+        // Also send HTTP Basic Auth — some UETDS gateways accept either WS-Security
+        // or Basic Auth at the HTTP layer. Sending both is safe.
+        if (basicAuth && basicAuth.username) {
+            const token = Buffer.from(`${basicAuth.username}:${basicAuth.password || ''}`).toString('base64');
+            headers['Authorization'] = `Basic ${token}`;
+        }
         const response = await axios.post(url, envelopeXml, {
-            headers: {
-                'Content-Type': 'text/xml; charset=utf-8',
-                'SOAPAction': soapAction,
-            },
+            headers,
             timeout: 30000,
             validateStatus: () => true, // Accept all HTTP status codes
         });
@@ -193,8 +209,8 @@ async function seferEkle(credentials, sefer) {
             </uet:seferBilgileri>
         </uet:seferEkle>`;
 
-    const envelope = buildSoapEnvelope(bodyXml);
-    const result = await callSoap(credentials.serviceUrl, SOAP_ACTIONS.seferEkle, envelope);
+    const envelope = buildSoapEnvelope(bodyXml, credentials.username, credentials.password);
+    const result = await callSoap(credentials.serviceUrl, SOAP_ACTIONS.seferEkle, envelope, { username: credentials.username, password: credentials.password });
 
     const uetdsSeferId = extractXmlValue(result.data, 'uetdsSeferId') || extractXmlValue(result.data, 'seferId');
     const refNo = extractXmlValue(result.data, 'referansNo') || extractXmlValue(result.data, 'sonucKodu');
@@ -237,8 +253,8 @@ async function seferIptal(credentials, uetdsSeferId) {
             <uet:uetdsSeferId>${xmlEscape(uetdsSeferId)}</uet:uetdsSeferId>
         </uet:seferIptal>`;
 
-    const envelope = buildSoapEnvelope(bodyXml);
-    const result = await callSoap(credentials.serviceUrl, SOAP_ACTIONS.seferIptal, envelope);
+    const envelope = buildSoapEnvelope(bodyXml, credentials.username, credentials.password);
+    const result = await callSoap(credentials.serviceUrl, SOAP_ACTIONS.seferIptal, envelope, { username: credentials.username, password: credentials.password });
     const hata = extractSoapFault(result.data) || extractXmlValue(result.data, 'sonucMesaji');
 
     return {
@@ -271,8 +287,8 @@ async function yolcuEkle(credentials, uetdsSeferId, yolcu) {
             </uet:yolcuBilgileri>
         </uet:yolcuEkle>`;
 
-    const envelope = buildSoapEnvelope(bodyXml);
-    const result = await callSoap(credentials.serviceUrl, SOAP_ACTIONS.yolcuEkle, envelope);
+    const envelope = buildSoapEnvelope(bodyXml, credentials.username, credentials.password);
+    const result = await callSoap(credentials.serviceUrl, SOAP_ACTIONS.yolcuEkle, envelope, { username: credentials.username, password: credentials.password });
     const hata = extractSoapFault(result.data) || extractXmlValue(result.data, 'sonucMesaji');
 
     return {
@@ -305,8 +321,8 @@ async function personelEkle(credentials, uetdsSeferId, personel) {
             </uet:personelBilgileri>
         </uet:personelEkle>`;
 
-    const envelope = buildSoapEnvelope(bodyXml);
-    const result = await callSoap(credentials.serviceUrl, SOAP_ACTIONS.personelEkle, envelope);
+    const envelope = buildSoapEnvelope(bodyXml, credentials.username, credentials.password);
+    const result = await callSoap(credentials.serviceUrl, SOAP_ACTIONS.personelEkle, envelope, { username: credentials.username, password: credentials.password });
     const hata = extractSoapFault(result.data) || extractXmlValue(result.data, 'sonucMesaji');
 
     return {
@@ -333,8 +349,8 @@ async function testCredentials(credentials) {
             </uet:wsuser>
         </uet:kullaniciKontrol>`;
 
-    const envelope = buildSoapEnvelope(bodyXml);
-    const result = await callSoap(credentials.serviceUrl, SOAP_ACTIONS.kullaniciKontrol, envelope);
+    const envelope = buildSoapEnvelope(bodyXml, credentials.username, credentials.password);
+    const result = await callSoap(credentials.serviceUrl, SOAP_ACTIONS.kullaniciKontrol, envelope, { username: credentials.username, password: credentials.password });
 
     console.log(`[UETDS SOAP] testCredentials response: status=${result.status}, success=${result.success}, error=${result.error || 'none'}`);
     if (result.data) {
