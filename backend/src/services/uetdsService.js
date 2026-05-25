@@ -89,12 +89,18 @@ function buildSoapEnvelope(bodyXml) {
 const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 2000;
 
-async function callSoap(serviceUrl, soapAction, envelopeXml) {
+async function callSoap(serviceUrl, soapAction, envelopeXml, basicAuth) {
     const url = serviceUrl || DEFAULT_SERVICE_URL;
     const headers = {
         'Content-Type': 'text/xml; charset=utf-8',
         'SOAPAction': soapAction,
     };
+    // UETDS requires HTTP Basic Authentication in addition to body-level wsuser
+    // See: UETDS Teknik Doküman Bölüm E — SoapUI Authorization: Basic
+    if (basicAuth && basicAuth.username && basicAuth.password) {
+        const token = Buffer.from(`${basicAuth.username}:${basicAuth.password}`).toString('base64');
+        headers['Authorization'] = `Basic ${token}`;
+    }
 
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
         try {
@@ -226,7 +232,7 @@ async function seferEkle(credentials, sefer) {
         </uet:seferEkle>`;
 
     const envelope = buildSoapEnvelope(bodyXml);
-    const result = await callSoap(credentials.serviceUrl, SOAP_ACTIONS.seferEkle, envelope);
+    const result = await callSoap(credentials.serviceUrl, SOAP_ACTIONS.seferEkle, envelope, { username: credentials.username, password: credentials.password });
 
     // WSDL response field is uetdsSeferReferansNo (a long), not uetdsSeferId.
     const uetdsSeferId = extractXmlValue(result.data, 'uetdsSeferReferansNo');
@@ -282,7 +288,7 @@ async function seferIptal(credentials, uetdsSeferReferansNo, iptalAciklama = 'İ
         </uet:seferIptal>`;
 
     const envelope = buildSoapEnvelope(bodyXml);
-    const result = await callSoap(credentials.serviceUrl, SOAP_ACTIONS.seferIptal, envelope);
+    const result = await callSoap(credentials.serviceUrl, SOAP_ACTIONS.seferIptal, envelope, { username: credentials.username, password: credentials.password });
     const hata = extractSoapFault(result.data) || extractXmlValue(result.data, 'sonucMesaji');
 
     return {
@@ -334,7 +340,7 @@ async function yolcuEkle(credentials, uetdsSeferReferansNo, yolcu) {
         </uet:yolcuEkle>`;
 
     const envelope = buildSoapEnvelope(bodyXml);
-    const result = await callSoap(credentials.serviceUrl, SOAP_ACTIONS.yolcuEkle, envelope);
+    const result = await callSoap(credentials.serviceUrl, SOAP_ACTIONS.yolcuEkle, envelope, { username: credentials.username, password: credentials.password });
     const hata = extractSoapFault(result.data) || extractXmlValue(result.data, 'sonucMesaji');
 
     return {
@@ -386,7 +392,7 @@ async function personelEkle(credentials, uetdsSeferReferansNo, personel) {
         </uet:personelEkle>`;
 
     const envelope = buildSoapEnvelope(bodyXml);
-    const result = await callSoap(credentials.serviceUrl, SOAP_ACTIONS.personelEkle, envelope);
+    const result = await callSoap(credentials.serviceUrl, SOAP_ACTIONS.personelEkle, envelope, { username: credentials.username, password: credentials.password });
     const hata = extractSoapFault(result.data) || extractXmlValue(result.data, 'sonucMesaji');
 
     return {
@@ -423,7 +429,7 @@ async function testCredentials(credentials) {
         </uet:kullaniciKontrol>`;
 
     const envelope = buildSoapEnvelope(bodyXml);
-    const result = await callSoap(credentials.serviceUrl, SOAP_ACTIONS.kullaniciKontrol, envelope);
+    const result = await callSoap(credentials.serviceUrl, SOAP_ACTIONS.kullaniciKontrol, envelope, { username: credentials.username, password: credentials.password });
 
     console.log(`[UETDS SOAP] testCredentials response: status=${result.status}, success=${result.success}, error=${result.error || 'none'}`);
     if (result.data) {
