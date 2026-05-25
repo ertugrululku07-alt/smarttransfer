@@ -390,31 +390,23 @@ async function testCredentials(credentials) {
         return { success: false, error: `Sunucu hatası: ${fault || 'HTTP 500'}` };
     }
 
-    // If we get an HTTP 200 response, the credentials are valid
-    // (even if the SOAP body contains a business error like "kullanıcı bulunamadı",
-    //  that means the gateway accepted the auth and forwarded to the backend)
+    // Parse SOAP response for the UETDS business result code.
+    // UETDS convention: sonucKodu="0" -> success, anything else -> error (the
+    // sonucMesaji field describes the problem, e.g. "KULLANICI ADI YADA SIFRE HATALI").
     if (result.success) {
-        // Check for explicit success indicators
         const sonucKodu = extractXmlValue(result.data, 'sonucKodu');
-        const sonucMesaji = extractXmlValue(result.data, 'sonucMesaji');
-        
-        if (sonucKodu === '0' || sonucKodu === '1' || raw.includes('BASARILI')) {
-            return { success: true, message: 'Bağlantı başarılı — kimlik doğrulandı' };
-        }
-        
-        // Even a validation error at HTTP 200 means auth passed
-        if (sonucMesaji) {
-            // Check if message indicates auth failure at the business logic level
-            if (sonucMesaji.toLowerCase().includes('kullanıcı') && sonucMesaji.toLowerCase().includes('hatalı')) {
-                return { success: false, error: `Kullanıcı adı veya şifre hatalı: ${sonucMesaji}` };
-            }
-            return { success: true, message: `Bağlantı başarılı — ${sonucMesaji}` };
+        const sonucMesaji = (extractXmlValue(result.data, 'sonucMesaji') || '').trim();
+
+        if (sonucKodu === '0') {
+            return { success: true, message: sonucMesaji ? `Bağlantı başarılı — ${sonucMesaji}` : 'Bağlantı başarılı — kimlik doğrulandı' };
         }
 
-        // Got a 200 response with a SOAP envelope — auth is working
-        if (raw.includes('Envelope')) {
-            return { success: true, message: 'Bağlantı başarılı — kimlik doğrulandı' };
+        if (sonucMesaji) {
+            return { success: false, error: sonucMesaji };
         }
+
+        // Non-zero sonucKodu without message, or no parsable response → treat as failure.
+        return { success: false, error: `UETDS yanıt verdi ancak doğrulama başarısız (sonucKodu=${sonucKodu || 'bilinmiyor'})` };
     }
 
     // Fallback
