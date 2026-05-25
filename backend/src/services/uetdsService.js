@@ -66,22 +66,17 @@ function xmlEscape(str) {
 const UETDS_NS = 'http://uetds.unetws.udhb.gov.tr/';
 const SOAP_ACTION_PREFIX = 'http://uetds.unetws.udhb.gov.tr/uetdsytsarizi/';
 
-// ── Build SOAP envelope with WS-Security ─────────────────────────────────────
+// ── Build SOAP envelope ──────────────────────────────────────────────────────
+// UETDS WSDL does NOT define a WS-Security policy.
+// Authentication is handled via the <wsuser> element inside the SOAP body.
+// Sending WS-Security headers with mustUnderstand="1" causes the
+// servis.turkiye.gov.tr gateway to reject the request (HTTP 401).
 function buildSoapEnvelope(username, password, bodyXml) {
     return `<?xml version="1.0" encoding="UTF-8"?>
 <soapenv:Envelope 
     xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
     xmlns:uet="${UETDS_NS}">
-    <soapenv:Header>
-        <wsse:Security 
-            xmlns:wsse="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd"
-            soapenv:mustUnderstand="1">
-            <wsse:UsernameToken>
-                <wsse:Username>${xmlEscape(username)}</wsse:Username>
-                <wsse:Password Type="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordText">${xmlEscape(password)}</wsse:Password>
-            </wsse:UsernameToken>
-        </wsse:Security>
-    </soapenv:Header>
+    <soapenv:Header/>
     <soapenv:Body>
         ${bodyXml}
     </soapenv:Body>
