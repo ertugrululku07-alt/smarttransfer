@@ -210,7 +210,7 @@ async function seferEkle(credentials, sefer) {
     const bodyXml = `
         <uet:seferEkle>
             <uet:wsuser>
-                <uet:kullaniciKodu>${xmlEscape(credentials.username)}</uet:kullaniciKodu>
+                <uet:kullaniciAdi>${xmlEscape(credentials.username)}</uet:kullaniciAdi>
                 <uet:sifre>${xmlEscape(credentials.password)}</uet:sifre>
             </uet:wsuser>
             <uet:ariziSeferBilgileriInput>
@@ -274,7 +274,7 @@ async function seferIptal(credentials, uetdsSeferReferansNo, iptalAciklama = 'İ
     const bodyXml = `
         <uet:seferIptal>
             <uet:wsuser>
-                <uet:kullaniciKodu>${xmlEscape(credentials.username)}</uet:kullaniciKodu>
+                <uet:kullaniciAdi>${xmlEscape(credentials.username)}</uet:kullaniciAdi>
                 <uet:sifre>${xmlEscape(credentials.password)}</uet:sifre>
             </uet:wsuser>
             <uet:uetdsSeferReferansNo>${xmlEscape(uetdsSeferReferansNo)}</uet:uetdsSeferReferansNo>
@@ -316,7 +316,7 @@ async function yolcuEkle(credentials, uetdsSeferReferansNo, yolcu) {
     const bodyXml = `
         <uet:yolcuEkle>
             <uet:wsuser>
-                <uet:kullaniciKodu>${xmlEscape(credentials.username)}</uet:kullaniciKodu>
+                <uet:kullaniciAdi>${xmlEscape(credentials.username)}</uet:kullaniciAdi>
                 <uet:sifre>${xmlEscape(credentials.password)}</uet:sifre>
             </uet:wsuser>
             <uet:uetdsSeferReferansNo>${xmlEscape(uetdsSeferReferansNo)}</uet:uetdsSeferReferansNo>
@@ -368,7 +368,7 @@ async function personelEkle(credentials, uetdsSeferReferansNo, personel) {
     const bodyXml = `
         <uet:personelEkle>
             <uet:wsuser>
-                <uet:kullaniciKodu>${xmlEscape(credentials.username)}</uet:kullaniciKodu>
+                <uet:kullaniciAdi>${xmlEscape(credentials.username)}</uet:kullaniciAdi>
                 <uet:sifre>${xmlEscape(credentials.password)}</uet:sifre>
             </uet:wsuser>
             <uet:uetdsSeferReferansNo>${xmlEscape(uetdsSeferReferansNo)}</uet:uetdsSeferReferansNo>
@@ -417,7 +417,7 @@ async function testCredentials(credentials) {
     const bodyXml = `
         <uet:kullaniciKontrol>
             <uet:wsuser>
-                <uet:kullaniciKodu>${xmlEscape(credentials.username)}</uet:kullaniciKodu>
+                <uet:kullaniciAdi>${xmlEscape(credentials.username)}</uet:kullaniciAdi>
                 <uet:sifre>${xmlEscape(credentials.password)}</uet:sifre>
             </uet:wsuser>
         </uet:kullaniciKontrol>`;
