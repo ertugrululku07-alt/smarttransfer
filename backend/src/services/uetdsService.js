@@ -72,6 +72,7 @@ const SOAP_ACTIONS = {
     yolcuEkle:       'http://uetds.unetws.udhb.gov.tr/uetdsytsarizi/yolcuEkle',
     personelEkle:    'http://uetds.unetws.udhb.gov.tr/uetdsytsarizi/personelEkle',
     kullaniciKontrol:'http://uetds.unetws.udhb.gov.tr/uetdsytsarizi/kullaniciKontrol',
+    firmaIletisimBilgisiListele: 'http://uetds.unetws.udhb.gov.tr/uetdsyts/firmaIletisimBilgisiListele',
 };
 
 // ── Build SOAP envelope ──────────────────────────────────────────────────────
@@ -398,22 +399,30 @@ async function personelEkle(credentials, uetdsSeferReferansNo, personel) {
 }
 
 /**
- * Test UETDS credentials using the kullaniciKontrol operation from WSDL.
- * This is a dedicated auth check — much more reliable than sending a dummy seferEkle.
+ * Test UETDS credentials with the simplest possible auth-only call.
+ *
+ * Why firmaIletisimBilgisiListele instead of kullaniciKontrol:
+ *   kullaniciKontrol in practice returns "Eksik Parametre" because the UETDS
+ *   gateway expects additional context (IP/firma) that the bare username+password
+ *   schema doesn't include. firmaIletisimBilgisiListele takes ONLY <wsuser> and
+ *   returns the company's contact list — perfect for an auth check:
+ *     • sonucKodu=0 → credentials valid
+ *     • sonucKodu=1 + "KULLANICI ADI YADA SIFRE HATALI" → wrong creds
+ *     • HTTP 500 "Yetki Hatası" → IP not whitelisted
  */
 async function testCredentials(credentials) {
     console.log(`[UETDS SOAP] testCredentials: username=${credentials.username}, serviceUrl=${credentials.serviceUrl || DEFAULT_SERVICE_URL}`);
-    
-    // Per WSDL schema, kullaniciKontrol takes kullaniciAdi + sifre DIRECTLY
-    // (NOT wrapped in <wsuser>). Wrapping caused "Eksik Parametre" error.
+
     const bodyXml = `
-        <uet:kullaniciKontrol>
-            <uet:kullaniciAdi>${xmlEscape(credentials.username)}</uet:kullaniciAdi>
-            <uet:sifre>${xmlEscape(credentials.password)}</uet:sifre>
-        </uet:kullaniciKontrol>`;
+        <uet:firmaIletisimBilgisiListele>
+            <uet:wsuser>
+                <uet:kullaniciAdi>${xmlEscape(credentials.username)}</uet:kullaniciAdi>
+                <uet:sifre>${xmlEscape(credentials.password)}</uet:sifre>
+            </uet:wsuser>
+        </uet:firmaIletisimBilgisiListele>`;
 
     const envelope = buildSoapEnvelope(bodyXml, credentials.username, credentials.password);
-    const result = await callSoap(credentials.serviceUrl, SOAP_ACTIONS.kullaniciKontrol, envelope, { username: credentials.username, password: credentials.password });
+    const result = await callSoap(credentials.serviceUrl, SOAP_ACTIONS.firmaIletisimBilgisiListele, envelope, { username: credentials.username, password: credentials.password });
 
     console.log(`[UETDS SOAP] testCredentials response: status=${result.status}, success=${result.success}, error=${result.error || 'none'}`);
     if (result.data) {
