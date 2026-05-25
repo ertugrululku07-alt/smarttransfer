@@ -59,38 +59,26 @@ function xmlEscape(str) {
         .replace(/'/g, '&apos;');
 }
 
-// ── SOAP namespaces & SOAPAction values (from WSDL) ──────────────────────────
-// WSDL: https://servis.turkiye.gov.tr/services/g2g/kdgm/uetdsarizi?wsdl
-// Service: UdhbUetdsAriziService (Tarifesiz Yolcu / Arızı)
-// targetNamespace: http://uetds.unetws.udhb.gov.tr/
+// ── SOAP namespaces & SOAPAction values ──────────────────────────────────────
 const UETDS_NS = 'http://uetds.unetws.udhb.gov.tr/';
 
-// SOAPAction URIs per WSDL binding (soap:operation soapAction="...")
 const SOAP_ACTIONS = {
+    SeferEkle:       'http://uetds.unetws.udhb.gov.tr/SeferEkle',
+    SeferIptal:      'http://uetds.unetws.udhb.gov.tr/SeferIptal',
+    // Fallback action (arizi style)
     seferEkle:       'http://uetds.unetws.udhb.gov.tr/uetdsytsarizi/seferEkle',
     seferIptal:      'http://uetds.unetws.udhb.gov.tr/uetdsytsarizi/seferIptal',
-    yolcuEkle:       'http://uetds.unetws.udhb.gov.tr/uetdsytsarizi/yolcuEkle',
-    personelEkle:    'http://uetds.unetws.udhb.gov.tr/uetdsytsarizi/personelEkle',
     kullaniciKontrol:'http://uetds.unetws.udhb.gov.tr/uetdsytsarizi/kullaniciKontrol',
-    firmaIletisimBilgisiListele: 'http://uetds.unetws.udhb.gov.tr/uetdsyts/firmaIletisimBilgisiListele',
 };
 
 // ── Build SOAP envelope ──────────────────────────────────────────────────────
-// T.C. UETDS service uses body-level <wsuser> for authentication.
-// WS-Security UsernameToken is NOT used by this service; sending it in addition
-// to body wsuser causes the backend to read the wrong identity and return
-// "KULLANICI ADI YADA SIFRE HATALI". HTTP Basic Auth on the wire handles
-// any gateway-level requirements (no WS-Security header needed here).
-function buildSoapEnvelope(bodyXml /*, wsUsername, wsPassword */) {
+function buildSoapEnvelope(bodyXml) {
     return `<?xml version="1.0" encoding="UTF-8"?>
-<soapenv:Envelope 
-    xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
-    xmlns:uet="${UETDS_NS}">
-    <soapenv:Header/>
-    <soapenv:Body>
+<soap:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
+    <soap:Body>
         ${bodyXml}
-    </soapenv:Body>
-</soapenv:Envelope>`;
+    </soap:Body>
+</soap:Envelope>`;
 }
 
 // ── SOAP call helper with retry ──────────────────────────────────────────────
@@ -219,26 +207,45 @@ function toHHmm(date) {
  *                            firmaSeferNo, aracTelefonu? }
  */
 async function seferEkle(credentials, sefer) {
-    const bodyXml = `
-        <uet:seferEkle>
-            <uet:ariziSeferBilgileriInput>
-                <uet:wsuser>
-                    <uet:kullaniciAdi>${xmlEscape(credentials.username)}</uet:kullaniciAdi>
-                    <uet:sifre>${xmlEscape(credentials.password)}</uet:sifre>
-                </uet:wsuser>
-                <uet:aracPlaka>${xmlEscape(sefer.aracPlaka)}</uet:aracPlaka>
-                <uet:seferAciklama>${xmlEscape(sefer.seferAciklama || '')}</uet:seferAciklama>
-                <uet:hareketTarihi>${toIsoDateTime(sefer.baslangicTarih)}</uet:hareketTarihi>
-                <uet:hareketSaati>${toHHmm(sefer.baslangicTarih)}</uet:hareketSaati>
-                <uet:aracTelefonu>${xmlEscape(sefer.aracTelefonu || '')}</uet:aracTelefonu>
-                <uet:firmaSeferNo>${xmlEscape(sefer.firmaSeferNo || '')}</uet:firmaSeferNo>
-                <uet:seferBitisTarihi>${toIsoDateTime(sefer.bitisTarih)}</uet:seferBitisTarihi>
-                <uet:seferBitisSaati>${toHHmm(sefer.bitisTarih)}</uet:seferBitisSaati>
-            </uet:ariziSeferBilgileriInput>
-        </uet:seferEkle>`;
+    // Build inline yolcu (passenger) XML
+    let yolcuXml = '';
+    if (sefer.yolcular && sefer.yolcular.length > 0) {
+        const yolcuItems = sefer.yolcular.map((y, idx) => `
+              <yolcu>
+                <tcKimlikNo>${xmlEscape(y.tcKimlikNo || '11111111111')}</tcKimlikNo>
+                <adi>${xmlEscape(y.adi || 'Yolcu')}</adi>
+                <soyadi>${xmlEscape(y.soyadi || 'Soyadı')}</soyadi>
+                <biletNo>${xmlEscape(y.biletNo || `B${String(idx + 1).padStart(9, '0')}`)}</biletNo>
+                <koltukNo>${xmlEscape(y.koltukNo || String(idx + 1).padStart(2, '0'))}</koltukNo>
+                <ucret>${xmlEscape(y.ucret || '0.00')}</ucret>
+                <cinsiyet>${xmlEscape(y.cinsiyet || 'E')}</cinsiyet>
+              </yolcu>`).join('');
+        yolcuXml = `
+            <yolcuBilgileri>${yolcuItems}
+            </yolcuBilgileri>`;
+    }
 
-    const envelope = buildSoapEnvelope(bodyXml, credentials.username, credentials.password);
-    const result = await callSoap(credentials.serviceUrl, SOAP_ACTIONS.seferEkle, envelope, { username: credentials.username, password: credentials.password });
+    const bodyXml = `
+        <SeferEkle xmlns="${UETDS_NS}">
+          <istek>
+            <kullaniciKodu>${xmlEscape(credentials.username)}</kullaniciKodu>
+            <sifre>${xmlEscape(credentials.password)}</sifre>
+            <firmaYetkiBelgeNo>${xmlEscape(credentials.yetkiBelgeNo || '')}</firmaYetkiBelgeNo>
+            <seferBilgileri>
+              <plaka>${xmlEscape(sefer.aracPlaka)}</plaka>
+              <ikinciPlaka></ikinciPlaka>
+              <sofor1Tc>${xmlEscape(sefer.sofor1Tc || '')}</sofor1Tc>
+              <sofor2Tc></sofor2Tc>
+              <kalkisYeriIlceId>${xmlEscape(sefer.kalkisYeriIlceId || '0')}</kalkisYeriIlceId>
+              <varisYeriIlceId>${xmlEscape(sefer.varisYeriIlceId || '0')}</varisYeriIlceId>
+              <kalkisTarihSaat>${toIsoDateTime(sefer.baslangicTarih)}</kalkisTarihSaat>
+              <varisTarihSaat>${toIsoDateTime(sefer.bitisTarih)}</varisTarihSaat>${yolcuXml}
+            </seferBilgileri>
+          </istek>
+        </SeferEkle>`;
+
+    const envelope = buildSoapEnvelope(bodyXml);
+    const result = await callSoap(credentials.serviceUrl, SOAP_ACTIONS.SeferEkle, envelope, { username: credentials.username, password: credentials.password });
 
     // WSDL response field is uetdsSeferReferansNo (a long), not uetdsSeferId.
     const uetdsSeferId = extractXmlValue(result.data, 'uetdsSeferReferansNo');
@@ -284,19 +291,18 @@ async function seferEkle(credentials, sefer) {
  */
 async function seferIptal(credentials, uetdsSeferReferansNo, iptalAciklama = 'İptal') {
     const bodyXml = `
-        <uet:seferIptal>
-            <uet:ariziSeferIptalBilgileriInput>
-                <uet:wsuser>
-                    <uet:kullaniciAdi>${xmlEscape(credentials.username)}</uet:kullaniciAdi>
-                    <uet:sifre>${xmlEscape(credentials.password)}</uet:sifre>
-                </uet:wsuser>
-                <uet:uetdsSeferReferansNo>${xmlEscape(uetdsSeferReferansNo)}</uet:uetdsSeferReferansNo>
-                <uet:iptalAciklama>${xmlEscape(iptalAciklama)}</uet:iptalAciklama>
-            </uet:ariziSeferIptalBilgileriInput>
-        </uet:seferIptal>`;
+        <SeferIptal xmlns="${UETDS_NS}">
+          <istek>
+            <kullaniciKodu>${xmlEscape(credentials.username)}</kullaniciKodu>
+            <sifre>${xmlEscape(credentials.password)}</sifre>
+            <firmaYetkiBelgeNo>${xmlEscape(credentials.yetkiBelgeNo || '')}</firmaYetkiBelgeNo>
+            <seferReferansNo>${xmlEscape(uetdsSeferReferansNo)}</seferReferansNo>
+            <iptalAciklama>${xmlEscape(iptalAciklama)}</iptalAciklama>
+          </istek>
+        </SeferIptal>`;
 
-    const envelope = buildSoapEnvelope(bodyXml, credentials.username, credentials.password);
-    const result = await callSoap(credentials.serviceUrl, SOAP_ACTIONS.seferIptal, envelope, { username: credentials.username, password: credentials.password });
+    const envelope = buildSoapEnvelope(bodyXml);
+    const result = await callSoap(credentials.serviceUrl, SOAP_ACTIONS.SeferIptal, envelope, { username: credentials.username, password: credentials.password });
     const hata = extractSoapFault(result.data) || extractXmlValue(result.data, 'sonucMesaji');
 
     return {

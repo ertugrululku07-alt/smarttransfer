@@ -497,21 +497,25 @@ async function submitOneItem({ tenantId, userId, item, config, bookings, drivers
         }
     } else {
         const uetdsService = require('../services/uetdsService');
-        const seferAciklama = item.kind === 'RUN'
-            ? `[SHUTTLE] ${meta.pickup || ''} → ${lastMeta.dropoff || ''} (${bookingsForItem.length} rez.)`
-            : `${meta.pickup || ''} → ${meta.dropoff || ''} (${primary.bookingNumber})`;
-        // firmaSeferNo: company-side trip identifier required by UETDS WSDL.
-        // For shuttle runs use the runKey, otherwise the booking number.
-        const firmaSeferNo = item.kind === 'RUN'
-            ? `RUN-${runKey}`
-            : (primary.bookingNumber || `BK-${primary.id}`);
+        // Build inline passenger list for new SOAP format
+        const yolcular = passengers.map((p, idx) => ({
+            tcKimlikNo: p.tcNo || '11111111111',
+            adi: p.firstName || 'Yolcu',
+            soyadi: p.lastName || 'Soyadı',
+            biletNo: `B${String(idx + 1).padStart(9, '0')}`,
+            koltukNo: String(idx + 1).padStart(2, '0'),
+            ucret: String(Number(primary.total || 0) / Math.max(passengers.length, 1)),
+            cinsiyet: (p.gender === 'F' || p.gender === 'K' || p.gender === '2') ? 'K' : 'E',
+        }));
+
         seferResult = await uetdsService.seferEkle(credentials, {
             aracPlaka: (vehicle.plateNumber || '').replace(/\s+/g, '').toUpperCase(),
-            seferAciklama,
+            sofor1Tc: driverP?.tcNumber || '',
             baslangicTarih,
             bitisTarih,
-            firmaSeferNo,
-            aracTelefonu: ((driverP?.phone || driver?.phone || '')).replace(/\D/g, ''),
+            kalkisYeriIlceId: meta.pickupDistrictId || '0',
+            varisYeriIlceId: (lastMeta.dropoffDistrictId || meta.dropoffDistrictId) || '0',
+            yolcular,
         });
         seferResult.rawResponse = (seferResult.rawResponse || '').substring(0, 4000);
         seferResult.rawRequest = (seferResult.rawRequest || '').substring(0, 4000);
@@ -545,41 +549,17 @@ async function submitOneItem({ tenantId, userId, item, config, bookings, drivers
         return { ok: false, error: seferResult.errorMessage || 'Bildirim başarısız', submission, item };
     }
 
-    // For OFFICIAL/TURKIYE_GOV: add passengers + driver
+    // Passengers are now included inline in the SeferEkle request.
+    // Build yolcuResults from the passengers array for response tracking.
     let yolcuResults = [];
-    if (provider !== 'UETDS_NET' && seferResult.uetdsSeferId) {
-        const uetdsService = require('../services/uetdsService');
-        let seatCounter = 1;
-        for (const p of passengers) {
-            try {
-                const r = await uetdsService.yolcuEkle(credentials, seferResult.uetdsSeferId, {
-                    tcKimlikPasaportNo: p.tcNo || '',
-                    adi: p.firstName,
-                    soyadi: p.lastName,
-                    cinsiyet: (p.gender === 'F' || p.gender === 'K' || p.gender === '2') ? 'K' : 'E',
-                    uyrukUlke: (p.nationality && p.nationality.length === 2) ? p.nationality : 'TR',
-                    telefon: p.phone || '',
-                    koltukNo: String(seatCounter++),
-                    grupId: '0',
-                });
-                yolcuResults.push({ name: `${p.firstName} ${p.lastName}`, success: r.success, error: r.errorMessage });
-            } catch (e) {
-                yolcuResults.push({ name: `${p.firstName} ${p.lastName}`, success: false, error: e.message });
-            }
-        }
-        if (driverP?.tcNumber) {
-            try {
-                await uetdsService.personelEkle(credentials, seferResult.uetdsSeferId, {
-                    tcKimlikPasaportNo: driverP.tcNumber,
-                    adi: driverName.first,
-                    soyadi: driverName.last,
-                    cinsiyet: 'E',
-                    telefon: driverP.phone || driver?.phone || '',
-                    turKodu: '1', // 1 = şoför
-                    uyrukUlke: 'TR',
-                });
-            } catch (_) { /* non-fatal */ }
-        }
+    if (seferResult.success) {
+        yolcuResults = passengers.map(p => ({
+            name: `${p.firstName} ${p.lastName}`,
+            success: true,
+            error: null,
+        }));
+    }
+    if (seferResult.success) {
         await prisma.uetdsSubmission.update({
             where: { id: submission.id },
             data: {
