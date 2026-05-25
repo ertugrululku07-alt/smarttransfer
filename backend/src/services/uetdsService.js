@@ -93,7 +93,7 @@ async function callSoap(serviceUrl, soapAction, envelopeXml, basicAuth) {
     const url = serviceUrl || DEFAULT_SERVICE_URL;
     const headers = {
         'Content-Type': 'text/xml; charset=utf-8',
-        'SOAPAction': soapAction,
+        'SOAPAction': `"${soapAction}"`,
     };
     // UETDS requires HTTP Basic Authentication in addition to body-level wsuser
     // See: UETDS Teknik Doküman Bölüm E — SoapUI Authorization: Basic
