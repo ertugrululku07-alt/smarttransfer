@@ -65,7 +65,7 @@ export default function RegisterCustomerPage() {
         }
       `}</style>
 
-      <TopBar />
+      <TopBar forceOpaque />
       <div className="cust-reg-page">
         <div className="cust-reg-left">
           <div className="cust-reg-form" style={{ opacity: mounted ? 1 : 0, transition: 'opacity 0.3s' }}>

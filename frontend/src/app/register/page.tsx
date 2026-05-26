@@ -66,7 +66,7 @@ export default function RegisterPage() {
         @media (max-width: 480px) { .reg-page { padding: 88px 16px 24px; } .reg-grid { gap: 16px; } }
       `}</style>
 
-      <TopBar />
+      <TopBar forceOpaque />
 
       <div className="reg-page">
         {/* Hero */}

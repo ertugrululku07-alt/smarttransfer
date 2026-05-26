@@ -24,7 +24,7 @@ interface NavPage {
   menuOrder: number;
 }
 
-const TopBar: React.FC = () => {
+const TopBar: React.FC<{ forceOpaque?: boolean }> = ({ forceOpaque = false }) => {
   const { user, logout, loading: authLoading } = useAuth();
   const { currencies, selectedCurrency, setCurrency, loading: currencyLoading } = useCurrency();
   const { branding, fullName } = useBranding();
@@ -32,6 +32,7 @@ const TopBar: React.FC = () => {
   const { locale, setLocale, t } = useLanguage();
   const router = useRouter();
   const [scrolled, setScrolled] = useState(false);
+  const isOpaque = scrolled || forceOpaque;
   const [menuPages, setMenuPages] = useState<NavPage[]>([]);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [langOpen, setLangOpen] = useState(false);
@@ -141,13 +142,13 @@ const TopBar: React.FC = () => {
       <div
         style={{
           width: '100%',
-          padding: scrolled ? '10px 32px' : '16px 32px',
+          padding: isOpaque ? '10px 32px' : '16px 32px',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          background: scrolled ? 'rgba(15,23,42,0.97)' : 'transparent',
-          backdropFilter: scrolled ? 'blur(16px)' : 'none',
-          WebkitBackdropFilter: scrolled ? 'blur(16px)' : 'none',
+          background: isOpaque ? 'rgba(15,23,42,0.97)' : 'transparent',
+          backdropFilter: isOpaque ? 'blur(16px)' : 'none',
+          WebkitBackdropFilter: isOpaque ? 'blur(16px)' : 'none',
           color: 'white',
           position: 'fixed',
           top: 0,
@@ -155,8 +156,8 @@ const TopBar: React.FC = () => {
           right: 0,
           zIndex: 1000,
           transition: 'all 0.4s ease',
-          boxShadow: scrolled ? '0 4px 24px rgba(0,0,0,0.25)' : 'none',
-          borderBottom: scrolled ? '1px solid rgba(255,255,255,0.06)' : 'none',
+          boxShadow: isOpaque ? '0 4px 24px rgba(0,0,0,0.25)' : 'none',
+          borderBottom: isOpaque ? '1px solid rgba(255,255,255,0.06)' : 'none',
         }}
       >
         {/* Logo + Desktop Navigation grouped on the left */}

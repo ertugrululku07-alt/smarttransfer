@@ -92,7 +92,7 @@ export default function RegisterPartnerPage() {
         @media (max-width:480px) { .partner-reg { padding:88px 16px 24px; } .partner-card { border-radius:20px; } }
       `}</style>
 
-      <TopBar />
+      <TopBar forceOpaque />
       <div className="partner-reg">
         <div className="partner-card" style={{ opacity: mounted ? 1 : 0, transition: 'opacity 0.3s' }}>
           {/* Top bar */}

@@ -74,7 +74,7 @@ export default function RegisterAgencyPage() {
         }
       `}</style>
 
-      <TopBar />
+      <TopBar forceOpaque />
       <div className="agency-reg">
         <div className="agency-reg-left">
           <div className="agency-reg-form" style={{ opacity: mounted ? 1 : 0, transition: 'opacity 0.3s' }}>
