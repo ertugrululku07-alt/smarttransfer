@@ -8,7 +8,9 @@ import {
 import {
     SendOutlined, CloseCircleOutlined, ReloadOutlined, EyeOutlined, RedoOutlined,
     FilterOutlined, CheckCircleOutlined, ExclamationCircleOutlined, SearchOutlined,
-    DeleteOutlined, ThunderboltOutlined, CarOutlined, UserOutlined, EnvironmentOutlined
+    DeleteOutlined, ThunderboltOutlined, CarOutlined, UserOutlined, EnvironmentOutlined,
+    DownOutlined, PhoneOutlined, TeamOutlined, IdcardOutlined, ClockCircleOutlined,
+    ArrowRightOutlined, InfoCircleOutlined, SafetyCertificateOutlined
 } from '@ant-design/icons';
 import dayjs, { Dayjs } from 'dayjs';
 import apiClient from '@/lib/api-client';
@@ -94,6 +96,8 @@ export default function UetdsSubmissionPage() {
     const [detailItem, setDetailItem] = useState<QueueItem | null>(null);
     const [detailSubmission, setDetailSubmission] = useState<Submission | null>(null);
     const [submitting, setSubmitting] = useState(false);
+    const [expandedRowKeys, setExpandedRowKeys] = useState<string[]>([]);
+    const toggleExpandRow = (key: string) => setExpandedRowKeys(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]);
 
     // ─── Loaders ────────────────────────────────────────────────────────────
     const loadQueue = useCallback(async () => {
@@ -248,11 +252,14 @@ export default function UetdsSubmissionPage() {
         {
             title: 'Tip',
             dataIndex: 'kind',
-            width: 90,
-            render: (k: string) => (
-                <Tag color={k === 'RUN' ? 'purple' : 'blue'} style={{ fontWeight: 700 }}>
-                    {k === 'RUN' ? '🚌 Sefer' : '🚗 Özel'}
-                </Tag>
+            width: 100,
+            render: (k: string, it: QueueItem) => (
+                <div style={{ cursor: 'pointer', userSelect: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }} onClick={() => toggleExpandRow(it.key)}>
+                    <Tag color={k === 'RUN' ? 'purple' : 'blue'} style={{ fontWeight: 700, margin: 0 }}>
+                        {k === 'RUN' ? '🚌 Sefer' : '🚗 Özel'}
+                    </Tag>
+                    <DownOutlined style={{ fontSize: 9, color: '#94a3b8', transition: 'transform .2s', transform: expandedRowKeys.includes(it.key) ? 'rotate(180deg)' : 'rotate(0)' }} />
+                </div>
             )
         },
         {
@@ -486,47 +493,40 @@ export default function UetdsSubmissionPage() {
             <AdminLayout selectedKey="uetds-submission">
                 <div style={{ padding: 20 }}>
                     {/* Header */}
-                    <Card
-                        bordered={false}
-                        style={{
-                            background: 'linear-gradient(135deg, var(--brand-accent) 0%, var(--brand-accent) 100%)',
-                            color: '#fff', marginBottom: 16
-                        }}
-                    >
+                    <div style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #0f172a 100%)', borderRadius: 16, padding: '20px 28px', marginBottom: 16, position: 'relative', overflow: 'hidden' }}>
+                        <div style={{ position: 'absolute', top: -30, right: -30, width: 200, height: 200, borderRadius: '50%', background: 'rgba(59,130,246,0.1)', filter: 'blur(50px)', pointerEvents: 'none' }} />
+                        <div style={{ position: 'absolute', bottom: -20, left: 100, width: 150, height: 150, borderRadius: '50%', background: 'rgba(99,102,241,0.08)', filter: 'blur(40px)', pointerEvents: 'none' }} />
                         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                            <ThunderboltOutlined style={{ fontSize: 32 }} />
+                            <div style={{ width: 52, height: 52, borderRadius: 14, background: 'rgba(59,130,246,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <ThunderboltOutlined style={{ fontSize: 26, color: '#60a5fa' }} />
+                            </div>
                             <div style={{ flex: 1 }}>
                                 <div style={{ fontSize: 22, fontWeight: 800, color: '#fff' }}>UETDS Gönderim Merkezi</div>
-                                <div style={{ fontSize: 13, opacity: 0.9 }}>
-                                    Şoför ve araç atanmış (özel) transferler ile <b>Hazır</b> işaretlenmiş shuttle seferlerini U-ETDS sistemine bildirin
+                                <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.65)', marginTop: 2 }}>
+                                    Şoför ve araç atanmış özel transferler ile <span style={{ color: '#93c5fd', fontWeight: 600 }}>Hazır</span> işaretlenmiş shuttle seferlerini U-ETDS sistemine bildirin
+                                </div>
+                            </div>
+                            <div style={{ display: 'flex', gap: 10 }}>
+                                <div style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 10, padding: '8px 16px', textAlign: 'center' }}>
+                                    <div style={{ fontSize: 20, fontWeight: 800, color: '#fff' }}>{stats.total}</div>
+                                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)' }}>Toplam</div>
+                                </div>
+                                <div style={{ background: 'rgba(251,191,36,0.15)', border: '1px solid rgba(251,191,36,0.3)', borderRadius: 10, padding: '8px 16px', textAlign: 'center' }}>
+                                    <div style={{ fontSize: 20, fontWeight: 800, color: '#fbbf24' }}>{stats.pending}</div>
+                                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)' }}>Bekleyen</div>
+                                </div>
+                                <div style={{ background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 10, padding: '8px 16px', textAlign: 'center' }}>
+                                    <div style={{ fontSize: 20, fontWeight: 800, color: '#4ade80' }}>{stats.sent}</div>
+                                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)' }}>Gönderildi</div>
+                                </div>
+                                <div style={{ background: 'rgba(59,130,246,0.15)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: 10, padding: '8px 16px', textAlign: 'center' }}>
+                                    <div style={{ fontSize: 20, fontWeight: 800, color: '#60a5fa' }}>{stats.totalPax}</div>
+                                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)' }}>Yolcu</div>
                                 </div>
                             </div>
                         </div>
-                    </Card>
+                    </div>
 
-                    {/* Stats */}
-                    <Row gutter={12} style={{ marginBottom: 16 }}>
-                        <Col xs={12} md={6}>
-                            <Card size="small">
-                                <Statistic title="Toplam Öğe" value={stats.total} valueStyle={{ color: '#1e293b' }} />
-                            </Card>
-                        </Col>
-                        <Col xs={12} md={6}>
-                            <Card size="small">
-                                <Statistic title="Bekleyen" value={stats.pending} valueStyle={{ color: '#f59e0b' }} prefix={<ExclamationCircleOutlined />} />
-                            </Card>
-                        </Col>
-                        <Col xs={12} md={6}>
-                            <Card size="small">
-                                <Statistic title="Gönderilen" value={stats.sent} valueStyle={{ color: '#16a34a' }} prefix={<CheckCircleOutlined />} />
-                            </Card>
-                        </Col>
-                        <Col xs={12} md={6}>
-                            <Card size="small">
-                                <Statistic title="Toplam Yolcu" value={stats.totalPax} valueStyle={{ color: 'var(--brand-primary)' }} />
-                            </Card>
-                        </Col>
-                    </Row>
 
                     {/* Filters & Bulk Actions */}
                     <Card size="small" style={{ marginBottom: 12 }}>
@@ -618,6 +618,53 @@ export default function UetdsSubmissionPage() {
                                                     disabled: it.submission?.status === 'SENT' || it.submission?.status === 'CANCELLED',
                                                 })
                                             }}
+                                            expandable={{
+                                                expandedRowKeys,
+                                                onExpand: (_, it) => toggleExpandRow(it.key),
+                                                expandIcon: () => null,
+                                                expandedRowRender: (it: QueueItem) => (
+                                                    <div style={{ padding: '10px 48px 14px', background: 'linear-gradient(135deg, #f0f9ff 0%, #eff6ff 100%)', borderTop: '1px solid #bae6fd' }}>
+                                                        <div style={{ fontSize: 12, fontWeight: 700, color: '#1e293b', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                            <TeamOutlined style={{ color: '#3b82f6', fontSize: 14 }} />
+                                                            Müşteri Listesi — {it.bookings.length} rezervasyon, toplam {it.passengerCount} yolcu
+                                                        </div>
+                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                                            {it.bookings.map(b => (
+                                                                <div key={b.id} style={{ background: '#fff', border: '1px solid #dbeafe', borderRadius: 10, padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap', boxShadow: '0 1px 4px rgba(59,130,246,0.07)' }}>
+                                                                    <div style={{ minWidth: 110 }}>
+                                                                        <div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700, letterSpacing: '0.04em' }}>REZ. NO</div>
+                                                                        <div style={{ fontSize: 12, fontWeight: 800, color: '#1e293b' }}>{b.bookingNumber}</div>
+                                                                    </div>
+                                                                    <div style={{ minWidth: 150 }}>
+                                                                        <div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700, letterSpacing: '0.04em' }}>MÜŞTERİ</div>
+                                                                        <div style={{ fontSize: 12, fontWeight: 600, color: '#1e293b', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                                                            <UserOutlined style={{ color: '#3b82f6', fontSize: 11 }} />{b.contactName}
+                                                                        </div>
+                                                                    </div>
+                                                                    {b.contactPhone && (
+                                                                        <div style={{ minWidth: 130 }}>
+                                                                            <div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700, letterSpacing: '0.04em' }}>TELEFON</div>
+                                                                            <div style={{ fontSize: 12, color: '#475569', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                                                                <PhoneOutlined style={{ color: '#3b82f6', fontSize: 11 }} />{b.contactPhone}
+                                                                            </div>
+                                                                        </div>
+                                                                    )}
+                                                                    <div style={{ minWidth: 70 }}>
+                                                                        <div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700, letterSpacing: '0.04em' }}>YOLCU</div>
+                                                                        <div style={{ fontSize: 12, color: '#475569' }}>{(b.adults || 0) + (b.children || 0)} kişi</div>
+                                                                    </div>
+                                                                    <div style={{ flex: 1, minWidth: 200 }}>
+                                                                        <div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700, letterSpacing: '0.04em' }}>GÜZERGAH</div>
+                                                                        <div style={{ fontSize: 11, color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 280 }}>
+                                                                            <EnvironmentOutlined style={{ marginRight: 3, color: '#3b82f6' }} />{b.pickup} → {b.dropoff}
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )
+                                            }}
                                             size="middle"
                                             locale={{ emptyText: <Empty description="Hazır öğe yok. Özel transferlere şoför+araç atayın veya shuttle seferlerinde 'Hazır' kutucuğunu işaretleyin." /> }}
                                         />
@@ -644,92 +691,207 @@ export default function UetdsSubmissionPage() {
 
                     {/* Item detail drawer */}
                     <Drawer
-                        title={detailItem ? `${detailItem.kind === 'RUN' ? '🚌 Sefer' : '🚗 Özel Transfer'} Detayı` : 'Detay'}
+                        title={null}
                         open={!!detailItem}
                         onClose={() => setDetailItem(null)}
-                        width={620}
+                        width={660}
+                        styles={{ body: { padding: 0 } }}
                     >
                         {detailItem && (
-                            <Space direction="vertical" size={16} style={{ width: '100%' }}>
-                                <Descriptions bordered size="small" column={1}>
-                                    <Descriptions.Item label="Tip">{detailItem.kind === 'RUN' ? 'Shuttle Sefer' : 'Özel Transfer'}</Descriptions.Item>
-                                    <Descriptions.Item label="Tarih / Saat">
-                                        {detailItem.startDate ? dayjs(detailItem.startDate).format('DD.MM.YYYY HH:mm') : '-'}
-                                    </Descriptions.Item>
-                                    <Descriptions.Item label="Güzergah">{detailItem.pickup} → {detailItem.dropoff}</Descriptions.Item>
-                                    <Descriptions.Item label="Şoför">{detailItem.driver?.name || '-'} {detailItem.driver?.phone}</Descriptions.Item>
-                                    <Descriptions.Item label="Araç">{detailItem.vehicle?.plate} {detailItem.vehicle?.brand} {detailItem.vehicle?.model}</Descriptions.Item>
-                                    <Descriptions.Item label="Toplam Yolcu">{detailItem.passengerCount}</Descriptions.Item>
-                                    {detailItem.submission && (
-                                        <>
-                                            <Descriptions.Item label="UETDS Durumu">
-                                                <Tag color={statusColor(detailItem.submission.status)}>{statusLabel(detailItem.submission.status)}</Tag>
-                                            </Descriptions.Item>
-                                            <Descriptions.Item label="Sefer ID">{detailItem.submission.uetdsSeferId || '-'}</Descriptions.Item>
-                                            {detailItem.submission.errorMessage && (
-                                                <Descriptions.Item label="Hata">
-                                                    <Text type="danger">{detailItem.submission.errorMessage}</Text>
-                                                </Descriptions.Item>
-                                            )}
-                                        </>
-                                    )}
-                                </Descriptions>
-
-                                <div>
-                                    <h4 style={{ marginBottom: 8 }}>Rezervasyonlar ({detailItem.bookings.length})</h4>
-                                    <Table
-                                        size="small" pagination={false}
-                                        rowKey="id"
-                                        dataSource={detailItem.bookings}
-                                        columns={[
-                                            { title: 'Rez. No', dataIndex: 'bookingNumber', width: 110 },
-                                            { title: 'Müşteri', dataIndex: 'contactName' },
-                                            { title: 'Telefon', dataIndex: 'contactPhone', width: 120 },
-                                            { title: 'PAX', width: 60, render: (_: any, b: BookingMini) => (b.adults || 0) + (b.children || 0) },
-                                        ]}
-                                    />
+                            <div>
+                                {/* Drawer header */}
+                                <div style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%)', padding: '20px 24px', position: 'relative', overflow: 'hidden' }}>
+                                    <div style={{ position: 'absolute', top: -20, right: -20, width: 120, height: 120, borderRadius: '50%', background: 'rgba(59,130,246,0.12)', filter: 'blur(30px)', pointerEvents: 'none' }} />
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                        <div style={{ width: 42, height: 42, borderRadius: 12, background: 'rgba(59,130,246,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>
+                                            {detailItem.kind === 'RUN' ? '🚌' : '🚗'}
+                                        </div>
+                                        <div>
+                                            <div style={{ color: '#fff', fontWeight: 800, fontSize: 16 }}>{detailItem.kind === 'RUN' ? 'Shuttle Sefer Detayı' : 'Özel Transfer Detayı'}</div>
+                                            <div style={{ color: 'rgba(255,255,255,0.55)', fontSize: 12 }}>{detailItem.startDate ? dayjs(detailItem.startDate).format('DD.MM.YYYY HH:mm') : '-'} · {detailItem.passengerCount} yolcu</div>
+                                        </div>
+                                        {detailItem.submission && (
+                                            <div style={{ marginLeft: 'auto' }}>
+                                                <Tag color={statusColor(detailItem.submission.status)} style={{ fontWeight: 700, fontSize: 13 }}>{statusLabel(detailItem.submission.status)}</Tag>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
-                            </Space>
+
+                                <div style={{ padding: '20px 24px' }}>
+                                    <Space direction="vertical" size={14} style={{ width: '100%' }}>
+
+                                        {/* Güzergah & Araç Bilgileri */}
+                                        <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 12, padding: '14px 16px' }}>
+                                            <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: '0.05em', marginBottom: 10 }}>GÜZERGAH & ARAÇ BİLGİLERİ</div>
+                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 20px' }}>
+                                                <div>
+                                                    <div style={{ fontSize: 11, color: '#94a3b8' }}>Güzergah</div>
+                                                    <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}><EnvironmentOutlined style={{ color: '#3b82f6', marginRight: 4 }} />{detailItem.pickupRegionCode || '?'} → {detailItem.dropoffRegionCode || '?'}</div>
+                                                    <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>{detailItem.pickup}</div>
+                                                </div>
+                                                <div>
+                                                    <div style={{ fontSize: 11, color: '#94a3b8' }}>Tarih / Saat</div>
+                                                    <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}><ClockCircleOutlined style={{ color: '#3b82f6', marginRight: 4 }} />{detailItem.startDate ? dayjs(detailItem.startDate).format('DD.MM.YYYY HH:mm') : '-'}</div>
+                                                </div>
+                                                <div>
+                                                    <div style={{ fontSize: 11, color: '#94a3b8' }}>Şoför</div>
+                                                    {detailItem.driver ? (
+                                                        <div>
+                                                            <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}><UserOutlined style={{ color: '#3b82f6', marginRight: 4 }} />{detailItem.driver.name}</div>
+                                                            {detailItem.driver.phone && <div style={{ fontSize: 11, color: '#64748b' }}><PhoneOutlined style={{ marginRight: 3 }} />{detailItem.driver.phone}</div>}
+                                                            {detailItem.driver.tcNo && <div style={{ fontSize: 11, color: '#64748b' }}><IdcardOutlined style={{ marginRight: 3 }} />{detailItem.driver.tcNo}</div>}
+                                                        </div>
+                                                    ) : <Tag color="red" style={{ marginTop: 2 }}>Atanmamış</Tag>}
+                                                </div>
+                                                <div>
+                                                    <div style={{ fontSize: 11, color: '#94a3b8' }}>Araç</div>
+                                                    {detailItem.vehicle ? (
+                                                        <div>
+                                                            <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}><CarOutlined style={{ color: '#3b82f6', marginRight: 4 }} />{detailItem.vehicle.plate}</div>
+                                                            <div style={{ fontSize: 11, color: '#64748b' }}>{detailItem.vehicle.brand} {detailItem.vehicle.model}</div>
+                                                        </div>
+                                                    ) : <Tag color="red" style={{ marginTop: 2 }}>Atanmamış</Tag>}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* UETDS Bilgileri */}
+                                        {detailItem.submission && (
+                                            <div style={{ background: detailItem.submission.status === 'SENT' ? '#f0fdf4' : detailItem.submission.status === 'REJECTED' ? '#fef2f2' : '#f8fafc', border: `1px solid ${detailItem.submission.status === 'SENT' ? '#bbf7d0' : detailItem.submission.status === 'REJECTED' ? '#fecaca' : '#e2e8f0'}`, borderRadius: 12, padding: '14px 16px' }}>
+                                                <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: '0.05em', marginBottom: 10 }}>UETDS BİLGİLERİ</div>
+                                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 20px' }}>
+                                                    <div><div style={{ fontSize: 11, color: '#94a3b8' }}>Sefer ID</div><div style={{ fontSize: 12, fontWeight: 600, fontFamily: 'monospace' }}>{detailItem.submission.uetdsSeferId || '-'}</div></div>
+                                                    <div><div style={{ fontSize: 11, color: '#94a3b8' }}>Durum</div><Tag color={statusColor(detailItem.submission.status)} style={{ marginTop: 2 }}>{statusLabel(detailItem.submission.status)}</Tag></div>
+                                                    {detailItem.submission.submittedAt && <div><div style={{ fontSize: 11, color: '#94a3b8' }}>Gönderim Zamanı</div><div style={{ fontSize: 12 }}>{dayjs(detailItem.submission.submittedAt).format('DD.MM.YYYY HH:mm:ss')}</div></div>}
+                                                </div>
+                                                {detailItem.submission.errorMessage && (
+                                                    <div style={{ marginTop: 10, padding: '8px 12px', background: '#fee2e2', borderRadius: 8 }}>
+                                                        <div style={{ fontSize: 11, fontWeight: 700, color: '#b91c1c', marginBottom: 3 }}>HATA MESAJI</div>
+                                                        <Text style={{ fontSize: 12, color: '#7f1d1d' }}>{detailItem.submission.errorMessage}</Text>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {/* Müşteri Listesi */}
+                                        <div>
+                                            <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: '0.05em', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                <TeamOutlined style={{ color: '#3b82f6' }} />
+                                                MÜŞTERİ LİSTESİ — {detailItem.bookings.length} rezervasyon
+                                            </div>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                                {detailItem.bookings.map(b => (
+                                                    <div key={b.id} style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10, padding: '10px 14px', display: 'grid', gridTemplateColumns: '110px 1fr 1fr auto', gap: '0 16px', alignItems: 'center' }}>
+                                                        <div><div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700 }}>REZ. NO</div><div style={{ fontSize: 12, fontWeight: 800, color: '#1e293b' }}>{b.bookingNumber}</div></div>
+                                                        <div><div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700 }}>MÜŞTERİ</div><div style={{ fontSize: 12, fontWeight: 600 }}><UserOutlined style={{ color: '#3b82f6', marginRight: 3 }} />{b.contactName}</div></div>
+                                                        <div><div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700 }}>TELEFON</div><div style={{ fontSize: 12, color: '#475569' }}>{b.contactPhone || '-'}</div></div>
+                                                        <div style={{ textAlign: 'right' }}><div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700 }}>YOLCU</div><div style={{ fontSize: 14, fontWeight: 800, color: '#3b82f6' }}>{(b.adults || 0) + (b.children || 0)}</div></div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                    </Space>
+                                </div>
+                            </div>
                         )}
                     </Drawer>
 
                     {/* Submission detail drawer */}
                     <Drawer
-                        title="Gönderim Detayı"
+                        title={null}
                         open={!!detailSubmission}
                         onClose={() => setDetailSubmission(null)}
-                        width={620}
+                        width={660}
+                        styles={{ body: { padding: 0 } }}
                     >
                         {detailSubmission && (
-                            <Space direction="vertical" size={12} style={{ width: '100%' }}>
-                                <Descriptions bordered size="small" column={1}>
-                                    <Descriptions.Item label="UETDS Sefer ID">{detailSubmission.uetdsSeferId || '-'}</Descriptions.Item>
-                                    <Descriptions.Item label="Referans No">{detailSubmission.uetdsRefNo || '-'}</Descriptions.Item>
-                                    <Descriptions.Item label="Durum"><Tag color={statusColor(detailSubmission.status)}>{statusLabel(detailSubmission.status)}</Tag></Descriptions.Item>
-                                    <Descriptions.Item label="Gönderim Zamanı">{detailSubmission.submittedAt ? dayjs(detailSubmission.submittedAt).format('DD.MM.YYYY HH:mm:ss') : '-'}</Descriptions.Item>
-                                    {detailSubmission.cancelledAt && (
-                                        <Descriptions.Item label="İptal Zamanı">{dayjs(detailSubmission.cancelledAt).format('DD.MM.YYYY HH:mm:ss')}</Descriptions.Item>
-                                    )}
-                                    {detailSubmission.booking && (
-                                        <Descriptions.Item label="Rezervasyon">
-                                            {detailSubmission.booking.bookingNumber} — {detailSubmission.booking.contactName}
-                                        </Descriptions.Item>
-                                    )}
-                                    {detailSubmission.errorMessage && (
-                                        <Descriptions.Item label="Hata Mesajı"><Text type="danger">{detailSubmission.errorMessage}</Text></Descriptions.Item>
-                                    )}
-                                </Descriptions>
+                            <div>
+                                {/* Drawer header */}
+                                <div style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%)', padding: '20px 24px', position: 'relative', overflow: 'hidden' }}>
+                                    <div style={{ position: 'absolute', top: -20, right: -20, width: 120, height: 120, borderRadius: '50%', background: 'rgba(59,130,246,0.12)', filter: 'blur(30px)', pointerEvents: 'none' }} />
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                        <div style={{ width: 42, height: 42, borderRadius: 12, background: 'rgba(59,130,246,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>
+                                            {detailSubmission.runKey ? '🚌' : '🚗'}
+                                        </div>
+                                        <div>
+                                            <div style={{ color: '#fff', fontWeight: 800, fontSize: 16 }}>Gönderim Detayı</div>
+                                            <div style={{ color: 'rgba(255,255,255,0.55)', fontSize: 12 }}>
+                                                {detailSubmission.runKey ? 'Shuttle Sefer' : 'Özel Transfer'} · {detailSubmission.submittedAt ? dayjs(detailSubmission.submittedAt).format('DD.MM.YYYY HH:mm') : dayjs(detailSubmission.createdAt).format('DD.MM.YYYY HH:mm')}
+                                            </div>
+                                        </div>
+                                        <div style={{ marginLeft: 'auto' }}>
+                                            <Tag color={statusColor(detailSubmission.status)} style={{ fontWeight: 700, fontSize: 13 }}>{statusLabel(detailSubmission.status)}</Tag>
+                                        </div>
+                                    </div>
+                                </div>
 
-                                {detailSubmission.response && (
-                                    <Card size="small" title="Servis Yanıtı">
-                                        <pre style={{ fontSize: 11, maxHeight: 240, overflow: 'auto', background: '#f8fafc', padding: 8, borderRadius: 6 }}>
-                                            {typeof detailSubmission.response === 'string'
-                                                ? detailSubmission.response
-                                                : JSON.stringify(detailSubmission.response, null, 2)}
-                                        </pre>
-                                    </Card>
-                                )}
-                            </Space>
+                                <div style={{ padding: '20px 24px' }}>
+                                    <Space direction="vertical" size={14} style={{ width: '100%' }}>
+
+                                        {/* UETDS ID Bilgileri */}
+                                        <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 12, padding: '14px 16px' }}>
+                                            <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: '0.05em', marginBottom: 10 }}>UETDS BİLGİLERİ</div>
+                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 20px' }}>
+                                                <div><div style={{ fontSize: 11, color: '#94a3b8' }}>UETDS Sefer ID</div><div style={{ fontSize: 12, fontWeight: 700, fontFamily: 'monospace', color: '#1e293b' }}>{detailSubmission.uetdsSeferId || '-'}</div></div>
+                                                <div><div style={{ fontSize: 11, color: '#94a3b8' }}>Referans No</div><div style={{ fontSize: 12, fontFamily: 'monospace', color: '#1e293b' }}>{detailSubmission.uetdsRefNo || '-'}</div></div>
+                                                <div><div style={{ fontSize: 11, color: '#94a3b8' }}>Gönderim Zamanı</div><div style={{ fontSize: 12, color: '#1e293b' }}>{detailSubmission.submittedAt ? dayjs(detailSubmission.submittedAt).format('DD.MM.YYYY HH:mm:ss') : '-'}</div></div>
+                                                {detailSubmission.cancelledAt && <div><div style={{ fontSize: 11, color: '#94a3b8' }}>İptal Zamanı</div><div style={{ fontSize: 12, color: '#ef4444' }}>{dayjs(detailSubmission.cancelledAt).format('DD.MM.YYYY HH:mm:ss')}</div></div>}
+                                            </div>
+                                            {detailSubmission.errorMessage && (
+                                                <div style={{ marginTop: 10, padding: '8px 12px', background: '#fee2e2', borderRadius: 8 }}>
+                                                    <div style={{ fontSize: 11, fontWeight: 700, color: '#b91c1c', marginBottom: 3 }}>HATA MESAJI</div>
+                                                    <Text style={{ fontSize: 12, color: '#7f1d1d' }}>{detailSubmission.errorMessage}</Text>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Müşteri / Rezervasyon Bilgileri */}
+                                        {detailSubmission.booking && (
+                                            <div style={{ background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: 12, padding: '14px 16px' }}>
+                                                <div style={{ fontSize: 11, fontWeight: 700, color: '#0369a1', letterSpacing: '0.05em', marginBottom: 10 }}>MÜŞTERİ & REZERVASYON BİLGİLERİ</div>
+                                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 20px' }}>
+                                                    <div><div style={{ fontSize: 11, color: '#94a3b8' }}>Rezervasyon No</div><div style={{ fontSize: 13, fontWeight: 800, color: '#1e293b' }}>{detailSubmission.booking.bookingNumber}</div></div>
+                                                    <div><div style={{ fontSize: 11, color: '#94a3b8' }}>Müşteri Adı</div><div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}><UserOutlined style={{ color: '#3b82f6', marginRight: 4 }} />{detailSubmission.booking.contactName}</div></div>
+                                                    {detailSubmission.booking.contactPhone && <div><div style={{ fontSize: 11, color: '#94a3b8' }}>Telefon</div><div style={{ fontSize: 12, color: '#475569' }}><PhoneOutlined style={{ marginRight: 3, color: '#3b82f6' }} />{detailSubmission.booking.contactPhone}</div></div>}
+                                                    <div><div style={{ fontSize: 11, color: '#94a3b8' }}>Yolcu Sayısı</div><div style={{ fontSize: 13, fontWeight: 700, color: '#3b82f6' }}>{(detailSubmission.booking.adults || 0) + (detailSubmission.booking.children || 0)} kişi</div></div>
+                                                    <div style={{ gridColumn: '1 / -1' }}><div style={{ fontSize: 11, color: '#94a3b8' }}>Güzergah</div><div style={{ fontSize: 12, color: '#1e293b' }}><EnvironmentOutlined style={{ color: '#3b82f6', marginRight: 4 }} />{detailSubmission.booking.pickup} <ArrowRightOutlined style={{ fontSize: 10, color: '#94a3b8', margin: '0 4px' }} /> {detailSubmission.booking.dropoff}</div></div>
+                                                    <div><div style={{ fontSize: 11, color: '#94a3b8' }}>Transfer Tarihi</div><div style={{ fontSize: 12, color: '#1e293b' }}><ClockCircleOutlined style={{ color: '#3b82f6', marginRight: 4 }} />{detailSubmission.booking.startDate ? dayjs(detailSubmission.booking.startDate).format('DD.MM.YYYY HH:mm') : '-'}</div></div>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Shuttle yolcu sayısı (runKey varsa) */}
+                                        {detailSubmission.runKey && detailSubmission.runPassengerCount && (
+                                            <div style={{ background: '#faf5ff', border: '1px solid #e9d5ff', borderRadius: 12, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+                                                <TeamOutlined style={{ fontSize: 20, color: '#7c3aed' }} />
+                                                <div>
+                                                    <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 700 }}>SHUTTLE SEFER</div>
+                                                    <div style={{ fontSize: 14, fontWeight: 700, color: '#1e293b' }}>Toplam {detailSubmission.runPassengerCount} yolcu · {detailSubmission.runBookingIds?.length || 0} rezervasyon</div>
+                                                    <div style={{ fontSize: 11, color: '#7c3aed', fontFamily: 'monospace', marginTop: 2 }}>Run: {detailSubmission.runKey}</div>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Servis Yanıtı */}
+                                        {detailSubmission.response && (
+                                            <div>
+                                                <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: '0.05em', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                    <InfoCircleOutlined />
+                                                    SERVİS YANITI
+                                                </div>
+                                                <pre style={{ fontSize: 11, maxHeight: 220, overflow: 'auto', background: '#0f172a', color: '#e2e8f0', padding: '12px 14px', borderRadius: 10, lineHeight: 1.6, margin: 0 }}>
+                                                    {typeof detailSubmission.response === 'string'
+                                                        ? detailSubmission.response
+                                                        : JSON.stringify(detailSubmission.response, null, 2)}
+                                                </pre>
+                                            </div>
+                                        )}
+
+                                    </Space>
+                                </div>
+                            </div>
                         )}
                     </Drawer>
                 </div>
