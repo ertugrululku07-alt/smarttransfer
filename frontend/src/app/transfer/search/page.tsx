@@ -32,7 +32,9 @@ import {
     CheckCircleOutlined,
     ClockCircleOutlined,
     SafetyCertificateOutlined,
-    FilterOutlined
+    FilterOutlined,
+    EnvironmentOutlined,
+    SwapOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import apiClient, { getImageUrl } from '@/lib/api-client';
@@ -77,6 +79,7 @@ const TransferSearchContent: React.FC = () => {
     const [routeStats, setRouteStats] = useState<{ distance: string | number; duration: string | number } | null>(null);
     const [durationMin, setDurationMin] = useState<number | null>(null);
     const [isEditModalVisible, setIsEditModalVisible] = useState(false);
+    const [editType, setEditType] = useState<string>('ONE_WAY');
     const [form] = Form.useForm();
 
     // Round-trip state
@@ -253,13 +256,17 @@ const TransferSearchContent: React.FC = () => {
     };
 
     const showEditModal = () => {
+        const currentType = type || 'ONE_WAY';
+        setEditType(currentType);
         form.setFieldsValue({
             pickup,
             dropoff,
             date: date ? dayjs(date) : null,
             time: time ? dayjs(time, 'HH:mm') : null,
+            returnDate: returnDate ? dayjs(returnDate) : null,
+            returnTime: returnTime ? dayjs(returnTime, 'HH:mm') : null,
             passengers: Number(passengers) || 1,
-            type: type || 'ONE_WAY',
+            type: currentType,
             pickupLat: searchParams.get('pickupLat') || '',
             pickupLng: searchParams.get('pickupLng') || '',
             dropoffLat: searchParams.get('dropoffLat') || '',
@@ -276,6 +283,10 @@ const TransferSearchContent: React.FC = () => {
         params.set('time', values.time.format('HH:mm'));
         params.set('passengers', values.passengers);
         params.set('type', values.type);
+        if (values.type === 'ROUND_TRIP' && values.returnDate) {
+            params.set('returnDate', values.returnDate.format('YYYY-MM-DD'));
+            if (values.returnTime) params.set('returnTime', values.returnTime.format('HH:mm'));
+        }
         if (values.pickupLat) params.set('pickupLat', values.pickupLat);
         if (values.pickupLng) params.set('pickupLng', values.pickupLng);
         if (values.dropoffLat) params.set('dropoffLat', values.dropoffLat);
@@ -517,39 +528,105 @@ const TransferSearchContent: React.FC = () => {
                 )}
             </Content>
 
-            <Modal title="Aramayı Düzenle" open={isEditModalVisible} onCancel={() => setIsEditModalVisible(false)} footer={null} destroyOnHidden={true}>
-                <Form form={form} layout="vertical" onFinish={handleEditSubmit}>
-                    <Form.Item name="pickupLat" noStyle><Input type="hidden" /></Form.Item>
-                    <Form.Item name="pickupLng" noStyle><Input type="hidden" /></Form.Item>
-                    <Form.Item name="dropoffLat" noStyle><Input type="hidden" /></Form.Item>
-                    <Form.Item name="dropoffLng" noStyle><Input type="hidden" /></Form.Item>
+            <Modal
+                open={isEditModalVisible}
+                onCancel={() => setIsEditModalVisible(false)}
+                footer={null}
+                destroyOnHidden={true}
+                width={520}
+                styles={{ body: { padding: 0 } }}
+                style={{ borderRadius: 16, overflow: 'hidden' }}
+                closable={false}
+            >
+                {/* Premium Header */}
+                <div style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #0f172a 100%)', padding: '20px 24px', position: 'relative', overflow: 'hidden' }}>
+                    <div style={{ position: 'absolute', top: -30, right: -30, width: 160, height: 160, borderRadius: '50%', background: 'rgba(59,130,246,0.1)', filter: 'blur(40px)', pointerEvents: 'none' }} />
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(59,130,246,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <SwapOutlined style={{ color: '#60a5fa', fontSize: 16 }} />
+                            </div>
+                            <div>
+                                <div style={{ color: '#fff', fontWeight: 700, fontSize: 16 }}>Aramayı Düzenle</div>
+                                <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12 }}>Güzergah ve tarih bilgilerini güncelleyin</div>
+                            </div>
+                        </div>
+                        <button onClick={() => setIsEditModalVisible(false)} style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', width: 30, height: 30, borderRadius: 8, cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+                    </div>
+                </div>
 
-                    <Form.Item name="pickup" label="Alış Noktası" rules={[{ required: true }]}>
-                        <DynamicLocationSearchInput 
-                            placeholder="Nereden?" 
-                            onSelect={(val, lat, lng) => {
-                                form.setFieldsValue({ pickup: val, pickupLat: lat, pickupLng: lng });
-                            }} 
-                        />
-                    </Form.Item>
-                    <Form.Item name="dropoff" label="Bırakış Noktası" rules={[{ required: true }]}>
-                        <DynamicLocationSearchInput 
-                            placeholder="Nereye?" 
-                            onSelect={(val, lat, lng) => {
-                                form.setFieldsValue({ dropoff: val, dropoffLat: lat, dropoffLng: lng });
-                            }}
-                        />
-                    </Form.Item>
-                    <Row gutter={16}>
-                        <Col span={12}><Form.Item name="date" label="Tarih" rules={[{ required: true }]}><DatePicker style={{ width: '100%' }} format="DD.MM.YYYY" disabledDate={(current) => current && current < dayjs().startOf('day')} /></Form.Item></Col>
-                        <Col span={12}><Form.Item name="time" label="Saat" rules={[{ required: true }]}><TimePicker style={{ width: '100%' }} format="HH:mm" /></Form.Item></Col>
-                    </Row>
-                    <Row gutter={16}>
-                        <Col span={12}><Form.Item name="passengers" label="Yolcu Sayısı" rules={[{ required: true }]}><Input type="number" min={1} /></Form.Item></Col>
-                        <Col span={12}><Form.Item name="type" label="Transfer Tipi"><Select><Select.Option value="ONE_WAY">Tek Yön</Select.Option><Select.Option value="ROUND_TRIP">Gidiş - Dönüş</Select.Option></Select></Form.Item></Col>
-                    </Row>
-                    <div style={{ textAlign: 'right', marginTop: 16 }}><Button onClick={() => setIsEditModalVisible(false)} style={{ marginRight: 8 }}>İptal</Button><Button type="primary" htmlType="submit">Güncelle ve Ara</Button></div>
-                </Form>
+                {/* Form Body */}
+                <div style={{ padding: '20px 24px 16px', background: '#fff' }}>
+                    <Form form={form} layout="vertical" onFinish={handleEditSubmit} requiredMark={false}>
+                        <Form.Item name="pickupLat" noStyle><Input type="hidden" /></Form.Item>
+                        <Form.Item name="pickupLng" noStyle><Input type="hidden" /></Form.Item>
+                        <Form.Item name="dropoffLat" noStyle><Input type="hidden" /></Form.Item>
+                        <Form.Item name="dropoffLng" noStyle><Input type="hidden" /></Form.Item>
+
+                        {/* Type Selector */}
+                        <Form.Item name="type" style={{ marginBottom: 16 }}>
+                            <div style={{ display: 'flex', gap: 8 }}>
+                                {[{ val: 'ONE_WAY', label: '→ Tek Yön' }, { val: 'ROUND_TRIP', label: '⇄ Gidiş–Dönüş' }].map(opt => (
+                                    <button key={opt.val} type="button"
+                                        onClick={() => { form.setFieldsValue({ type: opt.val }); setEditType(opt.val); }}
+                                        style={{ flex: 1, padding: '8px 0', borderRadius: 10, cursor: 'pointer', fontWeight: 600, fontSize: 13, transition: 'all .15s', border: editType === opt.val ? '2px solid #3b82f6' : '2px solid #e2e8f0', background: editType === opt.val ? 'linear-gradient(135deg,#eff6ff,#dbeafe)' : '#f8fafc', color: editType === opt.val ? '#1d4ed8' : '#64748b' }}
+                                    >{opt.label}</button>
+                                ))}
+                            </div>
+                        </Form.Item>
+
+                        {/* Locations */}
+                        <div style={{ background: '#f8fafc', borderRadius: 12, padding: '14px 14px 6px', border: '1px solid #e2e8f0', marginBottom: 14 }}>
+                            <Form.Item name="pickup" label={<span style={{ fontSize: 12, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Alış Noktası</span>} rules={[{ required: true }]} style={{ marginBottom: 10 }}>
+                                <DynamicLocationSearchInput
+                                    placeholder="Nereden?"
+                                    onSelect={(val, lat, lng) => { form.setFieldsValue({ pickup: val, pickupLat: lat, pickupLng: lng }); }}
+                                />
+                            </Form.Item>
+                            <div style={{ height: 1, background: '#e2e8f0', marginBottom: 10 }} />
+                            <Form.Item name="dropoff" label={<span style={{ fontSize: 12, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Bırakış Noktası</span>} rules={[{ required: true }]} style={{ marginBottom: 8 }}>
+                                <DynamicLocationSearchInput
+                                    placeholder="Nereye?"
+                                    onSelect={(val, lat, lng) => { form.setFieldsValue({ dropoff: val, dropoffLat: lat, dropoffLng: lng }); }}
+                                />
+                            </Form.Item>
+                        </div>
+
+                        {/* Outbound Date/Time */}
+                        <div style={{ background: '#f8fafc', borderRadius: 12, padding: '14px 14px 6px', border: '1px solid #e2e8f0', marginBottom: 14 }}>
+                            <div style={{ fontSize: 12, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10 }}>{editType === 'ROUND_TRIP' ? 'Gidiş Tarihi' : 'Tarih & Saat'}</div>
+                            <Row gutter={12}>
+                                <Col span={12}><Form.Item name="date" rules={[{ required: true }]} style={{ marginBottom: 8 }}><DatePicker style={{ width: '100%', borderRadius: 8 }} format="DD.MM.YYYY" disabledDate={(current) => current && current < dayjs().startOf('day')} /></Form.Item></Col>
+                                <Col span={12}><Form.Item name="time" rules={[{ required: true }]} style={{ marginBottom: 8 }}><TimePicker style={{ width: '100%', borderRadius: 8 }} format="HH:mm" minuteStep={15} /></Form.Item></Col>
+                            </Row>
+                        </div>
+
+                        {/* Return Date/Time — only for ROUND_TRIP */}
+                        {editType === 'ROUND_TRIP' && (
+                            <div style={{ background: '#f0f9ff', borderRadius: 12, padding: '14px 14px 6px', border: '1px solid #bae6fd', marginBottom: 14 }}>
+                                <div style={{ fontSize: 12, fontWeight: 600, color: '#0369a1', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10 }}>Dönüş Tarihi</div>
+                                <Row gutter={12}>
+                                    <Col span={12}><Form.Item name="returnDate" rules={[{ required: true, message: 'Dönüş tarihi gerekli' }]} style={{ marginBottom: 8 }}><DatePicker style={{ width: '100%', borderRadius: 8 }} format="DD.MM.YYYY" disabledDate={(current) => { const outbound = form.getFieldValue('date'); return current && current < (outbound || dayjs()).startOf('day'); }} /></Form.Item></Col>
+                                    <Col span={12}><Form.Item name="returnTime" style={{ marginBottom: 8 }}><TimePicker style={{ width: '100%', borderRadius: 8 }} format="HH:mm" minuteStep={15} /></Form.Item></Col>
+                                </Row>
+                            </div>
+                        )}
+
+                        {/* Passengers */}
+                        <div style={{ background: '#f8fafc', borderRadius: 12, padding: '14px 14px 6px', border: '1px solid #e2e8f0', marginBottom: 20 }}>
+                            <div style={{ fontSize: 12, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10 }}>Yolcu Sayısı</div>
+                            <Form.Item name="passengers" rules={[{ required: true }]} style={{ marginBottom: 8 }}>
+                                <Input type="number" min={1} max={20} style={{ borderRadius: 8 }} prefix={<UserOutlined style={{ color: '#94a3b8' }} />} />
+                            </Form.Item>
+                        </div>
+
+                        {/* Footer Buttons */}
+                        <div style={{ display: 'flex', gap: 10 }}>
+                            <Button onClick={() => setIsEditModalVisible(false)} style={{ flex: 1, height: 44, borderRadius: 10, fontWeight: 600, border: '1.5px solid #e2e8f0', color: '#64748b' }}>İptal</Button>
+                            <Button htmlType="submit" style={{ flex: 2, height: 44, borderRadius: 10, fontWeight: 700, background: 'linear-gradient(135deg,#3b82f6,#6366f1)', border: 'none', color: '#fff', boxShadow: '0 4px 14px rgba(59,130,246,0.35)' }}>Güncelle ve Ara</Button>
+                        </div>
+                    </Form>
+                </div>
             </Modal>
             <Footer style={{ textAlign: 'center', background: '#fff' }}>{branding.companyName} ©{new Date().getFullYear()}</Footer>
         </Layout>
