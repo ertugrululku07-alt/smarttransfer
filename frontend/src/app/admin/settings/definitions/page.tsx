@@ -14,7 +14,8 @@ import {
     MailOutlined, SendOutlined, EyeOutlined, CheckCircleOutlined,
     LockOutlined, SettingOutlined, FileTextOutlined, CopyOutlined,
     WhatsAppOutlined, ApiOutlined, PhoneOutlined,
-    SafetyCertificateOutlined, UserOutlined
+    SafetyCertificateOutlined, UserOutlined, GlobalOutlined,
+    ExclamationCircleOutlined, SyncOutlined
 } from '@ant-design/icons';
 import apiClient from '@/lib/api-client';
 import { invalidateDefinitions } from '@/app/hooks/useDefinitions';
@@ -189,6 +190,28 @@ export default function DefinitionsPage() {
     const [whatsappTesting, setWhatsappTesting] = useState(false);
     const [testPhone, setTestPhone] = useState('');
 
+    // DeepL Translation Settings
+    const [deeplSettings, setDeeplSettings] = useState<{
+        enabled: boolean;
+        apiKey: string;
+        keyType: string | null;
+        keySource: string;
+        cacheSize: number;
+        characterCount: number;
+        characterLimit: number;
+    }>({
+        enabled: false,
+        apiKey: '',
+        keyType: null,
+        keySource: 'none',
+        cacheSize: 0,
+        characterCount: 0,
+        characterLimit: 0,
+    });
+    const [deeplSaving, setDeeplSaving] = useState(false);
+    const [deeplTesting, setDeeplTesting] = useState(false);
+    const [showDeeplKey, setShowDeeplKey] = useState(false);
+
     // Modals state
     const [vatModalVisible, setVatModalVisible] = useState(false);
     const [currencyModalVisible, setCurrencyModalVisible] = useState(false);
@@ -226,6 +249,24 @@ export default function DefinitionsPage() {
             if (settings.uetdsSettings) {
                 setUetdsSettings(prev => ({ ...prev, ...settings.uetdsSettings }));
             }
+            // DeepL
+            if (settings.deeplApiKey) {
+                setDeeplSettings(prev => ({ ...prev, apiKey: settings.deeplApiKey, enabled: true }));
+            }
+            // Fetch DeepL status
+            try {
+                const deeplRes = await apiClient.get('/api/translate/settings');
+                if (deeplRes.data?.success) {
+                    const d = deeplRes.data.data;
+                    setDeeplSettings(prev => ({
+                        ...prev,
+                        keyType: d.keyType,
+                        keySource: d.keySource,
+                        cacheSize: d.cacheSize || 0,
+                        enabled: d.configured,
+                    }));
+                }
+            } catch { /* ignore if translate endpoint not available */ }
         } catch (error) {
             console.error('Fetch error:', error);
             message.error('Tanımlamalar yüklenirken bir hata oluştu.');
@@ -398,6 +439,59 @@ export default function DefinitionsPage() {
             message.error('UETDS ayarları kaydedilirken hata oluştu');
         } finally {
             setUetdsSaving(false);
+        }
+    };
+
+    const saveDeeplSettings = async () => {
+        try {
+            setDeeplSaving(true);
+            await apiClient.post('/api/translate/settings', { deeplApiKey: deeplSettings.apiKey || null });
+            message.success('DeepL API anahtarı kaydedildi');
+            // Refresh status
+            try {
+                const res = await apiClient.get('/api/translate/settings');
+                if (res.data?.success) {
+                    const d = res.data.data;
+                    setDeeplSettings(prev => ({ ...prev, keyType: d.keyType, keySource: d.keySource, cacheSize: d.cacheSize || 0, enabled: d.configured }));
+                }
+            } catch {}
+        } catch (error: any) {
+            console.error('Save DeepL settings error:', error);
+            message.error(error.response?.data?.error || 'DeepL ayarları kaydedilirken hata oluştu');
+        } finally {
+            setDeeplSaving(false);
+        }
+    };
+
+    const handleTestDeepL = async () => {
+        try {
+            setDeeplTesting(true);
+            // Test translate
+            const res = await apiClient.post('/api/translate', {
+                texts: ['Merhaba dünya! Bu bir test çevirisidir.'],
+                targetLang: 'en',
+                sourceLang: 'tr'
+            });
+            if (res.data?.success && res.data.data?.translations?.[0]) {
+                message.success(`Çeviri başarılı: "${res.data.data.translations[0]}"`);
+                // Also fetch usage
+                try {
+                    const usageRes = await apiClient.get('/api/translate/usage');
+                    if (usageRes.data?.success) {
+                        setDeeplSettings(prev => ({
+                            ...prev,
+                            characterCount: usageRes.data.data?.character_count || 0,
+                            characterLimit: usageRes.data.data?.character_limit || 0,
+                        }));
+                    }
+                } catch {}
+            } else {
+                message.error('Çeviri testi başarısız');
+            }
+        } catch (error: any) {
+            message.error(error.response?.data?.error || 'DeepL bağlantı testi başarısız');
+        } finally {
+            setDeeplTesting(false);
         }
     };
 
@@ -1244,6 +1338,162 @@ export default function DefinitionsPage() {
                         >
                             Zaman Tanımlarını Kaydet
                         </Button>
+                    </div>
+                </div>
+            )
+        },
+        {
+            key: 'deepl',
+            label: <span><GlobalOutlined /> Çeviri (DeepL)</span>,
+            children: (
+                <div>
+                    <SectionHeader icon={<GlobalOutlined />} title="Çeviri (DeepL) Ayarları" subtitle="Otomatik çoklu dil desteği için DeepL API entegrasyonunu yapılandırın" color="#6366f1" />
+
+                    <div style={{
+                        background: 'linear-gradient(135deg, #eef2ff, #e0e7ff)', border: '1px solid #a5b4fc',
+                        borderRadius: 12, padding: '14px 18px', marginBottom: 24,
+                        display: 'flex', alignItems: 'flex-start', gap: 10
+                    }}>
+                        <InfoCircleOutlined style={{ color: '#6366f1', fontSize: 18, marginTop: 2 }} />
+                        <div>
+                            <Text strong style={{ color: '#3730a3', fontSize: 13 }}>DeepL API Nedir?</Text>
+                            <div style={{ color: '#312e81', fontSize: 12, marginTop: 2 }}>
+                                DeepL, yapay zeka destekli profesyonel çeviri API&apos;sidir. Web sitenizin TR/EN/DE/RU dil desteği için kullanılır.
+                                <a href="https://www.deepl.com/pro-api" target="_blank" rel="noopener noreferrer" style={{ color: '#6366f1', marginLeft: 4 }}>deepl.com/pro-api</a> adresinden ücretsiz API key alabilirsiniz.
+                                <br/><strong>Free Plan:</strong> Aylık 500.000 karakter ücretsiz &bull; <strong>Pro Plan:</strong> Sınırsız kullanım (ücretli)
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 24 }}>
+                        {/* API Key Card */}
+                        <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                            <div style={{ background: 'linear-gradient(135deg, #6366f1, #4f46e5)', padding: '18px 22px', color: '#fff' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                    <ApiOutlined style={{ fontSize: 22 }} />
+                                    <div>
+                                        <div style={{ fontSize: 16, fontWeight: 700 }}>API Anahtarı</div>
+                                        <div style={{ fontSize: 11, opacity: 0.85 }}>DeepL hesabınızdan alınan key</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div style={{ padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+                                <div>
+                                    <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 6 }}>DeepL API Key</label>
+                                    <Input.Password
+                                        placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx:fx"
+                                        value={deeplSettings.apiKey}
+                                        onChange={(e) => setDeeplSettings(prev => ({ ...prev, apiKey: e.target.value }))}
+                                        visibilityToggle={{ visible: showDeeplKey, onVisibleChange: setShowDeeplKey }}
+                                        style={{ borderRadius: 8 }}
+                                    />
+                                    <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>
+                                        Free key &apos;:fx&apos; ile biter. Pro key sonunda ek yok.
+                                    </div>
+                                </div>
+                                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                                    {deeplSettings.keyType && (
+                                        <Tag color={deeplSettings.keyType === 'free' ? 'blue' : 'gold'} style={{ borderRadius: 6, fontWeight: 600 }}>
+                                            {deeplSettings.keyType === 'free' ? '🆓 Free Plan' : '⭐ Pro Plan'}
+                                        </Tag>
+                                    )}
+                                    {deeplSettings.keySource === 'tenant' && <Tag color="green" style={{ borderRadius: 6 }}>Tenant Key</Tag>}
+                                    {deeplSettings.keySource === 'env' && <Tag color="orange" style={{ borderRadius: 6 }}>Env Variable</Tag>}
+                                    {deeplSettings.enabled && <Tag color="green" style={{ borderRadius: 6 }}><CheckCircleOutlined /> Aktif</Tag>}
+                                    {!deeplSettings.enabled && <Tag color="red" style={{ borderRadius: 6 }}><ExclamationCircleOutlined /> Yapılandırılmamış</Tag>}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Usage Stats Card */}
+                        <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                            <div style={{ background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)', padding: '18px 22px', color: '#fff' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                    <GlobalOutlined style={{ fontSize: 22 }} />
+                                    <div>
+                                        <div style={{ fontSize: 16, fontWeight: 700 }}>Kullanım İstatistikleri</div>
+                                        <div style={{ fontSize: 11, opacity: 0.85 }}>DeepL API karakter kullanımı</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div style={{ padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+                                <div style={{ display: 'flex', gap: 12 }}>
+                                    <StatCard icon={<GlobalOutlined />} label="Kullanılan" value={deeplSettings.characterCount ? deeplSettings.characterCount.toLocaleString() : '—'} color="#6366f1" />
+                                    <StatCard icon={<CheckCircleOutlined />} label="Limit" value={deeplSettings.characterLimit ? deeplSettings.characterLimit.toLocaleString() : '—'} color="#10b981" />
+                                </div>
+                                {deeplSettings.characterLimit > 0 && (
+                                    <div>
+                                        <div style={{ fontSize: 11, color: '#64748b', marginBottom: 6 }}>Kullanım Oranı</div>
+                                        <div style={{ background: '#f1f5f9', borderRadius: 8, height: 12, overflow: 'hidden' }}>
+                                            <div style={{
+                                                height: '100%', borderRadius: 8,
+                                                width: `${Math.min((deeplSettings.characterCount / deeplSettings.characterLimit) * 100, 100)}%`,
+                                                background: (deeplSettings.characterCount / deeplSettings.characterLimit) > 0.8
+                                                    ? 'linear-gradient(90deg, #ef4444, #dc2626)'
+                                                    : 'linear-gradient(90deg, #6366f1, #8b5cf6)',
+                                                transition: 'width 0.5s ease'
+                                            }} />
+                                        </div>
+                                        <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>
+                                            %{((deeplSettings.characterCount / deeplSettings.characterLimit) * 100).toFixed(1)} kullanıldı
+                                        </div>
+                                    </div>
+                                )}
+                                <StatCard icon={<SyncOutlined />} label="Cache Boyutu" value={`${deeplSettings.cacheSize} kayıt`} color="#f59e0b" />
+                                <div style={{
+                                    padding: '10px 14px', borderRadius: 8,
+                                    background: '#eef2ff', border: '1px solid #c7d2fe', fontSize: 11, color: '#4338ca'
+                                }}>
+                                    <strong>Desteklenen Diller:</strong> Türkçe (TR), İngilizce (EN), Almanca (DE), Rusça (RU) — Yeni diller locale dosyasına eklenerek genişletilebilir.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Test & Save */}
+                    <div style={{
+                        background: '#fff', borderRadius: 16, border: '1px solid #e2e8f0',
+                        padding: '20px 24px', boxShadow: '0 2px 8px rgba(0,0,0,0.04)'
+                    }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                <div style={{
+                                    width: 10, height: 10, borderRadius: '50%',
+                                    background: deeplSettings.enabled ? '#10b981' : '#ef4444',
+                                    boxShadow: deeplSettings.enabled ? '0 0 8px #10b98180' : '0 0 8px #ef444480',
+                                }} />
+                                <Text style={{ fontSize: 13, color: '#64748b' }}>
+                                    {deeplSettings.enabled
+                                        ? <><CheckCircleOutlined style={{ color: '#10b981', marginRight: 4 }} />DeepL API yapılandırıldı — {deeplSettings.keyType === 'free' ? 'Free Plan' : 'Pro Plan'}</>
+                                        : 'API anahtarı girilmemiş'
+                                    }
+                                </Text>
+                            </div>
+                            <Space>
+                                <Button
+                                    icon={<SyncOutlined />}
+                                    loading={deeplTesting}
+                                    onClick={handleTestDeepL}
+                                    style={{ borderRadius: 8, fontWeight: 600 }}
+                                >
+                                    Test Et
+                                </Button>
+                                <Button
+                                    type="primary"
+                                    icon={<SaveOutlined />}
+                                    loading={deeplSaving}
+                                    onClick={saveDeeplSettings}
+                                    size="large"
+                                    style={{
+                                        borderRadius: 10, fontWeight: 700, height: 44, paddingInline: 32,
+                                        background: 'linear-gradient(135deg, #6366f1, #4f46e5)',
+                                        border: 'none', boxShadow: '0 4px 12px #6366f140'
+                                    }}
+                                >
+                                    DeepL Ayarlarını Kaydet
+                                </Button>
+                            </Space>
+                        </div>
                     </div>
                 </div>
             )
