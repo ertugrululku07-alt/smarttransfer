@@ -58,7 +58,7 @@ const TopBar: React.FC<{ forceOpaque?: boolean }> = ({ forceOpaque = false }) =>
   useEffect(() => {
     const fetchPages = async () => {
       try {
-        const res = await axios.get(`${API_URL}/api/pages`, {
+        const res = await axios.get(`${API_URL}/api/pages?lang=${locale}`, {
           headers: { 'X-Tenant-Slug': TENANT_SLUG }
         });
         if (res.data.success) {
@@ -72,7 +72,7 @@ const TopBar: React.FC<{ forceOpaque?: boolean }> = ({ forceOpaque = false }) =>
       }
     };
     fetchPages();
-  }, []);
+  }, [locale]);
 
   const handleLoginClick = () => router.push('/login');
 
@@ -200,8 +200,8 @@ const TopBar: React.FC<{ forceOpaque?: boolean }> = ({ forceOpaque = false }) =>
                 {page.title}
               </a>
             ))}
-            <a href="/track" style={navLinkStyle}>Rezervasyon Sorgula</a>
-            <a href="/contact" style={navLinkStyle}>İletişim</a>
+            <a href="/track" style={navLinkStyle}>{t('nav.bookingLookup')}</a>
+            <a href="/contact" style={navLinkStyle}>{t('nav.contact')}</a>
           </nav>
         </div>
 
@@ -348,8 +348,8 @@ const TopBar: React.FC<{ forceOpaque?: boolean }> = ({ forceOpaque = false }) =>
               {page.title}
             </a>
           ))}
-          <a href="/track" style={{ padding: '10px 0', color: '#333', fontWeight: 500, borderBottom: '1px solid #f0f0f0' }}>Rezervasyon Sorgula</a>
-          <a href="/contact" style={{ padding: '10px 0', color: '#333', fontWeight: 500, borderBottom: '1px solid #f0f0f0' }}>İletişim</a>
+          <a href="/track" style={{ padding: '10px 0', color: '#333', fontWeight: 500, borderBottom: '1px solid #f0f0f0' }}>{t('nav.bookingLookup')}</a>
+          <a href="/contact" style={{ padding: '10px 0', color: '#333', fontWeight: 500, borderBottom: '1px solid #f0f0f0' }}>{t('nav.contact')}</a>
 
           {/* Mobile Language Selector */}
           <div style={{ padding: '10px 0', borderBottom: '1px solid #f0f0f0' }}>

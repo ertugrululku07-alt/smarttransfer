@@ -5,6 +5,16 @@ const ru: Record<string, string> = {
   'nav.register': 'Регистрация',
   'nav.logout': 'Выйти',
   'nav.goToPanel': 'Перейти в панель',
+  'nav.bookingLookup': 'Проверить бронь',
+  'nav.contact': 'Контакты',
+
+  // ─── Search Tabs ───
+  'search.tab.transfer': 'Трансфер',
+  'search.tab.hourly': 'Почасовая аренда',
+  'search.hourlyHours': '{n} часов',
+  'search.hourly.location': 'Место подачи',
+  'search.hourly.duration': 'Длительность',
+  'search.hourly.fillRequired': 'Выберите место и дату',
 
   // ─── Search Form ───
   'search.from': 'Откуда',

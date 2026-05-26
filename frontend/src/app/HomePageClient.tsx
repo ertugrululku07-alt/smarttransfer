@@ -107,7 +107,7 @@ const HomePage: React.FC = () => {
   const router = useRouter();
   const { theme } = useTheme();
   const { branding, fullName } = useBranding();
-  const { t } = useLanguage();
+  const { t, translateDynamic, locale } = useLanguage();
 
   const [configLoading, setConfigLoading] = useState(true);
   const [heroImages, setHeroImages] = useState<string[]>([]);
@@ -123,6 +123,11 @@ const HomePage: React.FC = () => {
   const [featureItems, setFeatureItems] = useState<{ title: string; desc: string; color: string }[]>([]);
   const [testimonialItems, setTestimonialItems] = useState<{ name: string; text: string; rating: number; city: string }[]>([]);
   const [tursab, setTursab] = useState<{ enabled: boolean; belgeNo: string; verificationUrl: string }>({ enabled: false, belgeNo: '', verificationUrl: '' });
+
+  // Translated dynamic content (hero, slogan)
+  const [translatedHeroTitle, setTranslatedHeroTitle] = useState('');
+  const [translatedHeroSubtitle, setTranslatedHeroSubtitle] = useState('');
+  const [translatedSlogan, setTranslatedSlogan] = useState('');
 
   // Search mode: transfer or hourly
   const [searchMode, setSearchMode] = useState<'transfer' | 'hourly'>('transfer');
@@ -228,6 +233,19 @@ const HomePage: React.FC = () => {
     fetchConfig();
   }, []);
 
+  // Auto-translate hero content when locale changes
+  useEffect(() => {
+    if (locale === 'tr') {
+      setTranslatedHeroTitle('');
+      setTranslatedHeroSubtitle('');
+      setTranslatedSlogan('');
+      return;
+    }
+    if (theme.heroTitle) translateDynamic(theme.heroTitle).then(setTranslatedHeroTitle);
+    if (theme.heroSubtitle) translateDynamic(theme.heroSubtitle).then(setTranslatedHeroSubtitle);
+    if (branding.slogan) translateDynamic(branding.slogan).then(setTranslatedSlogan);
+  }, [locale, theme.heroTitle, theme.heroSubtitle, branding.slogan, translateDynamic]);
+
   const openMapModal = (type: 'pickup' | 'dropoff') => {
     setMapModalType(type);
     setMapModalVisible(true);
@@ -263,7 +281,7 @@ const HomePage: React.FC = () => {
 
   const handleHourlySearch = () => {
     if (!hourlyPickup || !hourlyDate) {
-      message.warning('Konum ve tarih seçmelisiniz');
+      message.warning(t('search.hourly.fillRequired'));
       return;
     }
     const timeHour = hourlyTime ? hourlyTime.hour().toString().padStart(2, '0') : '12';
@@ -376,11 +394,11 @@ const HomePage: React.FC = () => {
       <div className="st-rental-field st-rental-field-location">
         <div className="st-detail-label">
           <EnvironmentOutlined className="st-detail-label-icon" />
-          Başlangıç Konumu
+          {t('search.hourly.location')}
         </div>
         <DynamicLocationSearchInput
           size="middle"
-          placeholder="Adres, havalimanı, otel, ..."
+          placeholder={t('search.fromPlaceholder')}
           value={hourlyPickup}
           onChange={setHourlyPickup}
           onSelect={(val, lat, lng) => { setHourlyPickup(val); if (lat && lng) setHourlyPickupLocation({ lat, lng }); }}
@@ -392,11 +410,11 @@ const HomePage: React.FC = () => {
       <div className="st-rental-field st-rental-field-date">
         <div className="st-detail-label">
           <CalendarOutlined className="st-detail-label-icon" />
-          Kalkış Tarihi
+          {t('search.date')}
         </div>
         <DatePicker
           size="middle" style={{ width: '100%', borderRadius: 10 }}
-          format="DD.MM.YYYY" placeholder="Tarih Seç"
+          format="DD.MM.YYYY" placeholder={t('search.datePlaceholder')}
           value={hourlyDate} onChange={setHourlyDate}
           disabledDate={(c) => c && c < dayjs().startOf('day')}
         />
@@ -404,7 +422,7 @@ const HomePage: React.FC = () => {
       <div className="st-rental-field st-rental-field-time">
         <div className="st-detail-label">
           <ClockCircleOutlined className="st-detail-label-icon" />
-          Saat
+          {t('search.pickupTime')}
         </div>
         <TimePicker
           size="middle" style={{ width: '100%', borderRadius: 10 }}
@@ -416,12 +434,12 @@ const HomePage: React.FC = () => {
       <div className="st-rental-field st-rental-field-duration">
         <div className="st-detail-label">
           <ClockCircleOutlined className="st-detail-label-icon" />
-          Süre
+          {t('search.hourly.duration')}
         </div>
         <Select
           size="middle" style={{ width: '100%' }}
           value={hourlyHours} onChange={setHourlyHours}
-          options={[1,2,3,4,5,6,8,10,12].map(h => ({ value: h, label: `${h} Saat` }))}
+          options={[1,2,3,4,5,6,8,10,12].map(h => ({ value: h, label: t('search.hourlyHours', { n: h.toString() }) }))}
         />
       </div>
       <Button
@@ -434,7 +452,7 @@ const HomePage: React.FC = () => {
           boxShadow: '0 2px 8px rgba(17,24,39,0.15)',
         }}
       >
-        Ara
+        {t('search.searchButton')}
       </Button>
     </div>
   );
@@ -623,7 +641,7 @@ const HomePage: React.FC = () => {
             marginBottom: 24, backdropFilter: 'blur(10px)',
           }}>
             <span>{theme.decorationEmoji || '✦'}</span>
-            {branding.slogan || 'Premium Transfer Deneyimi'}
+            {translatedSlogan || branding.slogan || 'Premium Transfer Deneyimi'}
           </div>
         )}
         <Title level={1} style={{
@@ -631,13 +649,13 @@ const HomePage: React.FC = () => {
           fontWeight: 700, fontFamily: 'var(--font-playfair, Georgia, serif)',
           textShadow: '0 4px 20px rgba(0,0,0,0.45)', letterSpacing: '-0.02em', lineHeight: 1.1,
         }}>
-          {theme.heroTitle}
+          {translatedHeroTitle || theme.heroTitle}
         </Title>
         <Text style={{
           color: 'rgba(255,255,255,0.78)', fontSize: 'clamp(0.95rem, 2vw, 1.18rem)',
           textShadow: '0 2px 8px rgba(0,0,0,0.4)', fontWeight: 300, display: 'block', lineHeight: 1.75,
         }}>
-          {theme.heroSubtitle}
+          {translatedHeroSubtitle || theme.heroSubtitle}
         </Text>
       </div>
       <div className="st-search-card">
@@ -657,7 +675,7 @@ const HomePage: React.FC = () => {
             className={`st-tab ${searchMode === 'hourly' ? 'st-tab--active' : ''}`}
           >
             <ClockCircleOutlined style={{ fontSize: 11 }} />
-            Saatlik Kiralama
+            {t('search.tab.hourly')}
           </button>
         </div>
         {searchMode === 'transfer' ? transferSearchForm : hourlySearchForm}

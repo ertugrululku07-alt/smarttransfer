@@ -5,6 +5,16 @@ const tr: Record<string, string> = {
   'nav.register': 'Kayıt Ol',
   'nav.logout': 'Çıkış',
   'nav.goToPanel': 'Panele Git',
+  'nav.bookingLookup': 'Rezervasyon Sorgula',
+  'nav.contact': 'İletişim',
+
+  // ─── Search Tabs ───
+  'search.tab.transfer': 'Transfer',
+  'search.tab.hourly': 'Saatlik Kiralama',
+  'search.hourlyHours': '{n} Saat',
+  'search.hourly.location': 'Başlangıç Konumu',
+  'search.hourly.duration': 'Süre',
+  'search.hourly.fillRequired': 'Konum ve tarih seçmelisiniz',
 
   // ─── Search Form ───
   'search.from': 'Nereden',

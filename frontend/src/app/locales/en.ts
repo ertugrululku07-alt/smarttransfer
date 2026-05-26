@@ -5,6 +5,16 @@ const en: Record<string, string> = {
   'nav.register': 'Sign Up',
   'nav.logout': 'Logout',
   'nav.goToPanel': 'Go to Panel',
+  'nav.bookingLookup': 'Check Booking',
+  'nav.contact': 'Contact',
+
+  // ─── Search Tabs ───
+  'search.tab.transfer': 'Transfer',
+  'search.tab.hourly': 'Hourly Rental',
+  'search.hourlyHours': '{n} Hours',
+  'search.hourly.location': 'Pickup Location',
+  'search.hourly.duration': 'Duration',
+  'search.hourly.fillRequired': 'Please select location and date',
 
   // ─── Search Form ───
   'search.from': 'From',
