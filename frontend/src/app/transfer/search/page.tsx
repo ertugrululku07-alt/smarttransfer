@@ -288,25 +288,61 @@ const TransferSearchContent: React.FC = () => {
     return (
         <Layout style={{ minHeight: '100vh', background: '#f0f2f5' }}>
             <TopBar />
-            <div style={{ background: '#fff', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', padding: '24px 0' }}>
-                <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 24px' }}>
-                    <Row gutter={[24, 24]} align="middle">
-                        <Col xs={24} md={16}>
-                            <Title level={4} style={{ margin: 0 }}>
-                                {pickup} <ArrowRightOutlined style={{ fontSize: 16, margin: '0 8px', color: '#999' }} /> {dropoff}
-                            </Title>
-                            <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                                <Text type="secondary" suppressHydrationWarning><ClockCircleOutlined /> {dayjs(date).format('DD MMMM YYYY')} {time}</Text>
-                                <div style={{ width: 1, height: 14, background: '#f0f0f0', margin: '0 8px' }}></div>
-                                <Text type="secondary"><UserOutlined /> {passengers} Yolcu</Text>
-                                <div style={{ width: 1, height: 14, background: '#f0f0f0', margin: '0 8px' }}></div>
-                                <Tag color={type === 'ONE_WAY' ? 'blue' : 'purple'}>
-                                    {type === 'ONE_WAY' ? 'Tek Yön' : 'Gidiş-Dönüş'}
-                                </Tag>
+
+            {/* ── Premium Hero Header ── */}
+            <div style={{
+                paddingTop: 72,
+                background: 'linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #0f172a 100%)',
+                position: 'relative',
+                overflow: 'hidden',
+            }}>
+                {/* Decorative blobs */}
+                <div style={{ position: 'absolute', top: -40, right: -60, width: 300, height: 300, borderRadius: '50%', background: 'rgba(59,130,246,0.08)', filter: 'blur(60px)', pointerEvents: 'none' }} />
+                <div style={{ position: 'absolute', bottom: -40, left: -60, width: 250, height: 250, borderRadius: '50%', background: 'rgba(99,102,241,0.07)', filter: 'blur(50px)', pointerEvents: 'none' }} />
+
+                <div style={{ maxWidth: 1200, margin: '0 auto', padding: '24px 24px 28px' }}>
+                    <Row gutter={[24, 16]} align="middle">
+                        <Col xs={24} md={17}>
+                            {/* Route */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
+                                <span style={{ color: '#fff', fontWeight: 700, fontSize: 17, lineHeight: 1.3 }}>{pickup}</span>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 12px', background: 'rgba(255,255,255,0.08)', borderRadius: 20, border: '1px solid rgba(255,255,255,0.12)' }}>
+                                    <ArrowRightOutlined style={{ color: '#60a5fa', fontSize: 12 }} />
+                                </div>
+                                <span style={{ color: '#fff', fontWeight: 700, fontSize: 17, lineHeight: 1.3 }}>{dropoff}</span>
+                            </div>
+                            {/* Meta chips */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 20, padding: '5px 14px' }}>
+                                    <ClockCircleOutlined style={{ color: '#93c5fd', fontSize: 12 }} />
+                                    <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13 }} suppressHydrationWarning>{dayjs(date).format('DD MMMM YYYY')} {time}</Text>
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 20, padding: '5px 14px' }}>
+                                    <UserOutlined style={{ color: '#93c5fd', fontSize: 12 }} />
+                                    <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13 }}>{passengers} Yolcu</Text>
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: type === 'ONE_WAY' ? 'rgba(59,130,246,0.2)' : 'rgba(139,92,246,0.2)', border: `1px solid ${type === 'ONE_WAY' ? 'rgba(59,130,246,0.35)' : 'rgba(139,92,246,0.35)'}`, borderRadius: 20, padding: '5px 14px' }}>
+                                    <Text style={{ color: type === 'ONE_WAY' ? '#93c5fd' : '#c4b5fd', fontSize: 13, fontWeight: 600 }}>{type === 'ONE_WAY' ? '✈ Tek Yön' : '↔ Gidiş-Dönüş'}</Text>
+                                </div>
                             </div>
                         </Col>
-                        <Col xs={24} md={8} style={{ textAlign: 'right' }}>
-                            <Button type="primary" icon={<FilterOutlined />} onClick={showEditModal}>Aramayı Düzenle</Button>
+                        <Col xs={24} md={7} style={{ textAlign: 'right' }}>
+                            <Button
+                                icon={<FilterOutlined />}
+                                onClick={showEditModal}
+                                style={{
+                                    background: 'linear-gradient(135deg, #3b82f6, #6366f1)',
+                                    border: 'none',
+                                    color: '#fff',
+                                    fontWeight: 600,
+                                    height: 40,
+                                    borderRadius: 10,
+                                    padding: '0 20px',
+                                    boxShadow: '0 4px 14px rgba(59,130,246,0.35)',
+                                }}
+                            >
+                                Aramayı Düzenle
+                            </Button>
                         </Col>
                     </Row>
                 </div>

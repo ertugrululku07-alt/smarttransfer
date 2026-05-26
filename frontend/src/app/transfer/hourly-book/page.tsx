@@ -103,7 +103,7 @@ function HourlyBookContent() {
         return (
             <Layout style={{ minHeight: '100vh', background: '#fff' }}>
                 <TopBar />
-                <Content style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: 32 }}>
+                <Content style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: 32, paddingTop: 96 }}>
                     <Result
                         status="success"
                         title="Rezervasyon Tamamlandı!"
@@ -139,17 +139,34 @@ function HourlyBookContent() {
         <Layout style={{ minHeight: '100vh', background: '#fff' }}>
             <TopBar />
             
-            {/* Header with back button */}
-            <div style={{ background: '#fff', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', padding: '16px 0' }}>
-                <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 24px' }}>
-                    <Button
-                        type="text"
-                        icon={<ArrowLeftOutlined />}
-                        onClick={() => router.back()}
-                        style={{ fontSize: 14, fontWeight: 500, color: theme.primaryColor }}
-                    >
-                        Araçları Geri Göster
-                    </Button>
+            {/* ── Premium Hero Header ── */}
+            <div style={{ paddingTop: 72, background: 'linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #0f172a 100%)', position: 'relative', overflow: 'hidden' }}>
+                <div style={{ position: 'absolute', top: -40, right: -60, width: 300, height: 300, borderRadius: '50%', background: 'rgba(59,130,246,0.08)', filter: 'blur(60px)', pointerEvents: 'none' }} />
+                <div style={{ maxWidth: 1200, margin: '0 auto', padding: '20px 24px 24px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+                        <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                                <EnvironmentOutlined style={{ color: '#60a5fa', fontSize: 16 }} />
+                                <span style={{ color: '#fff', fontWeight: 700, fontSize: 17 }}>{pickupDisplay}</span>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 20, padding: '4px 12px' }}>
+                                    <ClockCircleOutlined style={{ color: '#93c5fd', fontSize: 11 }} />
+                                    <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: 12 }}>{dateDisplay} {time}</span>
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 20, padding: '4px 12px' }}>
+                                    <UserOutlined style={{ color: '#93c5fd', fontSize: 11 }} />
+                                    <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: 12 }}>{passengers} Yolcu</span>
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(59,130,246,0.2)', border: '1px solid rgba(59,130,246,0.35)', borderRadius: 20, padding: '4px 12px' }}>
+                                    <span style={{ color: '#93c5fd', fontSize: 12, fontWeight: 600 }}>{hours} Saat · {vehicleType}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <Button icon={<ArrowLeftOutlined />} onClick={() => router.back()} style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', color: '#fff', borderRadius: 10, fontWeight: 600 }}>
+                            Geri Dön
+                        </Button>
+                    </div>
                 </div>
             </div>
 

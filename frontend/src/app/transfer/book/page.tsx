@@ -744,7 +744,7 @@ const TransferBookingContent: React.FC = () => {
         return (
             <Layout style={{ minHeight: '100vh', background: '#fff' }}>
                 <TopBar />
-                <Content style={{ padding: '24px', maxWidth: 800, margin: '0 auto' }}>
+                <Content style={{ padding: '24px', paddingTop: 96, maxWidth: 800, margin: '0 auto' }}>
                     <Card style={{ borderRadius: 12 }}>
                         <Title level={4} style={{ marginBottom: 16, textAlign: 'center' }}>
                             <CreditCardOutlined style={{ marginRight: 8 }} />
@@ -765,7 +765,7 @@ const TransferBookingContent: React.FC = () => {
         return (
             <Layout style={{ minHeight: '100vh', background: '#fff' }}>
                 <TopBar />
-                <Content style={{ padding: '48px 24px', maxWidth: 600, margin: '0 auto' }}>
+                <Content style={{ padding: '48px 24px', paddingTop: 96, maxWidth: 600, margin: '0 auto' }}>
                     <Result
                         status="error"
                         title="Ödeme Alınamadı"
@@ -808,7 +808,7 @@ const TransferBookingContent: React.FC = () => {
         return (
             <Layout style={{ minHeight: '100vh', background: '#fff' }}>
                 <TopBar />
-                <Content style={{ padding: '48px 24px', maxWidth: 800, margin: '0 auto' }}>
+                <Content style={{ padding: '48px 24px', paddingTop: 96, maxWidth: 800, margin: '0 auto' }}>
                     <Result
                         status="success"
                         title="Rezervasyonunuz Başarıyla Alındı!"
@@ -960,20 +960,60 @@ const TransferBookingContent: React.FC = () => {
         <Layout style={{ minHeight: '100vh', background: '#f0f2f5' }}>
             <TopBar />
 
-            <Content style={{ maxWidth: 1200, margin: '24px auto', padding: '0 24px', width: '100%' }}>
-                <div style={{ marginBottom: 24 }}>
-                    <Steps
-                        current={1}
-                        items={[
-                            { title: 'Arama', icon: <EnvironmentOutlined /> },
-                            { title: 'Seçim', icon: <CarOutlined /> },
-                            { title: 'Bilgiler', icon: <UserOutlined /> },
-                            { title: 'Ödeme', icon: <CreditCardOutlined /> },
-                        ]}
-                    />
+            {/* ── Premium Hero Header ── */}
+            <div style={{
+                paddingTop: 72,
+                background: 'linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #0f172a 100%)',
+                position: 'relative',
+                overflow: 'hidden',
+            }}>
+                <div style={{ position: 'absolute', top: -40, right: -60, width: 300, height: 300, borderRadius: '50%', background: 'rgba(59,130,246,0.08)', filter: 'blur(60px)', pointerEvents: 'none' }} />
+                <div style={{ position: 'absolute', bottom: -40, left: -60, width: 250, height: 250, borderRadius: '50%', background: 'rgba(99,102,241,0.07)', filter: 'blur(50px)', pointerEvents: 'none' }} />
+                <div style={{ maxWidth: 1200, margin: '0 auto', padding: '24px 24px 28px' }}>
+                    <Row gutter={[24, 16]} align="middle">
+                        <Col xs={24} md={18}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
+                                <span style={{ color: '#fff', fontWeight: 700, fontSize: 17, lineHeight: 1.3 }}>{pickup}</span>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 12px', background: 'rgba(255,255,255,0.08)', borderRadius: 20, border: '1px solid rgba(255,255,255,0.12)' }}>
+                                    <ArrowRightOutlined style={{ color: '#60a5fa', fontSize: 12 }} />
+                                </div>
+                                <span style={{ color: '#fff', fontWeight: 700, fontSize: 17, lineHeight: 1.3 }}>{dropoff}</span>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 20, padding: '5px 14px' }}>
+                                    <CalendarOutlined style={{ color: '#93c5fd', fontSize: 12 }} />
+                                    <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13 }} suppressHydrationWarning>{dayjs(date).format('DD MMMM YYYY')} {time}</Text>
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 20, padding: '5px 14px' }}>
+                                    <UserOutlined style={{ color: '#93c5fd', fontSize: 12 }} />
+                                    <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13 }}>{passengers} Yolcu</Text>
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 20, padding: '5px 14px' }}>
+                                    <CheckCircleOutlined style={{ color: '#4ade80', fontSize: 12 }} />
+                                    <Text style={{ color: '#4ade80', fontSize: 13, fontWeight: 600 }}>Araç Seçildi</Text>
+                                </div>
+                            </div>
+                        </Col>
+                        <Col xs={24} md={6} style={{ textAlign: 'right' }}>
+                            <Steps
+                                current={1}
+                                direction="horizontal"
+                                size="small"
+                                style={{ filter: 'invert(1) brightness(2)' }}
+                                items={[
+                                    { title: <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 11 }}>Arama</span> },
+                                    { title: <span style={{ color: '#fff', fontSize: 11, fontWeight: 700 }}>Rezervasyon</span> },
+                                    { title: <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 11 }}>Ödeme</span> },
+                                ]}
+                            />
+                        </Col>
+                    </Row>
                 </div>
+            </div>
 
-                <Row gutter={24}>
+            <Content style={{ maxWidth: 1200, margin: '24px auto', padding: '0 24px', width: '100%' }}>
+
+                <Row gutter={24} style={{ marginTop: 24 }}>
                     {/* Booking Form */}
                     <Col xs={24} lg={16}>
                         <Card title="Yolcu Bilgileri" style={{ borderRadius: 8, marginBottom: 24 }}>
