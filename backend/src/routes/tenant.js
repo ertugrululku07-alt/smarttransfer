@@ -1,5 +1,6 @@
 // src/routes/tenant.js
 // Tenant & module configuration routes
+// Auto-translates all user-facing text fields when settings are saved
 
 const express = require('express');
 
@@ -9,12 +10,175 @@ const { clearTenantCache } = require('../middleware/tenant');
 const router = express.Router();
 const prisma = require('../lib/prisma');
 
+const SUPPORTED_LOCALES = ['en', 'de', 'ru'];
+
+// ─── Translation fields map ───
+// Keys in settings that contain user-facing text to be translated
+const TRANSLATABLE_STRING_KEYS = [
+    'siteTheme.heroTitle', 'siteTheme.heroSubtitle',
+    'branding.slogan', 'branding.name',
+    'contactPage.title', 'contactPage.subtitle', 'contactPage.address',
+    'trackPage.title', 'trackPage.subtitle',
+    'seo.title', 'seo.description',
+];
+
+// Array fields where each item has translatable sub-keys
+const TRANSLATABLE_ARRAY_KEYS = [
+    { key: 'homepageFaq', fields: ['question', 'answer'] },
+    { key: 'homepageStats', fields: ['label'] },
+    { key: 'homepageFeatures', fields: ['title', 'desc'] },
+    { key: 'homepageTestimonials', fields: ['text', 'city'] },
+    { key: 'homepageRoutes', fields: ['from', 'to'] },
+];
+
+/**
+ * Translate all user-facing settings text to all supported languages.
+ * Stores result in settings.translations = { en: {...}, de: {...}, ru: {...} }
+ */
+async function translateSettings(settings, tenantId) {
+    try {
+        const deeplApiKey = settings?.deeplApiKey || process.env.DEEPL_API_KEY;
+        if (!deeplApiKey) {
+            console.warn('[Settings] No DeepL API key, skipping auto-translation');
+            return settings;
+        }
+
+        const isFreeKey = deeplApiKey.endsWith(':fx');
+        const baseUrl = isFreeKey
+            ? 'https://api-free.deepl.com/v2/translate'
+            : 'https://api.deepl.com/v2/translate';
+
+        const translations = settings.translations || {};
+
+        // Collect all texts to translate
+        const textsMap = []; // { path, text }
+
+        // String keys
+        for (const dotPath of TRANSLATABLE_STRING_KEYS) {
+            const parts = dotPath.split('.');
+            let val = settings;
+            for (const p of parts) { val = val?.[p]; }
+            if (val && typeof val === 'string' && val.trim()) {
+                textsMap.push({ path: dotPath, text: val });
+            }
+        }
+
+        // Array keys
+        for (const { key, fields } of TRANSLATABLE_ARRAY_KEYS) {
+            const arr = settings[key];
+            if (!Array.isArray(arr)) continue;
+            arr.forEach((item, idx) => {
+                for (const field of fields) {
+                    if (item[field] && typeof item[field] === 'string' && item[field].trim()) {
+                        textsMap.push({ path: `${key}[${idx}].${field}`, text: item[field] });
+                    }
+                }
+            });
+        }
+
+        if (textsMap.length === 0) return settings;
+
+        for (const lang of SUPPORTED_LOCALES) {
+            try {
+                const allTranslated = [];
+                // Batch in chunks of 50
+                for (let i = 0; i < textsMap.length; i += 50) {
+                    const chunk = textsMap.slice(i, i + 50);
+                    const params = new URLSearchParams();
+                    chunk.forEach(x => params.append('text', x.text));
+                    params.append('target_lang', lang.toUpperCase());
+                    params.append('source_lang', 'TR');
+                    params.append('preserve_formatting', '1');
+
+                    const response = await fetch(baseUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `DeepL-Auth-Key ${deeplApiKey}`,
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                        },
+                        body: params.toString(),
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        (data.translations || []).forEach(r => allTranslated.push(r.text));
+                    } else {
+                        chunk.forEach(x => allTranslated.push(x.text));
+                    }
+                }
+
+                // Build translation object for this language
+                const langTranslation = {};
+                textsMap.forEach((item, idx) => {
+                    langTranslation[item.path] = allTranslated[idx] || item.text;
+                });
+
+                translations[lang] = langTranslation;
+                console.log(`[Settings] Translated ${textsMap.length} texts to ${lang}`);
+            } catch (langErr) {
+                console.error(`[Settings] Translation to ${lang} failed:`, langErr.message);
+            }
+        }
+
+        settings.translations = translations;
+        return settings;
+    } catch (err) {
+        console.error('[Settings] Auto-translation error:', err.message);
+        return settings;
+    }
+}
+
+/**
+ * Apply translations to settings object for a given locale.
+ * Returns a new settings object with translated values.
+ */
+function applySettingsTranslations(settings, lang) {
+    if (!settings || lang === 'tr' || !settings.translations || !settings.translations[lang]) {
+        return settings;
+    }
+
+    const trans = settings.translations[lang];
+    const result = JSON.parse(JSON.stringify(settings));
+
+    // Apply string translations
+    for (const dotPath of TRANSLATABLE_STRING_KEYS) {
+        if (trans[dotPath]) {
+            const parts = dotPath.split('.');
+            let obj = result;
+            for (let i = 0; i < parts.length - 1; i++) {
+                if (!obj[parts[i]]) obj[parts[i]] = {};
+                obj = obj[parts[i]];
+            }
+            obj[parts[parts.length - 1]] = trans[dotPath];
+        }
+    }
+
+    // Apply array translations
+    for (const { key, fields } of TRANSLATABLE_ARRAY_KEYS) {
+        const arr = result[key];
+        if (!Array.isArray(arr)) continue;
+        arr.forEach((item, idx) => {
+            for (const field of fields) {
+                const path = `${key}[${idx}].${field}`;
+                if (trans[path]) {
+                    item[field] = trans[path];
+                }
+            }
+        });
+    }
+
+    // Remove translations object from response (save bandwidth)
+    delete result.translations;
+    return result;
+}
+
 /**
  * GET /api/tenant/info
  * Get current tenant information
  */
 router.get('/info', async (req, res) => {
     try {
+        const lang = (req.query.lang || 'tr').toString().toLowerCase();
 
         // Fetch fresh tenant data to ensure settings are up to date
         const tenant = await prisma.tenant.findUnique({
@@ -27,6 +191,9 @@ router.get('/info', async (req, res) => {
                 error: 'Tenant not found'
             });
         }
+
+        // Apply locale translations to settings
+        const localizedSettings = applySettingsTranslations(tenant.settings || {}, lang);
 
         res.json({
             success: true,
@@ -49,7 +216,7 @@ router.get('/info', async (req, res) => {
                     },
                     locale: tenant.defaultLocale,
                     currency: tenant.defaultCurrency,
-                    settings: tenant.settings || {}
+                    settings: localizedSettings
                 }
             }
         });
@@ -254,6 +421,18 @@ router.put('/settings', authMiddleware, async (req, res) => {
                 settings: updatedTenant.settings
             }
         });
+
+        // Background: auto-translate all user-facing text fields
+        translateSettings(newSettings, req.user.tenantId).then(async (translatedSettings) => {
+            if (translatedSettings.translations) {
+                await prisma.tenant.update({
+                    where: { id: req.user.tenantId },
+                    data: { settings: translatedSettings }
+                });
+                clearTenantCache(req.user.tenantId, updatedTenant.slug);
+                console.log(`[Settings] Auto-translations saved for tenant ${updatedTenant.slug}`);
+            }
+        }).catch(err => console.error('[Settings] Background translation failed:', err.message));
 
     } catch (error) {
         console.error('Update settings error:', error);

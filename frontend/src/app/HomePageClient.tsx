@@ -107,7 +107,7 @@ const HomePage: React.FC = () => {
   const router = useRouter();
   const { theme } = useTheme();
   const { branding, fullName } = useBranding();
-  const { t, translateDynamic, locale } = useLanguage();
+  const { t, locale } = useLanguage();
 
   const [configLoading, setConfigLoading] = useState(true);
   const [heroImages, setHeroImages] = useState<string[]>([]);
@@ -124,10 +124,7 @@ const HomePage: React.FC = () => {
   const [testimonialItems, setTestimonialItems] = useState<{ name: string; text: string; rating: number; city: string }[]>([]);
   const [tursab, setTursab] = useState<{ enabled: boolean; belgeNo: string; verificationUrl: string }>({ enabled: false, belgeNo: '', verificationUrl: '' });
 
-  // Translated dynamic content (hero, slogan)
-  const [translatedHeroTitle, setTranslatedHeroTitle] = useState('');
-  const [translatedHeroSubtitle, setTranslatedHeroSubtitle] = useState('');
-  const [translatedSlogan, setTranslatedSlogan] = useState('');
+  // Hero/slogan come pre-translated from /api/tenant/info?lang=
 
   // Search mode: transfer or hourly
   const [searchMode, setSearchMode] = useState<'transfer' | 'hourly'>('transfer');
@@ -232,19 +229,6 @@ const HomePage: React.FC = () => {
     };
     fetchConfig();
   }, []);
-
-  // Auto-translate hero content when locale changes
-  useEffect(() => {
-    if (locale === 'tr') {
-      setTranslatedHeroTitle('');
-      setTranslatedHeroSubtitle('');
-      setTranslatedSlogan('');
-      return;
-    }
-    if (theme.heroTitle) translateDynamic(theme.heroTitle).then(setTranslatedHeroTitle);
-    if (theme.heroSubtitle) translateDynamic(theme.heroSubtitle).then(setTranslatedHeroSubtitle);
-    if (branding.slogan) translateDynamic(branding.slogan).then(setTranslatedSlogan);
-  }, [locale, theme.heroTitle, theme.heroSubtitle, branding.slogan, translateDynamic]);
 
   const openMapModal = (type: 'pickup' | 'dropoff') => {
     setMapModalType(type);
@@ -641,7 +625,7 @@ const HomePage: React.FC = () => {
             marginBottom: 24, backdropFilter: 'blur(10px)',
           }}>
             <span>{theme.decorationEmoji || '✦'}</span>
-            {translatedSlogan || branding.slogan || 'Premium Transfer Deneyimi'}
+            {branding.slogan || 'Premium Transfer Deneyimi'}
           </div>
         )}
         <Title level={1} style={{
@@ -649,13 +633,13 @@ const HomePage: React.FC = () => {
           fontWeight: 700, fontFamily: 'var(--font-playfair, Georgia, serif)',
           textShadow: '0 4px 20px rgba(0,0,0,0.45)', letterSpacing: '-0.02em', lineHeight: 1.1,
         }}>
-          {translatedHeroTitle || theme.heroTitle}
+          {theme.heroTitle}
         </Title>
         <Text style={{
           color: 'rgba(255,255,255,0.78)', fontSize: 'clamp(0.95rem, 2vw, 1.18rem)',
           textShadow: '0 2px 8px rgba(0,0,0,0.4)', fontWeight: 300, display: 'block', lineHeight: 1.75,
         }}>
-          {translatedHeroSubtitle || theme.heroSubtitle}
+          {theme.heroSubtitle}
         </Text>
       </div>
       <div className="st-search-card">
