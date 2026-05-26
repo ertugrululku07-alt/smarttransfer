@@ -9,6 +9,7 @@ import TopBar from '../../components/TopBar';
 import SiteFooter from '../../components/SiteFooter';
 import { useBranding } from '../../context/BrandingContext';
 import { useTheme } from '../../context/ThemeContext';
+import { useLanguage } from '../../context/LanguageContext';
 
 const { Content } = Layout;
 const { Title, Text } = Typography;
@@ -32,9 +33,12 @@ const DynamicPage: React.FC = () => {
     const router = useRouter();
     const { branding } = useBranding();
     const { theme } = useTheme();
+    const { locale, translateDynamic } = useLanguage();
     const slug = params.slug as string;
 
     const [page, setPage] = useState<PageData | null>(null);
+    const [translatedTitle, setTranslatedTitle] = useState<string>('');
+    const [translatedContent, setTranslatedContent] = useState<string>('');
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(false);
 
@@ -58,6 +62,62 @@ const DynamicPage: React.FC = () => {
         };
         if (slug) fetchPage();
     }, [slug]);
+
+    // Auto-translate CMS content when locale is not TR
+    useEffect(() => {
+        if (!page) return;
+        if (locale === 'tr') {
+            setTranslatedTitle(page.title);
+            setTranslatedContent(page.content);
+            return;
+        }
+        // Translate title
+        translateDynamic(page.title).then(setTranslatedTitle);
+        // Translate content (strip HTML, translate text, keep structure)
+        translateHtmlContent(page.content, locale).then(setTranslatedContent);
+    }, [page, locale, translateDynamic]);
+
+    // Helper: translate HTML content by extracting text nodes
+    async function translateHtmlContent(html: string, targetLocale: string): Promise<string> {
+        if (!html) return html;
+        // Split HTML into chunks by tags — translate text between tags
+        const parts = html.split(/(<[^>]+>)/);
+        const textParts: { index: number; text: string }[] = [];
+        parts.forEach((part, i) => {
+            if (!part.startsWith('<') && part.trim().length > 0) {
+                textParts.push({ index: i, text: part.trim() });
+            }
+        });
+        if (textParts.length === 0) return html;
+
+        // Batch translate all text parts
+        try {
+            const res = await fetch(`${API_URL}/api/translate`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Tenant-Slug': TENANT_SLUG,
+                },
+                body: JSON.stringify({
+                    texts: textParts.map(p => p.text),
+                    targetLang: targetLocale,
+                    sourceLang: 'tr'
+                })
+            });
+            if (res.ok) {
+                const data = await res.json();
+                const translations: string[] = data?.data?.translations || [];
+                textParts.forEach((tp, idx) => {
+                    if (translations[idx]) {
+                        parts[tp.index] = translations[idx];
+                    }
+                });
+            }
+        } catch (err) {
+            console.warn('CMS content translation failed:', err);
+        }
+        return parts.join('');
+    }
 
     if (loading) {
         return (
@@ -123,7 +183,7 @@ const DynamicPage: React.FC = () => {
                             textShadow: '0 2px 20px rgba(0,0,0,0.3)', lineHeight: 1.2,
                         }}
                     >
-                        {page.title}
+                        {translatedTitle || page.title}
                     </Title>
                 </div>
             </div>
@@ -163,7 +223,7 @@ const DynamicPage: React.FC = () => {
                     `}</style>
                     <div
                         className="st-page-content"
-                        dangerouslySetInnerHTML={{ __html: page.content }}
+                        dangerouslySetInnerHTML={{ __html: translatedContent || page.content }}
                     />
                 </div>
             </Content>
