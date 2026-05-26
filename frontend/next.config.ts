@@ -71,6 +71,8 @@ const nextConfig: NextConfig = {
       { source: '/transfer/book', headers: [...noCacheHeaders, ...securityHeaders] },
       // Track page (real-time data)
       { source: '/track', headers: [...noCacheHeaders, ...securityHeaders] },
+      // Locale-prefixed public pages — same cache policy
+      { source: '/:locale(en|de|ru)/:path*', headers: publicPageHeaders },
       // All other routes — public pages with caching
       { source: '/:path*', headers: publicPageHeaders },
     ];

@@ -39,16 +39,31 @@ function setCache(storageKey: string, cache: Record<string, string>, maxEntries 
 }
 
 /**
- * Detect the best matching locale from the browser's navigator.languages.
+ * Detect locale. Priority:
+ * 1. URL path prefix (/en/, /de/, /ru/)
+ * 2. localStorage (returning user preference)
+ * 3. Browser Accept-Language
+ * 4. Default: 'tr'
  */
 function detectBrowserLocale(): SupportedLocale {
   if (typeof window === 'undefined') return 'tr';
 
+  // 1. Check URL path for locale prefix
+  const pathSegments = window.location.pathname.split('/');
+  const urlLocale = pathSegments[1]; // e.g. "en" from "/en/about"
+  if (urlLocale && supportedLocales.includes(urlLocale as SupportedLocale)) {
+    // Save to localStorage so it persists
+    localStorage.setItem('locale', urlLocale);
+    return urlLocale as SupportedLocale;
+  }
+
+  // 2. Check localStorage (returning user)
   const stored = localStorage.getItem('locale');
   if (stored && supportedLocales.includes(stored as SupportedLocale)) {
     return stored as SupportedLocale;
   }
 
+  // 3. Browser language detection
   const browserLangs = navigator.languages || [navigator.language];
   for (const lang of browserLangs) {
     const code = lang.toLowerCase().split('-')[0];
@@ -57,6 +72,7 @@ function detectBrowserLocale(): SupportedLocale {
     }
   }
 
+  // 4. Default
   return 'tr';
 }
 
@@ -124,6 +140,28 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setLocaleState(newLocale);
     if (typeof window !== 'undefined') {
       localStorage.setItem('locale', newLocale);
+      document.cookie = `locale=${newLocale};path=/;max-age=${365 * 24 * 60 * 60}`;
+
+      // Navigate to locale-prefixed URL for SEO
+      const currentPath = window.location.pathname;
+      const pathSegments = currentPath.split('/');
+      const currentUrlLocale = pathSegments[1];
+      const hasLocalePrefix = supportedLocales.includes(currentUrlLocale as SupportedLocale);
+      
+      let newPath: string;
+      if (newLocale === 'tr') {
+        // TR is default — no prefix
+        newPath = hasLocalePrefix ? '/' + pathSegments.slice(2).join('/') || '/' : currentPath;
+      } else {
+        // Non-default locale — add prefix
+        const basePath = hasLocalePrefix ? '/' + pathSegments.slice(2).join('/') || '/' : currentPath;
+        newPath = `/${newLocale}${basePath === '/' ? '' : basePath}`;
+      }
+      
+      if (newPath !== currentPath) {
+        window.location.href = newPath;
+        return;
+      }
     }
     if (typeof document !== 'undefined') {
       document.documentElement.lang = newLocale;

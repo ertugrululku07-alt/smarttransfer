@@ -12,6 +12,9 @@ import AntThemeWrapper from "./context/AntThemeWrapper";
 import LiveChatWidget from "./components/LiveChatWidget";
 import ServiceWorkerRegister from "./components/ServiceWorkerRegister";
 
+const SUPPORTED_LOCALES = ['tr', 'en', 'de', 'ru'];
+const DEFAULT_LOCALE = 'tr';
+
 const outfit = Outfit({
   variable: "--font-outfit",
   subsets: ["latin"],
@@ -159,6 +162,13 @@ export async function generateMetadata(): Promise<Metadata> {
     applicationName: fullName,
     alternates: {
       canonical: '/',
+      languages: {
+        'tr': '/',
+        'en': '/en',
+        'de': '/de',
+        'ru': '/ru',
+        'x-default': '/',
+      },
     },
     openGraph: {
       type: 'website',
@@ -241,9 +251,24 @@ export default async function RootLayout({
     },
   };
 
+  // Detect locale from middleware header
+  const headersList = await headers();
+  const currentLocale = headersList.get('x-locale') || DEFAULT_LOCALE;
+  const currentPath = headersList.get('x-invoke-path') || '/';
+
   return (
-    <html lang={seo.locale?.split(/[-_]/)[0] || 'tr'} suppressHydrationWarning>
+    <html lang={currentLocale} suppressHydrationWarning>
       <head>
+        {/* hreflang alternate links for SEO — each language gets its own URL */}
+        {SUPPORTED_LOCALES.map(loc => (
+          <link
+            key={loc}
+            rel="alternate"
+            hrefLang={loc}
+            href={`${siteUrl}${loc === DEFAULT_LOCALE ? currentPath : `/${loc}${currentPath === '/' ? '' : currentPath}`}`}
+          />
+        ))}
+        <link rel="alternate" hrefLang="x-default" href={`${siteUrl}${currentPath}`} />
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5, viewport-fit=cover" />
         <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
         <meta name="theme-color" content={themeColor} />
