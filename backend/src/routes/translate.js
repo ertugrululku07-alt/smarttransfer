@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
+const { clearTenantCache } = require('../middleware/tenant');
 
 // In-memory translation cache (key: `${sourceLang}:${targetLang}:${text}`)
 const translationCache = new Map();
@@ -260,6 +261,9 @@ router.post('/settings', async (req, res) => {
       where: { id: tenant.id },
       data: { settings: updatedSettings }
     });
+
+    // Clear tenant cache so subsequent requests use updated settings
+    clearTenantCache(tenant.id, tenant.slug);
 
     return res.json({ success: true, message: 'DeepL API key saved.' });
   } catch (error) {

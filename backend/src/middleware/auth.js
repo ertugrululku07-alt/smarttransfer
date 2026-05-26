@@ -61,6 +61,7 @@ async function authMiddleware(req, res, next) {
                         slug: true,
                         name: true,
                         status: true,
+                        settings: true,
                         transferEnabled: true,
                         tourEnabled: true,
                         hotelEnabled: true
@@ -148,6 +149,7 @@ async function optionalAuthMiddleware(req, res, next) {
                         slug: true,
                         name: true,
                         status: true,
+                        settings: true,
                         transferEnabled: true,
                         tourEnabled: true,
                         hotelEnabled: true
