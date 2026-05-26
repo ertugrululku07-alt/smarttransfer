@@ -254,7 +254,12 @@ router.post('/settings', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Tenant not found' });
     }
 
-    const currentSettings = tenant.settings || {};
+    // ALWAYS fetch fresh settings from DB to avoid overwriting other settings
+    const freshTenant = await prisma.tenant.findUnique({
+      where: { id: tenant.id },
+      select: { settings: true }
+    });
+    const currentSettings = freshTenant?.settings || {};
     const updatedSettings = { ...currentSettings, deeplApiKey: deeplApiKey || null };
 
     await prisma.tenant.update({
