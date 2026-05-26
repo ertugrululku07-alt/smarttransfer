@@ -464,8 +464,14 @@ export default function DefinitionsPage() {
     };
 
     const handleTestDeepL = async () => {
+        if (!deeplSettings.apiKey) {
+            message.warning('Lütfen önce bir DeepL API Key girin');
+            return;
+        }
         try {
             setDeeplTesting(true);
+            // Auto-save key first so backend can use it
+            await apiClient.post('/api/translate/settings', { deeplApiKey: deeplSettings.apiKey });
             // Test translate
             const res = await apiClient.post('/api/translate', {
                 texts: ['Merhaba dünya! Bu bir test çevirisidir.'],
@@ -474,16 +480,21 @@ export default function DefinitionsPage() {
             });
             if (res.data?.success && res.data.data?.translations?.[0]) {
                 message.success(`Çeviri başarılı: "${res.data.data.translations[0]}"`);
-                // Also fetch usage
+                // Fetch usage + status
                 try {
-                    const usageRes = await apiClient.get('/api/translate/usage');
-                    if (usageRes.data?.success) {
-                        setDeeplSettings(prev => ({
-                            ...prev,
-                            characterCount: usageRes.data.data?.character_count || 0,
-                            characterLimit: usageRes.data.data?.character_limit || 0,
-                        }));
-                    }
+                    const [usageRes, statusRes] = await Promise.all([
+                        apiClient.get('/api/translate/usage'),
+                        apiClient.get('/api/translate/settings'),
+                    ]);
+                    setDeeplSettings(prev => ({
+                        ...prev,
+                        characterCount: usageRes.data?.data?.character_count || 0,
+                        characterLimit: usageRes.data?.data?.character_limit || 0,
+                        keyType: statusRes.data?.data?.keyType || prev.keyType,
+                        keySource: statusRes.data?.data?.keySource || prev.keySource,
+                        cacheSize: statusRes.data?.data?.cacheSize || 0,
+                        enabled: statusRes.data?.data?.configured ?? prev.enabled,
+                    }));
                 } catch {}
             } else {
                 message.error('Çeviri testi başarısız');
