@@ -259,6 +259,10 @@ app.use('/api/live-chat', require('./src/routes/live-chat'));
 // AI Integration Routes (for n8n tools)
 app.use('/api/ai', require('./src/routes/ai.js'));
 
+// Translation (DeepL) routes
+const translateRoutes = require('./src/routes/translate');
+app.use('/api/translate', tenantMiddleware, translateRoutes);
+
 // ============================================================================
 // V1 LEGACY ROUTES (Backward Compatibility)
 // ============================================================================

@@ -5,6 +5,8 @@ import ru from './ru';
 
 export type SupportedLocale = 'tr' | 'en' | 'de' | 'ru';
 
+export const supportedLocales: SupportedLocale[] = ['tr', 'en', 'de', 'ru'];
+
 export const locales: Record<SupportedLocale, Record<string, string>> = {
   tr,
   en,
@@ -19,6 +21,12 @@ export const localeLabels: Record<SupportedLocale, { label: string; flag: string
   ru: { label: 'Русский', flag: '🇷🇺' },
 };
 
-export const supportedLocales: SupportedLocale[] = ['tr', 'en', 'de', 'ru'];
+// DeepL language code mapping
+export const localeToDeepL: Record<SupportedLocale, string> = {
+  tr: 'TR',
+  en: 'EN',
+  de: 'DE',
+  ru: 'RU',
+};
 
 export default locales;
