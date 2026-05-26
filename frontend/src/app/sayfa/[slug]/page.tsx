@@ -47,9 +47,13 @@ const DynamicPage: React.FC = () => {
             try {
                 setLoading(true);
                 setError(false);
-                const pageRes = await axios.get(`${API_URL}/api/pages/${slug}`, { headers: { 'X-Tenant-Slug': TENANT_SLUG } });
+                // Pass locale so backend returns pre-translated content from DB
+                const pageRes = await axios.get(`${API_URL}/api/pages/${slug}?lang=${locale}`, { headers: { 'X-Tenant-Slug': TENANT_SLUG } });
                 if (pageRes.data.success) {
-                    setPage(pageRes.data.data.page);
+                    const p = pageRes.data.data.page;
+                    setPage(p);
+                    setTranslatedTitle(p.title);
+                    setTranslatedContent(p.content);
                 } else {
                     setError(true);
                 }
@@ -61,63 +65,7 @@ const DynamicPage: React.FC = () => {
             }
         };
         if (slug) fetchPage();
-    }, [slug]);
-
-    // Auto-translate CMS content when locale is not TR
-    useEffect(() => {
-        if (!page) return;
-        if (locale === 'tr') {
-            setTranslatedTitle(page.title);
-            setTranslatedContent(page.content);
-            return;
-        }
-        // Translate title
-        translateDynamic(page.title).then(setTranslatedTitle);
-        // Translate content (strip HTML, translate text, keep structure)
-        translateHtmlContent(page.content, locale).then(setTranslatedContent);
-    }, [page, locale, translateDynamic]);
-
-    // Helper: translate HTML content by extracting text nodes
-    async function translateHtmlContent(html: string, targetLocale: string): Promise<string> {
-        if (!html) return html;
-        // Split HTML into chunks by tags — translate text between tags
-        const parts = html.split(/(<[^>]+>)/);
-        const textParts: { index: number; text: string }[] = [];
-        parts.forEach((part, i) => {
-            if (!part.startsWith('<') && part.trim().length > 0) {
-                textParts.push({ index: i, text: part.trim() });
-            }
-        });
-        if (textParts.length === 0) return html;
-
-        // Batch translate all text parts
-        try {
-            const res = await fetch(`${API_URL}/api/translate`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Tenant-Slug': TENANT_SLUG,
-                },
-                body: JSON.stringify({
-                    texts: textParts.map(p => p.text),
-                    targetLang: targetLocale,
-                    sourceLang: 'tr'
-                })
-            });
-            if (res.ok) {
-                const data = await res.json();
-                const translations: string[] = data?.data?.translations || [];
-                textParts.forEach((tp, idx) => {
-                    if (translations[idx]) {
-                        parts[tp.index] = translations[idx];
-                    }
-                });
-            }
-        } catch (err) {
-            console.warn('CMS content translation failed:', err);
-        }
-        return parts.join('');
-    }
+    }, [slug, locale]);
 
     if (loading) {
         return (
