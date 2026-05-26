@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
-const { clearTenantCache } = require('../middleware/tenant');
+const { updateSettingsKey } = require('../utils/safeSettingsUpdate');
 
 // In-memory translation cache (key: `${sourceLang}:${targetLang}:${text}`)
 const translationCache = new Map();
@@ -254,26 +254,13 @@ router.post('/settings', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Tenant not found' });
     }
 
-    // ALWAYS fetch fresh settings from DB to avoid overwriting other settings
-    const freshTenant = await prisma.tenant.findUnique({
-      where: { id: tenant.id },
-      select: { settings: true }
-    });
-    const currentSettings = freshTenant?.settings || {};
-    const updatedSettings = { ...currentSettings, deeplApiKey: deeplApiKey || null };
-
-    await prisma.tenant.update({
-      where: { id: tenant.id },
-      data: { settings: updatedSettings }
-    });
-
-    // Clear tenant cache so subsequent requests use updated settings
-    clearTenantCache(tenant.id, tenant.slug);
+    // Use safe utility — reads fresh from DB, validates, prevents overwrites
+    await updateSettingsKey(tenant.id, tenant.slug, 'deeplApiKey', deeplApiKey || null);
 
     return res.json({ success: true, message: 'DeepL API key saved.' });
   } catch (error) {
     console.error('Save DeepL settings error:', error);
-    return res.status(500).json({ success: false, error: 'Failed to save settings' });
+    return res.status(500).json({ success: false, error: error.message || 'Failed to save settings' });
   }
 });
 
