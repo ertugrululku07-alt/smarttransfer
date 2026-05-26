@@ -9,6 +9,7 @@ import {
 } from '@ant-design/icons';
 import axios from 'axios';
 import { useRouter } from 'next/navigation';
+import TopBar from '../../components/TopBar';
 
 
 const TENANT_SLUG = (process.env.NEXT_PUBLIC_TENANT_SLUG || 'smarttravel-demo').replace(/[\r\n]+/g, '').trim();
@@ -57,7 +58,7 @@ export default function RegisterAgencyPage() {
       <style>{`
         @keyframes regFadeUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
         .agency-reg { min-height:100vh; min-height:100dvh; display:flex; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; }
-        .agency-reg-left { flex:1; display:flex; flex-direction:column; justify-content:center; align-items:center; padding:40px 32px; background:#fff; overflow-y:auto; }
+        .agency-reg-left { flex:1; display:flex; flex-direction:column; justify-content:center; align-items:center; padding:100px 32px 40px; background:#fff; overflow-y:auto; }
         .agency-reg-right { flex:0.9; position:relative; overflow:hidden; display:flex; align-items:center; justify-content:center; background:linear-gradient(135deg,var(--brand-accent) 0%,var(--brand-accent) 50%,var(--brand-primary) 100%); }
         .agency-reg-form { width:100%; max-width:520px; animation:regFadeUp 0.5s ease both; }
         .agency-input .ant-input, .agency-input .ant-input-affix-wrapper { height:46px !important; border-radius:12px !important; border:1.5px solid #e2e8f0 !important; font-size:14px !important; transition:all 0.2s !important; }
@@ -68,11 +69,12 @@ export default function RegisterAgencyPage() {
         @media (max-width:768px) {
           .agency-reg { flex-direction:column; }
           .agency-reg-right { display:none; }
-          .agency-reg-left { padding:24px 20px; min-height:100vh; min-height:100dvh; background:linear-gradient(180deg,#f8fafc,var(--brand-primary-08)); }
+          .agency-reg-left { padding:88px 20px 24px; min-height:100vh; min-height:100dvh; background:linear-gradient(180deg,#f8fafc,var(--brand-primary-08)); }
           .agency-reg-form { max-width:100%; }
         }
       `}</style>
 
+      <TopBar />
       <div className="agency-reg">
         <div className="agency-reg-left">
           <div className="agency-reg-form" style={{ opacity: mounted ? 1 : 0, transition: 'opacity 0.3s' }}>

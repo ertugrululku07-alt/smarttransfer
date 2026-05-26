@@ -9,6 +9,7 @@ import {
 } from '@ant-design/icons';
 import axios from 'axios';
 import { useRouter } from 'next/navigation';
+import TopBar from '../../components/TopBar';
 
 const { Option } = Select;
 
@@ -81,16 +82,17 @@ export default function RegisterPartnerPage() {
     <>
       <style>{`
         @keyframes regFadeUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
-        .partner-reg { min-height:100vh; min-height:100dvh; display:flex; align-items:center; justify-content:center; background:linear-gradient(180deg,#f8fafc 0%,#ecfeff 50%,#f8fafc 100%); padding:40px 20px; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; }
+        .partner-reg { min-height:100vh; min-height:100dvh; display:flex; align-items:flex-start; justify-content:center; background:linear-gradient(180deg,#f8fafc 0%,#ecfeff 50%,#f8fafc 100%); padding:100px 20px 40px; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; }
         .partner-card { background:#fff; border-radius:24px; width:100%; max-width:680px; overflow:hidden; box-shadow:0 4px 20px rgba(0,0,0,0.06); border:1px solid #f0f0f0; animation:regFadeUp 0.5s ease both; }
         .partner-input .ant-input, .partner-input .ant-input-affix-wrapper, .partner-input .ant-select-selector, .partner-input .ant-input-number { height:46px !important; border-radius:12px !important; border:1.5px solid #e2e8f0 !important; font-size:14px !important; }
         .partner-input .ant-input-affix-wrapper { padding:0 14px !important; }
         .partner-input .ant-input:focus, .partner-input .ant-input-affix-wrapper-focused, .partner-input .ant-select-focused .ant-select-selector { border-color:${accentColor} !important; box-shadow:0 0 0 3px rgba(8,145,178,0.1) !important; }
         .partner-btn { height:48px !important; border-radius:14px !important; font-weight:700 !important; background:linear-gradient(135deg,#0891b2,#06b6d4) !important; border:none !important; box-shadow:0 6px 20px rgba(8,145,178,0.3) !important; }
         .partner-btn:hover { transform:translateY(-1px) !important; }
-        @media (max-width:480px) { .partner-reg { padding:16px; } .partner-card { border-radius:20px; } }
+        @media (max-width:480px) { .partner-reg { padding:88px 16px 24px; } .partner-card { border-radius:20px; } }
       `}</style>
 
+      <TopBar />
       <div className="partner-reg">
         <div className="partner-card" style={{ opacity: mounted ? 1 : 0, transition: 'opacity 0.3s' }}>
           {/* Top bar */}
