@@ -15,42 +15,40 @@ const LanguageContext = createContext<LanguageContextType | undefined>(undefined
 
 const TENANT_SLUG = (process.env.NEXT_PUBLIC_TENANT_SLUG || 'smarttravel-demo').replace(/[\r\n]+/g, '').trim();
 
-// LocalStorage cache key for dynamic translations
+// LocalStorage cache keys
 const DYNAMIC_CACHE_KEY = 'i18n_dynamic_cache';
+const AUTO_TRANSLATE_CACHE_KEY = 'i18n_auto_translate';
 
-function getDynamicCache(): Record<string, string> {
+// ─── Cache Helpers ───
+function getCache(storageKey: string): Record<string, string> {
   if (typeof window === 'undefined') return {};
   try {
-    return JSON.parse(localStorage.getItem(DYNAMIC_CACHE_KEY) || '{}');
+    return JSON.parse(localStorage.getItem(storageKey) || '{}');
   } catch { return {}; }
 }
 
-function setDynamicCache(cache: Record<string, string>) {
+function setCache(storageKey: string, cache: Record<string, string>, maxEntries = 2000) {
   if (typeof window === 'undefined') return;
   try {
-    // Limit cache size to 1000 entries
     const entries = Object.entries(cache);
-    if (entries.length > 1000) {
-      cache = Object.fromEntries(entries.slice(-800));
+    if (entries.length > maxEntries) {
+      cache = Object.fromEntries(entries.slice(-(maxEntries * 0.8)));
     }
-    localStorage.setItem(DYNAMIC_CACHE_KEY, JSON.stringify(cache));
+    localStorage.setItem(storageKey, JSON.stringify(cache));
   } catch { /* storage full */ }
 }
 
 /**
  * Detect the best matching locale from the browser's navigator.languages.
- * Falls back to 'en' if no match, or 'tr' if the page is Turkish-origin.
  */
 function detectBrowserLocale(): SupportedLocale {
   if (typeof window === 'undefined') return 'tr';
 
-  // Check localStorage first (returning user preference)
   const stored = localStorage.getItem('locale');
   if (stored && supportedLocales.includes(stored as SupportedLocale)) {
     return stored as SupportedLocale;
   }
 
-  // Detect from browser
   const browserLangs = navigator.languages || [navigator.language];
   for (const lang of browserLangs) {
     const code = lang.toLowerCase().split('-')[0];
@@ -59,8 +57,52 @@ function detectBrowserLocale(): SupportedLocale {
     }
   }
 
-  // Default fallback
   return 'tr';
+}
+
+// ─── Batch Translation Queue ───
+let batchQueue: { text: string; cacheKey: string; resolve: (v: string) => void }[] = [];
+let batchTimer: ReturnType<typeof setTimeout> | null = null;
+let autoTranslateCache: Record<string, string> = {};
+
+async function flushBatchQueue(targetLang: string) {
+  const items = [...batchQueue];
+  batchQueue = [];
+  batchTimer = null;
+
+  if (items.length === 0) return;
+
+  const texts = items.map(i => i.text);
+
+  try {
+    const res = await fetch(`${API_URL}/api/translate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Tenant-Slug': TENANT_SLUG,
+      },
+      body: JSON.stringify({
+        texts,
+        targetLang,
+        sourceLang: 'tr'
+      })
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      const translations: string[] = data?.data?.translations || [];
+      items.forEach((item, idx) => {
+        const translated = translations[idx] || item.text;
+        autoTranslateCache[item.cacheKey] = translated;
+        item.resolve(translated);
+      });
+      setCache(AUTO_TRANSLATE_CACHE_KEY, autoTranslateCache);
+    } else {
+      items.forEach(item => item.resolve(item.text));
+    }
+  } catch {
+    items.forEach(item => item.resolve(item.text));
+  }
 }
 
 export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -68,11 +110,13 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [ready, setReady] = useState(false);
   const dynamicCacheRef = useRef<Record<string, string>>({});
   const pendingTranslations = useRef<Map<string, Promise<string>>>(new Map());
+  const [, forceUpdate] = useState(0);
 
   useEffect(() => {
     const detected = detectBrowserLocale();
     setLocaleState(detected);
-    dynamicCacheRef.current = getDynamicCache();
+    dynamicCacheRef.current = getCache(DYNAMIC_CACHE_KEY);
+    autoTranslateCache = getCache(AUTO_TRANSLATE_CACHE_KEY);
     setReady(true);
   }, []);
 
@@ -81,15 +125,61 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     if (typeof window !== 'undefined') {
       localStorage.setItem('locale', newLocale);
     }
-    // Update html lang attribute
     if (typeof document !== 'undefined') {
       document.documentElement.lang = newLocale;
     }
   }, []);
 
+  /**
+   * Translation function with automatic DeepL fallback.
+   * 
+   * Priority:
+   * 1. Current locale file (instant)
+   * 2. Auto-translate cache from localStorage (instant)
+   * 3. DeepL API call (async, returns TR text first then re-renders with translation)
+   * 
+   * For keys that exist in TR but not in the current locale,
+   * it will automatically translate via DeepL and cache permanently.
+   */
   const t = useCallback((key: string, params?: Record<string, string>): string => {
-    const dict = locales[locale] || locales.tr;
-    let value = dict[key] || locales.tr[key] || key;
+    const currentDict = locales[locale] || locales.tr;
+    const trDict = locales.tr;
+
+    // 1. Key exists in current locale → use it directly
+    let value = currentDict[key];
+
+    // 2. Key doesn't exist in current locale but exists in TR → auto-translate
+    if (!value && locale !== 'tr' && trDict[key]) {
+      const trText = trDict[key];
+      const cacheKey = `${locale}:${key}`;
+
+      // Check auto-translate cache (instant)
+      if (autoTranslateCache[cacheKey]) {
+        value = autoTranslateCache[cacheKey];
+      } else {
+        // Return TR text immediately, queue background translation
+        value = trText;
+
+        // Queue for batch translation (debounced)
+        const alreadyQueued = batchQueue.some(q => q.cacheKey === cacheKey);
+        if (!alreadyQueued) {
+          const p = new Promise<string>((resolve) => {
+            batchQueue.push({ text: trText, cacheKey, resolve });
+          });
+          p.then(() => {
+            // Force re-render when translation arrives
+            forceUpdate(n => n + 1);
+          });
+
+          // Debounce: flush after 100ms of no new additions
+          if (batchTimer) clearTimeout(batchTimer);
+          batchTimer = setTimeout(() => flushBatchQueue(locale), 100);
+        }
+      }
+    }
+
+    // 3. Key doesn't exist anywhere → return key itself
+    if (!value) value = trDict[key] || key;
 
     // Replace {param} placeholders
     if (params) {
@@ -102,14 +192,15 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, [locale]);
 
   /**
-   * Translate dynamic text using DeepL API with caching.
-   * Use for CMS content, dynamic descriptions, etc.
+   * Translate dynamic/CMS text using DeepL API with caching.
+   * For content not in locale files (e.g., user-generated content, CMS pages).
    */
   const translateDynamic = useCallback(async (text: string, targetLang?: string): Promise<string> => {
     const target = targetLang || locale;
-    if (target === 'tr') return text; // Source is Turkish, no translation needed
+    if (target === 'tr') return text;
+    if (!text || text.trim().length === 0) return text;
 
-    const cacheKey = `${target}:${text}`;
+    const cacheKey = `${target}:${text.substring(0, 100)}`;
     
     // Check memory cache
     if (dynamicCacheRef.current[cacheKey]) {
@@ -140,9 +231,8 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         if (res.ok) {
           const data = await res.json();
           const translated = data?.data?.translations?.[0] || text;
-          // Update cache
           dynamicCacheRef.current[cacheKey] = translated;
-          setDynamicCache(dynamicCacheRef.current);
+          setCache(DYNAMIC_CACHE_KEY, dynamicCacheRef.current);
           return translated;
         }
       } catch (err) {
@@ -157,7 +247,6 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     return result;
   }, [locale]);
 
-  // Don't render children until locale is detected to avoid hydration mismatch
   if (!ready) return null;
 
   return (
