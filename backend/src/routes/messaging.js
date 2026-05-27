@@ -204,6 +204,42 @@ router.get('/recipients/count', authMiddleware, adminMiddleware, async (req, res
     }
 });
 
+// GET /api/messaging/recipients/languages - Get language breakdown of recipients
+router.get('/recipients/languages', authMiddleware, adminMiddleware, async (req, res) => {
+    try {
+        const tenantId = req.user.tenantId;
+
+        // Get unique customers from bookings with their locale
+        const bookings = await prisma.booking.findMany({
+            where: { tenantId, status: { not: 'CANCELLED' } },
+            select: {
+                contactEmail: true,
+                customer: { select: { locale: true } }
+            },
+            distinct: ['contactEmail']
+        });
+
+        // Count by locale
+        const langMap = {};
+        const seen = new Set();
+        for (const b of bookings) {
+            if (!b.contactEmail || seen.has(b.contactEmail.toLowerCase())) continue;
+            seen.add(b.contactEmail.toLowerCase());
+            const locale = b.customer?.locale || 'tr';
+            langMap[locale] = (langMap[locale] || 0) + 1;
+        }
+
+        const languages = Object.entries(langMap)
+            .map(([code, count]) => ({ code, count }))
+            .sort((a, b) => b.count - a.count);
+
+        res.json({ success: true, data: { languages, total: seen.size } });
+    } catch (error) {
+        console.error('Recipients languages error:', error);
+        res.status(500).json({ success: false, error: 'Sunucu hatası' });
+    }
+});
+
 // POST /api/messaging/campaigns - Create & optionally send campaign
 router.post('/campaigns', authMiddleware, adminMiddleware, async (req, res) => {
     try {
@@ -303,13 +339,22 @@ router.get('/stats', authMiddleware, adminMiddleware, async (req, res) => {
 
 async function countRecipients(tenantId, filter) {
     const where = buildRecipientWhere(tenantId, filter);
-    // Count unique customers from bookings
     const bookings = await prisma.booking.findMany({
         where,
-        select: { contactEmail: true, contactPhone: true },
+        select: { contactEmail: true, contactPhone: true, customer: { select: { locale: true } } },
         distinct: ['contactEmail']
     });
-    return bookings.filter(b => b.contactEmail || b.contactPhone).length;
+
+    // Apply locale filter if specified
+    const locales = filter.locales; // e.g. ['tr', 'en', 'de']
+    let filtered = bookings.filter(b => b.contactEmail || b.contactPhone);
+    if (locales && locales.length > 0) {
+        filtered = filtered.filter(b => {
+            const locale = b.customer?.locale || 'tr';
+            return locales.includes(locale);
+        });
+    }
+    return filtered.length;
 }
 
 function buildRecipientWhere(tenantId, filter) {
@@ -323,22 +368,32 @@ async function getRecipients(tenantId, filter) {
     const where = buildRecipientWhere(tenantId, filter);
     const bookings = await prisma.booking.findMany({
         where,
-        select: { contactName: true, contactEmail: true, contactPhone: true },
+        select: {
+            contactName: true, contactEmail: true, contactPhone: true,
+            customer: { select: { locale: true } }
+        },
         distinct: ['contactEmail'],
         orderBy: { createdAt: 'desc' }
     });
 
-    // De-duplicate by email
+    const locales = filter.locales; // e.g. ['tr', 'en', 'de']
+
+    // De-duplicate by email and apply locale filter
     const seen = new Set();
     const recipients = [];
     for (const b of bookings) {
         const key = (b.contactEmail || b.contactPhone || '').toLowerCase();
         if (!key || seen.has(key)) continue;
+
+        const locale = b.customer?.locale || 'tr';
+        if (locales && locales.length > 0 && !locales.includes(locale)) continue;
+
         seen.add(key);
         recipients.push({
             name: b.contactName || '',
             email: b.contactEmail || '',
             phone: b.contactPhone || '',
+            locale,
         });
     }
     return recipients;

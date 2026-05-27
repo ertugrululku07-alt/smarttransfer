@@ -12,7 +12,7 @@ import {
     TeamOutlined, CheckCircleOutlined, CloseCircleOutlined,
     ClockCircleOutlined, RocketOutlined, FileTextOutlined,
     ThunderboltOutlined, GiftOutlined, CalendarOutlined,
-    BellOutlined, CopyOutlined
+    BellOutlined, CopyOutlined, GlobalOutlined, FilterOutlined
 } from '@ant-design/icons';
 import AdminGuard from '../AdminGuard';
 import AdminLayout from '../AdminLayout';
@@ -65,6 +65,12 @@ export default function MessagingPage() {
     const [campaignSaving, setCampaignSaving] = useState(false);
     const [recipientCount, setRecipientCount] = useState<number | null>(null);
     const [countLoading, setCountLoading] = useState(false);
+
+    // Language filter
+    const [languages, setLanguages] = useState<{ code: string; count: number }[]>([]);
+    const [selectedLocales, setSelectedLocales] = useState<string[]>([]);
+    const [langTotal, setLangTotal] = useState(0);
+    const [selectedChannel, setSelectedChannel] = useState<string>('');
 
     // Preview modal
     const [previewModal, setPreviewModal] = useState<{ visible: boolean; html: string; title: string }>({
@@ -152,6 +158,8 @@ export default function MessagingPage() {
     // ── Campaign ──
     const openCampaignModal = (tpl?: any) => {
         campaignForm.resetFields();
+        setSelectedChannel('');
+        setSelectedLocales([]);
         if (tpl) {
             campaignForm.setFieldsValue({
                 name: `${tpl.name} - ${dayjs().format('DD.MM.YYYY')}`,
@@ -160,29 +168,50 @@ export default function MessagingPage() {
                 subject: tpl.subject || '',
                 body: tpl.body || '',
             });
+            setSelectedChannel(tpl.channel || '');
         }
         setCampaignModal(true);
         setRecipientCount(null);
-        fetchRecipientCount();
+        fetchRecipientCount([]);
+        fetchLanguages();
     };
 
-    const fetchRecipientCount = async () => {
+    const fetchLanguages = async () => {
+        try {
+            const res = await apiClient.get('/api/messaging/recipients/languages');
+            if (res.data.success) {
+                setLanguages(res.data.data.languages || []);
+                setLangTotal(res.data.data.total || 0);
+            }
+        } catch { /* ignore */ }
+    };
+
+    const fetchRecipientCount = async (locales: string[]) => {
         setCountLoading(true);
         try {
+            const filter: any = { all: true };
+            if (locales.length > 0) filter.locales = locales;
             const res = await apiClient.get('/api/messaging/recipients/count', {
-                params: { filter: JSON.stringify({ all: true }) }
+                params: { filter: JSON.stringify(filter) }
             });
             if (res.data.success) setRecipientCount(res.data.count);
         } catch { /* ignore */ }
         finally { setCountLoading(false); }
     };
 
+    const handleLocaleChange = (locales: string[]) => {
+        setSelectedLocales(locales);
+        fetchRecipientCount(locales);
+    };
+
     const sendCampaign = async (values: any) => {
         setCampaignSaving(true);
         try {
+            const filter: any = { all: true };
+            if (selectedLocales.length > 0) filter.locales = selectedLocales;
             const payload = {
                 ...values,
-                recipientFilter: { all: true },
+                recipientFilter: filter,
                 sendNow: true,
             };
             const res = await apiClient.post('/api/messaging/campaigns', payload);
@@ -440,6 +469,27 @@ export default function MessagingPage() {
         </div>
     );
 
+    // ── Language label helper ──
+    const LANG_LABELS: Record<string, { flag: string; name: string }> = {
+        tr: { flag: '🇹🇷', name: 'Türkçe' },
+        en: { flag: '🇬🇧', name: 'English' },
+        de: { flag: '🇩🇪', name: 'Deutsch' },
+        ru: { flag: '🇷🇺', name: 'Русский' },
+        fr: { flag: '🇫🇷', name: 'Français' },
+        ar: { flag: '🇸🇦', name: 'العربية' },
+        pl: { flag: '🇵🇱', name: 'Polski' },
+        nl: { flag: '🇳🇱', name: 'Nederlands' },
+        fi: { flag: '🇫🇮', name: 'Suomi' },
+        es: { flag: '🇪🇸', name: 'Español' },
+        it: { flag: '🇮🇹', name: 'Italiano' },
+        pt: { flag: '🇵🇹', name: 'Português' },
+        sv: { flag: '🇸🇪', name: 'Svenska' },
+        no: { flag: '🇳🇴', name: 'Norsk' },
+        da: { flag: '🇩🇰', name: 'Dansk' },
+        cs: { flag: '🇨🇿', name: 'Čeština' },
+        uk: { flag: '🇺🇦', name: 'Українська' },
+    };
+
     // ── New Campaign Tab (quick send) ──
     const NewCampaignTab = () => (
         <div>
@@ -448,12 +498,6 @@ export default function MessagingPage() {
                     <SendOutlined style={{ marginRight: 8, color: 'var(--brand-primary)' }} />
                     Yeni Toplu Mesaj Gönder
                 </Title>
-                <Alert
-                    type="info"
-                    showIcon
-                    message="Mesajınız tüm müşterilerinize gönderilecektir. Lütfen göndermeden önce içeriği kontrol edin."
-                    style={{ borderRadius: 8, marginBottom: 20 }}
-                />
 
                 <Form form={campaignForm} layout="vertical" onFinish={sendCampaign}>
                     <Row gutter={16}>
@@ -464,7 +508,8 @@ export default function MessagingPage() {
                         </Col>
                         <Col xs={24} sm={8}>
                             <Form.Item name="channel" label="Kanal" rules={[{ required: true, message: 'Zorunlu' }]}>
-                                <Select placeholder="Seçin" style={{ borderRadius: 8 }}>
+                                <Select placeholder="Seçin" style={{ borderRadius: 8 }}
+                                    onChange={(val: string) => setSelectedChannel(val)}>
                                     <Select.Option value="EMAIL"><MailOutlined /> E-posta</Select.Option>
                                     <Select.Option value="WHATSAPP"><MessageOutlined /> WhatsApp</Select.Option>
                                     <Select.Option value="BOTH"><SendOutlined /> Her İkisi</Select.Option>
@@ -480,6 +525,7 @@ export default function MessagingPage() {
                                     const tpl = templates.find(t => t.id === val);
                                     if (tpl) {
                                         campaignForm.setFieldsValue({ subject: tpl.subject, body: tpl.body, channel: tpl.channel });
+                                        setSelectedChannel(tpl.channel || '');
                                     }
                                 }
                             }}
@@ -493,9 +539,12 @@ export default function MessagingPage() {
                         </Select>
                     </Form.Item>
 
-                    <Form.Item name="subject" label="E-posta Konusu" extra="{{name}} — müşteri adı ile değiştirilir">
-                        <Input placeholder="Yeni Yılınız Kutlu Olsun!" style={{ borderRadius: 8 }} />
-                    </Form.Item>
+                    {/* E-posta Konusu - only visible for EMAIL or BOTH */}
+                    {(selectedChannel === 'EMAIL' || selectedChannel === 'BOTH') && (
+                        <Form.Item name="subject" label="E-posta Konusu" extra="{{name}} — müşteri adı ile değiştirilir">
+                            <Input placeholder="Yeni Yılınız Kutlu Olsun!" style={{ borderRadius: 8 }} />
+                        </Form.Item>
+                    )}
 
                     <Form.Item name="body" label="Mesaj İçeriği (HTML destekler)" rules={[{ required: true, message: 'İçerik zorunlu' }]}
                         extra="Değişkenler: {{name}}, {{email}}, {{phone}}">
@@ -504,6 +553,80 @@ export default function MessagingPage() {
 
                     <Divider />
 
+                    {/* ── Language Filter Section ── */}
+                    <div style={{
+                        background: 'linear-gradient(135deg, #f0f9ff, #e0f2fe)',
+                        borderRadius: 12, padding: '16px 20px',
+                        border: '1px solid #bae6fd', marginBottom: 20
+                    }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                            <GlobalOutlined style={{ fontSize: 16, color: '#0284c7' }} />
+                            <Text strong style={{ fontSize: 14, color: '#0c4a6e' }}>Hedef Diller</Text>
+                            <Text type="secondary" style={{ fontSize: 11, marginLeft: 'auto' }}>
+                                Seçim yapılmazsa tüm müşterilere gönderilir
+                            </Text>
+                        </div>
+
+                        {languages.length > 0 ? (
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                                {languages.map(lang => {
+                                    const info = LANG_LABELS[lang.code] || { flag: '🌐', name: lang.code.toUpperCase() };
+                                    const isSelected = selectedLocales.includes(lang.code);
+                                    return (
+                                        <div
+                                            key={lang.code}
+                                            onClick={() => {
+                                                const next = isSelected
+                                                    ? selectedLocales.filter(l => l !== lang.code)
+                                                    : [...selectedLocales, lang.code];
+                                                handleLocaleChange(next);
+                                            }}
+                                            style={{
+                                                display: 'flex', alignItems: 'center', gap: 8,
+                                                padding: '8px 14px', borderRadius: 10,
+                                                border: isSelected ? '2px solid #0284c7' : '1px solid #e2e8f0',
+                                                background: isSelected ? '#dbeafe' : '#fff',
+                                                cursor: 'pointer', transition: 'all 0.15s ease',
+                                                userSelect: 'none',
+                                            }}
+                                        >
+                                            <span style={{ fontSize: 18 }}>{info.flag}</span>
+                                            <div>
+                                                <div style={{ fontSize: 12, fontWeight: 600, color: isSelected ? '#0c4a6e' : '#374151' }}>
+                                                    {info.name}
+                                                </div>
+                                                <div style={{ fontSize: 10, color: '#64748b' }}>
+                                                    {lang.count} müşteri
+                                                </div>
+                                            </div>
+                                            {isSelected && (
+                                                <CheckCircleOutlined style={{ color: '#0284c7', fontSize: 14, marginLeft: 4 }} />
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        ) : (
+                            <Text type="secondary" style={{ fontSize: 12 }}>
+                                Dil verisi yükleniyor...
+                            </Text>
+                        )}
+
+                        {selectedLocales.length > 0 && (
+                            <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <FilterOutlined style={{ color: '#0284c7', fontSize: 12 }} />
+                                <Text style={{ fontSize: 11, color: '#0369a1' }}>
+                                    {selectedLocales.length} dil seçili — sadece bu dillerdeki müşterilere gönderilecek
+                                </Text>
+                                <Button size="small" type="link" style={{ fontSize: 11, padding: 0 }}
+                                    onClick={() => handleLocaleChange([])}>
+                                    Temizle
+                                </Button>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* ── Recipient Count ── */}
                     <div style={{
                         background: '#f8fafc', borderRadius: 10, padding: '14px 16px',
                         border: '1px solid #e2e8f0', marginBottom: 20,
@@ -518,8 +641,19 @@ export default function MessagingPage() {
                                 </Text>
                             )}
                         </div>
-                        <Button size="small" icon={<ReloadOutlined />} onClick={fetchRecipientCount}>Yenile</Button>
+                        <Button size="small" icon={<ReloadOutlined />}
+                            onClick={() => fetchRecipientCount(selectedLocales)}>Yenile</Button>
                     </div>
+
+                    {selectedLocales.length === 0 && (
+                        <Alert
+                            type="warning"
+                            showIcon
+                            message="Tüm dillerdeki müşterilere gönderilecek"
+                            description="Farklı dillerdeki müşterilere aynı dilde mesaj göndermek için yukarıdan hedef dilleri seçin."
+                            style={{ borderRadius: 8, marginBottom: 16 }}
+                        />
+                    )}
 
                     <Form.Item>
                         <Button
