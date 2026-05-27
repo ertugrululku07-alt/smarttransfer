@@ -697,8 +697,11 @@ const SiteSettingsPage: React.FC = () => {
             formData.append('file', file);
             const res = await apiClient.post('/api/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
             if (res.data.success) {
-                setTrackPage(prev => ({ ...prev, heroImage: res.data.data.url }));
-                message.success('Görsel yüklendi');
+                const newTrackPage = { ...trackPage, heroImage: res.data.data.url };
+                setTrackPage(newTrackPage);
+                // Auto-save to backend so it persists on refresh
+                await apiClient.put('/api/tenant/settings', { trackPage: newTrackPage });
+                message.success('Görsel yüklendi ve kaydedildi');
             }
         } catch {
             message.error('Görsel yüklenemedi');
