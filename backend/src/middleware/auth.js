@@ -55,6 +55,11 @@ async function authMiddleware(req, res, next) {
                         }
                     }
                 },
+                userPermissions: {
+                    include: {
+                        permission: true
+                    }
+                },
                 tenant: {
                     select: {
                         id: true,
@@ -84,6 +89,21 @@ async function authMiddleware(req, res, next) {
             });
         }
 
+        // User-level permissions take priority; fallback to role permissions
+        const perms = user.userPermissions.length > 0
+            ? user.userPermissions.map(up => ({
+                module: up.permission.module,
+                resource: up.permission.resource,
+                action: up.permission.action,
+                scope: up.permission.scope
+            }))
+            : user.role.permissions.map(rp => ({
+                module: rp.permission.module,
+                resource: rp.permission.resource,
+                action: rp.permission.action,
+                scope: rp.permission.scope
+            }));
+
         req.user = {
             id: user.id,
             email: user.email,
@@ -95,12 +115,7 @@ async function authMiddleware(req, res, next) {
             roleType: user.role.type,
             tenantId: user.tenantId,
             tenant: user.tenant,
-            permissions: user.role.permissions.map(rp => ({
-                module: rp.permission.module,
-                resource: rp.permission.resource,
-                action: rp.permission.action,
-                scope: rp.permission.scope
-            }))
+            permissions: perms
         };
 
         // Bind tenant context to JWT — ignore spoofed headers
@@ -143,6 +158,11 @@ async function optionalAuthMiddleware(req, res, next) {
                         }
                     }
                 },
+                userPermissions: {
+                    include: {
+                        permission: true
+                    }
+                },
                 tenant: {
                     select: {
                         id: true,
@@ -159,6 +179,20 @@ async function optionalAuthMiddleware(req, res, next) {
         });
 
         if (user && user.status === 'ACTIVE') {
+            const perms = user.userPermissions.length > 0
+                ? user.userPermissions.map(up => ({
+                    module: up.permission.module,
+                    resource: up.permission.resource,
+                    action: up.permission.action,
+                    scope: up.permission.scope
+                }))
+                : user.role.permissions.map(rp => ({
+                    module: rp.permission.module,
+                    resource: rp.permission.resource,
+                    action: rp.permission.action,
+                    scope: rp.permission.scope
+                }));
+
             req.user = {
                 id: user.id,
                 email: user.email,
@@ -169,12 +203,7 @@ async function optionalAuthMiddleware(req, res, next) {
                 roleType: user.role.type,
                 tenantId: user.tenantId,
                 tenant: user.tenant,
-                permissions: user.role.permissions.map(rp => ({
-                    module: rp.permission.module,
-                    resource: rp.permission.resource,
-                    action: rp.permission.action,
-                    scope: rp.permission.scope
-                }))
+                permissions: perms
             };
             req.tenant = user.tenant;
         } else {

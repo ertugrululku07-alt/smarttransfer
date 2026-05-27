@@ -179,6 +179,50 @@ async function seedPermissions() {
         }
     }
 
+    // 4. Seed user-level permissions (copy from role defaults)
+    console.log('\n   👤 Kullanıcı bazlı yetkiler atanıyor...');
+    const adminUsers = await prisma.user.findMany({
+        where: {
+            deletedAt: null,
+            role: {
+                type: { in: ['SUPER_ADMIN', 'TENANT_ADMIN', 'TENANT_MANAGER', 'TENANT_STAFF'] }
+            }
+        },
+        include: {
+            role: {
+                include: {
+                    permissions: { select: { permissionId: true } }
+                }
+            },
+            userPermissions: { select: { permissionId: true } }
+        }
+    });
+
+    for (const u of adminUsers) {
+        // Skip if user already has individual permissions
+        if (u.userPermissions.length > 0) {
+            console.log(`      ⏭️  ${u.fullName} (${u.role.type}): Zaten ${u.userPermissions.length} bireysel yetki var`);
+            continue;
+        }
+
+        // SUPER_ADMIN and TENANT_ADMIN get all permissions
+        const isFull = u.role.type === 'SUPER_ADMIN' || u.role.type === 'TENANT_ADMIN';
+        const permIds = isFull
+            ? allPermissions.map(p => p.id)
+            : u.role.permissions.map(rp => rp.permissionId);
+
+        if (permIds.length > 0) {
+            await prisma.userPermission.createMany({
+                data: permIds.map(permId => ({
+                    userId: u.id,
+                    permissionId: permId,
+                })),
+                skipDuplicates: true,
+            });
+        }
+        console.log(`      ✅ ${u.fullName} (${u.role.type}): ${permIds.length} bireysel yetki atandı`);
+    }
+
     console.log('\n🎉 Permission seeding tamamlandı!\n');
 }
 

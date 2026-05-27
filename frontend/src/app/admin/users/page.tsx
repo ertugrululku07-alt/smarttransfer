@@ -2,15 +2,16 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Table, Tag, Space, Button, Modal, Form, Input, Select, Switch,
+  Table, Tag, Space, Button, Modal, Form, Input, Select, Switch, Spin,
   Typography, message, Card, Tooltip, Badge, Avatar, Drawer, Divider, Row, Col
 } from 'antd';
 import {
   PlusOutlined, EditOutlined, CheckCircleOutlined, CloseCircleOutlined,
   UserOutlined, SearchOutlined, TeamOutlined, SafetyCertificateOutlined,
   CarOutlined, ShopOutlined, MailOutlined, LockOutlined, IdcardOutlined,
-  ReloadOutlined
+  ReloadOutlined, KeyOutlined, SaveOutlined, CopyOutlined
 } from '@ant-design/icons';
+import { Checkbox } from 'antd';
 import apiClient from '@/lib/api-client';
 import dayjs from 'dayjs';
 import AdminGuard from '../AdminGuard';
@@ -43,6 +44,37 @@ const ROLE_CONFIG: Record<string, { label: string; color: string; bg: string; ic
   AIRPORT_STAFF:  { label: 'Havalimanı Karşılama', color: '#0ea5e9', bg: '#f0f9ff', icon: <IdcardOutlined /> },
 };
 
+// ─── Module & Action Definitions ────────────────────────────────────────────
+const MODULE_DEFS = [
+  { module: 'dashboard', label: 'Panel', icon: '📊' },
+  { module: 'reservations', label: 'Rezervasyonlar', icon: '📅' },
+  { module: 'operations', label: 'Operasyon Yönetimi', icon: '⚙️' },
+  { module: 'accounting', label: 'Muhasebe', icon: '🏦' },
+  { module: 'partners', label: 'Partner / Acente', icon: '👥' },
+  { module: 'banks', label: 'Banka Yönetimi', icon: '💳' },
+  { module: 'vehicles', label: 'Araç & Fiyat Tanımları', icon: '🚗' },
+  { module: 'vehicle-tracking', label: 'Araç Takip', icon: '📍' },
+  { module: 'personnel', label: 'Personel Tanımları', icon: '👤' },
+  { module: 'campaigns', label: 'Kampanyalar & Sadakat', icon: '🎁' },
+  { module: 'reports', label: 'Raporlar', icon: '📈' },
+  { module: 'settings', label: 'Ayarlar & Kullanıcılar', icon: '⚙️' },
+  { module: 'live-support', label: 'Canlı Destek', icon: '💬' },
+];
+
+const ACTION_LABELS: Record<string, string> = {
+  view: 'Görüntüleme',
+  create: 'Ekleme',
+  update: 'Düzenleme',
+  delete: 'Silme',
+};
+
+interface PermissionItem {
+  id: string;
+  module: string;
+  resource: string;
+  action: string;
+}
+
 const AdminUsersPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [users, setUsers] = useState<User[]>([]);
@@ -53,6 +85,14 @@ const AdminUsersPage: React.FC = () => {
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [form] = Form.useForm();
+
+  // Permission modal state
+  const [permModalOpen, setPermModalOpen] = useState(false);
+  const [permUser, setPermUser] = useState<User | null>(null);
+  const [allPermissions, setAllPermissions] = useState<PermissionItem[]>([]);
+  const [selectedPermIds, setSelectedPermIds] = useState<Set<string>>(new Set());
+  const [permSaving, setPermSaving] = useState(false);
+  const [permLoading, setPermLoading] = useState(false);
 
   const fetchUsers = async () => {
     try {
@@ -106,6 +146,88 @@ const AdminUsersPage: React.FC = () => {
       isActive: user.isActive,
     });
     setDrawerOpen(true);
+  };
+
+  // ─── Permission Modal Handlers ──────────────────────────────────────────
+  const openPermModal = async (user: User) => {
+    setPermUser(user);
+    setPermModalOpen(true);
+    setPermLoading(true);
+    try {
+      const [permsRes, userPermsRes] = await Promise.all([
+        apiClient.get('/api/roles/permissions'),
+        apiClient.get(`/api/users/${user.id}/permissions`),
+      ]);
+      if (permsRes.data.success) {
+        setAllPermissions(permsRes.data.data.permissions);
+      }
+      if (userPermsRes.data.success) {
+        setSelectedPermIds(new Set(userPermsRes.data.data.permissions.map((p: any) => p.id)));
+      }
+    } catch {
+      message.error('Yetkiler yüklenemedi');
+    } finally {
+      setPermLoading(false);
+    }
+  };
+
+  const handleTogglePerm = (permId: string) => {
+    setSelectedPermIds(prev => {
+      const next = new Set(prev);
+      next.has(permId) ? next.delete(permId) : next.add(permId);
+      return next;
+    });
+  };
+
+  const handleToggleModule = (moduleName: string) => {
+    const modulePerms = allPermissions.filter(p => p.module === moduleName);
+    const allSelected = modulePerms.every(p => selectedPermIds.has(p.id));
+    setSelectedPermIds(prev => {
+      const next = new Set(prev);
+      modulePerms.forEach(p => allSelected ? next.delete(p.id) : next.add(p.id));
+      return next;
+    });
+  };
+
+  const handleSelectAllPerms = () => {
+    const allIds = allPermissions.map(p => p.id);
+    const allSelected = allIds.every(id => selectedPermIds.has(id));
+    setSelectedPermIds(allSelected ? new Set() : new Set(allIds));
+  };
+
+  const handleCopyFromRole = async () => {
+    if (!permUser) return;
+    try {
+      setPermLoading(true);
+      await apiClient.post(`/api/users/${permUser.id}/permissions/copy-from-role`);
+      const res = await apiClient.get(`/api/users/${permUser.id}/permissions`);
+      if (res.data.success) {
+        setSelectedPermIds(new Set(res.data.data.permissions.map((p: any) => p.id)));
+      }
+      message.success('Rol şablonu kopyalandı');
+    } catch {
+      message.error('Kopyalama başarısız');
+    } finally {
+      setPermLoading(false);
+    }
+  };
+
+  const handleSavePerms = async () => {
+    if (!permUser) return;
+    try {
+      setPermSaving(true);
+      const res = await apiClient.put(`/api/users/${permUser.id}/permissions`, {
+        permissions: Array.from(selectedPermIds),
+      });
+      if (res.data.success) {
+        message.success(res.data.message);
+        setPermModalOpen(false);
+      }
+    } catch (err: any) {
+      message.error(err?.response?.data?.error || 'Yetkiler kaydedilemedi');
+    } finally {
+      setPermSaving(false);
+    }
   };
 
   const handleToggleActive = async (user: User, active: boolean) => {
@@ -229,7 +351,16 @@ const AdminUsersPage: React.FC = () => {
       key: 'actions',
       width: 160,
       render: (_: any, record: User) => (
-        <Space size={8}>
+        <Space size={4}>
+          <Tooltip title="Yetkilendir">
+            <Button
+              size="small"
+              type="text"
+              icon={<KeyOutlined />}
+              onClick={() => openPermModal(record)}
+              style={{ color: '#f59e0b', borderRadius: 6, fontWeight: 600 }}
+            />
+          </Tooltip>
           <Tooltip title="Düzenle">
             <Button
               size="small"
@@ -469,6 +600,99 @@ const AdminUsersPage: React.FC = () => {
             </Form.Item>
           </Form>
         </Drawer>
+
+        {/* ─── Per-User Permission Modal ─── */}
+        <Modal
+          open={permModalOpen}
+          onCancel={() => setPermModalOpen(false)}
+          title={
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <KeyOutlined style={{ color: '#f59e0b' }} />
+              <span>{permUser?.name || permUser?.email} — Kişisel Yetkiler</span>
+            </div>
+          }
+          width={900}
+          footer={
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                {selectedPermIds.size} / {allPermissions.length} yetki seçili
+              </Text>
+              <Space>
+                <Tooltip title="Rolün varsayılan yetkilerini kopyala">
+                  <Button icon={<CopyOutlined />} onClick={handleCopyFromRole} loading={permLoading}>
+                    Rol Şablonu
+                  </Button>
+                </Tooltip>
+                <Button onClick={() => setPermModalOpen(false)}>İptal</Button>
+                <Button type="primary" icon={<SaveOutlined />} loading={permSaving} onClick={handleSavePerms}>
+                  Kaydet
+                </Button>
+              </Space>
+            </div>
+          }
+        >
+          {permLoading ? (
+            <div style={{ textAlign: 'center', padding: 40 }}><Spin /></div>
+          ) : (
+            <>
+              <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Text strong>Modül Yetkileri</Text>
+                <Button size="small" type="link" onClick={handleSelectAllPerms}>
+                  {allPermissions.every(p => selectedPermIds.has(p.id)) ? 'Tümünü Kaldır' : 'Tümünü Seç'}
+                </Button>
+              </div>
+              <div style={{ maxHeight: 480, overflowY: 'auto' }}>
+                {MODULE_DEFS.map(mod => {
+                  const modulePerms = allPermissions.filter(p => p.module === mod.module);
+                  const selectedCount = modulePerms.filter(p => selectedPermIds.has(p.id)).length;
+                  const allSelected = modulePerms.length > 0 && selectedCount === modulePerms.length;
+                  const someSelected = selectedCount > 0 && selectedCount < modulePerms.length;
+
+                  return (
+                    <div key={mod.module} style={{
+                      border: '1px solid #f0f0f0', borderRadius: 10, padding: '12px 16px',
+                      marginBottom: 8, background: selectedCount > 0 ? '#f0f9ff' : '#fafafa',
+                      transition: 'background 0.2s',
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <Checkbox
+                            checked={allSelected}
+                            indeterminate={someSelected}
+                            onChange={() => handleToggleModule(mod.module)}
+                          />
+                          <span style={{ fontSize: 16 }}>{mod.icon}</span>
+                          <Text strong style={{ fontSize: 14 }}>{mod.label}</Text>
+                        </div>
+                        <Tag style={{ fontSize: 11 }}>{selectedCount} / {modulePerms.length}</Tag>
+                      </div>
+                      <div style={{ display: 'flex', gap: 16, paddingLeft: 32 }}>
+                        {['view', 'create', 'update', 'delete'].map(action => {
+                          const perm = modulePerms.find(p => p.action === action);
+                          if (!perm) return null;
+                          return (
+                            <Checkbox
+                              key={action}
+                              checked={selectedPermIds.has(perm.id)}
+                              onChange={() => handleTogglePerm(perm.id)}
+                            >
+                              <span style={{
+                                fontSize: 13,
+                                color: selectedPermIds.has(perm.id) ? '#1e293b' : '#94a3b8'
+                              }}>
+                                {ACTION_LABELS[action]}
+                              </span>
+                            </Checkbox>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </Modal>
 
       </AdminLayout>
     </AdminGuard>

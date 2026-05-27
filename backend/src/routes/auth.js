@@ -48,6 +48,11 @@ router.post('/login', async (req, res) => {
                         }
                     }
                 },
+                userPermissions: {
+                    include: {
+                        permission: true
+                    }
+                },
                 tenant: {
                     select: {
                         id: true,
@@ -149,12 +154,19 @@ router.post('/login', async (req, res) => {
                 type: user.role.type
             },
             tenant: user.tenant,
-            permissions: user.role.permissions.map(rp => ({
-                module: rp.permission.module,
-                resource: rp.permission.resource,
-                action: rp.permission.action,
-                scope: rp.permission.scope
-            }))
+            permissions: user.userPermissions.length > 0
+                ? user.userPermissions.map(up => ({
+                    module: up.permission.module,
+                    resource: up.permission.resource,
+                    action: up.permission.action,
+                    scope: up.permission.scope
+                }))
+                : user.role.permissions.map(rp => ({
+                    module: rp.permission.module,
+                    resource: rp.permission.resource,
+                    action: rp.permission.action,
+                    scope: rp.permission.scope
+                }))
         };
 
         res.json({

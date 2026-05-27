@@ -465,4 +465,182 @@ router.delete('/:id', authMiddleware, async (req, res) => {
     }
 });
 
+// ============================================================================
+// USER PERMISSION MANAGEMENT (Per-user)
+// ============================================================================
+
+/**
+ * GET /api/users/:id/permissions
+ * Get a user's individual permissions
+ */
+router.get('/:id/permissions', authMiddleware, requirePermission('settings', 'view'), async (req, res) => {
+    try {
+        const tenantId = req.tenant?.id;
+        if (!tenantId) return res.status(400).json({ success: false, error: 'Tenant context missing' });
+
+        const user = await prisma.user.findFirst({
+            where: { id: req.params.id, tenantId, deletedAt: null },
+            select: {
+                id: true,
+                fullName: true,
+                email: true,
+                role: { select: { id: true, name: true, code: true, type: true } },
+                userPermissions: {
+                    include: { permission: true }
+                }
+            }
+        });
+
+        if (!user) {
+            return res.status(404).json({ success: false, error: 'Kullanıcı bulunamadı' });
+        }
+
+        res.json({
+            success: true,
+            data: {
+                id: user.id,
+                fullName: user.fullName,
+                email: user.email,
+                role: user.role,
+                permissions: user.userPermissions.map(up => ({
+                    id: up.permission.id,
+                    module: up.permission.module,
+                    resource: up.permission.resource,
+                    action: up.permission.action,
+                }))
+            }
+        });
+    } catch (error) {
+        console.error('Get user permissions error:', error);
+        res.status(500).json({ success: false, error: 'Yetkiler yüklenemedi' });
+    }
+});
+
+/**
+ * PUT /api/users/:id/permissions
+ * Update a user's individual permissions (replace all).
+ * Body: { permissions: ["permissionId1", "permissionId2", ...] }
+ */
+router.put('/:id/permissions', authMiddleware, requirePermission('settings', 'update'), async (req, res) => {
+    try {
+        const tenantId = req.tenant?.id;
+        if (!tenantId) return res.status(400).json({ success: false, error: 'Tenant context missing' });
+
+        const { permissions: permissionIds } = req.body;
+
+        if (!Array.isArray(permissionIds)) {
+            return res.status(400).json({ success: false, error: 'permissions array is required' });
+        }
+
+        const user = await prisma.user.findFirst({
+            where: { id: req.params.id, tenantId, deletedAt: null },
+            include: { role: true }
+        });
+
+        if (!user) {
+            return res.status(404).json({ success: false, error: 'Kullanıcı bulunamadı' });
+        }
+
+        // Don't allow modifying SUPER_ADMIN permissions
+        if (user.role.type === 'SUPER_ADMIN') {
+            return res.status(403).json({ success: false, error: 'Super Admin yetkisi değiştirilemez' });
+        }
+
+        // Transaction: delete all, then create new
+        await prisma.$transaction(async (tx) => {
+            await tx.userPermission.deleteMany({
+                where: { userId: user.id }
+            });
+
+            if (permissionIds.length > 0) {
+                await tx.userPermission.createMany({
+                    data: permissionIds.map(permId => ({
+                        userId: user.id,
+                        permissionId: permId,
+                    })),
+                    skipDuplicates: true,
+                });
+            }
+        });
+
+        // Return updated
+        const updated = await prisma.user.findUnique({
+            where: { id: user.id },
+            select: {
+                id: true,
+                fullName: true,
+                userPermissions: {
+                    include: { permission: true }
+                }
+            }
+        });
+
+        res.json({
+            success: true,
+            message: `${updated.fullName} için ${permissionIds.length} yetki atandı`,
+            data: {
+                id: updated.id,
+                permissions: updated.userPermissions.map(up => ({
+                    id: up.permission.id,
+                    module: up.permission.module,
+                    action: up.permission.action,
+                }))
+            }
+        });
+    } catch (error) {
+        console.error('Update user permissions error:', error);
+        res.status(500).json({ success: false, error: 'Yetkiler güncellenemedi' });
+    }
+});
+
+/**
+ * POST /api/users/:id/permissions/copy-from-role
+ * Copy role's default permissions to user's individual permissions
+ */
+router.post('/:id/permissions/copy-from-role', authMiddleware, requirePermission('settings', 'update'), async (req, res) => {
+    try {
+        const tenantId = req.tenant?.id;
+        if (!tenantId) return res.status(400).json({ success: false, error: 'Tenant context missing' });
+
+        const user = await prisma.user.findFirst({
+            where: { id: req.params.id, tenantId, deletedAt: null },
+            include: {
+                role: {
+                    include: {
+                        permissions: { select: { permissionId: true } }
+                    }
+                }
+            }
+        });
+
+        if (!user) {
+            return res.status(404).json({ success: false, error: 'Kullanıcı bulunamadı' });
+        }
+
+        const rolePermIds = user.role.permissions.map(rp => rp.permissionId);
+
+        await prisma.$transaction(async (tx) => {
+            await tx.userPermission.deleteMany({ where: { userId: user.id } });
+
+            if (rolePermIds.length > 0) {
+                await tx.userPermission.createMany({
+                    data: rolePermIds.map(permId => ({
+                        userId: user.id,
+                        permissionId: permId,
+                    })),
+                    skipDuplicates: true,
+                });
+            }
+        });
+
+        res.json({
+            success: true,
+            message: `Rol yetkilerinden ${rolePermIds.length} yetki kopyalandı`,
+        });
+    } catch (error) {
+        console.error('Copy role permissions error:', error);
+        res.status(500).json({ success: false, error: 'Rol yetkileri kopyalanamadı' });
+    }
+});
+
 module.exports = router;
