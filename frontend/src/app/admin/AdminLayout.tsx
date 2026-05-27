@@ -32,6 +32,7 @@ import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
 import { useBranding } from '@/app/context/BrandingContext';
 import FloatingDriverChat from '../components/FloatingDriverChat';
+import { usePermission, MENU_MODULE_MAP } from '@/hooks/usePermission';
 
 const { Header, Sider, Content } = Layout;
 const { Title, Text } = Typography;
@@ -50,12 +51,40 @@ interface EmergencyAlert {
   startedAt: string;
 }
 
+/**
+ * Filter menu items based on user permissions.
+ * SUPER_ADMIN and TENANT_ADMIN see everything.
+ * Other roles only see modules they have 'view' permission for.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function filterMenuByPermission(items: any[], canView: (module: string) => boolean, isSuperAdmin: boolean): any[] {
+    if (isSuperAdmin) return items;
+
+    return items.filter(item => {
+        const module = MENU_MODULE_MAP[item.key];
+
+        // If item has children, recursively filter them
+        if (item.children) {
+            const filteredChildren = filterMenuByPermission(item.children, canView, isSuperAdmin);
+            if (filteredChildren.length === 0) return false;
+            item.children = filteredChildren;
+            return true;
+        }
+
+        // If no module mapping, check parent key mapping
+        if (!module) return true;
+
+        return canView(module);
+    });
+}
+
 const AdminLayout: React.FC<AdminLayoutProps> = ({ children, selectedKey = 'dashboard', fullWidth = false }) => {
   const [collapsed, setCollapsed] = useState(false);
   const router = useRouter();
   const { user, logout } = useAuth();
   const { socket } = useSocket();
   const { branding, fullName } = useBranding();
+  const { canView, isSuperAdmin } = usePermission();
   const [emergencies, setEmergencies] = useState<EmergencyAlert[]>([]);
   const [selectedEmergency, setSelectedEmergency] = useState<EmergencyAlert | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -177,6 +206,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, selectedKey = 'dash
               case 'site-settings':
               case 'pages':
               case 'users':
+              case 'role-management':
               case 'definitions': return 'settings-group';
               default: return '';
           }
@@ -269,7 +299,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, selectedKey = 'dash
             border: 'none',
             padding: '8px 0',
           }}
-          items={[
+          items={filterMenuByPermission([
             {
               key: 'dashboard',
               icon: <DashboardOutlined />,
@@ -563,6 +593,11 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, selectedKey = 'dash
                   onClick: () => router.push('/admin/users')
                 },
                 {
+                  key: 'role-management',
+                  label: 'Rol Yönetimi',
+                  onClick: () => router.push('/admin/roles')
+                },
+                {
                   key: 'blog',
                   label: 'Blog Yönetimi',
                   onClick: () => router.push('/admin/blog')
@@ -579,7 +614,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, selectedKey = 'dash
                 }
               ]
             }
-          ]}
+          ], canView, isSuperAdmin)}
         />
       </Sider>
 

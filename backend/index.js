@@ -250,6 +250,10 @@ app.use('/api/pages', tenantMiddleware, pagesRoutes);
 const userRoutes = require('./src/routes/users');
 app.use('/api/users', tenantMiddleware, userRoutes);
 
+// Role & Permission management routes
+const roleRoutes = require('./src/routes/roles');
+app.use('/api/roles', tenantMiddleware, roleRoutes);
+
 // Audit / Activity Logs route
 app.use('/api/admin/logs', tenantMiddleware, require('./src/routes/logs'));
 

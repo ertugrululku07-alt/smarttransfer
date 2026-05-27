@@ -1,6 +1,7 @@
 const express = require('express');
 
 const { authMiddleware } = require('../middleware/auth');
+const { requirePermission } = require('../middleware/permission');
 const router = express.Router();
 const prisma = require('../lib/prisma');
 
@@ -12,7 +13,7 @@ const prisma = require('../lib/prisma');
  * GET /api/accounting/accounts
  * List all accounts + auto-include agencies and partners
  */
-router.get('/accounts', authMiddleware, async (req, res) => {
+router.get('/accounts', authMiddleware, requirePermission('accounting', 'view'), async (req, res) => {
     try {
         const tenantId = req.user.tenantId;
 

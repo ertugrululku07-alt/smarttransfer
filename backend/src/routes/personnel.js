@@ -2,11 +2,12 @@ const express = require('express');
 const router = express.Router();
 
 const { authMiddleware } = require('../middleware/auth');
+const { requirePermission } = require('../middleware/permission');
 const bcrypt = require('bcryptjs');
 const prisma = require('../lib/prisma');
 
 // Get all personnel
-router.get('/', authMiddleware, async (req, res) => {
+router.get('/', authMiddleware, requirePermission('personnel', 'view'), async (req, res) => {
     try {
         const { tenantId } = req.user;
         const personnel = await prisma.personnel.findMany({

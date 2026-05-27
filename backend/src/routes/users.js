@@ -2,6 +2,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 
 const { authMiddleware } = require('../middleware/auth');
+const { requirePermission } = require('../middleware/permission');
 
 const router = express.Router();
 const prisma = require('../lib/prisma');
@@ -10,7 +11,7 @@ const prisma = require('../lib/prisma');
  * GET /api/users
  * List all users for the current tenant
  */
-router.get('/', authMiddleware, async (req, res) => {
+router.get('/', authMiddleware, requirePermission('settings', 'view'), async (req, res) => {
     try {
         const tenantId = req.tenant?.id;
         if (!tenantId) {
