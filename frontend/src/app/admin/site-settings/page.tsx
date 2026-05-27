@@ -9,7 +9,6 @@ import {
     Input,
     Space,
     message,
-    Tabs,
     Form,
     Row,
     Col,
@@ -54,7 +53,38 @@ import axios from 'axios';
 
 const { Title, Text, Paragraph } = Typography;
 
+const NAV_GROUPS = [
+    {
+        label: 'Marka & Kimlik',
+        items: [
+            { key: 'branding', label: 'Firma Bilgileri', icon: <ShopOutlined /> },
+            { key: 'theme', label: 'Site Teması', icon: <FormatPainterOutlined /> },
+            { key: 'custom-theme', label: 'Özel Tema', icon: <StarOutlined /> },
+        ]
+    },
+    {
+        label: 'Modüller & İçerik',
+        items: [
+            { key: 'modules', label: 'Hizmet Modülleri', icon: <AppstoreOutlined /> },
+            { key: 'images', label: 'Arka Plan Görselleri', icon: <PictureOutlined /> },
+            { key: 'sections', label: 'Ana Sayfa Bölümleri', icon: <OrderedListOutlined /> },
+            { key: 'content', label: 'İçerik Yönetimi', icon: <FileTextOutlined /> },
+        ]
+    },
+    {
+        label: 'Teknik & Hukuki',
+        items: [
+            { key: 'tursab', label: 'Tanımlar / TÜRSAB', icon: <SafetyCertificateOutlined /> },
+            { key: 'googleMaps', label: 'Google Maps', icon: <EnvironmentOutlined /> },
+            { key: 'languages', label: 'Dil Yönetimi', icon: <GlobalOutlined /> },
+            { key: 'contact', label: 'İletişim Sayfası', icon: <PhoneOutlined /> },
+            { key: 'seo', label: 'SEO Yönetimi', icon: <SearchOutlined /> },
+        ]
+    },
+];
+
 const SiteSettingsPage: React.FC = () => {
+    const [activeTab, setActiveTab] = useState('branding');
     const [loading, setLoading] = useState(false);
     const [modules, setModules] = useState<any>({});
     const [heroImages, setHeroImages] = useState<string[]>([]);
@@ -2744,7 +2774,70 @@ const SiteSettingsPage: React.FC = () => {
                     </Text>
                 </div>
 
-                <Tabs defaultActiveKey="branding" items={tabItems} />
+                <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start' }}>
+                    {/* ── Sidebar Navigation ── */}
+                    <div style={{
+                        width: 220, flexShrink: 0,
+                        background: '#fff',
+                        borderRadius: 16,
+                        border: '1px solid #f0f0f0',
+                        boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
+                        overflow: 'hidden',
+                        position: 'sticky',
+                        top: 24,
+                    }}>
+                        {NAV_GROUPS.map((group, gi) => (
+                            <div key={group.label}>
+                                {gi > 0 && <div style={{ height: 1, background: '#f0f0f0', margin: '4px 0' }} />}
+                                <div style={{
+                                    padding: '10px 16px 4px',
+                                    fontSize: 10,
+                                    fontWeight: 700,
+                                    letterSpacing: '0.08em',
+                                    textTransform: 'uppercase',
+                                    color: '#9ca3af',
+                                }}>
+                                    {group.label}
+                                </div>
+                                {group.items.map(item => {
+                                    const isActive = activeTab === item.key;
+                                    return (
+                                        <div
+                                            key={item.key}
+                                            onClick={() => setActiveTab(item.key)}
+                                            style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: 10,
+                                                padding: '10px 16px',
+                                                margin: '2px 8px',
+                                                borderRadius: 10,
+                                                cursor: 'pointer',
+                                                background: isActive ? 'linear-gradient(135deg, #ef4444 0%, #b91c1c 100%)' : 'transparent',
+                                                color: isActive ? '#fff' : '#374151',
+                                                fontWeight: isActive ? 600 : 400,
+                                                fontSize: 13,
+                                                transition: 'all 0.18s ease',
+                                                userSelect: 'none',
+                                            }}
+                                            onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = '#f9fafb'; }}
+                                            onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+                                        >
+                                            <span style={{ fontSize: 15, opacity: isActive ? 1 : 0.6 }}>{item.icon}</span>
+                                            <span>{item.label}</span>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        ))}
+                        <div style={{ height: 12 }} />
+                    </div>
+
+                    {/* ── Content Area ── */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                        {tabItems.find(t => t.key === activeTab)?.children}
+                    </div>
+                </div>
             </AdminLayout>
         </AdminGuard>
     );
