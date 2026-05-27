@@ -171,6 +171,11 @@ const SiteSettingsPage: React.FC = () => {
     const [trackPageImgUploading, setTrackPageImgUploading] = useState(false);
     const [trackPageSaving, setTrackPageSaving] = useState(false);
 
+    // Language management state
+    const [supportedLangs, setSupportedLangs] = useState<string[]>(['tr', 'en', 'de', 'ru']);
+    const [availableLangs, setAvailableLangs] = useState<{ code: string; name: string; flag: string; dir: string }[]>([]);
+    const [langSaving, setLangSaving] = useState(false);
+
     // SEO state
     const [seo, setSeo] = useState<{
         siteUrl: string;
@@ -299,6 +304,14 @@ const SiteSettingsPage: React.FC = () => {
                         pages: settings.seo.pages && typeof settings.seo.pages === 'object' ? settings.seo.pages : {},
                         landingPages: Array.isArray(settings.seo.landingPages) ? settings.seo.landingPages : [],
                     }));
+                }
+                // Load language data from tenant
+                const tenant = infoRes.data.data.tenant;
+                if (tenant.supportedLanguages) {
+                    setSupportedLangs(tenant.supportedLanguages);
+                }
+                if (tenant.availableLanguages) {
+                    setAvailableLangs(tenant.availableLanguages);
                 }
                 if (settings.contactPage) {
                     const cp = { ...settings.contactPage };
@@ -474,6 +487,32 @@ const SiteSettingsPage: React.FC = () => {
         } catch (error) {
             console.error('Update settings error:', error);
             message.error('Ayarlar güncellenemedi');
+        }
+    };
+
+    const handleSaveLanguages = async () => {
+        try {
+            setLangSaving(true);
+            const res = await apiClient.put('/api/tenant/settings', {
+                supportedLanguages: supportedLangs
+            });
+            if (res.data.success) {
+                message.success('Dil ayarları kaydedildi. Mevcut metinler otomatik çevrilecek.');
+            }
+        } catch (error) {
+            console.error('Language settings error:', error);
+            message.error('Dil ayarları kaydedilemedi');
+        } finally {
+            setLangSaving(false);
+        }
+    };
+
+    const handleToggleLanguage = (langCode: string, checked: boolean) => {
+        if (langCode === 'tr') return; // TR always enabled
+        if (checked) {
+            setSupportedLangs(prev => [...prev, langCode]);
+        } else {
+            setSupportedLangs(prev => prev.filter(l => l !== langCode));
         }
     };
 
@@ -1786,6 +1825,86 @@ const SiteSettingsPage: React.FC = () => {
                             </Space.Compact>
                         </Form.Item>
                     </Form>
+                </Card>
+            ),
+        },
+        {
+            key: 'languages',
+            label: (
+                <span>
+                    <GlobalOutlined />
+                    Dil Yönetimi
+                </span>
+            ),
+            children: (
+                <Card title="Dil Yönetimi" variant="borderless" extra={
+                    <Button type="primary" icon={<SaveOutlined />} loading={langSaving} onClick={handleSaveLanguages}>
+                        Kaydet
+                    </Button>
+                }>
+                    <Text type="secondary" style={{ display: 'block', marginBottom: 20 }}>
+                        Sitenizde desteklemek istediğiniz dilleri seçin. Yeni bir dil eklendiğinde tüm site metinleri otomatik olarak DeepL ile çevrilir.
+                        Her dil için <strong>/{'{'}dil kodu{'}'}/</strong> URL prefix&apos;i oluşturulur (örn: /ar/, /fr/).
+                    </Text>
+
+                    <div style={{ marginBottom: 24 }}>
+                        <Text strong style={{ display: 'block', marginBottom: 12, fontSize: 15 }}>Aktif Diller</Text>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                            {supportedLangs.map(code => {
+                                const lang = availableLangs.find(l => l.code === code) || { name: code.toUpperCase(), flag: '🌐', dir: 'ltr' };
+                                return (
+                                    <Tag key={code} color="blue" style={{ fontSize: 14, padding: '6px 12px', borderRadius: 8 }}>
+                                        <span style={{ marginRight: 6 }}>{lang.flag}</span>
+                                        {lang.name}
+                                        {code === 'tr' ? (
+                                            <span style={{ marginLeft: 8, fontSize: 11, opacity: 0.6 }}>(Varsayılan)</span>
+                                        ) : (
+                                            <Button type="text" size="small" danger style={{ marginLeft: 4, padding: '0 4px' }}
+                                                onClick={() => handleToggleLanguage(code, false)}>×</Button>
+                                        )}
+                                    </Tag>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    <div>
+                        <Text strong style={{ display: 'block', marginBottom: 12, fontSize: 15 }}>Eklenebilir Diller</Text>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 }}>
+                            {availableLangs
+                                .filter(l => !supportedLangs.includes(l.code))
+                                .map(lang => (
+                                    <div key={lang.code} style={{
+                                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                        padding: '10px 14px', borderRadius: 10, border: '1px solid #f0f0f0',
+                                        background: '#fafafa',
+                                    }}>
+                                        <span>
+                                            <span style={{ marginRight: 8, fontSize: 16 }}>{lang.flag}</span>
+                                            <span style={{ fontWeight: 500 }}>{lang.name}</span>
+                                            <span style={{ marginLeft: 6, color: '#999', fontSize: 12 }}>({lang.code})</span>
+                                        </span>
+                                        <Button size="small" type="primary" ghost
+                                            onClick={() => handleToggleLanguage(lang.code, true)}>
+                                            Ekle
+                                        </Button>
+                                    </div>
+                                ))}
+                        </div>
+                        {availableLangs.filter(l => !supportedLangs.includes(l.code)).length === 0 && (
+                            <Text type="secondary">Tüm diller zaten ekli.</Text>
+                        )}
+                    </div>
+
+                    <div style={{ marginTop: 24, padding: 16, background: '#f0f9ff', borderRadius: 12, border: '1px solid #bae6fd' }}>
+                        <Text strong style={{ display: 'block', marginBottom: 8 }}>💡 Nasıl Çalışır?</Text>
+                        <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 2, color: '#475569' }}>
+                            <li>Yeni dil ekleyip kaydet&apos;e bastığınızda backend tüm site içeriklerini (hero başlıklar, SSS, iletişim vb.) otomatik DeepL ile çevirir.</li>
+                            <li>Frontend&apos;de statik dosyada çevirisi olmayan key&apos;ler de DeepL ile anlık çevrilir ve cache&apos;lenir.</li>
+                            <li>Her dil için SEO-uyumlu URL prefix&apos;i aktif olur: <code>/fr/</code>, <code>/ar/</code> vb.</li>
+                            <li>RTL diller (Arapça vb.) otomatik sağdan sola yerleşim alır.</li>
+                        </ul>
+                    </div>
                 </Card>
             ),
         },

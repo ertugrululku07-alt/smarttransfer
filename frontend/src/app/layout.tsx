@@ -57,6 +57,8 @@ interface TenantData {
     phone?: string;
     address?: string;
     logoUrl?: string;
+    faviconUrl?: string;
+    logoVariants?: { original?: string; header?: string; favicon?: string; voucher?: string; email?: string } | null;
   };
   seo: {
     siteUrl?: string;
@@ -198,7 +200,11 @@ export async function generateMetadata(): Promise<Metadata> {
     } : { index: false, follow: false },
     verification: Object.keys(verification).length > 0 ? verification : undefined,
     icons: {
-      icon: [{ url: '/favicon.ico' }],
+      icon: branding.faviconUrl
+        ? [{ url: branding.faviconUrl.startsWith('/') ? branding.faviconUrl : `/${branding.faviconUrl}`, type: 'image/png' }]
+        : branding.logoVariants?.favicon
+          ? [{ url: branding.logoVariants.favicon.startsWith('/') ? branding.logoVariants.favicon : `/${branding.logoVariants.favicon}`, type: 'image/png' }]
+          : [{ url: '/favicon.ico' }],
       apple: branding.logoUrl ? [{ url: branding.logoUrl }] : undefined,
     },
     other: {
