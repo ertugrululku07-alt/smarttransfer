@@ -44,11 +44,8 @@ function setCache(storageKey: string, cache: Record<string, string>, maxEntries 
  * 1. URL path prefix (/en/, /de/, /ru/)
  * 2. localStorage (user's explicit previous choice)
  * 3. Cookie (set by middleware or language switcher)
- * 4. Default: 'tr' (site's primary language)
- * 
- * NOTE: We intentionally do NOT use navigator.languages (browser language).
- * Many users have Chrome in English but want the site in Turkish.
- * The site defaults to Turkish; users must explicitly switch if they want another language.
+ * 4. Browser language (navigator.languages) — for first-time SPA navigation
+ * 5. Default: 'tr' (site's primary language)
  */
 function detectBrowserLocale(): SupportedLocale {
   if (typeof window === 'undefined') return 'tr';
@@ -75,7 +72,17 @@ function detectBrowserLocale(): SupportedLocale {
     return cookieLocale as SupportedLocale;
   }
 
-  // 4. Default — site's primary language
+  // 4. Browser language detection (first visit, middleware should have already redirected
+  //    but this is a fallback for client-side only scenarios)
+  const browserLangs = navigator.languages || [navigator.language];
+  for (const lang of browserLangs) {
+    const code = lang.toLowerCase().split('-')[0];
+    if (code && supportedLocales.includes(code as SupportedLocale)) {
+      return code as SupportedLocale;
+    }
+  }
+
+  // 5. Default
   return 'tr';
 }
 
