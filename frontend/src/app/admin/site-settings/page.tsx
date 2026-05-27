@@ -658,13 +658,16 @@ const SiteSettingsPage: React.FC = () => {
             });
             if (res.data.success) {
                 const { url, variants } = res.data.data;
-                setBrandingData(prev => ({
-                    ...prev,
+                const newBranding = {
+                    ...brandingData,
                     logoUrl: url,
                     logoVariants: variants || null,
-                    faviconUrl: variants?.favicon || prev.faviconUrl
-                }));
-                message.success('Logo optimize edildi ve yüklendi');
+                    faviconUrl: variants?.favicon || brandingData.faviconUrl
+                };
+                setBrandingData(newBranding);
+                // Auto-save to backend so favicon + logo persist on refresh
+                await apiClient.put('/api/tenant/settings', { branding: newBranding });
+                message.success('Logo optimize edildi, favicon güncellendi ve kaydedildi');
             }
         } catch (error) {
             console.error('Logo upload error:', error);
