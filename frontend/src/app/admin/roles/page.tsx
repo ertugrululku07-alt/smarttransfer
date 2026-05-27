@@ -88,41 +88,21 @@ export default function RoleManagementPage() {
     const [selectedPermissionIds, setSelectedPermissionIds] = useState<Set<string>>(new Set());
     const [saving, setSaving] = useState(false);
 
-    // Generate permissions client-side as fallback
-    const generateLocalPermissions = (): Permission[] => {
-        const perms: Permission[] = [];
-        MODULE_DEFINITIONS.forEach(mod => {
-            ['view', 'create', 'update', 'delete'].forEach(action => {
-                perms.push({ id: `${mod.module}:${action}`, module: mod.module, resource: mod.module, action });
-            });
-        });
-        return perms;
-    };
+    // ALWAYS generate permissions client-side — never depend on DB state
+    const LOCAL_PERMISSIONS: Permission[] = MODULE_DEFINITIONS.flatMap(mod =>
+        ['view', 'create', 'update', 'delete'].map(action => ({
+            id: `${mod.module}:${action}`, module: mod.module, resource: mod.module, action
+        }))
+    );
 
     const fetchData = useCallback(async () => {
         try {
             setLoading(true);
+            setAllPermissions(LOCAL_PERMISSIONS);
             const rolesRes = await apiClient.get('/api/roles');
 
             if (rolesRes.data.success) {
                 setRoles(rolesRes.data.data);
-            }
-            // allPermissions comes from the same response now
-            if (rolesRes.data.allPermissions && rolesRes.data.allPermissions.length > 0) {
-                setAllPermissions(rolesRes.data.allPermissions);
-            } else {
-                // Fallback: try dedicated endpoint
-                try {
-                    const permsRes = await apiClient.get('/api/roles/permissions');
-                    if (permsRes.data.success && permsRes.data.data?.permissions?.length > 10) {
-                        setAllPermissions(permsRes.data.data.permissions);
-                    } else {
-                        // Last resort: generate client-side
-                        setAllPermissions(generateLocalPermissions());
-                    }
-                } catch {
-                    setAllPermissions(generateLocalPermissions());
-                }
             }
         } catch (error) {
             console.error('Failed to load roles:', error);

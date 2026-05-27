@@ -45,6 +45,7 @@ jobs:
               npm install --production 2>/dev/null || true
               npx prisma generate 2>/dev/null || true
               npx prisma db push 2>/dev/null || true
+              node prisma/seed-permissions.js 2>&1 | tail -5
               cd ..
               echo "STEP 2 OK: Backend hazir"
 
