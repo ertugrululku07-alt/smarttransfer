@@ -180,19 +180,30 @@ router.get('/:id', authMiddleware, requirePermission('settings', 'view'), async 
 /**
  * PUT /api/roles/:id/permissions
  * Bulk update role permissions.
- * Body: { permissions: ["permissionId1", "permissionId2", ...] }
- * 
- * This replaces ALL current permissions with the provided list.
+ * Body: { permissions: ["permissionId1", ...] }
+ *   OR: { moduleActions: ["dashboard:view", "reservations:create", ...] }
  */
 router.put('/:id/permissions', authMiddleware, requirePermission('settings', 'update'), async (req, res) => {
     try {
         const tenantId = requireTenantId(req, res);
         if (!tenantId) return;
 
-        const { permissions: permissionIds } = req.body;
+        let { permissions: permissionIds, moduleActions } = req.body;
+
+        // Support module:action format
+        if (moduleActions && Array.isArray(moduleActions) && moduleActions.length > 0) {
+            const allPerms = await prisma.permission.findMany({ where: { scope: 'TENANT' } });
+            const idSet = new Set();
+            for (const ma of moduleActions) {
+                const [mod, action] = ma.split(':');
+                const found = allPerms.find(p => p.module === mod && p.action === action);
+                if (found) idSet.add(found.id);
+            }
+            permissionIds = Array.from(idSet);
+        }
 
         if (!Array.isArray(permissionIds)) {
-            return res.status(400).json({ success: false, error: 'permissions array is required' });
+            return res.status(400).json({ success: false, error: 'permissions or moduleActions array is required' });
         }
 
         const role = await prisma.role.findFirst({

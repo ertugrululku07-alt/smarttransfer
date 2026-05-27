@@ -148,6 +148,7 @@ const AdminUsersPage: React.FC = () => {
   };
 
   // ─── Permission Modal Handlers ──────────────────────────────────────────
+  // Uses module:action keys (e.g. "dashboard:view") as the canonical identifier
   const openPermModal = async (user: User) => {
     setPermUser(user);
     setPermModalOpen(true);
@@ -156,11 +157,23 @@ const AdminUsersPage: React.FC = () => {
       const res = await apiClient.get(`/api/users/${user.id}/permissions`);
       if (res.data.success) {
         const data = res.data.data;
-        // allPermissions comes from the same endpoint now
+        // Use allPermissions from API if available
         if (data.allPermissions && data.allPermissions.length > 0) {
           setAllPermissions(data.allPermissions);
+          // Set selected using IDs
+          setSelectedPermIds(new Set(data.permissions.map((p: any) => p.id)));
+        } else {
+          // Fallback: generate local permission list from MODULE_DEFS
+          const generated: PermissionItem[] = [];
+          MODULE_DEFS.forEach(mod => {
+            ['view', 'create', 'update', 'delete'].forEach(action => {
+              generated.push({ id: `${mod.module}:${action}`, module: mod.module, resource: mod.module, action });
+            });
+          });
+          setAllPermissions(generated);
+          // Map user's current permissions to module:action keys
+          setSelectedPermIds(new Set(data.permissions.map((p: any) => `${p.module}:${p.action}`)));
         }
-        setSelectedPermIds(new Set(data.permissions.map((p: any) => p.id)));
       }
     } catch {
       message.error('Yetkiler yüklenemedi');
@@ -168,6 +181,9 @@ const AdminUsersPage: React.FC = () => {
       setPermLoading(false);
     }
   };
+
+  // Check if we're using real IDs or module:action keys
+  const isUsingModuleKeys = () => allPermissions.length > 0 && allPermissions[0].id.includes(':');
 
   const handleTogglePerm = (permId: string) => {
     setSelectedPermIds(prev => {
@@ -200,7 +216,12 @@ const AdminUsersPage: React.FC = () => {
       await apiClient.post(`/api/users/${permUser.id}/permissions/copy-from-role`);
       const res = await apiClient.get(`/api/users/${permUser.id}/permissions`);
       if (res.data.success) {
-        setSelectedPermIds(new Set(res.data.data.permissions.map((p: any) => p.id)));
+        const data = res.data.data;
+        if (isUsingModuleKeys()) {
+          setSelectedPermIds(new Set(data.permissions.map((p: any) => `${p.module}:${p.action}`)));
+        } else {
+          setSelectedPermIds(new Set(data.permissions.map((p: any) => p.id)));
+        }
       }
       message.success('Rol şablonu kopyalandı');
     } catch {
@@ -214,9 +235,12 @@ const AdminUsersPage: React.FC = () => {
     if (!permUser) return;
     try {
       setPermSaving(true);
-      const res = await apiClient.put(`/api/users/${permUser.id}/permissions`, {
-        permissions: Array.from(selectedPermIds),
-      });
+      const selected = Array.from(selectedPermIds);
+      // Send as moduleActions if using module:action keys, else send as IDs
+      const body = isUsingModuleKeys()
+        ? { moduleActions: selected }
+        : { permissions: selected };
+      const res = await apiClient.put(`/api/users/${permUser.id}/permissions`, body);
       if (res.data.success) {
         message.success(res.data.message);
         setPermModalOpen(false);

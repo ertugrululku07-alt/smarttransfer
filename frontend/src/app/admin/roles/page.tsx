@@ -88,6 +88,17 @@ export default function RoleManagementPage() {
     const [selectedPermissionIds, setSelectedPermissionIds] = useState<Set<string>>(new Set());
     const [saving, setSaving] = useState(false);
 
+    // Generate permissions client-side as fallback
+    const generateLocalPermissions = (): Permission[] => {
+        const perms: Permission[] = [];
+        MODULE_DEFINITIONS.forEach(mod => {
+            ['view', 'create', 'update', 'delete'].forEach(action => {
+                perms.push({ id: `${mod.module}:${action}`, module: mod.module, resource: mod.module, action });
+            });
+        });
+        return perms;
+    };
+
     const fetchData = useCallback(async () => {
         try {
             setLoading(true);
@@ -100,13 +111,18 @@ export default function RoleManagementPage() {
             if (rolesRes.data.allPermissions && rolesRes.data.allPermissions.length > 0) {
                 setAllPermissions(rolesRes.data.allPermissions);
             } else {
-                // Fallback: fetch from dedicated endpoint
+                // Fallback: try dedicated endpoint
                 try {
                     const permsRes = await apiClient.get('/api/roles/permissions');
-                    if (permsRes.data.success && permsRes.data.data?.permissions) {
+                    if (permsRes.data.success && permsRes.data.data?.permissions?.length > 10) {
                         setAllPermissions(permsRes.data.data.permissions);
+                    } else {
+                        // Last resort: generate client-side
+                        setAllPermissions(generateLocalPermissions());
                     }
-                } catch { /* ignore */ }
+                } catch {
+                    setAllPermissions(generateLocalPermissions());
+                }
             }
         } catch (error) {
             console.error('Failed to load roles:', error);
@@ -120,25 +136,13 @@ export default function RoleManagementPage() {
 
     const openEditModal = async (role: Role) => {
         setSelectedRole(role);
-        setSelectedPermissionIds(new Set(role.permissions.map(p => p.id)));
+        // Map role permissions to matching keys in allPermissions
+        const rolePermKeys = role.permissions.map(p => `${p.module}:${p.action}`);
+        const matchedIds = allPermissions
+            .filter(ap => rolePermKeys.includes(`${ap.module}:${ap.action}`))
+            .map(ap => ap.id);
+        setSelectedPermissionIds(new Set(matchedIds));
         setEditModalOpen(true);
-
-        // Re-fetch permissions if not loaded yet
-        if (allPermissions.length === 0) {
-            try {
-                const rolesRes = await apiClient.get('/api/roles');
-                if (rolesRes.data.allPermissions) {
-                    setAllPermissions(rolesRes.data.allPermissions);
-                } else {
-                    const permsRes = await apiClient.get('/api/roles/permissions');
-                    if (permsRes.data.success) {
-                        setAllPermissions(permsRes.data.data.permissions);
-                    }
-                }
-            } catch (e) {
-                console.error('Failed to fetch permissions:', e);
-            }
-        }
     };
 
     const handleTogglePermission = (permId: string) => {
@@ -185,9 +189,13 @@ export default function RoleManagementPage() {
 
         try {
             setSaving(true);
-            const res = await apiClient.put(`/api/roles/${selectedRole.id}/permissions`, {
-                permissions: Array.from(selectedPermissionIds),
-            });
+            const selected = Array.from(selectedPermissionIds);
+            // If IDs contain ':' they are module:action keys, send as moduleActions
+            const isModuleKeys = selected.length > 0 && selected[0].includes(':');
+            const body = isModuleKeys
+                ? { moduleActions: selected }
+                : { permissions: selected };
+            const res = await apiClient.put(`/api/roles/${selectedRole.id}/permissions`, body);
 
             if (res.data.success) {
                 message.success(`${selectedRole.name} yetkileri güncellendi`);
