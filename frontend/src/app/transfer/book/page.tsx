@@ -562,7 +562,7 @@ const TransferBookingContent: React.FC = () => {
                     {
                         firstName: values.fullName.split(' ')[0],
                         lastName: values.fullName.split(' ').slice(1).join(' ') || '',
-                        nationality: null,
+                        nationality: countryList.find(c => '+' + c.phone === (values.prefix || '+90'))?.code || 'TR',
                         type: 'adult'
                     },
                     ...(values.passengerList || []).map((p: any) => ({
@@ -620,7 +620,7 @@ const TransferBookingContent: React.FC = () => {
                     {
                         firstName: values.fullName.split(' ')[0],
                         lastName: values.fullName.split(' ').slice(1).join(' ') || '',
-                        nationality: null,
+                        nationality: countryList.find(c => '+' + c.phone === (values.prefix || '+90'))?.code || 'TR',
                         type: 'adult'
                     },
                     ...(values.passengerList || []).map((p: any) => ({

@@ -209,23 +209,20 @@ router.get('/recipients/languages', authMiddleware, adminMiddleware, async (req,
     try {
         const tenantId = req.user.tenantId;
 
-        // Get unique customers from bookings with their locale
+        // Get unique customers from bookings with their phone
         const bookings = await prisma.booking.findMany({
             where: { tenantId, status: { not: 'CANCELLED' } },
-            select: {
-                contactEmail: true,
-                customer: { select: { locale: true } }
-            },
+            select: { contactEmail: true, contactPhone: true },
             distinct: ['contactEmail']
         });
 
-        // Count by locale
+        // Count by locale (derived from phone prefix)
         const langMap = {};
         const seen = new Set();
         for (const b of bookings) {
             if (!b.contactEmail || seen.has(b.contactEmail.toLowerCase())) continue;
             seen.add(b.contactEmail.toLowerCase());
-            const locale = b.customer?.locale || 'tr';
+            const locale = detectLocaleFromPhone(b.contactPhone);
             langMap[locale] = (langMap[locale] || 0) + 1;
         }
 
@@ -337,24 +334,59 @@ router.get('/stats', authMiddleware, adminMiddleware, async (req, res) => {
 // HELPER FUNCTIONS
 // ============================================================================
 
+// Phone prefix → locale mapping (derive customer language from phone country code)
+const PHONE_TO_LOCALE = {
+    '90': 'tr', '44': 'en', '1': 'en', '49': 'de', '7': 'ru',
+    '33': 'fr', '31': 'nl', '48': 'pl', '358': 'fi', '46': 'sv',
+    '47': 'no', '45': 'da', '34': 'es', '39': 'it', '351': 'pt',
+    '420': 'cs', '380': 'uk', '966': 'ar', '971': 'ar', '974': 'ar',
+    '965': 'ar', '973': 'ar', '968': 'ar', '962': 'ar', '961': 'ar',
+    '20': 'ar', '212': 'ar', '213': 'ar', '216': 'ar',
+    '43': 'de', '41': 'de', '32': 'nl', '353': 'en', '61': 'en',
+    '64': 'en', '27': 'en', '91': 'en', '86': 'zh', '81': 'ja', '82': 'ko',
+    '375': 'ru', '374': 'ru', '995': 'ru', '998': 'ru', '996': 'ru',
+    '992': 'ru', '993': 'ru', '994': 'ru',
+    '40': 'ro', '359': 'bg', '381': 'sr', '385': 'hr', '386': 'sl',
+    '36': 'hu', '30': 'el', '372': 'et', '371': 'lv', '370': 'lt',
+};
+
+function detectLocaleFromPhone(phone) {
+    if (!phone) return 'tr';
+    // Extract prefix: "+90 555..." → "90", "+44 7..." → "44", "+380..." → "380"
+    const match = phone.replace(/\s/g, '').match(/^\+(\d{1,4})/);
+    if (!match) return 'tr';
+    const digits = match[1];
+    // Try longest prefix first (3 digits, then 2, then 1)
+    if (PHONE_TO_LOCALE[digits.substring(0, 3)]) return PHONE_TO_LOCALE[digits.substring(0, 3)];
+    if (PHONE_TO_LOCALE[digits.substring(0, 2)]) return PHONE_TO_LOCALE[digits.substring(0, 2)];
+    if (PHONE_TO_LOCALE[digits.substring(0, 1)]) return PHONE_TO_LOCALE[digits.substring(0, 1)];
+    return 'tr';
+}
+
 async function countRecipients(tenantId, filter) {
     const where = buildRecipientWhere(tenantId, filter);
     const bookings = await prisma.booking.findMany({
         where,
-        select: { contactEmail: true, contactPhone: true, customer: { select: { locale: true } } },
+        select: { contactEmail: true, contactPhone: true },
         distinct: ['contactEmail']
     });
 
-    // Apply locale filter if specified
-    const locales = filter.locales; // e.g. ['tr', 'en', 'de']
-    let filtered = bookings.filter(b => b.contactEmail || b.contactPhone);
-    if (locales && locales.length > 0) {
-        filtered = filtered.filter(b => {
-            const locale = b.customer?.locale || 'tr';
-            return locales.includes(locale);
-        });
+    const locales = filter.locales;
+    const seen = new Set();
+    let count = 0;
+    for (const b of bookings) {
+        if (!b.contactEmail && !b.contactPhone) continue;
+        const key = (b.contactEmail || b.contactPhone).toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+
+        if (locales && locales.length > 0) {
+            const locale = detectLocaleFromPhone(b.contactPhone);
+            if (!locales.includes(locale)) continue;
+        }
+        count++;
     }
-    return filtered.length;
+    return count;
 }
 
 function buildRecipientWhere(tenantId, filter) {
@@ -368,24 +400,19 @@ async function getRecipients(tenantId, filter) {
     const where = buildRecipientWhere(tenantId, filter);
     const bookings = await prisma.booking.findMany({
         where,
-        select: {
-            contactName: true, contactEmail: true, contactPhone: true,
-            customer: { select: { locale: true } }
-        },
+        select: { contactName: true, contactEmail: true, contactPhone: true },
         distinct: ['contactEmail'],
         orderBy: { createdAt: 'desc' }
     });
 
-    const locales = filter.locales; // e.g. ['tr', 'en', 'de']
-
-    // De-duplicate by email and apply locale filter
+    const locales = filter.locales;
     const seen = new Set();
     const recipients = [];
     for (const b of bookings) {
         const key = (b.contactEmail || b.contactPhone || '').toLowerCase();
         if (!key || seen.has(key)) continue;
 
-        const locale = b.customer?.locale || 'tr';
+        const locale = detectLocaleFromPhone(b.contactPhone);
         if (locales && locales.length > 0 && !locales.includes(locale)) continue;
 
         seen.add(key);
