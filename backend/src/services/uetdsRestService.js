@@ -192,6 +192,7 @@ class UetdsRestService {
             bitis_ilce: bitis_ilce_id,
             bitis_yer: reservation.dropoffLocation || 'Merkez',
             'personel[]': [matchedDriver.id],
+            'personel_gorev[]': ['sofor'],
             
             // Passenger Arrays
             'yolcu_uyruk[]': [],
@@ -210,7 +211,7 @@ class UetdsRestService {
             payload['yolcu_soyad[]'].push(p.lastName || 'SOYADI');
             payload['yolcu_koltuk[]'].push(String(i + 1));
             payload['yolcu_tel[]'].push(String(p.phone).replace(/\D/g, '') || '5350000000');
-            payload['yolcu_cinsiyet[]'].push(p.gender === 'K' ? '1' : '0'); // 0: Erkek, 1: Kadın
+            payload['yolcu_cinsiyet[]'].push(p.gender === 'K' || p.gender === 'F' || p.gender === '2' ? 'K' : 'E'); // E: Erkek, K: Kadın
         });
 
         return await this.seferbildir(payload);
