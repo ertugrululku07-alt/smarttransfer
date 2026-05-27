@@ -91,7 +91,7 @@ export default function BudgetPage() {
 
   return (
     <>
-      <Card title={<span><PieChartOutlined style={{ marginRight: 8, color: 'var(--brand-primary)' }} /> Bütçe Yönetimi</span>} size="small"
+      <Card title={<span><PieChartOutlined style={{ marginRight: 8, color: '#6366f1' }} /> Bütçe Yönetimi</span>} size="small"
         extra={
           <Space>
             <DatePicker picker="month" value={period} onChange={(v)=>setPeriod(v || dayjs())} />

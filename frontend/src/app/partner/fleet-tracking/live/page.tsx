@@ -167,7 +167,7 @@ export default function FleetLivePage() {
           <div className="ps-kpi"><div className="ps-kpi__label">Filo</div><div className="ps-kpi__value">{vehicles.length}</div></div>
           <div className="ps-kpi" style={{ borderLeft: '3px solid #10b981' }}><div className="ps-kpi__label">Çevrimiçi</div><div className="ps-kpi__value">{onlineCount}</div></div>
           <div className="ps-kpi" style={{ borderLeft: '3px solid #94a3b8' }}><div className="ps-kpi__label">Haritada</div><div className="ps-kpi__value">{mapMarkers.length}</div></div>
-          <div className="ps-kpi" style={{ borderLeft: '3px solid var(--brand-primary)' }}><div className="ps-kpi__label">Geofence</div><div className="ps-kpi__value">{geofences.length}</div></div>
+          <div className="ps-kpi" style={{ borderLeft: '3px solid #6366f1' }}><div className="ps-kpi__label">Geofence</div><div className="ps-kpi__value">{geofences.length}</div></div>
         </div>
 
         <Tabs
@@ -191,7 +191,7 @@ export default function FleetLivePage() {
         )}
       </Card>
 
-      <Card size="small" title={<span><ApiOutlined style={{ marginRight: 8, color: 'var(--brand-primary)' }} /> IoT Cihazları & API Anahtarları</span>}
+      <Card size="small" title={<span><ApiOutlined style={{ marginRight: 8, color: '#6366f1' }} /> IoT Cihazları & API Anahtarları</span>}
         extra={<Button type="primary" icon={<PlusOutlined />} onClick={() => { form.resetFields(); setCreateModal(true); }}>Yeni Cihaz</Button>}
       >
         <Alert showIcon type="info" style={{ marginBottom: 12 }} message="Telemetri ingestion endpoint"

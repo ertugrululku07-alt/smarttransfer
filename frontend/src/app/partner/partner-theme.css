@@ -12,8 +12,8 @@
   --ps-sidebar-text: rgba(255,255,255,0.65);
   --ps-sidebar-text-active: #ffffff;
   --ps-sidebar-muted: rgba(255,255,255,0.35);
-  --ps-nav-active-bg: var(--brand-primary-18);
-  --ps-nav-active-accent: var(--brand-primary);
+  --ps-nav-active-bg: rgba(99,102,241,0.18);
+  --ps-nav-active-accent: #6366f1;
   --ps-nav-hover-bg: rgba(255,255,255,0.06);
 
   /* Content */
@@ -30,10 +30,10 @@
   --ps-font: var(--font-outfit), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 
   /* Accent */
-  --ps-accent: var(--brand-primary);
-  --ps-accent-dark: var(--brand-accent);
-  --ps-accent-light: var(--brand-primary-10);
-  --ps-accent-glow: var(--brand-primary-22);
+  --ps-accent: #6366f1;
+  --ps-accent-dark: #4f46e5;
+  --ps-accent-light: #eef2ff;
+  --ps-accent-glow: rgba(99,102,241,0.25);
 
   /* Status */
   --ps-success: #10b981;
@@ -173,7 +173,7 @@
   width: 36px;
   height: 36px;
   border-radius: 8px;
-  background: linear-gradient(135deg, var(--brand-accent), var(--brand-primary));
+  background: linear-gradient(135deg, #8b5cf6, #6366f1);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -429,10 +429,10 @@
 }
 .partner-op-resize-handle:hover,
 .partner-op-resize-handle:active {
-  background: linear-gradient(90deg, transparent 35%, var(--brand-primary) 50%, transparent 65%);
+  background: linear-gradient(90deg, transparent 35%, #6366f1 50%, transparent 65%);
 }
 .partner-op-table-wrap .ant-table-thead > tr > th:hover .partner-op-resize-handle {
-  background: linear-gradient(90deg, transparent 35%, var(--brand-primary-15) 50%, transparent 65%);
+  background: linear-gradient(90deg, transparent 35%, #c7d2fe 50%, transparent 65%);
 }
 .partner-op-table-wrap .react-resizable {
   position: relative;
@@ -786,7 +786,7 @@
   width: 38px;
   height: 38px;
   border-radius: 10px;
-  background: linear-gradient(135deg, #3b82f6, var(--brand-primary));
+  background: linear-gradient(135deg, #3b82f6, #6366f1);
   color: #fff;
   display: flex;
   align-items: center;

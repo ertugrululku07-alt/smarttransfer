@@ -100,7 +100,7 @@ export default function EmployeesPage() {
 
   return (
     <>
-      <Card title={<span><TeamOutlined style={{ marginRight: 8, color: 'var(--brand-primary)' }} /> Personel</span>} size="small"
+      <Card title={<span><TeamOutlined style={{ marginRight: 8, color: '#6366f1' }} /> Personel</span>} size="small"
         extra={
           <Space>
             <Input.Search placeholder="Ara" allowClear value={search} onChange={(e)=>setSearch(e.target.value)} onSearch={load} style={{ width: 180 }} />

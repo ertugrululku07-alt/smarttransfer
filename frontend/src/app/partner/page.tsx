@@ -269,7 +269,7 @@ export default function PartnerDashboard() {
   const allBusy = vehicleCap.total > 0 && vehicleCap.available === 0;
 
   const quickActions = [
-    { icon: <PlusOutlined />, label: 'Yeni İş', color: 'var(--brand-primary)', bg: 'var(--brand-primary-08)', path: '/partner/bookings/new' },
+    { icon: <PlusOutlined />, label: 'Yeni İş', color: '#6366f1', bg: '#eef2ff', path: '/partner/bookings/new' },
     { icon: <CompassOutlined />, label: 'Canlı Takip', color: '#10b981', bg: '#ecfdf5', path: '/partner/dispatch' },
     { icon: <GlobalOutlined />, label: 'Pazar Yeri', color: '#f59e0b', bg: '#fffbeb', path: '/partner/marketplace' },
     { icon: <AppstoreOutlined />, label: 'Transferler', color: '#3b82f6', bg: '#eff6ff', path: '/partner/pool' },
@@ -295,7 +295,7 @@ export default function PartnerDashboard() {
           value={fetching ? <Spin size="small" /> : fmt(stats.pending)}
           sub="transfer"
           icon={<ClockCircleOutlined />}
-          color="var(--brand-primary)" bg="var(--brand-primary-08)" accent="linear-gradient(90deg,var(--brand-primary),var(--brand-accent))"
+          color="#6366f1" bg="#eef2ff" accent="linear-gradient(90deg,#6366f1,#8b5cf6)"
         />
         <KpiCard
           label="Bugün"
@@ -309,7 +309,7 @@ export default function PartnerDashboard() {
           value={fetching ? <Spin size="small" /> : fmt(stats.completed)}
           sub="toplam"
           icon={<CheckCircleOutlined />}
-          color="#3b82f6" bg="#eff6ff" accent="linear-gradient(90deg,#3b82f6,var(--brand-primary))"
+          color="#3b82f6" bg="#eff6ff" accent="linear-gradient(90deg,#3b82f6,#6366f1)"
         />
         <KpiCard
           label="Gelir"
@@ -388,7 +388,7 @@ export default function PartnerDashboard() {
           {/* Quick actions */}
           <div className="ps-card">
             <div className="ps-card-header">
-              <h3 className="ps-card-title"><ThunderboltOutlined style={{ color: 'var(--brand-primary)' }} /> Hızlı İşlemler</h3>
+              <h3 className="ps-card-title"><ThunderboltOutlined style={{ color: '#6366f1' }} /> Hızlı İşlemler</h3>
             </div>
             <div className="ps-card-body">
               <div className="ps-quick-grid">
@@ -434,7 +434,7 @@ export default function PartnerDashboard() {
                   <Progress
                     percent={drivers.length > 0 ? Math.round((busyDrivers / drivers.length) * 100) : 0}
                     showInfo={false}
-                    strokeColor="var(--brand-primary)"
+                    strokeColor="#6366f1"
                     size="small"
                   />
                 </div>
@@ -531,10 +531,10 @@ export default function PartnerDashboard() {
                 cursor: actionLoading ? 'not-allowed' : 'pointer',
                 textAlign: 'left', width: '100%', transition: 'border-color 0.2s',
               }}
-              onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--brand-primary)')}
+              onMouseEnter={e => (e.currentTarget.style.borderColor = '#6366f1')}
               onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--ps-border)')}
             >
-              <div style={{ width: 40, height: 40, borderRadius: 10, background: 'var(--brand-primary-08)', color: 'var(--brand-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <div style={{ width: 40, height: 40, borderRadius: 10, background: '#eef2ff', color: '#6366f1', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                 <CarOutlined style={{ fontSize: 18 }} />
               </div>
               <div style={{ flex: 1 }}>

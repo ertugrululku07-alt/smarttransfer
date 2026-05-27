@@ -81,7 +81,7 @@ function DraggableCenter({
 
 export default function FleetGeofenceDrawer({ value, onChange, height = 340 }: FleetGeofenceDrawerProps) {
   const drawType = value?.type || 'CIRCLE';
-  const color = value?.color || 'var(--brand-primary)';
+  const color = value?.color || '#6366f1';
   const [polygonDraft, setPolygonDraft] = useState<number[][]>(
     Array.isArray(value?.polygon) ? value!.polygon! : [],
   );

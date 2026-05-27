@@ -161,7 +161,7 @@ const PartnerDispatchPage = () => {
                         background: '#fff', borderBottom: '1px solid #e2e8f0', flexShrink: 0, flexWrap: 'wrap'
                     }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginRight: 12 }}>
-                            <CompassOutlined style={{ fontSize: 18, color: 'var(--brand-primary)' }} />
+                            <CompassOutlined style={{ fontSize: 18, color: '#6366f1' }} />
                             <span style={{ fontWeight: 700, fontSize: 15, color: '#1e293b' }}>Operasyon Merkezi</span>
                         </div>
                         {[

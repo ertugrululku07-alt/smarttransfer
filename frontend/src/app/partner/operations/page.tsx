@@ -252,7 +252,7 @@ function DraggableResizableHeader(props: any) {
     transition: sortable.transition,
     cursor: fixed ? 'default' : 'grab',
     opacity: sortable.isDragging ? 0.65 : 1,
-    background: sortable.isDragging ? 'var(--brand-primary-08)' : (style?.background as any),
+    background: sortable.isDragging ? '#eef2ff' : (style?.background as any),
     zIndex: sortable.isDragging ? 5 : (style?.zIndex as any),
     userSelect: 'none',
     position: (style?.position as any) || 'relative',
@@ -353,7 +353,7 @@ function RowActions({
     { key: 'detail', icon: <EyeOutlined />, label: 'Detay Görüntüle' },
     { key: 'edit', icon: <FormOutlined />, label: 'Rezervasyonu Düzenle' },
     { type: 'divider' as const },
-    { key: 'inop', icon: <ThunderboltOutlined style={{ color: 'var(--brand-primary)' }} />, label: 'Operasyona Al' },
+    { key: 'inop', icon: <ThunderboltOutlined style={{ color: '#6366f1' }} />, label: 'Operasyona Al' },
     { key: 'picked', icon: <CheckCircleOutlined style={{ color: '#10b981' }} />, label: 'Yolcu Alındı' },
     { key: 'onway', icon: <CarOutlined style={{ color: '#3b82f6' }} />, label: 'Yolda' },
     { key: 'complete', icon: <CheckCircleOutlined style={{ color: '#16a34a' }} />, label: 'Tamamla' },
@@ -365,7 +365,7 @@ function RowActions({
     { key: 'uetds', icon: <CloudUploadOutlined style={{ color: '#f59e0b' }} />, label: "UETDS'ye Gönder" },
     {
       key: 'message',
-      icon: <MessageOutlined style={{ color: 'var(--brand-primary)' }} />,
+      icon: <MessageOutlined style={{ color: '#6366f1' }} />,
       label: 'Mesaj Gönder',
       disabled: !row.driver?.id,
     },
@@ -459,7 +459,7 @@ function SortableRow({
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.65 : 1,
-    boxShadow: isDragging ? '0 8px 24px var(--brand-primary-22)' : undefined,
+    boxShadow: isDragging ? '0 8px 24px rgba(99,102,241,0.25)' : undefined,
     zIndex: isDragging ? 10 : 'auto',
     position: 'relative',
   };
@@ -1085,7 +1085,7 @@ export default function PartnerOperationsPage() {
             setDetailRow(r);
             setIsDetailDrawerOpen(true);
           }}
-          style={{ fontWeight: 700, color: 'var(--brand-accent)', fontSize: 11 }}
+          style={{ fontWeight: 700, color: '#4f46e5', fontSize: 11 }}
         >
           {v}
         </a>
@@ -1446,7 +1446,7 @@ export default function PartnerOperationsPage() {
       <div className="ps-page-header">
         <div>
           <h1 className="ps-page-header__title">
-            <AppstoreOutlined style={{ color: 'var(--brand-primary)', marginRight: 8 }} />
+            <AppstoreOutlined style={{ color: '#6366f1', marginRight: 8 }} />
             Operasyon
           </h1>
           <p className="ps-page-header__subtitle">

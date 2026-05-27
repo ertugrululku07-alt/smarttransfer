@@ -30,7 +30,6 @@ const selectFields = {
     name: true,
     status: true,
     plan: true,
-    settings: true,
     transferEnabled: true,
     tourEnabled: true,
     hotelEnabled: true,

@@ -26,7 +26,7 @@ const DEFAULT_DRAW: GeofenceDrawValue = {
   centerLng: 30.7133,
   radiusM: 1000,
   polygon: [],
-  color: 'var(--brand-primary)',
+  color: '#6366f1',
 };
 
 export default function FleetGeofencesPage() {
@@ -69,7 +69,7 @@ export default function FleetGeofencesPage() {
 
   const openCreate = () => {
     form.resetFields();
-    form.setFieldsValue({ type: 'CIRCLE', alertOn: 'EXIT', color: 'var(--brand-primary)', isActive: true });
+    form.setFieldsValue({ type: 'CIRCLE', alertOn: 'EXIT', color: '#6366f1', isActive: true });
     setDrawValue(DEFAULT_DRAW);
     setModal({ open: true });
   };
@@ -85,7 +85,7 @@ export default function FleetGeofencesPage() {
       centerLng: row.centerLng ?? DEFAULT_DRAW.centerLng,
       radiusM: row.radiusM ?? DEFAULT_DRAW.radiusM,
       polygon: Array.isArray(row.polygon) ? row.polygon : [],
-      color: row.color || 'var(--brand-primary)',
+      color: row.color || '#6366f1',
     });
     setModal({ open: true, edit: row });
   };
@@ -170,7 +170,7 @@ export default function FleetGeofencesPage() {
         {geofences.length === 0 ? <Empty description="Henüz geofence tanımlanmamış — Haritada Çiz ile başlayın" /> : (
           <Table rowKey="id" size="small" style={{ marginTop: 14 }} pagination={{ pageSize: 10, size: 'small' }} dataSource={geofences}
             columns={[
-              { title: 'Ad', dataIndex: 'name', render: (n: string, r: any) => <span><span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 999, background: r.color || 'var(--brand-primary)', marginRight: 8 }} />{n}</span> },
+              { title: 'Ad', dataIndex: 'name', render: (n: string, r: any) => <span><span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 999, background: r.color || '#6366f1', marginRight: 8 }} />{n}</span> },
               { title: 'Tip', dataIndex: 'type', width: 90, render: (t: string) => <Tag>{t === 'CIRCLE' ? 'DAİRE' : 'POLİGON'}</Tag> },
               { title: 'Uyarı', dataIndex: 'alertOn', width: 110, render: (a: string) => ALERT_OPTIONS.find((x) => x.value === a)?.label || a },
               { title: 'Araç', dataIndex: 'vehicleIds', render: (ids: string[] | null) => !ids?.length ? <Tag>TÜM FİLO</Tag> : <Tag>{ids.length} araç</Tag> },

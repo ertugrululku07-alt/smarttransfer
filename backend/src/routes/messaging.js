@@ -9,14 +9,9 @@ const prisma = require('../lib/prisma');
 const { getTransporter, renderTemplate } = require('../lib/emailService');
 const { sendWhatsAppMessage, normalizePhone } = require('../lib/whatsappService');
 
-// Auth middleware
+// Auth middleware — use shared tenant admin check (roleType / roleCode)
 const { authMiddleware } = require('../middleware/auth');
-const adminMiddleware = (req, res, next) => {
-    if (!req.user || !['SUPER_ADMIN', 'ADMIN', 'MANAGER'].includes(req.user.role?.name || req.user.roleName)) {
-        return res.status(403).json({ success: false, error: 'Yetkisiz erişim' });
-    }
-    next();
-};
+const { adminMiddleware } = require('../utils/tenantScope');
 
 // ============================================================================
 // TEMPLATES

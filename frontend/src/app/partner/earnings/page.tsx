@@ -69,16 +69,16 @@ export default function EarningsPage() {
               )}
             </div>
             <div className="ps-kpi">
-              <div className="ps-kpi__accent" style={{ background: 'linear-gradient(90deg,var(--brand-primary),var(--brand-accent))' }} />
+              <div className="ps-kpi__accent" style={{ background: 'linear-gradient(90deg,#6366f1,#8b5cf6)' }} />
               <div className="ps-kpi__header">
                 <span className="ps-kpi__label">Net Kazanç</span>
-                <span className="ps-kpi__icon" style={{ background: 'var(--brand-primary-08)', color: 'var(--brand-primary)' }}><DollarOutlined /></span>
+                <span className="ps-kpi__icon" style={{ background: '#eef2ff', color: '#6366f1' }}><DollarOutlined /></span>
               </div>
               <div className="ps-kpi__value" style={{ fontSize: '1.5rem' }}>{fmtCur(data?.netEarnings)}</div>
               <div className="ps-kpi__sub">Komisyon sonrası</div>
             </div>
             <div className="ps-kpi">
-              <div className="ps-kpi__accent" style={{ background: 'linear-gradient(90deg,#3b82f6,var(--brand-primary))' }} />
+              <div className="ps-kpi__accent" style={{ background: 'linear-gradient(90deg,#3b82f6,#6366f1)' }} />
               <div className="ps-kpi__header">
                 <span className="ps-kpi__label">Tamamlanan</span>
                 <span className="ps-kpi__icon" style={{ background: '#eff6ff', color: '#3b82f6' }}><CheckCircleOutlined /></span>
@@ -101,7 +101,7 @@ export default function EarningsPage() {
           {data?.commissionRate != null && (
             <div className="ps-card" style={{ marginBottom: 20 }}>
               <div className="ps-card-header">
-                <h3 className="ps-card-title"><DollarOutlined style={{ color: 'var(--brand-primary)' }} /> Komisyon Detayı</h3>
+                <h3 className="ps-card-title"><DollarOutlined style={{ color: '#6366f1' }} /> Komisyon Detayı</h3>
               </div>
               <div className="ps-card-body">
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>

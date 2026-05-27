@@ -107,7 +107,7 @@ export default function FleetLiveMap({
         <FitBounds markers={markers} route={route} />
 
         {geofences.map((gf) => {
-          const color = gf.color || 'var(--brand-primary)';
+          const color = gf.color || '#6366f1';
           if (gf.type === 'CIRCLE' && gf.centerLat != null && gf.centerLng != null && gf.radiusM) {
             return (
               <Circle
@@ -134,7 +134,7 @@ export default function FleetLiveMap({
         {route && route.length >= 2 && (
           <Polyline
             positions={route.map((p) => [p.lat, p.lng] as [number, number])}
-            pathOptions={{ color: 'var(--brand-primary)', weight: 4, opacity: 0.85 }}
+            pathOptions={{ color: '#6366f1', weight: 4, opacity: 0.85 }}
           />
         )}
 

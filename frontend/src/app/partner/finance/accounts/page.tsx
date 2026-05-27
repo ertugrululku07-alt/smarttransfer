@@ -115,7 +115,7 @@ export default function FinanceAccountsPage() {
   return (
     <>
       <Card
-        title={<span><BankOutlined style={{ marginRight: 8, color: 'var(--brand-primary)' }} /> Cariler</span>}
+        title={<span><BankOutlined style={{ marginRight: 8, color: '#6366f1' }} /> Cariler</span>}
         size="small"
         extra={
           <Space>

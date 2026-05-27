@@ -219,7 +219,6 @@ model User {
   partnerEmployees       PartnerEmployee[]       @relation("PartnerEmployees")
   partnerOffers          MarketplaceOffer[]      @relation("PartnerOffers")
   partnerOwnedBookings   Booking[]               @relation("PartnerOwnedBookings")
-  userPermissions        UserPermission[]
   // Financial Snapshot
   balance                Decimal                 @default(0) @db.Decimal(15, 2)
   debit                  Decimal                 @default(0) @db.Decimal(15, 2)
@@ -304,7 +303,6 @@ model Permission {
 
   // Relations
   roles RolePermission[]
-  users UserPermission[]
 
   @@unique([module, resource, action, scope])
 }
@@ -327,18 +325,6 @@ model RolePermission {
   conditions Json?
 
   @@id([roleId, permissionId])
-}
-
-model UserPermission {
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  permissionId String
-  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
-
-  createdAt DateTime @default(now())
-
-  @@id([userId, permissionId])
 }
 
 model RefreshToken {

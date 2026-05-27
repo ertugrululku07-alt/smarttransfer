@@ -4,7 +4,6 @@
 const express = require('express');
 
 const { authMiddleware, optionalAuthMiddleware } = require('../middleware/auth');
-const { requirePermission } = require('../middleware/permission');
 const turf = require('@turf/turf');
 const flexpolyline = require('@here/flexpolyline');
 
@@ -1947,7 +1946,7 @@ router.post('/book', optionalAuthMiddleware, async (req, res) => {
  * GET /api/transfer/bookings
  * Get all transfer bookings (for Admin) - From Database
  */
-router.get('/bookings', authMiddleware, requirePermission('reservations', 'view'), async (req, res) => {
+router.get('/bookings', authMiddleware, async (req, res) => {
     try {
         const tenantId = requireTenantId(req, res);
         if (!tenantId) return;
@@ -3000,7 +2999,7 @@ router.get('/partner/my-vehicles', authMiddleware, async (req, res) => {
  * PATCH /api/transfer/bookings/:id
  * Update booking operational assignment (driver, vehicle) - Admin
  */
-router.patch('/bookings/:id', authMiddleware, requirePermission('reservations', 'update'), async (req, res) => {
+router.patch('/bookings/:id', authMiddleware, async (req, res) => {
     try {
         const { id } = req.params;
         const { driverId, assignedVehicleId, skipConflictCheck, internalNotes, returnToReservation, returnReason,
@@ -3426,7 +3425,7 @@ router.patch('/bookings/:id', authMiddleware, requirePermission('reservations', 
  * POST /api/transfer/bookings/admin
  * Create new manual booking from Call Center (Admin)
  */
-router.post('/bookings/admin', authMiddleware, requirePermission('reservations', 'create'), async (req, res) => {
+router.post('/bookings/admin', authMiddleware, async (req, res) => {
     try {
         const {
             passengerName, passengerPhone, passengerEmail,
@@ -3722,7 +3721,7 @@ router.post('/bookings/admin', authMiddleware, requirePermission('reservations',
  * PUT /api/transfer/bookings/admin/:id
  * Update booking details (Admin Call Center)
  */
-router.put('/bookings/admin/:id', authMiddleware, requirePermission('reservations', 'update'), async (req, res) => {
+router.put('/bookings/admin/:id', authMiddleware, async (req, res) => {
     try {
         const { id } = req.params;
         const { passengerName, passengerPhone, pickup, dropoff, pickupDateTime, vehicleType, flightNumber, price, notes, adults, children, infants } = req.body;
@@ -3795,7 +3794,7 @@ router.put('/bookings/admin/:id', authMiddleware, requirePermission('reservation
  * PUT /api/transfer/bookings/:id/status
  * Update booking status (Admin) - In Database
  */
-router.put('/bookings/:id/status', authMiddleware, requirePermission('reservations', 'update'), async (req, res) => {
+router.put('/bookings/:id/status', authMiddleware, async (req, res) => {
     try {
         const { id } = req.params;
         const { status, subStatus, collectedAmount, poolPrice, partnerVehicleId } = req.body;

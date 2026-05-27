@@ -234,10 +234,6 @@ app.use('/api/kasa', tenantMiddleware, kasaRoutes);
 const operationsRoutes = require('./src/routes/operations');
 app.use('/api/operations', tenantMiddleware, operationsRoutes);
 
-// UETDS submission queue & history (admin operations)
-const uetdsRoutes = require('./src/routes/uetds');
-app.use('/api/uetds', tenantMiddleware, uetdsRoutes);
-
 // Zones routes
 const zonesRoutes = require('./src/routes/zones');
 app.use('/api/zones', tenantMiddleware, zonesRoutes);
@@ -250,10 +246,6 @@ app.use('/api/pages', tenantMiddleware, pagesRoutes);
 const userRoutes = require('./src/routes/users');
 app.use('/api/users', tenantMiddleware, userRoutes);
 
-// Role & Permission management routes
-const roleRoutes = require('./src/routes/roles');
-app.use('/api/roles', tenantMiddleware, roleRoutes);
-
 // Audit / Activity Logs route
 app.use('/api/admin/logs', tenantMiddleware, require('./src/routes/logs'));
 
@@ -262,10 +254,6 @@ app.use('/api/live-chat', require('./src/routes/live-chat'));
 
 // AI Integration Routes (for n8n tools)
 app.use('/api/ai', require('./src/routes/ai.js'));
-
-// Translation (DeepL) routes
-const translateRoutes = require('./src/routes/translate');
-app.use('/api/translate', tenantMiddleware, translateRoutes);
 
 // ============================================================================
 // V1 LEGACY ROUTES (Backward Compatibility)

@@ -59,28 +59,7 @@ apiClient.interceptors.request.use((requestConfig) => {
 });
 
 apiClient.interceptors.response.use(
-    (response) => {
-        // Auto-invalidate the in-memory tenant-info cache when tenant settings
-        // are mutated, so subsequent reads pick up the fresh values immediately.
-        try {
-            const method = (response.config?.method || '').toLowerCase();
-            const url = response.config?.url || '';
-            if (
-                method !== 'get' &&
-                (url.includes('/api/tenant/settings') ||
-                 url.includes('/api/tenant/info') ||
-                 url.includes('/api/tenant/branding'))
-            ) {
-                // Lazy import to avoid circular dependency at module init time
-                import('./tenant-info-cache').then(({ invalidateTenantInfo }) => {
-                    invalidateTenantInfo();
-                }).catch(() => {});
-            }
-        } catch {
-            // ignore - never block the response on cache management
-        }
-        return response;
-    },
+    (response) => response,
     (error) => {
         if (error.response?.status === 401) {
             if (typeof window !== 'undefined') {

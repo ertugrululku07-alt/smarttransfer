@@ -159,7 +159,7 @@ export default function FleetReportsPage() {
         />
       )}
 
-      <Card size="small" title={<span><FilePdfOutlined style={{ marginRight: 8, color: 'var(--brand-primary)' }} /> Günlük Sürüş Raporu</span>}
+      <Card size="small" title={<span><FilePdfOutlined style={{ marginRight: 8, color: '#6366f1' }} /> Günlük Sürüş Raporu</span>}
         extra={
           <Space wrap>
             <Button icon={<SettingOutlined />} onClick={openConfig}>Otomatik E-posta</Button>
@@ -186,7 +186,7 @@ export default function FleetReportsPage() {
               <div className="ps-kpi"><div className="ps-kpi__label">Mesafe</div><div className="ps-kpi__value">{rep.distanceKm} km</div></div>
               <div className="ps-kpi"><div className="ps-kpi__label">Ort. Hız</div><div className="ps-kpi__value">{rep.avgSpeed} km/sa</div></div>
               <div className="ps-kpi"><div className="ps-kpi__label">Maks. Hız</div><div className="ps-kpi__value">{rep.maxSpeed} km/sa</div></div>
-              <div className="ps-kpi" style={{ borderLeft: `3px solid ${grade?.color || 'var(--brand-primary)'}` }}>
+              <div className="ps-kpi" style={{ borderLeft: `3px solid ${grade?.color || '#6366f1'}` }}>
                 <div className="ps-kpi__label">Davranış Skoru</div>
                 <div className="ps-kpi__value">{rep.score}/100 · {grade?.grade}</div>
               </div>

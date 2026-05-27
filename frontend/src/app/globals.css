@@ -10,35 +10,9 @@
   --background: #ffffff;
   --foreground: #171717;
 
-  /* Brand colors — defaults below are overridden at runtime by ThemeContext
-     based on the active site theme (Admin → Site Ayarları → Özel Tema).
-     All components use var(--brand-primary) / var(--brand-accent). */
-  --brand-primary: #667eea;
-  --brand-accent: #764ba2;
-  --brand-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  --brand-shadow: 0 8px 25px rgba(102,126,234,0.4);
-  --brand-primary-08: #667eea14;
-  --brand-primary-10: #667eea1a;
-  --brand-primary-15: #667eea26;
-  --brand-primary-18: #667eea2e;
-  --brand-primary-20: #667eea33;
-  --brand-primary-22: #667eea38;
-  --brand-primary-30: #667eea4d;
-  --brand-primary-33: #667eea54;
-  --brand-primary-40: #667eea66;
-  --brand-primary-50: #667eea80;
-  --brand-primary-60: #667eea99;
-  --brand-primary-66: #667eeaa8;
-  --brand-accent-10: #764ba21a;
-  --brand-accent-15: #764ba226;
-  --brand-accent-20: #764ba233;
-  --brand-accent-30: #764ba24d;
-  --brand-accent-40: #764ba266;
-  --brand-accent-50: #764ba280;
-
   /* Premium Color Palette */
-  --primary-gradient-start: var(--brand-primary);
-  --primary-gradient-end: var(--brand-accent);
+  --primary-gradient-start: #667eea;
+  --primary-gradient-end: #764ba2;
   --secondary-gradient-start: #f093fb;
   --secondary-gradient-end: #f5576c;
   --success-gradient-start: #4facfe;
@@ -47,8 +21,8 @@
   --warning-gradient-end: #fee140;
 
   /* Semantic Colors */
-  --primary-color: var(--brand-primary);
-  --secondary-color: var(--brand-accent);
+  --primary-color: #667eea;
+  --secondary-color: #764ba2;
   --accent-color: #f5576c;
   --success-color: #00f2fe;
   --warning-color: #fee140;
@@ -88,9 +62,15 @@
   --space-3xl: 64px;
 }
 
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
 html {
   scroll-behavior: smooth;
-  text-rendering: optimizeLegibility;
 }
 
 body {
@@ -99,14 +79,6 @@ body {
   font-family: var(--font-outfit), 'Segoe UI', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  text-size-adjust: 100%;
-  -webkit-text-size-adjust: 100%;
-}
-
-/* Image performance: prevent layout shift */
-img, picture, video, canvas, svg {
-  display: block;
-  max-width: 100%;
 }
 
 /* Custom Scrollbar */
@@ -297,25 +269,4 @@ img, picture, video, canvas, svg {
     height: 48px !important;
     font-size: 15px !important;
   }
-}
-
-/* Accessibility: respect user's motion preferences (Lighthouse a11y) */
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
-  }
-}
-
-/* Focus visible: keyboard navigation a11y */
-:focus-visible {
-  outline: 2px solid var(--primary-color);
-  outline-offset: 2px;
-}
-
-button:focus:not(:focus-visible),
-a:focus:not(:focus-visible) {
-  outline: none;
 }

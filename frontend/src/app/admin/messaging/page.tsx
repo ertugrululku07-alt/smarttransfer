@@ -46,6 +46,28 @@ const CATEGORY_OPTIONS = [
     { value: 'custom', label: 'Özel', icon: '✏️' },
 ];
 
+const LANG_LABELS: Record<string, { flag: string; name: string }> = {
+    tr: { flag: '🇹🇷', name: 'Türkçe' },
+    en: { flag: '🇬🇧', name: 'English' },
+    de: { flag: '🇩🇪', name: 'Deutsch' },
+    ru: { flag: '🇷🇺', name: 'Русский' },
+    fr: { flag: '🇫🇷', name: 'Français' },
+    ar: { flag: '🇸🇦', name: 'العربية' },
+    pl: { flag: '🇵🇱', name: 'Polski' },
+    nl: { flag: '🇳🇱', name: 'Nederlands' },
+    fi: { flag: '🇫🇮', name: 'Suomi' },
+    es: { flag: '🇪🇸', name: 'Español' },
+    it: { flag: '🇮🇹', name: 'Italiano' },
+    pt: { flag: '🇵🇹', name: 'Português' },
+    sv: { flag: '🇸🇪', name: 'Svenska' },
+    no: { flag: '🇳🇴', name: 'Norsk' },
+    da: { flag: '🇩🇰', name: 'Dansk' },
+    cs: { flag: '🇨🇿', name: 'Čeština' },
+    uk: { flag: '🇺🇦', name: 'Українська' },
+};
+
+const FALLBACK_LANGUAGES = Object.keys(LANG_LABELS).map((code) => ({ code, count: 0 }));
+
 export default function MessagingPage() {
     const [activeTab, setActiveTab] = useState('dashboard');
     const [templates, setTemplates] = useState<any[]>([]);
@@ -70,6 +92,8 @@ export default function MessagingPage() {
     const [languages, setLanguages] = useState<{ code: string; count: number }[]>([]);
     const [selectedLocales, setSelectedLocales] = useState<string[]>([]);
     const [langTotal, setLangTotal] = useState(0);
+    const [langLoading, setLangLoading] = useState(true);
+    const [langLoadError, setLangLoadError] = useState(false);
     const [selectedChannel, setSelectedChannel] = useState<string>('');
 
     // Preview modal
@@ -179,15 +203,22 @@ export default function MessagingPage() {
     };
 
     const fetchLanguages = async () => {
+        setLangLoading(true);
+        setLangLoadError(false);
         try {
             const res = await apiClient.get('/api/messaging/recipients/languages');
             if (res.data.success) {
                 setLanguages(res.data.data.languages || []);
                 setLangTotal(res.data.data.total || 0);
+            } else {
+                setLangLoadError(true);
             }
         } catch (err) {
             console.warn('[Messaging] Languages endpoint not available, using fallback');
-            // Fallback: if endpoint not deployed yet, show empty state gracefully
+            setLangLoadError(true);
+            setLanguages(FALLBACK_LANGUAGES);
+        } finally {
+            setLangLoading(false);
         }
     };
 
@@ -474,27 +505,6 @@ export default function MessagingPage() {
         </div>
     );
 
-    // ── Language label helper ──
-    const LANG_LABELS: Record<string, { flag: string; name: string }> = {
-        tr: { flag: '🇹🇷', name: 'Türkçe' },
-        en: { flag: '🇬🇧', name: 'English' },
-        de: { flag: '🇩🇪', name: 'Deutsch' },
-        ru: { flag: '🇷🇺', name: 'Русский' },
-        fr: { flag: '🇫🇷', name: 'Français' },
-        ar: { flag: '🇸🇦', name: 'العربية' },
-        pl: { flag: '🇵🇱', name: 'Polski' },
-        nl: { flag: '🇳🇱', name: 'Nederlands' },
-        fi: { flag: '🇫🇮', name: 'Suomi' },
-        es: { flag: '🇪🇸', name: 'Español' },
-        it: { flag: '🇮🇹', name: 'Italiano' },
-        pt: { flag: '🇵🇹', name: 'Português' },
-        sv: { flag: '🇸🇪', name: 'Svenska' },
-        no: { flag: '🇳🇴', name: 'Norsk' },
-        da: { flag: '🇩🇰', name: 'Dansk' },
-        cs: { flag: '🇨🇿', name: 'Čeština' },
-        uk: { flag: '🇺🇦', name: 'Українська' },
-    };
-
     // ── New Campaign Tab (quick send) ──
     const NewCampaignTab = () => (
         <div>
@@ -572,7 +582,14 @@ export default function MessagingPage() {
                             </Text>
                         </div>
 
-                        {languages.length > 0 ? (
+                        {langLoading ? (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <Spin size="small" />
+                                <Text type="secondary" style={{ fontSize: 12 }}>
+                                    Dil verisi yükleniyor...
+                                </Text>
+                            </div>
+                        ) : languages.length > 0 ? (
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                                 {languages.map(lang => {
                                     const info = LANG_LABELS[lang.code] || { flag: '🌐', name: lang.code.toUpperCase() };
@@ -612,15 +629,19 @@ export default function MessagingPage() {
                                 })}
                             </div>
                         ) : (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                <Spin size="small" />
-                                <Text type="secondary" style={{ fontSize: 12 }}>
-                                    Dil verisi yükleniyor...
-                                </Text>
-                                <Button size="small" type="link" onClick={fetchLanguages} style={{ fontSize: 11 }}>
-                                    Tekrar Dene
-                                </Button>
-                            </div>
+                            <Text type="secondary" style={{ fontSize: 12 }}>
+                                Henüz dil bazlı müşteri verisi yok. Tüm müşterilere gönderilir.
+                            </Text>
+                        )}
+
+                        {langLoadError && !langLoading && (
+                            <Alert
+                                type="warning"
+                                showIcon
+                                style={{ marginTop: 10 }}
+                                message="Sunucu dil istatistiği döndürmedi (403). Diller listeleniyor; müşteri sayıları backend güncellemesi sonrası görünür."
+                                action={<Button size="small" onClick={fetchLanguages}>Tekrar Dene</Button>}
+                            />
                         )}
 
                         {selectedLocales.length > 0 && (

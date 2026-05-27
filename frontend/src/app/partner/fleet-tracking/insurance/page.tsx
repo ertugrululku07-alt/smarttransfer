@@ -98,7 +98,7 @@ export default function InsurancePage() {
 
   return (
     <>
-      <Card size="small" title={<span><SafetyOutlined style={{ marginRight: 8, color: 'var(--brand-primary)' }} /> Sigorta Takibi</span>}
+      <Card size="small" title={<span><SafetyOutlined style={{ marginRight: 8, color: '#6366f1' }} /> Sigorta Takibi</span>}
         extra={
           <Space>
             <Select placeholder="Araç" allowClear style={{ width: 160 }} value={filter.vehicleId} onChange={(v) => { setFilter({ ...filter, vehicleId: v }); setTimeout(load, 0); }}

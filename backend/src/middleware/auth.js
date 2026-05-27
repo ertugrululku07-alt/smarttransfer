@@ -55,18 +55,12 @@ async function authMiddleware(req, res, next) {
                         }
                     }
                 },
-                userPermissions: {
-                    include: {
-                        permission: true
-                    }
-                },
                 tenant: {
                     select: {
                         id: true,
                         slug: true,
                         name: true,
                         status: true,
-                        settings: true,
                         transferEnabled: true,
                         tourEnabled: true,
                         hotelEnabled: true
@@ -89,22 +83,6 @@ async function authMiddleware(req, res, next) {
             });
         }
 
-        // User-level permissions take priority; fallback to role permissions
-        const userPerms = user.userPermissions || [];
-        const perms = userPerms.length > 0
-            ? userPerms.map(up => ({
-                module: up.permission.module,
-                resource: up.permission.resource,
-                action: up.permission.action,
-                scope: up.permission.scope
-            }))
-            : (user.role?.permissions || []).map(rp => ({
-                module: rp.permission.module,
-                resource: rp.permission.resource,
-                action: rp.permission.action,
-                scope: rp.permission.scope
-            }));
-
         req.user = {
             id: user.id,
             email: user.email,
@@ -116,7 +94,12 @@ async function authMiddleware(req, res, next) {
             roleType: user.role.type,
             tenantId: user.tenantId,
             tenant: user.tenant,
-            permissions: perms
+            permissions: user.role.permissions.map(rp => ({
+                module: rp.permission.module,
+                resource: rp.permission.resource,
+                action: rp.permission.action,
+                scope: rp.permission.scope
+            }))
         };
 
         // Bind tenant context to JWT — ignore spoofed headers
@@ -159,18 +142,12 @@ async function optionalAuthMiddleware(req, res, next) {
                         }
                     }
                 },
-                userPermissions: {
-                    include: {
-                        permission: true
-                    }
-                },
                 tenant: {
                     select: {
                         id: true,
                         slug: true,
                         name: true,
                         status: true,
-                        settings: true,
                         transferEnabled: true,
                         tourEnabled: true,
                         hotelEnabled: true
@@ -180,21 +157,6 @@ async function optionalAuthMiddleware(req, res, next) {
         });
 
         if (user && user.status === 'ACTIVE') {
-            const userPerms = user.userPermissions || [];
-            const perms = userPerms.length > 0
-                ? userPerms.map(up => ({
-                    module: up.permission.module,
-                    resource: up.permission.resource,
-                    action: up.permission.action,
-                    scope: up.permission.scope
-                }))
-                : (user.role?.permissions || []).map(rp => ({
-                    module: rp.permission.module,
-                    resource: rp.permission.resource,
-                    action: rp.permission.action,
-                    scope: rp.permission.scope
-                }));
-
             req.user = {
                 id: user.id,
                 email: user.email,
@@ -205,7 +167,12 @@ async function optionalAuthMiddleware(req, res, next) {
                 roleType: user.role.type,
                 tenantId: user.tenantId,
                 tenant: user.tenant,
-                permissions: perms
+                permissions: user.role.permissions.map(rp => ({
+                    module: rp.permission.module,
+                    resource: rp.permission.resource,
+                    action: rp.permission.action,
+                    scope: rp.permission.scope
+                }))
             };
             req.tenant = user.tenant;
         } else {

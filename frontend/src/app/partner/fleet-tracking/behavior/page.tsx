@@ -41,7 +41,7 @@ export default function FleetBehaviorPage() {
         ) : (
           <>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 18 }}>
-              <div className="ps-kpi" style={{ borderLeft: `4px solid ${fleet?.color || 'var(--brand-primary)'}` }}>
+              <div className="ps-kpi" style={{ borderLeft: `4px solid ${fleet?.color || '#6366f1'}` }}>
                 <div className="ps-kpi__label">Filo Skoru</div>
                 <div className="ps-kpi__value">{data.fleetScore}/100</div>
                 <Tag color={fleet?.color} style={{ marginTop: 6 }}>{fleet?.grade} · {fleet?.label}</Tag>

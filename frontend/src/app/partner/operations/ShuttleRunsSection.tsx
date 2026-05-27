@@ -85,7 +85,7 @@ function SortablePassengerRow({ b, index, onAck }: { b: ShuttleBooking; index: n
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.7 : 1,
-    background: isDragging ? 'var(--brand-primary-08)' : '#fff',
+    background: isDragging ? '#eef2ff' : '#fff',
   };
   return (
     <tr ref={setNodeRef} style={style} {...attributes}>
@@ -187,7 +187,7 @@ function RunCard({
         <div
           onClick={() => { setTimeValue(run.departureTime || ''); setNameValue(run.routeName || ''); setEditTimeOpen(true); }}
           style={{
-            border: '2px solid var(--brand-primary)', color: 'var(--brand-accent)', borderRadius: 10, padding: '4px 14px',
+            border: '2px solid #6366f1', color: '#4f46e5', borderRadius: 10, padding: '4px 14px',
             textAlign: 'center', fontWeight: 900, fontSize: 18, minWidth: 76, cursor: 'pointer',
           }}
           title="Saati / sefer adını düzenle"
@@ -426,7 +426,7 @@ export default function ShuttleRunsSection() {
 
   return (
     <div style={{ display: 'grid', gap: 12 }}>
-      <Card size="small" title={<span><AppstoreOutlined style={{ marginRight: 8, color: 'var(--brand-primary)' }} /> Shuttle Seferleri</span>}
+      <Card size="small" title={<span><AppstoreOutlined style={{ marginRight: 8, color: '#6366f1' }} /> Shuttle Seferleri</span>}
         extra={
           <Space>
             <DatePicker value={date} onChange={(v) => v && setDate(v)} format="DD.MM.YYYY" />

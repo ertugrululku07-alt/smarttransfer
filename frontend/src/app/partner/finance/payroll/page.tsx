@@ -100,7 +100,7 @@ export default function PayrollPage() {
 
   return (
     <>
-      <Card title={<span><UserOutlined style={{ marginRight: 8, color: 'var(--brand-primary)' }} /> Hakediş & Maaş</span>} size="small"
+      <Card title={<span><UserOutlined style={{ marginRight: 8, color: '#6366f1' }} /> Hakediş & Maaş</span>} size="small"
         extra={
           <Space>
             <Select placeholder="Tüm türler" allowClear style={{ width: 140 }} value={type} onChange={(v)=>{ setType(v); setTimeout(load, 0); }} options={TYPES} />

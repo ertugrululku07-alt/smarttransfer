@@ -374,7 +374,7 @@ const PartnerUetdsPage: React.FC = () => {
                     {/* Stats */}
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 16 }}>
                         {[
-                            { label: 'Toplam Bildirim', value: submissions.length, color: 'var(--brand-primary)', bg: 'var(--brand-primary-08)' },
+                            { label: 'Toplam Bildirim', value: submissions.length, color: '#6366f1', bg: '#eef2ff' },
                             { label: 'Gönderildi', value: sentCount, color: '#10b981', bg: '#ecfdf5' },
                             { label: 'Reddedildi', value: rejectedCount, color: '#ef4444', bg: '#fef2f2' },
                             { label: 'Yetki Belge No', value: profile?.uetdsYetkiBelgeNo || '-', color: '#f59e0b', bg: '#fffbeb', isText: true },
@@ -416,7 +416,7 @@ const PartnerUetdsPage: React.FC = () => {
                                         style={{ borderRadius: 14, marginBottom: 16 }}
                                         title={
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                                <KeyOutlined style={{ color: 'var(--brand-primary)' }} />
+                                                <KeyOutlined style={{ color: '#6366f1' }} />
                                                 <span style={{ fontWeight: 700 }}>UNet Giriş Bilgileri</span>
                                                 {profile?.uetdsHasPassword && (
                                                     <Tag color="green" style={{ marginLeft: 'auto' }}>
@@ -637,7 +637,7 @@ const PartnerUetdsPage: React.FC = () => {
                     <Modal
                         title={
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                <EyeOutlined style={{ color: 'var(--brand-primary)' }} />
+                                <EyeOutlined style={{ color: '#6366f1' }} />
                                 <span style={{ fontWeight: 700 }}>UETDS Bildirim Detayı</span>
                             </div>
                         }
