@@ -79,16 +79,22 @@ router.get('/', authMiddleware, requirePermission('settings', 'view'), async (re
         const tenantId = requireTenantId(req, res);
         if (!tenantId) return;
 
-        const roles = await prisma.role.findMany({
-            where: { tenantId },
-            include: {
-                permissions: {
-                    include: { permission: true }
+        const [roles, allPermissions] = await Promise.all([
+            prisma.role.findMany({
+                where: { tenantId },
+                include: {
+                    permissions: {
+                        include: { permission: true }
+                    },
+                    _count: { select: { users: true } }
                 },
-                _count: { select: { users: true } }
-            },
-            orderBy: { createdAt: 'asc' }
-        });
+                orderBy: { createdAt: 'asc' }
+            }),
+            prisma.permission.findMany({
+                where: { scope: 'TENANT' },
+                orderBy: [{ module: 'asc' }, { action: 'asc' }]
+            })
+        ]);
 
         const formatted = roles.map(role => ({
             id: role.id,
@@ -109,7 +115,16 @@ router.get('/', authMiddleware, requirePermission('settings', 'view'), async (re
             createdAt: role.createdAt,
         }));
 
-        res.json({ success: true, data: formatted });
+        res.json({
+            success: true,
+            data: formatted,
+            allPermissions: allPermissions.map(p => ({
+                id: p.id,
+                module: p.module,
+                resource: p.resource,
+                action: p.action,
+            }))
+        });
     } catch (error) {
         console.error('List roles error:', error);
         res.status(500).json({ success: false, error: 'Failed to load roles' });

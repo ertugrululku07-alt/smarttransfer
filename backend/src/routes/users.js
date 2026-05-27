@@ -471,25 +471,31 @@ router.delete('/:id', authMiddleware, async (req, res) => {
 
 /**
  * GET /api/users/:id/permissions
- * Get a user's individual permissions
+ * Get a user's individual permissions + all available permissions
  */
 router.get('/:id/permissions', authMiddleware, requirePermission('settings', 'view'), async (req, res) => {
     try {
         const tenantId = req.tenant?.id;
         if (!tenantId) return res.status(400).json({ success: false, error: 'Tenant context missing' });
 
-        const user = await prisma.user.findFirst({
-            where: { id: req.params.id, tenantId, deletedAt: null },
-            select: {
-                id: true,
-                fullName: true,
-                email: true,
-                role: { select: { id: true, name: true, code: true, type: true } },
-                userPermissions: {
-                    include: { permission: true }
+        const [user, allPermissions] = await Promise.all([
+            prisma.user.findFirst({
+                where: { id: req.params.id, tenantId, deletedAt: null },
+                select: {
+                    id: true,
+                    fullName: true,
+                    email: true,
+                    role: { select: { id: true, name: true, code: true, type: true } },
+                    userPermissions: {
+                        include: { permission: true }
+                    }
                 }
-            }
-        });
+            }),
+            prisma.permission.findMany({
+                where: { scope: 'TENANT' },
+                orderBy: [{ module: 'asc' }, { action: 'asc' }]
+            })
+        ]);
 
         if (!user) {
             return res.status(404).json({ success: false, error: 'Kullanıcı bulunamadı' });
@@ -507,6 +513,12 @@ router.get('/:id/permissions', authMiddleware, requirePermission('settings', 'vi
                     module: up.permission.module,
                     resource: up.permission.resource,
                     action: up.permission.action,
+                })),
+                allPermissions: allPermissions.map(p => ({
+                    id: p.id,
+                    module: p.module,
+                    resource: p.resource,
+                    action: p.action,
                 }))
             }
         });

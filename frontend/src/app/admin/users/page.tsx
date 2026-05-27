@@ -153,15 +153,14 @@ const AdminUsersPage: React.FC = () => {
     setPermModalOpen(true);
     setPermLoading(true);
     try {
-      const [permsRes, userPermsRes] = await Promise.all([
-        apiClient.get('/api/roles/permissions'),
-        apiClient.get(`/api/users/${user.id}/permissions`),
-      ]);
-      if (permsRes.data.success) {
-        setAllPermissions(permsRes.data.data.permissions);
-      }
-      if (userPermsRes.data.success) {
-        setSelectedPermIds(new Set(userPermsRes.data.data.permissions.map((p: any) => p.id)));
+      const res = await apiClient.get(`/api/users/${user.id}/permissions`);
+      if (res.data.success) {
+        const data = res.data.data;
+        // allPermissions comes from the same endpoint now
+        if (data.allPermissions && data.allPermissions.length > 0) {
+          setAllPermissions(data.allPermissions);
+        }
+        setSelectedPermIds(new Set(data.permissions.map((p: any) => p.id)));
       }
     } catch {
       message.error('Yetkiler yüklenemedi');

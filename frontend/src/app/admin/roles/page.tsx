@@ -91,16 +91,22 @@ export default function RoleManagementPage() {
     const fetchData = useCallback(async () => {
         try {
             setLoading(true);
-            const [rolesRes, permsRes] = await Promise.all([
-                apiClient.get('/api/roles'),
-                apiClient.get('/api/roles/permissions'),
-            ]);
+            const rolesRes = await apiClient.get('/api/roles');
 
             if (rolesRes.data.success) {
                 setRoles(rolesRes.data.data);
             }
-            if (permsRes.data.success) {
-                setAllPermissions(permsRes.data.data.permissions);
+            // allPermissions comes from the same response now
+            if (rolesRes.data.allPermissions && rolesRes.data.allPermissions.length > 0) {
+                setAllPermissions(rolesRes.data.allPermissions);
+            } else {
+                // Fallback: fetch from dedicated endpoint
+                try {
+                    const permsRes = await apiClient.get('/api/roles/permissions');
+                    if (permsRes.data.success && permsRes.data.data?.permissions) {
+                        setAllPermissions(permsRes.data.data.permissions);
+                    }
+                } catch { /* ignore */ }
             }
         } catch (error) {
             console.error('Failed to load roles:', error);
@@ -120,9 +126,14 @@ export default function RoleManagementPage() {
         // Re-fetch permissions if not loaded yet
         if (allPermissions.length === 0) {
             try {
-                const permsRes = await apiClient.get('/api/roles/permissions');
-                if (permsRes.data.success) {
-                    setAllPermissions(permsRes.data.data.permissions);
+                const rolesRes = await apiClient.get('/api/roles');
+                if (rolesRes.data.allPermissions) {
+                    setAllPermissions(rolesRes.data.allPermissions);
+                } else {
+                    const permsRes = await apiClient.get('/api/roles/permissions');
+                    if (permsRes.data.success) {
+                        setAllPermissions(permsRes.data.data.permissions);
+                    }
                 }
             } catch (e) {
                 console.error('Failed to fetch permissions:', e);
