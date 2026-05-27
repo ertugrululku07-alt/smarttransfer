@@ -60,6 +60,17 @@ const ROLE_PERMISSIONS = {
 async function seedPermissions() {
     console.log('🔑 Seeding permissions...\n');
 
+    // 0. Clean up stale permissions (non-TENANT scope or orphan records)
+    const validModules = MODULES.map(m => m.module);
+    await prisma.permission.deleteMany({
+        where: {
+            OR: [
+                { scope: { not: 'TENANT' } },
+                { module: { notIn: validModules } },
+            ]
+        }
+    });
+
     // 1. Create all permissions (upsert)
     const allPermissions = [];
     for (const mod of MODULES) {

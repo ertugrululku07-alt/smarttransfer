@@ -154,14 +154,14 @@ router.post('/login', async (req, res) => {
                 type: user.role.type
             },
             tenant: user.tenant,
-            permissions: user.userPermissions.length > 0
-                ? user.userPermissions.map(up => ({
+            permissions: (user.userPermissions || []).length > 0
+                ? (user.userPermissions || []).map(up => ({
                     module: up.permission.module,
                     resource: up.permission.resource,
                     action: up.permission.action,
                     scope: up.permission.scope
                 }))
-                : user.role.permissions.map(rp => ({
+                : (user.role?.permissions || []).map(rp => ({
                     module: rp.permission.module,
                     resource: rp.permission.resource,
                     action: rp.permission.action,

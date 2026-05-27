@@ -90,14 +90,15 @@ async function authMiddleware(req, res, next) {
         }
 
         // User-level permissions take priority; fallback to role permissions
-        const perms = user.userPermissions.length > 0
-            ? user.userPermissions.map(up => ({
+        const userPerms = user.userPermissions || [];
+        const perms = userPerms.length > 0
+            ? userPerms.map(up => ({
                 module: up.permission.module,
                 resource: up.permission.resource,
                 action: up.permission.action,
                 scope: up.permission.scope
             }))
-            : user.role.permissions.map(rp => ({
+            : (user.role?.permissions || []).map(rp => ({
                 module: rp.permission.module,
                 resource: rp.permission.resource,
                 action: rp.permission.action,
@@ -179,14 +180,15 @@ async function optionalAuthMiddleware(req, res, next) {
         });
 
         if (user && user.status === 'ACTIVE') {
-            const perms = user.userPermissions.length > 0
-                ? user.userPermissions.map(up => ({
+            const userPerms = user.userPermissions || [];
+            const perms = userPerms.length > 0
+                ? userPerms.map(up => ({
                     module: up.permission.module,
                     resource: up.permission.resource,
                     action: up.permission.action,
                     scope: up.permission.scope
                 }))
-                : user.role.permissions.map(rp => ({
+                : (user.role?.permissions || []).map(rp => ({
                     module: rp.permission.module,
                     resource: rp.permission.resource,
                     action: rp.permission.action,

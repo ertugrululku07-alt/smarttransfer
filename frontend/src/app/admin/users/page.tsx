@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Table, Tag, Space, Button, Modal, Form, Input, Select, Switch, Spin,
+  Table, Tag, Space, Button, Modal, Form, Input, Select, Switch, Spin, Checkbox,
   Typography, message, Card, Tooltip, Badge, Avatar, Drawer, Divider, Row, Col
 } from 'antd';
 import {
@@ -11,7 +11,6 @@ import {
   CarOutlined, ShopOutlined, MailOutlined, LockOutlined, IdcardOutlined,
   ReloadOutlined, KeyOutlined, SaveOutlined, CopyOutlined
 } from '@ant-design/icons';
-import { Checkbox } from 'antd';
 import apiClient from '@/lib/api-client';
 import dayjs from 'dayjs';
 import AdminGuard from '../AdminGuard';

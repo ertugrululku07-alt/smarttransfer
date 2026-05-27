@@ -112,10 +112,22 @@ export default function RoleManagementPage() {
 
     useEffect(() => { fetchData(); }, [fetchData]);
 
-    const openEditModal = (role: Role) => {
+    const openEditModal = async (role: Role) => {
         setSelectedRole(role);
         setSelectedPermissionIds(new Set(role.permissions.map(p => p.id)));
         setEditModalOpen(true);
+
+        // Re-fetch permissions if not loaded yet
+        if (allPermissions.length === 0) {
+            try {
+                const permsRes = await apiClient.get('/api/roles/permissions');
+                if (permsRes.data.success) {
+                    setAllPermissions(permsRes.data.data.permissions);
+                }
+            } catch (e) {
+                console.error('Failed to fetch permissions:', e);
+            }
+        }
     };
 
     const handleTogglePermission = (permId: string) => {
