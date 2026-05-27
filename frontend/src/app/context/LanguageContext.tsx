@@ -42,9 +42,13 @@ function setCache(storageKey: string, cache: Record<string, string>, maxEntries 
 /**
  * Detect locale. Priority:
  * 1. URL path prefix (/en/, /de/, /ru/)
- * 2. localStorage (returning user preference)
- * 3. Browser Accept-Language
- * 4. Default: 'tr'
+ * 2. localStorage (user's explicit previous choice)
+ * 3. Cookie (set by middleware or language switcher)
+ * 4. Default: 'tr' (site's primary language)
+ * 
+ * NOTE: We intentionally do NOT use navigator.languages (browser language).
+ * Many users have Chrome in English but want the site in Turkish.
+ * The site defaults to Turkish; users must explicitly switch if they want another language.
  */
 function detectBrowserLocale(): SupportedLocale {
   if (typeof window === 'undefined') return 'tr';
@@ -52,28 +56,26 @@ function detectBrowserLocale(): SupportedLocale {
   // 1. Check URL path for locale prefix
   const pathSegments = window.location.pathname.split('/');
   const urlLocale = pathSegments[1]; // e.g. "en" from "/en/about"
-  if (urlLocale && supportedLocales.includes(urlLocale as SupportedLocale)) {
+  if (urlLocale && urlLocale.length === 2 && /^[a-z]{2}$/.test(urlLocale) && supportedLocales.includes(urlLocale as SupportedLocale)) {
     // Save to localStorage so it persists
     localStorage.setItem('locale', urlLocale);
     return urlLocale as SupportedLocale;
   }
 
-  // 2. Check localStorage (returning user)
+  // 2. Check localStorage (user's explicit choice)
   const stored = localStorage.getItem('locale');
   if (stored && supportedLocales.includes(stored as SupportedLocale)) {
     return stored as SupportedLocale;
   }
 
-  // 3. Browser language detection
-  const browserLangs = navigator.languages || [navigator.language];
-  for (const lang of browserLangs) {
-    const code = lang.toLowerCase().split('-')[0];
-    if (supportedLocales.includes(code as SupportedLocale)) {
-      return code as SupportedLocale;
-    }
+  // 3. Check cookie (set by middleware or language switcher)
+  const cookieMatch = document.cookie.match(/(?:^|; )locale=([a-z]{2})/);
+  const cookieLocale = cookieMatch?.[1];
+  if (cookieLocale && supportedLocales.includes(cookieLocale as SupportedLocale)) {
+    return cookieLocale as SupportedLocale;
   }
 
-  // 4. Default
+  // 4. Default — site's primary language
   return 'tr';
 }
 
@@ -152,7 +154,7 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setLocaleState(newLocale);
     if (typeof window !== 'undefined') {
       localStorage.setItem('locale', newLocale);
-      document.cookie = `locale=${newLocale};path=/;max-age=${365 * 24 * 60 * 60}`;
+      document.cookie = `locale=${newLocale};path=/;max-age=${365 * 24 * 60 * 60};SameSite=Lax`;
 
       // Navigate to locale-prefixed URL for SEO
       const currentPath = window.location.pathname;
