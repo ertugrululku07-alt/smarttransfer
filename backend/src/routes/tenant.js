@@ -10,7 +10,45 @@ const { clearTenantCache } = require('../middleware/tenant');
 const router = express.Router();
 const prisma = require('../lib/prisma');
 
-const SUPPORTED_LOCALES = ['en', 'de', 'ru'];
+// Default locales - can be extended from admin panel via settings.supportedLanguages
+const DEFAULT_LOCALES = ['en', 'de', 'ru'];
+
+// DeepL supported language codes
+const DEEPL_LANGUAGES = {
+    en: { code: 'EN', name: 'English', flag: '🇬🇧', dir: 'ltr' },
+    de: { code: 'DE', name: 'Deutsch', flag: '🇩🇪', dir: 'ltr' },
+    ru: { code: 'RU', name: 'Русский', flag: '🇷🇺', dir: 'ltr' },
+    fr: { code: 'FR', name: 'Français', flag: '🇫🇷', dir: 'ltr' },
+    es: { code: 'ES', name: 'Español', flag: '🇪🇸', dir: 'ltr' },
+    it: { code: 'IT', name: 'Italiano', flag: '🇮🇹', dir: 'ltr' },
+    pt: { code: 'PT', name: 'Português', flag: '🇵🇹', dir: 'ltr' },
+    nl: { code: 'NL', name: 'Nederlands', flag: '🇳🇱', dir: 'ltr' },
+    pl: { code: 'PL', name: 'Polski', flag: '🇵🇱', dir: 'ltr' },
+    ja: { code: 'JA', name: '日本語', flag: '🇯🇵', dir: 'ltr' },
+    zh: { code: 'ZH', name: '中文', flag: '🇨🇳', dir: 'ltr' },
+    ko: { code: 'KO', name: '한국어', flag: '🇰🇷', dir: 'ltr' },
+    ar: { code: 'AR', name: 'العربية', flag: '🇸🇦', dir: 'rtl' },
+    uk: { code: 'UK', name: 'Українська', flag: '🇺🇦', dir: 'ltr' },
+    cs: { code: 'CS', name: 'Čeština', flag: '🇨🇿', dir: 'ltr' },
+    ro: { code: 'RO', name: 'Română', flag: '🇷🇴', dir: 'ltr' },
+    bg: { code: 'BG', name: 'Български', flag: '🇧🇬', dir: 'ltr' },
+    el: { code: 'EL', name: 'Ελληνικά', flag: '🇬🇷', dir: 'ltr' },
+    sv: { code: 'SV', name: 'Svenska', flag: '🇸🇪', dir: 'ltr' },
+    da: { code: 'DA', name: 'Dansk', flag: '🇩🇰', dir: 'ltr' },
+    fi: { code: 'FI', name: 'Suomi', flag: '🇫🇮', dir: 'ltr' },
+    hu: { code: 'HU', name: 'Magyar', flag: '🇭🇺', dir: 'ltr' },
+    nb: { code: 'NB', name: 'Norsk', flag: '🇳🇴', dir: 'ltr' },
+};
+
+/**
+ * Get supported locales for a tenant (from settings or default)
+ */
+function getTenantLocales(settings) {
+    if (settings?.supportedLanguages && Array.isArray(settings.supportedLanguages) && settings.supportedLanguages.length > 0) {
+        return settings.supportedLanguages.filter(l => l !== 'tr');
+    }
+    return DEFAULT_LOCALES;
+}
 
 // ─── Translation fields map ───
 // Keys in settings that contain user-facing text to be translated
@@ -48,6 +86,8 @@ async function translateSettings(settings, tenantId) {
             ? 'https://api-free.deepl.com/v2/translate'
             : 'https://api.deepl.com/v2/translate';
 
+        // Use tenant's configured languages (dynamic)
+        const SUPPORTED_LOCALES = getTenantLocales(settings);
         const translations = settings.translations || {};
 
         // Collect all texts to translate
@@ -216,7 +256,15 @@ router.get('/info', async (req, res) => {
                     },
                     locale: tenant.defaultLocale,
                     currency: tenant.defaultCurrency,
-                    settings: localizedSettings
+                    settings: localizedSettings,
+                    // Language system
+                    supportedLanguages: ['tr', ...getTenantLocales(tenant.settings || {})],
+                    availableLanguages: Object.entries(DEEPL_LANGUAGES).map(([code, info]) => ({
+                        code,
+                        name: info.name,
+                        flag: info.flag,
+                        dir: info.dir,
+                    })),
                 }
             }
         });

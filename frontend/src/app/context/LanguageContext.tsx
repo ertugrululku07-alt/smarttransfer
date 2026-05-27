@@ -1,8 +1,9 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import { locales, supportedLocales, SupportedLocale } from '../locales';
+import { locales, supportedLocales, SupportedLocale, setSupportedLocales, setLocaleLabels } from '../locales';
 import { API_URL } from '@/lib/api-client';
+import { fetchTenantInfo } from '@/lib/tenant-info-cache';
 
 interface LanguageContextType {
   locale: SupportedLocale;
@@ -134,6 +135,17 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     dynamicCacheRef.current = getCache(DYNAMIC_CACHE_KEY);
     autoTranslateCache = getCache(AUTO_TRANSLATE_CACHE_KEY);
     setReady(true);
+
+    // Load dynamic languages from tenant info
+    fetchTenantInfo({ lang: detected }).then(res => {
+      const tenant = res?.data?.data?.tenant;
+      if (tenant?.supportedLanguages) {
+        setSupportedLocales(tenant.supportedLanguages);
+      }
+      if (tenant?.availableLanguages) {
+        setLocaleLabels(tenant.availableLanguages);
+      }
+    }).catch(() => {});
   }, []);
 
   const setLocale = useCallback((newLocale: SupportedLocale) => {

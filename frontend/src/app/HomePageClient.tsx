@@ -1061,9 +1061,9 @@ const HomePage: React.FC = () => {
                 <div key="bookingLookup" style={{ background: theme.testimonialBg, padding: 'clamp(48px, 8vw, 80px) 16px' }}>
                   <div style={{ maxWidth: 900, margin: '0 auto' }}>
                     <div style={{ textAlign: 'center', marginBottom: 40 }}>
-                      <Text style={{ color: theme.sectionAccent, fontWeight: 600, fontSize: 13, textTransform: 'uppercase' as const, letterSpacing: 2 }}>Rezervasyon Takip</Text>
-                      <Title level={2} style={{ marginTop: 8, marginBottom: 8 }}>Rezervasyonunuzu Sorgulayın</Title>
-                      <Text type="secondary" style={{ fontSize: 15 }}>Rezervasyon numaranızı ve e-posta adresinizi girerek transferinizin durumunu, atanan şoförü ve aracı öğrenin.</Text>
+                      <Text style={{ color: theme.sectionAccent, fontWeight: 600, fontSize: 13, textTransform: 'uppercase' as const, letterSpacing: 2 }}>{t('track.badge')}</Text>
+                      <Title level={2} style={{ marginTop: 8, marginBottom: 8 }}>{t('track.title')}</Title>
+                      <Text type="secondary" style={{ fontSize: 15 }}>{t('track.subtitle')}</Text>
                     </div>
                     <Card style={{ borderRadius: 16, boxShadow: '0 4px 24px rgba(0,0,0,.07)', border: 'none' }} styles={{ body: { padding: '32px 36px' } }}>
                       <Form
@@ -1071,7 +1071,7 @@ const HomePage: React.FC = () => {
                         onFinish={(vals: any) => {
                           const id = String(vals.identifier || '').trim();
                           const bn = String(vals.bookingNumber || '').trim();
-                          if (!bn || !id) { message.warning('Rezervasyon numarası ve e-posta / telefon gerekli'); return; }
+                          if (!bn || !id) { message.warning(t('track.fillRequired')); return; }
                           const params = new URLSearchParams({ bookingNumber: bn });
                           if (id.includes('@')) params.set('email', id);
                           else params.set('phone4', id.replace(/\D/g, '').slice(-4));
@@ -1080,18 +1080,18 @@ const HomePage: React.FC = () => {
                       >
                         <Row gutter={[16, 0]}>
                           <Col xs={24} sm={10}>
-                            <Form.Item name="bookingNumber" label="Rezervasyon Numarası" rules={[{ required: true, message: 'Rezervasyon numarası girin' }]}>
-                              <Input size="large" placeholder="TR-20260501-1234" prefix={<CheckCircleOutlined style={{ color: '#9ca3af' }} />} allowClear />
+                            <Form.Item name="bookingNumber" label={t('track.bookingNumber')} rules={[{ required: true, message: t('track.bookingNumberRequired') }]}>
+                              <Input size="large" placeholder={t('track.bookingPlaceholder')} prefix={<CheckCircleOutlined style={{ color: '#9ca3af' }} />} allowClear />
                             </Form.Item>
                           </Col>
                           <Col xs={24} sm={10}>
-                            <Form.Item name="identifier" label="E-posta veya Telefon Son 4 Hanesi" rules={[{ required: true, message: 'E-posta veya telefon son 4 hanesi girin' }]}>
-                              <Input size="large" placeholder="ornek@email.com veya 4567" prefix={<SearchOutlined style={{ color: '#9ca3af' }} />} allowClear />
+                            <Form.Item name="identifier" label={t('track.identifier')} rules={[{ required: true, message: t('track.identifierRequired') }]}>
+                              <Input size="large" placeholder={t('track.identifierPlaceholder')} prefix={<SearchOutlined style={{ color: '#9ca3af' }} />} allowClear />
                             </Form.Item>
                           </Col>
                           <Col xs={24} sm={4} style={{ display: 'flex', alignItems: 'flex-end', paddingBottom: 24 }}>
                             <Button type="primary" htmlType="submit" size="large" icon={<ArrowRightOutlined />} block style={{ background: theme.primaryColor, borderColor: theme.primaryColor, borderRadius: 8 }}>
-                              Sorgula
+                              {t('track.button')}
                             </Button>
                           </Col>
                         </Row>

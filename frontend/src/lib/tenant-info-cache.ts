@@ -61,7 +61,7 @@ export function invalidateTenantInfo() {
 function getCurrentLocale(): string {
     if (typeof window === 'undefined') return 'tr';
     const pathLocale = window.location.pathname.split('/')[1];
-    if (['en', 'de', 'ru'].includes(pathLocale)) return pathLocale;
+    if (pathLocale && /^[a-z]{2}$/.test(pathLocale) && pathLocale !== 'tr') return pathLocale;
     return localStorage.getItem('locale') || 'tr';
 }
 

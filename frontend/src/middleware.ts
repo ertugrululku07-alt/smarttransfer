@@ -1,18 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 const PUBLIC_FILE = /\.(.*)$/;
-const SUPPORTED_LOCALES = ['tr', 'en', 'de', 'ru'];
 const DEFAULT_LOCALE = 'tr';
+
+// Matches any valid 2-letter ISO locale code in URL path
+// This allows dynamically added languages (ar, fr, es, etc.) to work
+const LOCALE_REGEX = /^\/([a-z]{2})(\/|$)/;
+
+// Known reserved paths that should NOT be treated as locale prefixes
+const RESERVED_PREFIXES = ['admin', 'account', 'agency', 'driver', 'track', 'login', 'register', 'contact', 'sayfa', 'rate', 'transfer', 'api'];
 
 /**
  * Middleware handles locale routing:
  * - / → Turkish (default, no prefix)
- * - /en/... → English
- * - /de/... → German
- * - /ru/... → Russian
+ * - /{locale}/... → Any language supported by the tenant
  * 
- * For first-time visitors without a locale preference,
- * detects browser language and redirects accordingly.
+ * Languages are dynamic — added from admin panel.
+ * Any valid 2-letter code that isn't a reserved path is treated as a locale.
  */
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -27,36 +31,31 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Check if URL already has a locale prefix
-  const pathnameLocale = SUPPORTED_LOCALES.find(
-    locale => pathname.startsWith(`/${locale}/`) || pathname === `/${locale}`
-  );
+  // Check if URL has a 2-letter locale prefix
+  const localeMatch = pathname.match(LOCALE_REGEX);
+  const potentialLocale = localeMatch?.[1];
 
-  if (pathnameLocale) {
+  if (potentialLocale && potentialLocale !== DEFAULT_LOCALE && !RESERVED_PREFIXES.includes(potentialLocale)) {
     // URL has locale prefix — rewrite to actual path and pass locale as header
-    const newPathname = pathname.replace(`/${pathnameLocale}`, '') || '/';
+    const newPathname = pathname.replace(`/${potentialLocale}`, '') || '/';
     const url = request.nextUrl.clone();
     url.pathname = newPathname;
     const response = NextResponse.rewrite(url);
-    response.headers.set('x-locale', pathnameLocale);
-    response.cookies.set('locale', pathnameLocale, { path: '/', maxAge: 365 * 24 * 60 * 60 });
+    response.headers.set('x-locale', potentialLocale);
+    response.cookies.set('locale', potentialLocale, { path: '/', maxAge: 365 * 24 * 60 * 60 });
     return response;
   }
 
   // No locale prefix — check if user should be redirected to a non-default locale
-  // If locale cookie exists and it's not TR, redirect
   const cookieLocale = request.cookies.get('locale')?.value;
   
-  if (cookieLocale && cookieLocale !== DEFAULT_LOCALE && SUPPORTED_LOCALES.includes(cookieLocale)) {
-    // User has a non-default locale preference — redirect to locale-prefixed URL
+  if (cookieLocale && cookieLocale !== DEFAULT_LOCALE && /^[a-z]{2}$/.test(cookieLocale) && !RESERVED_PREFIXES.includes(cookieLocale)) {
     const url = request.nextUrl.clone();
     url.pathname = `/${cookieLocale}${pathname}`;
     return NextResponse.redirect(url);
   }
 
-  // No cookie — detect from Accept-Language header for first-time visitors
-  // But DON'T redirect on first visit — let them see TR and choose
-  // Only set header for SSR locale detection
+  // Default locale — no prefix needed
   const response = NextResponse.next();
   response.headers.set('x-locale', DEFAULT_LOCALE);
   return response;

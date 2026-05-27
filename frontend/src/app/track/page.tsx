@@ -18,22 +18,15 @@ import { fetchTenantInfo } from '@/lib/tenant-info-cache';
 import TopBar from '@/app/components/TopBar';
 import SiteFooter from '@/app/components/SiteFooter';
 import { useTheme } from '@/app/context/ThemeContext';
+import { useLanguage } from '@/app/context/LanguageContext';
 import { Suspense } from 'react';
 
 const { Title, Text } = Typography;
 
-const STATUS_INFO: Record<string, { label: string; color: string }> = {
-    PENDING:     { label: 'Onay Bekliyor',  color: 'orange'  },
-    CONFIRMED:   { label: 'Onaylandı',      color: 'cyan'    },
-    IN_PROGRESS: { label: 'Devam Ediyor',   color: 'magenta' },
-    COMPLETED:   { label: 'Tamamlandı',     color: 'green'   },
-    CANCELLED:   { label: 'İptal',          color: 'red'     },
-    NO_SHOW:     { label: 'Gelmedi',        color: 'red'     },
-};
-
-const fmtDate = (iso?: string | null) => {
+const fmtDate = (iso?: string | null, locale?: string) => {
     if (!iso) return '-';
-    return new Date(iso).toLocaleString('tr-TR', {
+    const loc = locale === 'en' ? 'en-GB' : locale === 'de' ? 'de-DE' : locale === 'ru' ? 'ru-RU' : 'tr-TR';
+    return new Date(iso).toLocaleString(loc, {
         day: '2-digit', month: '2-digit', year: 'numeric',
         hour: '2-digit', minute: '2-digit',
     });
@@ -47,9 +40,19 @@ function TrackContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const { theme } = useTheme();
+    const { t, locale } = useLanguage();
     const [form] = Form.useForm();
     const [searching, setSearching] = useState(false);
     const [trackHeroImage, setTrackHeroImage] = useState<string>('');
+
+    const STATUS_INFO: Record<string, { label: string; color: string }> = {
+        PENDING:     { label: t('track.steps.received'),   color: 'orange'  },
+        CONFIRMED:   { label: t('track.steps.confirmed'),  color: 'cyan'    },
+        IN_PROGRESS: { label: t('track.steps.onTheWay'),   color: 'magenta' },
+        COMPLETED:   { label: t('track.steps.completed'),  color: 'green'   },
+        CANCELLED:   { label: t('track.notFound'),         color: 'red'     },
+        NO_SHOW:     { label: 'No Show',                   color: 'red'     },
+    };
 
     useEffect(() => {
         fetchTenantInfo().then(res => {
@@ -89,7 +92,7 @@ function TrackContent() {
     const handleSearch = async (values?: { bookingNumber: string; identifier: string }) => {
         const { bookingNumber, identifier } = values || form.getFieldsValue();
         if (!bookingNumber?.trim() || !identifier?.trim()) {
-            message.warning('Rezervasyon numarası ve e-posta / telefon gerekli');
+            message.warning(t('track.fillRequired'));
             return;
         }
         setSearching(true);
@@ -104,7 +107,7 @@ function TrackContent() {
                 setVerifyPhone4(params.phone4 || '');
             }
         } catch (e: any) {
-            message.error(e?.response?.data?.error || 'Rezervasyon bulunamadı');
+            message.error(e?.response?.data?.error || t('track.notFound'));
         } finally { setSearching(false); }
     };
 
@@ -134,7 +137,7 @@ function TrackContent() {
                 setLocationLastSeen(res.data.data.lastSeen);
                 setLocationError(null);
             }
-        } catch (e: any) { setLocationError(e?.response?.data?.error || 'Konum alınamadı'); }
+        } catch (e: any) { setLocationError(e?.response?.data?.error || t('track.locationError')); }
     }, [booking?.id, booking?.trackingAvailable, verifyEmail, verifyPhone4]);
 
     useEffect(() => {
@@ -182,13 +185,13 @@ function TrackContent() {
 
                 <div style={{ position: 'relative', zIndex: 1, maxWidth: 780, margin: '0 auto', padding: 'clamp(80px, 10vw, 120px) 24px clamp(60px, 8vw, 90px)', textAlign: 'center' }}>
                     <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(251,191,36,0.12)', border: '1px solid rgba(251,191,36,0.3)', color: '#fbbf24', padding: '5px 18px', borderRadius: 100, fontSize: 12, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 20 }}>
-                        <SafetyCertificateOutlined /> Rezervasyon Takip
+                        <SafetyCertificateOutlined /> {t('track.badge')}
                     </div>
                     <Title level={1} style={{ color: '#fff', fontFamily: 'var(--font-playfair, Georgia, serif)', fontSize: 'clamp(1.8rem, 4vw, 3rem)', marginBottom: 12, fontWeight: 700 }}>
-                        Rezervasyonunuzu Sorgulayın
+                        {t('track.title')}
                     </Title>
                     <Text style={{ color: 'rgba(255,255,255,0.65)', fontSize: 16, display: 'block', marginBottom: 40, fontWeight: 300, lineHeight: 1.7 }}>
-                        Rezervasyon numaranız ve e-posta / telefon bilginizle transferinizin anlık durumunu takip edin.
+                        {t('track.subtitle')}
                     </Text>
 
                     {/* Search Card */}
@@ -196,13 +199,13 @@ function TrackContent() {
                         <Form form={form} layout="vertical" onFinish={handleSearch}>
                             <Row gutter={[16, 0]}>
                                 <Col xs={24} sm={10}>
-                                    <Form.Item name="bookingNumber" label={<Text style={{ color: 'rgba(255,255,255,0.75)', fontSize: 13, fontWeight: 600 }}>Rezervasyon Numarası</Text>} rules={[{ required: true, message: 'Rezervasyon no girin' }]} style={{ marginBottom: 16 }}>
-                                        <Input placeholder="ÖRN: TR-20260501-1234" style={inputStyle} prefix={<CheckCircleOutlined style={{ color: theme.sectionAccent }} />} allowClear />
+                                    <Form.Item name="bookingNumber" label={<Text style={{ color: 'rgba(255,255,255,0.75)', fontSize: 13, fontWeight: 600 }}>{t('track.bookingNumber')}</Text>} rules={[{ required: true, message: t('track.bookingNumberRequired') }]} style={{ marginBottom: 16 }}>
+                                        <Input placeholder={t('track.bookingPlaceholder')} style={inputStyle} prefix={<CheckCircleOutlined style={{ color: theme.sectionAccent }} />} allowClear />
                                     </Form.Item>
                                 </Col>
                                 <Col xs={24} sm={10}>
-                                    <Form.Item name="identifier" label={<Text style={{ color: 'rgba(255,255,255,0.75)', fontSize: 13, fontWeight: 600 }}>E-posta veya Tel. Son 4 Hane</Text>} rules={[{ required: true, message: 'E-posta / telefon girin' }]} style={{ marginBottom: 16 }} tooltip="Rezervasyon yaparken kullandığınız e-posta veya telefonun son 4 rakamı">
-                                        <Input placeholder="ornek@email.com veya 4567" style={inputStyle} prefix={<UserOutlined style={{ color: '#94a3b8' }} />} allowClear />
+                                    <Form.Item name="identifier" label={<Text style={{ color: 'rgba(255,255,255,0.75)', fontSize: 13, fontWeight: 600 }}>{t('track.identifier')}</Text>} rules={[{ required: true, message: t('track.identifierRequired') }]} style={{ marginBottom: 16 }} tooltip={t('track.identifierTooltip')}>
+                                        <Input placeholder={t('track.identifierPlaceholder')} style={inputStyle} prefix={<UserOutlined style={{ color: '#94a3b8' }} />} allowClear />
                                     </Form.Item>
                                 </Col>
                                 <Col xs={24} sm={4} style={{ display: 'flex', alignItems: 'flex-end', paddingBottom: 16 }}>
@@ -211,7 +214,7 @@ function TrackContent() {
                                         loading={searching} block
                                         style={{ height: 52, borderRadius: 12, background: theme.buttonGradient, border: 'none', fontWeight: 700, fontSize: 15, boxShadow: theme.buttonShadow }}
                                     >
-                                        Sorgula
+                                        {t('track.button')}
                                     </Button>
                                 </Col>
                             </Row>
@@ -246,19 +249,19 @@ function TrackContent() {
                                     </span>
                                     {booking.minutesUntilPickup !== null && booking.minutesUntilPickup > 0 && booking.minutesUntilPickup < 600 && (
                                         <span className="trk-badge" style={{ background: '#fef3c7', color: '#b45309' }}>
-                                            <ClockCircleOutlined /> {booking.minutesUntilPickup > 60 ? `${Math.round(booking.minutesUntilPickup / 60)} saat sonra` : `${booking.minutesUntilPickup} dk sonra`}
+                                            <ClockCircleOutlined /> {booking.minutesUntilPickup > 60 ? t('track.hoursLeft', { n: Math.round(booking.minutesUntilPickup / 60).toString() }) : t('track.minutesLeft', { n: booking.minutesUntilPickup.toString() })}
                                         </span>
                                     )}
                                 </div>
                                 <Button icon={<ReloadOutlined />} loading={refreshing} onClick={handleRefresh} style={{ borderRadius: 10 }}>
-                                    Yenile
+                                    {t('track.refresh')}
                                 </Button>
                             </div>
 
                             {/* Step progress */}
                             {booking.status !== 'CANCELLED' && booking.status !== 'NO_SHOW' && (
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
-                                    {['Alındı', 'Onaylandı', 'Yolda', 'Tamamlandı'].map((label, i) => (
+                                    {[t('track.steps.received'), t('track.steps.confirmed'), t('track.steps.onTheWay'), t('track.steps.completed')].map((label, i) => (
                                         <React.Fragment key={i}>
                                             <div className="trk-step">
                                                 <div className="trk-step-circle" style={{
@@ -286,7 +289,7 @@ function TrackContent() {
                             <Col xs={24} lg={14}>
                                 {/* Trip info */}
                                 <div className="trk-card" style={{ padding: '24px 28px', marginBottom: 24 }}>
-                                    <span className="trk-section-label"><EnvironmentOutlined /> Yolculuk Detayları</span>
+                                    <span className="trk-section-label"><EnvironmentOutlined /> {t('track.tripDetails')}</span>
                                     <div style={{ marginTop: 16 }}>
                                         {/* Route visual */}
                                         <div style={{ display: 'flex', alignItems: 'stretch', gap: 0, marginBottom: 20 }}>
@@ -297,11 +300,11 @@ function TrackContent() {
                                             </div>
                                             <div style={{ flex: 1 }}>
                                                 <div style={{ marginBottom: 20 }}>
-                                                    <Text style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em' }}>NEREDEN</Text>
+                                                    <Text style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{t('track.from')}</Text>
                                                     <Text style={{ display: 'block', fontSize: 15, fontWeight: 600, color: '#0f172a', marginTop: 2 }}>{booking.metadata?.pickup || '-'}</Text>
                                                 </div>
                                                 <div>
-                                                    <Text style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em' }}>NEREYE</Text>
+                                                    <Text style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{t('track.to')}</Text>
                                                     <Text style={{ display: 'block', fontSize: 15, fontWeight: 600, color: '#0f172a', marginTop: 2 }}>{booking.metadata?.dropoff || '-'}</Text>
                                                 </div>
                                             </div>
@@ -309,10 +312,10 @@ function TrackContent() {
 
                                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                                             {[
-                                                { label: 'Tarih & Saat', value: fmtDate(booking.startDate), icon: <ClockCircleOutlined style={{ color: theme.primaryColor }} /> },
-                                                { label: 'Yolcu', value: `${booking.adults} Yetişkin${booking.children ? `, ${booking.children} Çocuk` : ''}${booking.infants ? `, ${booking.infants} Bebek` : ''}`, icon: <UserOutlined style={{ color: theme.primaryColor }} /> },
-                                                ...(booking.metadata?.flightNumber ? [{ label: 'Uçuş No', value: booking.metadata.flightNumber, icon: <ArrowRightOutlined style={{ color: theme.primaryColor }} /> }] : []),
-                                                ...(booking.metadata?.vehicleType ? [{ label: 'Araç', value: booking.metadata.vehicleType, icon: <CarOutlined style={{ color: theme.primaryColor }} /> }] : []),
+                                                { label: t('track.dateTime'), value: fmtDate(booking.startDate, locale), icon: <ClockCircleOutlined style={{ color: theme.primaryColor }} /> },
+                                                { label: t('track.passengers'), value: `${booking.adults} ${t('track.adults')}${booking.children ? `, ${booking.children} ${t('track.children')}` : ''}${booking.infants ? `, ${booking.infants} ${t('track.infants')}` : ''}`, icon: <UserOutlined style={{ color: theme.primaryColor }} /> },
+                                                ...(booking.metadata?.flightNumber ? [{ label: t('track.flightNo'), value: booking.metadata.flightNumber, icon: <ArrowRightOutlined style={{ color: theme.primaryColor }} /> }] : []),
+                                                ...(booking.metadata?.vehicleType ? [{ label: t('track.vehicle'), value: booking.metadata.vehicleType, icon: <CarOutlined style={{ color: theme.primaryColor }} /> }] : []),
                                             ].map((item, i) => (
                                                 <div key={i} style={{ background: '#f8fafc', borderRadius: 12, padding: '12px 16px' }}>
                                                     <Text style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600, display: 'block', marginBottom: 4 }}>{item.label}</Text>
@@ -320,11 +323,11 @@ function TrackContent() {
                                                 </div>
                                             ))}
                                             <div style={{ background: '#f8fafc', borderRadius: 12, padding: '12px 16px' }}>
-                                                <Text style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600, display: 'block', marginBottom: 4 }}>Tutar</Text>
+                                                <Text style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600, display: 'block', marginBottom: 4 }}>{t('track.amount')}</Text>
                                                 <Text style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>
                                                     {Number(booking.total).toFixed(2)} {booking.currency}
                                                     {' '}<span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 100, background: booking.paymentStatus === 'PAID' ? '#dcfce7' : '#fef3c7', color: booking.paymentStatus === 'PAID' ? '#16a34a' : '#d97706' }}>
-                                                        {booking.paymentStatus === 'PAID' ? 'Ödendi' : 'Bekliyor'}
+                                                        {booking.paymentStatus === 'PAID' ? t('track.paid') : t('track.pending')}
                                                     </span>
                                                 </Text>
                                             </div>
@@ -332,7 +335,7 @@ function TrackContent() {
 
                                         {booking.specialRequests && (
                                             <div style={{ marginTop: 12, background: '#fffbeb', borderRadius: 12, padding: '12px 16px', border: '1px solid #fde68a' }}>
-                                                <Text style={{ fontSize: 11, color: '#92400e', fontWeight: 600, display: 'block', marginBottom: 4 }}>ÖZEL İSTEKLER</Text>
+                                                <Text style={{ fontSize: 11, color: '#92400e', fontWeight: 600, display: 'block', marginBottom: 4 }}>{t('track.specialRequests')}</Text>
                                                 <Text style={{ fontSize: 14, color: '#78350f' }}>{booking.specialRequests}</Text>
                                             </div>
                                         )}
@@ -342,22 +345,22 @@ function TrackContent() {
                                 {/* Live tracking */}
                                 <div className="trk-card" style={{ padding: '24px 28px' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-                                        <span className="trk-section-label" style={{ marginBottom: 0 }}><AimOutlined /> Şoför Konumu</span>
+                                        <span className="trk-section-label" style={{ marginBottom: 0 }}><AimOutlined /> {t('track.driverLocation')}</span>
                                         {booking.trackingAvailable && (
                                             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: locationOnline ? '#16a34a' : '#94a3b8' }}>
                                                 <span style={{ width: 8, height: 8, borderRadius: '50%', background: locationOnline ? '#16a34a' : '#d1d5db', display: 'inline-block', ...(locationOnline ? { boxShadow: '0 0 0 3px #dcfce7' } : {}) }} />
-                                                {locationOnline ? 'Canlı' : 'Bekleniyor'}
+                                                {locationOnline ? t('track.live') : t('track.waiting')}
                                             </span>
                                         )}
                                     </div>
                                     {!booking.driver ? (
-                                        <Empty description="Henüz şoför atanmamış" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+                                        <Empty description={t('track.noDriver')} image={Empty.PRESENTED_IMAGE_SIMPLE} />
                                     ) : !booking.trackingAvailable ? (
                                         <Alert type="info" showIcon icon={<ClockCircleOutlined />}
-                                            message="Canlı takip yakında aktif olacak"
+                                            message={t('track.trackingSoon')}
                                             description={booking.minutesUntilPickup !== null && booking.minutesUntilPickup > 0
-                                                ? `Şoför konumu transfer saatine 30 dakika kala paylaşılacaktır. Transferinize ${booking.minutesUntilPickup > 60 ? Math.round(booking.minutesUntilPickup / 60) + ' saat' : booking.minutesUntilPickup + ' dakika'} var.`
-                                                : 'Bu transfer için canlı takip aktif değil.'
+                                                ? `${t('track.trackingDesc')} ${booking.minutesUntilPickup > 60 ? t('track.hoursUntil', { n: Math.round(booking.minutesUntilPickup / 60).toString() }) : t('track.minutesUntil', { n: booking.minutesUntilPickup.toString() })}`
+                                                : t('track.trackingNotActive')
                                             }
                                             style={{ borderRadius: 12 }}
                                         />
@@ -365,24 +368,24 @@ function TrackContent() {
                                         <div>
                                             <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
                                                 <div style={{ flex: 1, minWidth: 100, background: '#f8fafc', borderRadius: 12, padding: '12px 16px', textAlign: 'center' }}>
-                                                    <Text style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600, display: 'block' }}>Hız</Text>
+                                                    <Text style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600, display: 'block' }}>{t('track.speed')}</Text>
                                                     <Text style={{ fontSize: 22, fontWeight: 800, color: theme.primaryColor }}>{driverLocation.speed ? Math.round(driverLocation.speed * 3.6) : 0}</Text>
                                                     <Text style={{ fontSize: 11, color: '#94a3b8' }}> km/sa</Text>
                                                 </div>
                                                 {locationLastSeen && (
                                                     <div style={{ flex: 1, minWidth: 100, background: '#f8fafc', borderRadius: 12, padding: '12px 16px', textAlign: 'center' }}>
-                                                        <Text style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600, display: 'block' }}>Son Güncelleme</Text>
-                                                        <Text style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>{new Date(locationLastSeen).toLocaleTimeString('tr-TR')}</Text>
+                                                        <Text style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600, display: 'block' }}>{t('track.lastUpdate')}</Text>
+                                                        <Text style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>{new Date(locationLastSeen).toLocaleTimeString(locale === 'en' ? 'en-GB' : locale === 'de' ? 'de-DE' : locale === 'ru' ? 'ru-RU' : 'tr-TR')}</Text>
                                                     </div>
                                                 )}
                                             </div>
                                             <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
                                                 <Button type="primary" icon={<EnvironmentOutlined />} href={`https://www.google.com/maps?q=${driverLocation.lat},${driverLocation.lng}`} target="_blank" style={{ background: theme.buttonGradient, border: 'none', borderRadius: 10, fontWeight: 600 }}>
-                                                    Haritada Aç
+                                                    {t('track.openMap')}
                                                 </Button>
                                                 {booking.metadata?.pickupCoordinates && (
                                                     <Button icon={<ArrowRightOutlined />} href={`https://www.google.com/maps/dir/${driverLocation.lat},${driverLocation.lng}/${booking.metadata.pickupCoordinates.lat},${booking.metadata.pickupCoordinates.lng}`} target="_blank" style={{ borderRadius: 10, fontWeight: 600 }}>
-                                                        Rotayı Gör
+                                                        {t('track.viewRoute')}
                                                     </Button>
                                                 )}
                                             </div>
@@ -396,7 +399,7 @@ function TrackContent() {
                                         <Alert type="warning" message={locationError} showIcon style={{ borderRadius: 12 }} />
                                     ) : (
                                         <div style={{ textAlign: 'center', padding: '24px 0' }}>
-                                            <Text type="secondary">Şoförün konumu bekleniyor…</Text>
+                                            <Text type="secondary">{t('track.locationWaiting')}</Text>
                                         </div>
                                     )}
                                 </div>
@@ -406,9 +409,9 @@ function TrackContent() {
                             <Col xs={24} lg={10}>
                                 {/* Driver card */}
                                 <div className="trk-card" style={{ padding: '24px 28px', marginBottom: 24 }}>
-                                    <span className="trk-section-label"><CarOutlined /> Şoför & Araç</span>
+                                    <span className="trk-section-label"><CarOutlined /> {t('track.driverVehicle')}</span>
                                     {!booking.driver ? (
-                                        <Empty description="Henüz şoför atanmamış" image={Empty.PRESENTED_IMAGE_SIMPLE} style={{ marginTop: 16 }} />
+                                        <Empty description={t('track.noDriver')} image={Empty.PRESENTED_IMAGE_SIMPLE} style={{ marginTop: 16 }} />
                                     ) : (
                                         <div style={{ marginTop: 16 }}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
@@ -441,14 +444,14 @@ function TrackContent() {
                                                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                                                         {booking.driver.vehiclePlate && (
                                                             <div style={{ gridColumn: '1/-1', background: `${theme.primaryColor}10`, borderRadius: 12, padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                                                <Text style={{ fontSize: 12, color: '#64748b', fontWeight: 600 }}>PLAKA</Text>
+                                                                <Text style={{ fontSize: 12, color: '#64748b', fontWeight: 600 }}>{t('track.plate')}</Text>
                                                                 <Text style={{ fontSize: 18, fontWeight: 900, color: '#0f172a', letterSpacing: 2, fontFamily: 'monospace' }}>{booking.driver.vehiclePlate}</Text>
                                                             </div>
                                                         )}
                                                         {[
-                                                            { label: 'Araç Tipi', value: booking.driver.vehicleType },
-                                                            { label: 'Model', value: booking.driver.vehicleModel },
-                                                            { label: 'Renk', value: booking.driver.vehicleColor },
+                                                            { label: t('track.vehicleType'), value: booking.driver.vehicleType },
+                                                            { label: t('track.model'), value: booking.driver.vehicleModel },
+                                                            { label: t('track.color'), value: booking.driver.vehicleColor },
                                                         ].filter(x => x.value).map((item, i) => (
                                                             <div key={i} style={{ background: '#f8fafc', borderRadius: 10, padding: '10px 12px' }}>
                                                                 <Text style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700, display: 'block', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{item.label}</Text>
@@ -467,20 +470,20 @@ function TrackContent() {
                                     <div className="trk-card" style={{ padding: '24px 28px', marginBottom: 24, background: 'linear-gradient(135deg, #fffbeb, #fef3c7)', border: '1px solid #fde68a' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
                                             <StarOutlined style={{ fontSize: 20, color: '#f59e0b' }} />
-                                            <Text strong style={{ fontSize: 15 }}>Yolculuğunuzu Değerlendirin</Text>
+                                            <Text strong style={{ fontSize: 15 }}>{t('track.rateTrip')}</Text>
                                         </div>
                                         <Text style={{ color: '#92400e', fontSize: 13, display: 'block', marginBottom: 16 }}>
-                                            Deneyiminizi paylaşarak diğer yolcuların doğru tercih yapmasına yardımcı olun.
+                                            {t('track.rateDesc')}
                                         </Text>
                                         <Button type="primary" href={`/rate/${booking.metadata.ratingToken}`} target="_blank"
                                             style={{ background: '#f59e0b', border: 'none', fontWeight: 700, borderRadius: 10, height: 44 }}>
-                                            Şimdi Puanla <ArrowRightOutlined />
+                                            {t('track.rateNow')} <ArrowRightOutlined />
                                         </Button>
                                     </div>
                                 )}
                                 {booking.metadata?.rating && (
                                     <div className="trk-card" style={{ padding: '20px 24px', marginBottom: 24 }}>
-                                        <Text strong style={{ display: 'block', marginBottom: 8 }}>Verdiğiniz Puan</Text>
+                                        <Text strong style={{ display: 'block', marginBottom: 8 }}>{t('track.yourRating')}</Text>
                                         <Space>
                                             <Rate disabled allowHalf value={booking.metadata.rating.overall} />
                                             <Text strong style={{ color: '#f59e0b', fontSize: 18 }}>{Number(booking.metadata.rating.overall).toFixed(1)}</Text>
@@ -493,19 +496,19 @@ function TrackContent() {
                                     <div style={{ position: 'absolute', top: -30, right: -30, width: 120, height: 120, borderRadius: '50%', background: `${theme.sectionAccent}08` }} />
                                     <SafetyCertificateOutlined style={{ fontSize: 28, color: theme.sectionAccent, marginBottom: 12, display: 'block' }} />
                                     <Text strong style={{ color: '#fff', fontSize: 16, display: 'block', marginBottom: 8, fontFamily: 'var(--font-playfair, Georgia, serif)' }}>
-                                        Tüm transferlerinizi yönetin
+                                        {t('track.manageAll')}
                                     </Text>
                                     <Text style={{ color: 'rgba(255,255,255,0.55)', fontSize: 13, display: 'block', marginBottom: 20, lineHeight: 1.7 }}>
-                                        Üye olun; tüm rezervasyonlarınızı, şoför takibini ve geçmişinizi kolayca görün.
+                                        {t('track.manageDesc')}
                                     </Text>
                                     <div style={{ display: 'flex', gap: 10 }}>
                                         <Button onClick={() => router.push('/register')}
                                             style={{ flex: 1, height: 42, borderRadius: 10, background: theme.buttonGradient, border: 'none', color: '#fff', fontWeight: 700 }}>
-                                            Üye Ol
+                                            {t('track.signUp')}
                                         </Button>
                                         <Button onClick={() => router.push('/login')}
                                             style={{ flex: 1, height: 42, borderRadius: 10, background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', fontWeight: 600 }}>
-                                            Giriş Yap
+                                            {t('track.signIn')}
                                         </Button>
                                     </div>
                                 </div>
@@ -519,9 +522,9 @@ function TrackContent() {
                     <div style={{ marginTop: 16 }}>
                         <Row gutter={[20, 20]}>
                             {[
-                                { icon: '🔍', title: 'Hızlı Sorgulama', desc: 'Rezervasyon numaranız ve e-posta / telefon son 4 hanenizle saniyeler içinde bilgi alın.' },
-                                { icon: '📍', title: 'Canlı Takip', desc: 'Transfer saatine 30 dakika kala şoförünüzün konumunu haritada gerçek zamanlı görün.' },
-                                { icon: '🚘', title: 'Şoför Bilgisi', desc: 'Sizi karşılayacak şoförün adını, aracını ve plakasını önceden öğrenin.' },
+                                { icon: '🔍', title: t('track.info1.title'), desc: t('track.info1.desc') },
+                                { icon: '📍', title: t('track.info2.title'), desc: t('track.info2.desc') },
+                                { icon: '🚘', title: t('track.info3.title'), desc: t('track.info3.desc') },
                             ].map((item, i) => (
                                 <Col xs={24} sm={8} key={i}>
                                     <div className="trk-card" style={{ padding: '28px 24px', textAlign: 'center' }}>
