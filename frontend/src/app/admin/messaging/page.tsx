@@ -84,6 +84,8 @@ export default function MessagingPage() {
 
     useEffect(() => {
         fetchAll();
+        fetchLanguages();
+        fetchRecipientCount([]);
     }, []);
 
     const fetchAll = async () => {
@@ -183,7 +185,10 @@ export default function MessagingPage() {
                 setLanguages(res.data.data.languages || []);
                 setLangTotal(res.data.data.total || 0);
             }
-        } catch { /* ignore */ }
+        } catch (err) {
+            console.warn('[Messaging] Languages endpoint not available, using fallback');
+            // Fallback: if endpoint not deployed yet, show empty state gracefully
+        }
     };
 
     const fetchRecipientCount = async (locales: string[]) => {
@@ -607,9 +612,15 @@ export default function MessagingPage() {
                                 })}
                             </div>
                         ) : (
-                            <Text type="secondary" style={{ fontSize: 12 }}>
-                                Dil verisi yükleniyor...
-                            </Text>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <Spin size="small" />
+                                <Text type="secondary" style={{ fontSize: 12 }}>
+                                    Dil verisi yükleniyor...
+                                </Text>
+                                <Button size="small" type="link" onClick={fetchLanguages} style={{ fontSize: 11 }}>
+                                    Tekrar Dene
+                                </Button>
+                            </div>
                         )}
 
                         {selectedLocales.length > 0 && (
