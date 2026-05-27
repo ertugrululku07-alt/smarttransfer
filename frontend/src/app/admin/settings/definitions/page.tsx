@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import AdminLayout from '@/app/admin/AdminLayout';
 import AdminGuard from '@/app/admin/AdminGuard';
 import {
-    Typography, Card, Tabs, Table, Button, Space, Modal, Form,
+    Typography, Card, Table, Button, Space, Modal, Form,
     Input, InputNumber, Switch, message, Spin, Tag, Popconfirm, Tooltip, Select
 } from 'antd';
 import {
@@ -22,6 +22,32 @@ import { invalidateDefinitions } from '@/app/hooks/useDefinitions';
 import { useBranding } from '@/app/context/BrandingContext';
 
 const { Title, Text } = Typography;
+
+const DEF_NAV_GROUPS = [
+    {
+        label: 'Finans',
+        items: [
+            { key: 'vat', label: 'KDV Oranları', icon: <PercentageOutlined /> },
+            { key: 'currency', label: 'Para Birimleri', icon: <DollarOutlined /> },
+        ]
+    },
+    {
+        label: 'İletişim',
+        items: [
+            { key: 'email', label: 'E-posta Ayarları', icon: <MailOutlined /> },
+            { key: 'template', label: 'Voucher Şablonu', icon: <FileTextOutlined /> },
+            { key: 'whatsapp', label: 'WhatsApp', icon: <WhatsAppOutlined /> },
+        ]
+    },
+    {
+        label: 'Sistem',
+        items: [
+            { key: 'time', label: 'Zaman Tanımları', icon: <ClockCircleOutlined /> },
+            { key: 'deepl', label: 'Çeviri (DeepL)', icon: <GlobalOutlined /> },
+            { key: 'uetds', label: 'UETDS Tanımları', icon: <CarOutlined /> },
+        ]
+    },
+];
 
 // ── Section Header Component ──
 const SectionHeader = ({ icon, title, subtitle, color }: { icon: React.ReactNode; title: string; subtitle: string; color: string }) => (
@@ -111,6 +137,7 @@ const DEFAULT_VOUCHER_PREVIEW = `<!DOCTYPE html>
 
 export default function DefinitionsPage() {
     const { branding } = useBranding();
+    const [activeDefTab, setActiveDefTab] = useState('vat');
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [definitions, setDefinitions] = useState<{ vatRates: any[], currencies: any[] }>({
@@ -1730,25 +1757,82 @@ export default function DefinitionsPage() {
                     </div>
                 </div>
 
-                <Card style={{
-                    borderRadius: 16, border: '1px solid #e2e8f0',
-                    boxShadow: '0 4px 20px rgba(0,0,0,0.04)'
-                }} bodyStyle={{ padding: '20px 24px' }}>
-                    {loading ? (
-                        <div style={{ textAlign: 'center', padding: '60px' }}>
-                            <Spin size="large" />
-                            <div style={{ marginTop: 12, color: '#94a3b8' }}>Yükleniyor...</div>
+                {loading ? (
+                    <div style={{ textAlign: 'center', padding: '80px' }}>
+                        <Spin size="large" />
+                        <div style={{ marginTop: 12, color: '#94a3b8' }}>Yükleniyor...</div>
+                    </div>
+                ) : (
+                    <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start' }}>
+                        {/* ── Sidebar ── */}
+                        <div style={{
+                            width: 220, flexShrink: 0,
+                            background: '#fff',
+                            borderRadius: 16,
+                            border: '1px solid #f0f0f0',
+                            boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
+                            overflow: 'hidden',
+                            position: 'sticky',
+                            top: 24,
+                        }}>
+                            {DEF_NAV_GROUPS.map((group, gi) => (
+                                <div key={group.label}>
+                                    {gi > 0 && <div style={{ height: 1, background: '#f0f0f0', margin: '4px 0' }} />}
+                                    <div style={{
+                                        padding: '10px 16px 4px',
+                                        fontSize: 10,
+                                        fontWeight: 700,
+                                        letterSpacing: '0.08em',
+                                        textTransform: 'uppercase',
+                                        color: '#9ca3af',
+                                    }}>
+                                        {group.label}
+                                    </div>
+                                    {group.items.map(item => {
+                                        const isActive = activeDefTab === item.key;
+                                        return (
+                                            <div
+                                                key={item.key}
+                                                onClick={() => setActiveDefTab(item.key)}
+                                                style={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: 10,
+                                                    padding: '10px 16px',
+                                                    margin: '2px 8px',
+                                                    borderRadius: 10,
+                                                    cursor: 'pointer',
+                                                    background: isActive ? 'linear-gradient(135deg, #ef4444 0%, #b91c1c 100%)' : 'transparent',
+                                                    color: isActive ? '#fff' : '#374151',
+                                                    fontWeight: isActive ? 600 : 400,
+                                                    fontSize: 13,
+                                                    transition: 'all 0.18s ease',
+                                                    userSelect: 'none',
+                                                }}
+                                                onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = '#f9fafb'; }}
+                                                onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+                                            >
+                                                <span style={{ fontSize: 15, opacity: isActive ? 1 : 0.6 }}>{item.icon}</span>
+                                                <span>{item.label}</span>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            ))}
+                            <div style={{ height: 12 }} />
                         </div>
-                    ) : (
-                        <Tabs
-                            defaultActiveKey="vat"
-                            items={tabItems}
-                            type="card"
-                            tabBarGutter={8}
-                            tabBarStyle={{ marginBottom: 24 }}
-                        />
-                    )}
-                </Card>
+
+                        {/* ── Content ── */}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                            <Card style={{
+                                borderRadius: 16, border: '1px solid #e2e8f0',
+                                boxShadow: '0 4px 20px rgba(0,0,0,0.04)'
+                            }} styles={{ body: { padding: '24px' } }}>
+                                {tabItems.find(t => t.key === activeDefTab)?.children}
+                            </Card>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* VAT Modal */}
