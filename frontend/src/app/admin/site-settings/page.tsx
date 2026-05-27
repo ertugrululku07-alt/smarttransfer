@@ -78,6 +78,7 @@ const SiteSettingsPage: React.FC = () => {
     });
     const [brandingSaving, setBrandingSaving] = useState(false);
     const [logoUploading, setLogoUploading] = useState(false);
+    const [faviconUploading, setFaviconUploading] = useState(false);
     const [heroImageUploading, setHeroImageUploading] = useState(false);
 
     // Homepage sections state
@@ -678,6 +679,29 @@ const SiteSettingsPage: React.FC = () => {
         return false;
     };
 
+    const handleFaviconUpload = async (file: File) => {
+        try {
+            setFaviconUploading(true);
+            const formData = new FormData();
+            formData.append('file', file);
+            const res = await apiClient.post('/api/upload', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            if (res.data.success) {
+                const faviconUrl = res.data.data.url;
+                const newBranding = { ...brandingData, faviconUrl };
+                setBrandingData(newBranding);
+                await apiClient.put('/api/tenant/settings', { branding: newBranding });
+                message.success('Favicon yüklendi ve kaydedildi');
+            }
+        } catch {
+            message.error('Favicon yüklenemedi');
+        } finally {
+            setFaviconUploading(false);
+        }
+        return false;
+    };
+
     const saveSections = async (sections: string[]) => {
         try {
             setSectionsSaving(true);
@@ -1019,6 +1043,70 @@ const SiteSettingsPage: React.FC = () => {
                                             <span style={{ color: '#0f172a', fontWeight: 600, fontSize: 22 }}>{brandingData.siteName}</span>
                                         </div>
                                     )}
+                                </div>
+                            </Col>
+                        </Row>
+                    </Card>
+
+                    <Card title="Favicon (Sekme İkonu)" variant="borderless">
+                        <Row gutter={[24, 16]}>
+                            <Col xs={24} md={12}>
+                                <Text type="secondary" style={{ display: 'block', marginBottom: 16 }}>
+                                    Tarayıcı sekmesinde görünecek küçük ikonu yükleyin. Kare formatta (örn: 64×64, 128×128 veya 256×256 px) PNG/ICO dosyası önerilir.
+                                </Text>
+                                <Upload
+                                    accept="image/png,image/x-icon,image/ico,image/svg+xml,image/*"
+                                    showUploadList={false}
+                                    beforeUpload={(file) => { handleFaviconUpload(file); return false; }}
+                                >
+                                    <Button icon={<UploadOutlined />} loading={faviconUploading} size="large">
+                                        {faviconUploading ? 'Yükleniyor...' : 'Favicon Yükle'}
+                                    </Button>
+                                </Upload>
+                                <div style={{ marginTop: 12 }}>
+                                    <Text type="secondary" style={{ fontSize: 12 }}>veya URL girin:</Text>
+                                    <Input
+                                        style={{ marginTop: 4 }}
+                                        placeholder="/uploads/favicon.png veya https://...favicon.png"
+                                        value={brandingData.faviconUrl}
+                                        onChange={(e) => setBrandingData(prev => ({ ...prev, faviconUrl: e.target.value }))}
+                                    />
+                                </div>
+                            </Col>
+                            <Col xs={24} md={12}>
+                                <Text type="secondary" style={{ display: 'block', marginBottom: 8, fontSize: 13 }}>Önizleme:</Text>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                                    <div style={{
+                                        width: 64, height: 64, borderRadius: 8, border: '2px solid #e5e7eb',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        background: '#f8fafc', overflow: 'hidden'
+                                    }}>
+                                        {brandingData.faviconUrl ? (
+                                            <img
+                                                src={getImageUrl(brandingData.faviconUrl)}
+                                                alt="Favicon"
+                                                style={{ width: 48, height: 48, objectFit: 'contain' }}
+                                                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                                            />
+                                        ) : (
+                                            <Text type="secondary" style={{ fontSize: 10 }}>Yok</Text>
+                                        )}
+                                    </div>
+                                    <div style={{
+                                        background: '#fff', border: '1px solid #d1d5db', borderRadius: '8px 8px 0 0',
+                                        padding: '6px 14px', display: 'flex', alignItems: 'center', gap: 8,
+                                        boxShadow: '0 -1px 3px rgba(0,0,0,0.05)', maxWidth: 220
+                                    }}>
+                                        {brandingData.faviconUrl ? (
+                                            <img src={getImageUrl(brandingData.faviconUrl)} alt="" style={{ width: 16, height: 16, objectFit: 'contain' }} />
+                                        ) : (
+                                            <GlobalOutlined style={{ fontSize: 14, color: '#999' }} />
+                                        )}
+                                        <Text style={{ fontSize: 12, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                            {brandingData.siteName || 'Site Adı'}
+                                        </Text>
+                                        <Text type="secondary" style={{ fontSize: 11 }}>×</Text>
+                                    </div>
                                 </div>
                             </Col>
                         </Row>

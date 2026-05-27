@@ -199,14 +199,19 @@ export async function generateMetadata(): Promise<Metadata> {
       },
     } : { index: false, follow: false },
     verification: Object.keys(verification).length > 0 ? verification : undefined,
-    icons: {
-      icon: branding.faviconUrl
-        ? [{ url: branding.faviconUrl.startsWith('/') ? branding.faviconUrl : `/${branding.faviconUrl}`, type: 'image/png' }]
-        : branding.logoVariants?.favicon
-          ? [{ url: branding.logoVariants.favicon.startsWith('/') ? branding.logoVariants.favicon : `/${branding.logoVariants.favicon}`, type: 'image/png' }]
-          : [{ url: '/favicon.ico' }],
-      apple: branding.logoUrl ? [{ url: branding.logoUrl }] : undefined,
-    },
+    icons: (() => {
+      const apiUrl = resolveServerApiUrl();
+      const resolveIcon = (path?: string) => {
+        if (!path) return undefined;
+        if (path.startsWith('http://') || path.startsWith('https://')) return path;
+        return `${apiUrl}${path.startsWith('/') ? path : `/${path}`}`;
+      };
+      const faviconSrc = resolveIcon(branding.faviconUrl) || resolveIcon(branding.logoVariants?.favicon);
+      return {
+        icon: faviconSrc ? [{ url: faviconSrc, type: 'image/png' }] : [],
+        apple: branding.logoUrl ? [{ url: resolveIcon(branding.logoUrl) || branding.logoUrl }] : undefined,
+      };
+    })(),
     other: {
       ...(seo.facebookAppId ? { 'fb:app_id': seo.facebookAppId } : {}),
     },
