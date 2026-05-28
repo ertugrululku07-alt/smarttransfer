@@ -153,6 +153,7 @@ model User {
   roleId            String
   role              Role   @relation(fields: [roleId], references: [id])
   customPermissions Json? // Override/extend role permissions
+  userPermissions   UserPermission[]
 
   // Security
   twoFactorEnabled   Boolean   @default(false)
@@ -302,7 +303,8 @@ model Permission {
   description String?
 
   // Relations
-  roles RolePermission[]
+  roles           RolePermission[]
+  userPermissions UserPermission[]
 
   @@unique([module, resource, action, scope])
 }
@@ -325,6 +327,19 @@ model RolePermission {
   conditions Json?
 
   @@id([roleId, permissionId])
+}
+
+model UserPermission {
+  id           String     @id @default(uuid())
+  userId       String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permissionId String
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, permissionId])
+  @@index([userId])
 }
 
 model RefreshToken {
