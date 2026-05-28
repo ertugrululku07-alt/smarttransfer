@@ -29,6 +29,21 @@ function resolveServerApiUrl(): string {
   throw new Error('NEXT_PUBLIC_API_URL must be set for SSR');
 }
 
+function getSiteBaseUrl(): string {
+  const envUrl = (process.env.NEXT_PUBLIC_SITE_URL || '').trim().replace(/\/$/, '');
+  if (envUrl) return envUrl;
+  // Derive from API URL: https://api.jet2home.com → https://jet2home.com
+  const apiUrl = (process.env.NEXT_PUBLIC_API_URL || '').trim();
+  if (apiUrl) {
+    try {
+      const u = new URL(apiUrl);
+      const host = u.hostname.replace(/^api\./, '');
+      return `${u.protocol}//${host}`;
+    } catch {}
+  }
+  return 'https://jet2home.com';
+}
+
 async function getTenantBranding() {
   let branding = {
     companyName: 'SmartTravel Platform',
@@ -37,7 +52,7 @@ async function getTenantBranding() {
     slogan: "Türkiye'nin en güvenilir transfer platformu",
     email: 'info@smarttravel.com',
     phone: '+90-212-XXX-XXXX',
-    logoUrl: 'https://smarttravel.com/logo.png',
+    logoUrl: '',
   };
 
   try {
@@ -62,12 +77,32 @@ async function getTenantBranding() {
   return branding;
 }
 
+function normalizeAssetUrl(url: string | undefined): string {
+  if (!url) return '';
+  // If it's a relative path, resolve it with the site base
+  if (url.startsWith('/')) return `${getSiteBaseUrl()}${url}`;
+  // If it's an absolute URL but pointing to wrong domain (e.g. old smarttravel.com)
+  // and it has /uploads/ in it, rewrite to current site base
+  if (url.includes('/uploads/')) {
+    try {
+      const u = new URL(url);
+      const currentBase = getSiteBaseUrl();
+      const currentHost = new URL(currentBase).hostname;
+      if (u.hostname !== currentHost) {
+        return `${currentBase}${u.pathname}`;
+      }
+    } catch {}
+  }
+  return url;
+}
+
 export async function generateMetadata(): Promise<Metadata> {
   const branding = await getTenantBranding();
   const fullName = `${branding.siteNameHighlight || ''}${branding.siteName || ''}` || branding.companyName;
+  const logoImage = normalizeAssetUrl(branding.logoUrl);
 
   return {
-    metadataBase: new URL('https://smarttravel.com'),
+    metadataBase: new URL(getSiteBaseUrl()),
     title: {
       default: `${fullName} | ${branding.slogan}`,
       template: `%s | ${fullName}`
@@ -86,13 +121,13 @@ export async function generateMetadata(): Promise<Metadata> {
       siteName: fullName,
       title: `${fullName} | VIP Transfer`,
       description: branding.slogan,
-      images: branding.logoUrl ? [{ url: branding.logoUrl, width: 1200, height: 630 }] : [],
+      images: logoImage ? [{ url: logoImage, width: 1200, height: 630 }] : [],
     },
     twitter: {
       card: "summary_large_image",
       title: `${fullName} | VIP Transfer`,
       description: branding.slogan,
-      images: branding.logoUrl ? [branding.logoUrl] : [],
+      images: logoImage ? [logoImage] : [],
     },
     robots: {
       index: true,
@@ -140,8 +175,8 @@ export default async function RootLayout({
               "@type": "TravelAgency",
               "name": fullName,
               "description": branding.slogan,
-              "url": "https://smarttravel.com",
-              "logo": branding.logoUrl || "https://smarttravel.com/logo.png",
+              "url": getSiteBaseUrl(),
+              "logo": branding.logoUrl || `${getSiteBaseUrl()}/logo.png`,
               "telephone": branding.phone || "+90-212-XXX-XXXX",
               "email": branding.email || "info@smarttravel.com",
               "address": {

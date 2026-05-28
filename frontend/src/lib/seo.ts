@@ -134,7 +134,19 @@ export async function getTenantData(): Promise<TenantData> {
 
 export function buildAbsoluteUrl(url: string | undefined, baseUrl: string): string | undefined {
     if (!url) return undefined;
-    if (url.startsWith('http://') || url.startsWith('https://')) return url;
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+        // If it's an upload path on a wrong/old domain, rewrite to current site
+        if (url.includes('/uploads/')) {
+            try {
+                const u = new URL(url);
+                const currentHost = new URL(baseUrl).hostname;
+                if (u.hostname !== currentHost) {
+                    return `${baseUrl}${u.pathname}`;
+                }
+            } catch {}
+        }
+        return url;
+    }
     if (url.startsWith('/')) return `${baseUrl}${url}`;
     return `${baseUrl}/${url}`;
 }
