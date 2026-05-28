@@ -330,7 +330,6 @@ model RolePermission {
 }
 
 model UserPermission {
-  id           String     @id @default(uuid())
   userId       String
   user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   permissionId String
@@ -338,7 +337,7 @@ model UserPermission {
 
   createdAt DateTime @default(now())
 
-  @@unique([userId, permissionId])
+  @@id([userId, permissionId])
   @@index([userId])
 }
 
