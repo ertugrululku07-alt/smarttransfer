@@ -36,6 +36,17 @@ export const getImageUrl = (url?: string | null) => {
         }
     }
 
+    // Rewrite old/wrong domain uploads to current API domain
+    if (normalizedUrl.includes('/uploads/')) {
+        try {
+            const u = new URL(normalizedUrl);
+            const currentHost = new URL(currentApiUrl).hostname;
+            if (u.hostname !== currentHost && u.hostname !== 'localhost') {
+                return `${currentApiUrl}${u.pathname}`;
+            }
+        } catch {}
+    }
+
     return normalizedUrl;
 };
 

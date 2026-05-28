@@ -950,7 +950,7 @@ const HomePage: React.FC = () => {
                         <Col xs={12} sm={12} md={6} key={i}>
                           <div className="hp-route-card">
                             <Image
-                              src={(route.img && !route.img.startsWith('http') ? getImageUrl(route.img) : route.img) || '/vehicles/placeholder.svg'}
+                              src={getImageUrl(route.img) || '/vehicles/placeholder.svg'}
                               alt={`${route.from} - ${route.to} transfer`}
                               width={400}
                               height={300}
