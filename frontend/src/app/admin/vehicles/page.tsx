@@ -1271,7 +1271,10 @@ const VehiclesPage: React.FC = () => {
                           className="avatar-uploader"
                           showUploadList={false}
                           action={`${API_URL}/api/upload`}
-                          headers={{ Authorization: typeof window !== 'undefined' ? `Bearer ${localStorage.getItem('token')}` : '' }}
+                          headers={{
+                              Authorization: typeof window !== 'undefined' ? `Bearer ${localStorage.getItem('token')}` : '',
+                              'X-Tenant-Slug': typeof window !== 'undefined' ? localStorage.getItem('tenantSlug') || 'Jet2Home' : 'Jet2Home',
+                          }}
                           onChange={handleUploadChange}
                         >
                           {imageUrl ? <img src={getImageUrl(imageUrl)} alt="avatar" style={{ width: '100%', objectFit: 'contain' }} /> : uploadButton}

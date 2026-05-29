@@ -479,6 +479,7 @@ const ExtraServicesPage: React.FC = () => {
                                     action={`${API_URL}/api/upload`}
                                     headers={{
                                         Authorization: typeof window !== 'undefined' ? `Bearer ${localStorage.getItem('token')}` : '',
+                                        'X-Tenant-Slug': typeof window !== 'undefined' ? localStorage.getItem('tenantSlug') || 'Jet2Home' : 'Jet2Home',
                                     }}
                                     onChange={handleUploadChange}
                                 >

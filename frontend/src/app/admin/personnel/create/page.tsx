@@ -180,7 +180,10 @@ const PersonnelCreatePage = () => {
     const uploadProps = {
         name: 'file',
         action: `${API_URL}/api/upload/driver-docs`,
-        headers: { authorization: 'authorization-text' },
+        headers: {
+            Authorization: typeof window !== 'undefined' ? `Bearer ${localStorage.getItem('token')}` : '',
+            'X-Tenant-Slug': typeof window !== 'undefined' ? localStorage.getItem('tenantSlug') || 'Jet2Home' : 'Jet2Home',
+        },
         maxCount: 1,
         listType: "picture-card" as const,
         onChange(info: any) {
