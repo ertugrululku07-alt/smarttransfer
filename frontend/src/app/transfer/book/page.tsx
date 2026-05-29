@@ -814,7 +814,7 @@ const TransferBookingContent: React.FC = () => {
                     <Result
                         status="success"
                         title="Rezervasyonunuz Başarıyla Alındı!"
-                        subTitle={`t('booking.bookingNumber'): ${bookingNumber}. Detaylar e-posta adresinize gönderilmiştir.`}
+                        subTitle={`${t('booking.bookingNumber')}: ${bookingNumber}. Detaylar e-posta adresinize gönderilmiştir.`}
                         extra={[
                             <Button type="primary" key="home" onClick={() => router.push('/')}>
                                 Anasayfaya Dön
@@ -922,7 +922,7 @@ const TransferBookingContent: React.FC = () => {
                             <div style={{ marginTop: 24, padding: '20px 24px', background: '#fffbe6', border: '1px solid #ffe58f', borderRadius: 10, textAlign: 'left' }}>
                                 <Title level={5} style={{ marginTop: 0, color: '#d48806', marginBottom: 12 }}>
                                     <CreditCardOutlined style={{ marginRight: 8 }} />
-                                    t('booking.bankTransfer') Bilgileri
+                                    {t('booking.bankTransfer')} Bilgileri
                                 </Title>
                                 <Text style={{ display: 'block', marginBottom: 12, color: '#8c6d1f' }}>
                                     Aşağıdaki hesap bilgilerinden birine tutarı gönderebilirsiniz. Açıklama kısmına <strong>{bookingNumber}</strong> yazmayı unutmayın.
@@ -1005,7 +1005,7 @@ const TransferBookingContent: React.FC = () => {
                                 items={[
                                     { title: <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 11 }}>Arama</span> },
                                     { title: <span style={{ color: '#fff', fontSize: 11, fontWeight: 700 }}>Rezervasyon</span> },
-                                    { title: <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 11 }}>t('booking.payment')</span> },
+                                    { title: <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 11 }}>{t('booking.payment')}</span> },
                                 ]}
                             />
                         </Col>
@@ -1229,7 +1229,7 @@ const TransferBookingContent: React.FC = () => {
                                                                     { len: 11, message: '11 haneli olmalıdır' }
                                                                 ]}
                                                             >
-                                                                <Input placeholder="11 Haneli t('booking.tckn')" maxLength={11} />
+                                                                <Input placeholder={'11 Haneli ' + t('booking.tckn')} maxLength={11} />
                                                             </Form.Item>
                                                         )}
                                                         <div style={{ marginTop: -8, marginBottom: 24 }}>
@@ -1293,13 +1293,13 @@ const TransferBookingContent: React.FC = () => {
                                         items={[
                                             {
                                                 key: '1',
-                                                label: <span style={{ fontWeight: 600, fontSize: 16 }}>t('booking.extraServicesOptional')</span>,
+                                                label: <span style={{ fontWeight: 600, fontSize: 16 }}>{t('booking.extraServicesOptional')}</span>,
                                                 children: (
                                                     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                                                         {servicesLoading ? (
                                                             <div style={{ textAlign: 'center', padding: 20 }}><Spin /></div>
                                                         ) : extraServices.length === 0 ? (
-                                                            <Text type="secondary">t('booking.noExtraServices')</Text>
+                                                            <Text type="secondary">{t('booking.noExtraServices')}</Text>
                                                         ) : (
                                                             extraServices
                                                                 .filter(service => {
@@ -1386,7 +1386,7 @@ const TransferBookingContent: React.FC = () => {
 
                                 <Divider />
 
-                                <Title level={5}>t('booking.couponCode')</Title>
+                                <Title level={5}>{t('booking.couponCode')}</Title>
                                 <Space.Compact style={{ width: '100%', marginBottom: 16 }}>
                                     <Input
                                         value={couponCode}
@@ -1409,28 +1409,28 @@ const TransferBookingContent: React.FC = () => {
                                     <div style={{ marginBottom: 16 }}><Text type="danger" style={{ fontSize: 13 }}>{couponError}</Text></div>
                                 )}
 
-                                <Title level={5}>t('booking.payment') Yöntemi</Title>
+                                <Title level={5}>{t('booking.payment') + ' Yöntemi'}</Title>
                                 <Form.Item name="paymentMethod">
                                     <Radio.Group>
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                                             <Radio value="cash">
                                                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                                                    <Text>t('booking.payInVehicle')</Text>
-                                                    <Text type="secondary">t('booking.payInVehicleNote')</Text>
+                                                    <Text>{t('booking.payInVehicle')}</Text>
+                                                    <Text type="secondary">{t('booking.payInVehicleNote')}</Text>
                                                 </div>
                                             </Radio>
                                             <Radio value="bank" disabled={!paymentMethods.bankTransferEnabled}>
                                                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                                                    <Text>t('booking.bankTransfer')</Text>
-                                                    {!paymentMethods.bankTransferEnabled && <Tag style={{ marginLeft: 8 }}>t('booking.comingSoon')</Tag>}
+                                                    <Text>{t('booking.bankTransfer')}</Text>
+                                                    {!paymentMethods.bankTransferEnabled && <Tag style={{ marginLeft: 8 }}>{t('booking.comingSoon')}</Tag>}
                                                 </div>
                                             </Radio>
                                             <Radio value="credit_card" disabled={!paymentMethods.onlineCreditCardEnabled}>
                                                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                                                    <Text>t('booking.onlineCard')</Text>
+                                                    <Text>{t('booking.onlineCard')}</Text>
                                                     {paymentMethods.onlineCreditCardEnabled
                                                         ? <Tag color="green" style={{ marginLeft: 8 }}>3D Secure</Tag>
-                                                        : <Tag style={{ marginLeft: 8 }}>t('booking.comingSoon')</Tag>
+                                                        : <Tag style={{ marginLeft: 8 }}>{t('booking.comingSoon')}</Tag>
                                                     }
                                                 </div>
                                             </Radio>
@@ -1501,7 +1501,7 @@ const TransferBookingContent: React.FC = () => {
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                                 <DashboardOutlined style={{ color: '#1890ff' }} />
                                                 <div>
-                                                    <div style={{ fontSize: 10, color: '#666' }}>t('booking.distance')</div>
+                                                    <div style={{ fontSize: 10, color: '#666' }}>{t('booking.distance')}</div>
                                                     <div style={{ fontWeight: 600, color: '#1890ff' }}>
                                                         {tripStats.distance === 'Calculating...' ? '35 km' : tripStats.distance}
                                                     </div>
@@ -1511,7 +1511,7 @@ const TransferBookingContent: React.FC = () => {
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                                 <ClockCircleOutlined style={{ color: '#1890ff' }} />
                                                 <div>
-                                                    <div style={{ fontSize: 10, color: '#666' }}>t('booking.duration')</div>
+                                                    <div style={{ fontSize: 10, color: '#666' }}>{t('booking.duration')}</div>
                                                     <div style={{ fontWeight: 600, color: '#1890ff' }}>
                                                         {tripStats.duration === 'Calculating...' ? '45 dk' : tripStats.duration}
                                                     </div>
@@ -1523,7 +1523,7 @@ const TransferBookingContent: React.FC = () => {
                                         {vehicleDetails && (
                                             <div style={{ marginBottom: 16 }}>
                                                 <div style={{ background: '#f0f5ff', padding: 12, borderRadius: 8, marginBottom: 8 }}>
-                                                    <Text strong style={{ fontSize: 13, color: '#1677ff' }}>'🚗 ' + t('booking.outbound')</Text>
+                                                    <Text strong style={{ fontSize: 13, color: '#1677ff' }}>{'🚗 ' + t('booking.outbound')}</Text>
                                                     <div style={{ marginTop: 8, textAlign: 'center' }}>
                                                         {vehicleDetails.image && (
                                                             <img
@@ -1575,7 +1575,7 @@ const TransferBookingContent: React.FC = () => {
 
                                         <Divider style={{ margin: '16px 0' }} />
                                         <div style={{ marginTop: 8 }}>
-                                            <Text strong style={{ fontSize: 12 }}>t('booking.extraServices')</Text>
+                                            <Text strong style={{ fontSize: 12 }}>{t('booking.extraServices')}</Text>
                                             {Array.from(selectedServices.entries()).map(([id, qty]) => {
                                                 const s = extraServices.find(srv => srv.id === id);
                                                 if (!s) return null;
@@ -1606,7 +1606,7 @@ const TransferBookingContent: React.FC = () => {
 
                                 {/* Grand Total */}
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <Title level={5} style={{ margin: 0 }}>t('booking.totalAmount')</Title>
+                                    <Title level={5} style={{ margin: 0 }}>{t('booking.totalAmount')}</Title>
                                     <Title level={3} style={{ margin: 0, color: '#52c41a' }}>
                                         {formatPrice(couponResult ? grandTotal - couponResult.discount : grandTotal, selectedCurrency)}
                                     </Title>
