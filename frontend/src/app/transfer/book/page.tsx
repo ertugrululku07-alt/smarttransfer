@@ -45,6 +45,7 @@ import TopBar from '@/app/components/TopBar';
 import BookingMap from '@/app/components/BookingMap';
 import { useCurrency } from '@/app/context/CurrencyContext';
 import { useBranding } from '@/app/context/BrandingContext';
+import { useLanguage } from '@/app/context/LanguageContext';
 import { countryList } from '@/lib/countryData';
 
 const { Content, Footer } = Layout;
@@ -53,6 +54,7 @@ const { Title, Text, Paragraph } = Typography;
 const TransferBookingContent: React.FC = () => {
     const { formatPrice, convertPrice, selectedCurrency } = useCurrency();
     const { branding } = useBranding();
+    const { t } = useLanguage();
     const searchParams = useSearchParams();
     const router = useRouter();
     const [form] = Form.useForm();
@@ -676,11 +678,11 @@ const TransferBookingContent: React.FC = () => {
                             }
                         } else {
                             setPaymentFailed(true);
-                            setPaymentError(payRes.data.error || 'Ödeme başlatılamadı');
+                            setPaymentError(payRes.data.error || 't('booking.payment') başlatılamadı');
                         }
                     } catch (payErr: any) {
                         setPaymentFailed(true);
-                        setPaymentError(payErr.response?.data?.error || 'Ödeme sistemi hatası');
+                        setPaymentError(payErr.response?.data?.error || 't('booking.payment') sistemi hatası');
                     }
                 } else {
                     // cash or bank_transfer — show success directly
@@ -728,11 +730,11 @@ const TransferBookingContent: React.FC = () => {
                 }
             } else {
                 setPaymentFailed(true);
-                setPaymentError(payRes.data.error || 'Ödeme başlatılamadı');
+                setPaymentError(payRes.data.error || 't('booking.payment') başlatılamadı');
             }
         } catch (err: any) {
             setPaymentFailed(true);
-            setPaymentError(err.response?.data?.error || 'Ödeme sistemi hatası');
+            setPaymentError(err.response?.data?.error || 't('booking.payment') sistemi hatası');
         } finally {
             setLoading(false);
         }
@@ -748,7 +750,7 @@ const TransferBookingContent: React.FC = () => {
                     <Card style={{ borderRadius: 12 }}>
                         <Title level={4} style={{ marginBottom: 16, textAlign: 'center' }}>
                             <CreditCardOutlined style={{ marginRight: 8 }} />
-                            Online Ödeme
+                            Online t('booking.payment')
                         </Title>
                         <Text type="secondary" style={{ display: 'block', textAlign: 'center', marginBottom: 16 }}>
                             Rezervasyon No: {bookingNumber}
@@ -768,8 +770,8 @@ const TransferBookingContent: React.FC = () => {
                 <Content style={{ padding: '48px 24px', paddingTop: 96, maxWidth: 600, margin: '0 auto' }}>
                     <Result
                         status="error"
-                        title="Ödeme Alınamadı"
-                        subTitle={paymentError || 'Kredi kartınızdan çekim yapılamadı. Lütfen tekrar deneyin.'}
+                        title="t('booking.payment') Alınamadı"
+                        subTitle={paymentError || 'Kredi kartınızdan çekim yapılamadı. t('common.tryAgain').'}
                         extra={[
                             <Button type="primary" key="retry" size="large" loading={loading} onClick={retryPayment}
                                 style={{ background: 'var(--brand-primary)', border: 'none' }}>
@@ -812,7 +814,7 @@ const TransferBookingContent: React.FC = () => {
                     <Result
                         status="success"
                         title="Rezervasyonunuz Başarıyla Alındı!"
-                        subTitle={`Rezervasyon Numaranız: ${bookingNumber}. Detaylar e-posta adresinize gönderilmiştir.`}
+                        subTitle={`t('booking.bookingNumber'): ${bookingNumber}. Detaylar e-posta adresinize gönderilmiştir.`}
                         extra={[
                             <Button type="primary" key="home" onClick={() => router.push('/')}>
                                 Anasayfaya Dön
@@ -1003,7 +1005,7 @@ const TransferBookingContent: React.FC = () => {
                                 items={[
                                     { title: <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 11 }}>Arama</span> },
                                     { title: <span style={{ color: '#fff', fontSize: 11, fontWeight: 700 }}>Rezervasyon</span> },
-                                    { title: <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 11 }}>Ödeme</span> },
+                                    { title: <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 11 }}>t('booking.payment')</span> },
                                 ]}
                             />
                         </Col>
@@ -1016,7 +1018,7 @@ const TransferBookingContent: React.FC = () => {
                 <Row gutter={24} style={{ marginTop: 24 }}>
                     {/* Booking Form */}
                     <Col xs={24} lg={16}>
-                        <Card title="Yolcu Bilgileri" style={{ borderRadius: 8, marginBottom: 24 }}>
+                        <Card title="t('booking.passengerInfo')" style={{ borderRadius: 8, marginBottom: 24 }}>
                             <Form
                                 form={form}
                                 layout="vertical"
@@ -1027,7 +1029,7 @@ const TransferBookingContent: React.FC = () => {
                                     <Col xs={24} md={12}>
                                         <Form.Item
                                             name="fullName"
-                                            label="Ad Soyad"
+                                            label="t('booking.fullName')"
                                             rules={[{ required: true, message: 'Lütfen ad soyad giriniz' }]}
                                         >
                                             <Input size="large" prefix={<UserOutlined />} placeholder="Adınız Soyadınız" />
@@ -1036,7 +1038,7 @@ const TransferBookingContent: React.FC = () => {
                                     <Col xs={24} md={12}>
                                         <Form.Item
                                             name="phone"
-                                            label="Telefon Numarası"
+                                            label="t('booking.phone') Numarası"
                                             rules={[{ required: true, message: 'Lütfen telefon numarası giriniz' }]}
                                         >
                                             <Space.Compact style={{ width: '100%' }}>
@@ -1055,10 +1057,10 @@ const TransferBookingContent: React.FC = () => {
 
                                 <Form.Item
                                     name="email"
-                                    label="E-posta Adresi"
+                                    label="t('booking.email') t('booking.address')i"
                                     rules={[
                                         { required: true, message: 'Lütfen e-posta adresi giriniz' },
-                                        { type: 'email', message: 'Geçerli bir e-posta giriniz' }
+                                        { type: 'email', message: 't('common.validEmail')iz' }
                                     ]}
                                 >
                                     <Input size="large" placeholder="ornek@email.com" />
@@ -1078,7 +1080,7 @@ const TransferBookingContent: React.FC = () => {
                                     <Col xs={24} md={12}>
                                         <Form.Item
                                             name="flightNumber"
-                                            label="Uçuş Numarası (Opsiyonel)"
+                                            label="t('booking.flightNumber') (Opsiyonel)"
                                             tooltip="Havalimanı karşılaması için gereklidir"
                                         >
                                             <Input size="large" prefix={<RocketOutlined />} placeholder="TK1234" />
@@ -1087,7 +1089,7 @@ const TransferBookingContent: React.FC = () => {
                                     <Col xs={24} md={12}>
                                         <Form.Item
                                             name="notes"
-                                            label="Notlarınız"
+                                            label="t('booking.notes')ınız"
                                         >
                                             <Input size="large" placeholder="Varsa ek istekleriniz..." />
                                         </Form.Item>
@@ -1199,8 +1201,8 @@ const TransferBookingContent: React.FC = () => {
                                     <div style={{ background: '#fafafa', padding: 16, borderRadius: 8, border: '1px solid #f0f0f0' }}>
                                         <Form.Item name="invoiceType" initialValue="individual" style={{ marginBottom: 16 }}>
                                             <Radio.Group onChange={(e) => setInvoiceType(e.target.value)} value={invoiceType}>
-                                                <Radio.Button value="individual">Bireysel</Radio.Button>
-                                                <Radio.Button value="corporate">Kurumsal</Radio.Button>
+                                                <Radio.Button value="individual">t('booking.individual')</Radio.Button>
+                                                <Radio.Button value="corporate">t('booking.corporate')</Radio.Button>
                                             </Radio.Group>
                                         </Form.Item>
 
@@ -1210,8 +1212,8 @@ const TransferBookingContent: React.FC = () => {
                                                     <Col xs={24} md={12}>
                                                         <Form.Item
                                                             name="billingFullName"
-                                                            label="Ad Soyad"
-                                                            rules={[{ required: true, message: 'Fatura için Ad Soyad zorunludur' }]}
+                                                            label="t('booking.fullName')"
+                                                            rules={[{ required: true, message: 'Fatura için t('booking.fullName') zorunludur' }]}
                                                         >
                                                             <Input placeholder="Adınız Soyadınız" />
                                                         </Form.Item>
@@ -1221,13 +1223,13 @@ const TransferBookingContent: React.FC = () => {
                                                         {!notCitizen && (
                                                             <Form.Item
                                                                 name="tcNo"
-                                                                label="TC Kimlik No"
+                                                                label="t('booking.tckn')"
                                                                 rules={[
                                                                     { required: true, message: 'TC Kimlik numarası zorunludur' },
                                                                     { len: 11, message: '11 haneli olmalıdır' }
                                                                 ]}
                                                             >
-                                                                <Input placeholder="11 Haneli TC Kimlik No" maxLength={11} />
+                                                                <Input placeholder="11 Haneli t('booking.tckn')" maxLength={11} />
                                                             </Form.Item>
                                                         )}
                                                         <div style={{ marginTop: -8, marginBottom: 24 }}>
@@ -1251,10 +1253,10 @@ const TransferBookingContent: React.FC = () => {
                                                     <Col xs={24} md={12}>
                                                         <Form.Item
                                                             name="taxOffice"
-                                                            label="Vergi Dairesi"
+                                                            label="t('booking.taxOffice')"
                                                             rules={[{ required: true, message: 'Vergi dairesi zorunludur' }]}
                                                         >
-                                                            <Input placeholder="Vergi Dairesi" />
+                                                            <Input placeholder="t('booking.taxOffice')" />
                                                         </Form.Item>
                                                     </Col>
                                                     <Col xs={24} md={12}>
@@ -1263,7 +1265,7 @@ const TransferBookingContent: React.FC = () => {
                                                             label="Vergi Numarası"
                                                             rules={[{ required: true, message: 'Vergi numarası zorunludur' }]}
                                                         >
-                                                            <Input placeholder="Vergi No" />
+                                                            <Input placeholder="t('booking.taxNo')" />
                                                         </Form.Item>
                                                     </Col>
                                                 </Row>
@@ -1272,7 +1274,7 @@ const TransferBookingContent: React.FC = () => {
 
                                         <Form.Item
                                             name="billingAddress"
-                                            label="Fatura Adresi"
+                                            label="Fatura t('booking.address')i"
                                             rules={[{ required: true, message: 'Fatura adresi zorunludur' }]}
                                         >
                                             <Input.TextArea rows={2} placeholder="Tam adres" />
@@ -1407,7 +1409,7 @@ const TransferBookingContent: React.FC = () => {
                                     <div style={{ marginBottom: 16 }}><Text type="danger" style={{ fontSize: 13 }}>{couponError}</Text></div>
                                 )}
 
-                                <Title level={5}>Ödeme Yöntemi</Title>
+                                <Title level={5}>t('booking.payment') Yöntemi</Title>
                                 <Form.Item name="paymentMethod">
                                     <Radio.Group>
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -1604,7 +1606,7 @@ const TransferBookingContent: React.FC = () => {
 
                                 {/* Grand Total */}
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <Title level={5} style={{ margin: 0 }}>Toplam Tutar</Title>
+                                    <Title level={5} style={{ margin: 0 }}>t('booking.totalAmount')</Title>
                                     <Title level={3} style={{ margin: 0, color: '#52c41a' }}>
                                         {formatPrice(couponResult ? grandTotal - couponResult.discount : grandTotal, selectedCurrency)}
                                     </Title>

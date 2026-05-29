@@ -44,6 +44,7 @@ import DynamicLocationSearchInput from '@/app/components/DynamicLocationSearchIn
 import { getRouteDetails } from '@/lib/routing';
 import { useCurrency } from '@/app/context/CurrencyContext';
 import { useBranding } from '@/app/context/BrandingContext';
+import { useLanguage } from '@/app/context/LanguageContext';
 
 const { Content, Footer } = Layout;
 const { Title, Text, Paragraph } = Typography;
@@ -71,6 +72,7 @@ interface TransferResult {
 const TransferSearchContent: React.FC = () => {
     const { formatPrice } = useCurrency();
     const { branding } = useBranding();
+    const { t } = useLanguage();
     const searchParams = useSearchParams();
     const router = useRouter();
     const [loading, setLoading] = useState(true);
@@ -134,14 +136,14 @@ const TransferSearchContent: React.FC = () => {
                         // No drivable land route → don't pretend we can price it.
                         setResults([]);
                         setRouteStats(null);
-                        setError('Bu güzergah için karayolu rotası bulunamadı. Lütfen başka bir varış noktası seçin.');
+                        setError(t('search.noRouteFound'));
                         setLoading(false);
                         return;
                     }
                 } catch (e) {
                     console.error('Distance calculation failed:', e);
                     setResults([]);
-                    setError('Rota hesaplanamadı. Lütfen tekrar deneyin.');
+                    setError(t('search.routeCalculationFailed'));
                     setLoading(false);
                     return;
                 }
@@ -166,10 +168,10 @@ const TransferSearchContent: React.FC = () => {
             if (res.data.success) {
                 setResults(res.data.data.results);
             } else {
-                setError('Arama sonuçları alınamadı.');
+                setError(t('search.searchResultsFailed'));
             }
         } catch (err: any) {
-            setError(err.response?.data?.error || 'Arama sırasında bir hata oluştu');
+            setError(err.response?.data?.error || t('search.searchError'));
         } finally {
             setLoading(false);
         }
@@ -214,7 +216,7 @@ const TransferSearchContent: React.FC = () => {
                 setReturnResults(res.data.data.results);
             }
         } catch (err: any) {
-            message.error('Dönüş araçları aranamadı');
+            message.error(t('search.returnSearchFailed'));
         } finally {
             setReturnLoading(false);
         }
@@ -330,10 +332,10 @@ const TransferSearchContent: React.FC = () => {
                                 </div>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 20, padding: '5px 14px' }}>
                                     <UserOutlined style={{ color: '#93c5fd', fontSize: 12 }} />
-                                    <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13 }}>{passengers} Yolcu</Text>
+                                    <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13 }}>{passengers} {t('search.passenger')}</Text>
                                 </div>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: type === 'ONE_WAY' ? 'rgba(59,130,246,0.2)' : 'rgba(139,92,246,0.2)', border: `1px solid ${type === 'ONE_WAY' ? 'rgba(59,130,246,0.35)' : 'rgba(139,92,246,0.35)'}`, borderRadius: 20, padding: '5px 14px' }}>
-                                    <Text style={{ color: type === 'ONE_WAY' ? '#93c5fd' : '#c4b5fd', fontSize: 13, fontWeight: 600 }}>{type === 'ONE_WAY' ? '✈ Tek Yön' : '↔ Gidiş-Dönüş'}</Text>
+                                    <Text style={{ color: type === 'ONE_WAY' ? '#93c5fd' : '#c4b5fd', fontSize: 13, fontWeight: 600 }}>{type === 'ONE_WAY' ? '✈ ' + t('search.oneWay') : '↔ ' + t('search.roundTrip')}</Text>
                                 </div>
                             </div>
                         </Col>
@@ -352,7 +354,7 @@ const TransferSearchContent: React.FC = () => {
                                     boxShadow: '0 4px 14px rgba(59,130,246,0.35)',
                                 }}
                             >
-                                Aramayı Düzenle
+                                {t('search.editSearch')}
                             </Button>
                         </Col>
                     </Row>
@@ -363,29 +365,29 @@ const TransferSearchContent: React.FC = () => {
                 {loading ? (
                     <div style={{ textAlign: 'center', padding: '100px 0' }}>
                         <Spin size="large" />
-                        <div style={{ marginTop: 16 }}>En uygun transfer araçları aranıyor...</div>
+                        <div style={{ marginTop: 16 }}>{t('search.searching')}</div>
                     </div>
                 ) : error ? (
-                    <Alert message="Hata" description={error} type="error" showIcon action={<Button size="small" type="primary" onClick={searchTransfers}>Tekrar Dene</Button>} />
+                    <Alert message={t('common.error')} description={error} type="error" showIcon action={<Button size="small" type="primary" onClick={searchTransfers}>{t('common.retry')}</Button>} />
                 ) : (
                     <Row gutter={[24, 24]}>
                         <Col xs={24} lg={6}>
-                            <Card title="Filtrele" size="small">
+                            <Card title={t('common.filter')} size="small">
                                 <div style={{ marginBottom: 16 }}>
-                                    <Text strong>Araç Tipi</Text>
+                                    <Text strong>{t('search.vehicleType')}</Text>
                                     <div style={{ marginTop: 8 }}>
                                         <Tag>Sedan</Tag><Tag>Hatchback</Tag><Tag>Minivan</Tag>
                                     </div>
                                 </div>
                             </Card>
-                            <Card title="Rota Bilgileri" size="small" style={{ marginTop: 24 }}>
+                            <Card title={t('search.routeInfo')} size="small" style={{ marginTop: 24 }}>
                                 <div style={{ marginBottom: 16, height: 200, borderRadius: 8, overflow: 'hidden' }}>
                                     <BookingMap pickup={pickup} dropoff={dropoff} onDistanceCalculated={(dist, dur) => setRouteStats({ distance: dist, duration: dur })} />
                                 </div>
                                 <Divider style={{ margin: '12px 0' }} />
                                 <Row gutter={16}>
-                                    <Col span={12}><Text type="secondary" style={{ fontSize: 12 }}>Mesafe</Text><div style={{ fontWeight: 500, fontSize: 16 }}>{routeStats?.distance}</div></Col>
-                                    <Col span={12}><Text type="secondary" style={{ fontSize: 12 }}>Süre</Text><div style={{ fontWeight: 500, fontSize: 16 }}>{routeStats?.duration}</div></Col>
+                                    <Col span={12}><Text type="secondary" style={{ fontSize: 12 }}>{t('search.distance')}</Text><div style={{ fontWeight: 500, fontSize: 16 }}>{routeStats?.distance}</div></Col>
+                                    <Col span={12}><Text type="secondary" style={{ fontSize: 12 }}>{t('search.duration')}</Text><div style={{ fontWeight: 500, fontSize: 16 }}>{routeStats?.duration}</div></Col>
                                 </Row>
                             </Card>
                         </Col>
@@ -402,7 +404,7 @@ const TransferSearchContent: React.FC = () => {
                                 }}>
                                     <div>
                                         <Text strong style={{ fontSize: 15, color: roundTripStep === 'outbound' ? 'var(--brand-primary)' : '#059669' }}>
-                                            {roundTripStep === 'outbound' ? '1️⃣ Gidiş Aracını Seçin' : '2️⃣ Dönüş Aracını Seçin'}
+                                            {roundTripStep === 'outbound' ? '1️⃣ ' + t('search.selectOutbound') : '2️⃣ ' + t('search.selectReturn')}
                                         </Text>
                                         <div style={{ fontSize: 13, color: '#64748b', marginTop: 4 }}>
                                             {roundTripStep === 'outbound'
@@ -413,20 +415,20 @@ const TransferSearchContent: React.FC = () => {
                                     </div>
                                     {roundTripStep === 'return' && (
                                         <Button size="small" onClick={() => { setRoundTripStep('outbound'); setSelectedOutbound(null); }}>
-                                            ← Gidişe Dön
+                                            ← {t('search.backToOutbound')}
                                         </Button>
                                     )}
                                 </div>
                             )}
                             <div style={{ marginBottom: 16 }}>
                                 <Text strong>
-                                    {roundTripStep === 'return' ? `${returnResults.length} dönüş aracı bulundu` : `${results.length} araç bulundu`}
+                                    {roundTripStep === 'return' ? `${returnResults.length} ` + t('search.returnVehiclesFound') : `${results.length} ` + t('search.vehiclesFound')}
                                 </Text>
                             </div>
                             {returnLoading ? (
                                 <div style={{ textAlign: 'center', padding: '60px 0' }}>
                                     <Spin size="large" />
-                                    <div style={{ marginTop: 16 }}>Dönüş araçları aranıyor...</div>
+                                    <div style={{ marginTop: 16 }}>{t('search.searchingReturn')}</div>
                                 </div>
                             ) : (roundTripStep === 'return' ? returnResults : results).map((result) => (
                                 <Card key={result.id} hoverable style={{ marginBottom: 16, overflow: 'hidden' }} styles={{ body: { padding: 0 } }}>
@@ -465,7 +467,7 @@ const TransferSearchContent: React.FC = () => {
                                             <Title level={4} style={{ marginTop: 0 }}>{result.vehicleType}</Title>
                                             <Text type="secondary" style={{ display: 'block', marginBottom: 16 }}>by {result.vendor}</Text>
                                             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%', marginBottom: 16 }}>
-                                                {result.isShuttle && <Tag color="purple">Paylaşımlı Shuttle</Tag>}
+                                                {result.isShuttle && <Tag color="purple">{t('search.sharedShuttle')}</Tag>}
                                                 {result.isShuttle && result.shuttleRouteName && <Text type="secondary" style={{ fontSize: 11 }}>{result.shuttleRouteName}</Text>}
                                                 {result.isShuttle && result.matchedMasterTime ? (() => {
                                                     // Calculate raw home-pickup time: searchTime - travelDuration - pickupLeadHours
@@ -502,22 +504,22 @@ const TransferSearchContent: React.FC = () => {
 
                                                     return (
                                                         <Tag color="blue" style={{ fontWeight: 600 }}>
-                                                            {displayTime} Yolculuğu
+                                                            {displayTime} {t('search.departure')}
                                                         </Tag>
                                                     );
-                                                })() : (result.matchedMasterTime && <Tag color="blue" style={{fontWeight:600}}>{result.matchedMasterTime} Yolculuğu</Tag>)}
-                                                <Space><UserOutlined /> {result.capacity} Yolcu</Space>
-                                                <Space><SafetyCertificateOutlined /> {result.luggage} Bavul</Space>
+                                                })() : (result.matchedMasterTime && <Tag color="blue" style={{fontWeight:600}}>{result.matchedMasterTime} {t('search.departure')}</Tag>)}
+                                                <Space><UserOutlined /> {result.capacity} {t('search.passenger')}</Space>
+                                                <Space><SafetyCertificateOutlined /> {result.luggage} {t('search.luggage')}</Space>
                                                 {result.features?.includes('WiFi') && <Space><WifiOutlined /> WiFi</Space>}
-                                                <Space><ClockCircleOutlined /> Süre: {result.isShuttle && typeof routeStats?.duration === 'string' ? routeStats.duration : result.estimatedDuration}</Space>
+                                                <Space><ClockCircleOutlined /> {t('search.duration')}: {result.isShuttle && typeof routeStats?.duration === 'string' ? routeStats.duration : result.estimatedDuration}</Space>
                                             </div>
-                                            <Tag icon={<CheckCircleOutlined />} color="green">Ücretsiz İptal</Tag>
+                                            <Tag icon={<CheckCircleOutlined />} color="green">{t('search.freeCancellation')}</Tag>
                                         </Col>
                                         <Col xs={24} md={6} style={{ padding: 24, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center' }}>
                                             <Text type="secondary" delete>{formatPrice(Math.round(result.price * 1.2), result.currency)}</Text>
                                             <Title level={2} style={{ color: 'var(--brand-primary)', margin: '4px 0 16px', fontSize: 28 }}>{formatPrice(result.price, result.currency)}</Title>
                                             <Button type="primary" size="large" block onClick={() => handleBook(result.id, result.matchedMasterTime)} style={{ background: roundTripStep === 'return' ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : 'linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-accent) 100%)', border: 'none' }}>
-                                                {isRoundTrip ? (roundTripStep === 'outbound' ? 'Gidiş Seç →' : 'Dönüş Seç ✓') : 'Hemen Seç'}
+                                                {isRoundTrip ? (roundTripStep === 'outbound' ? t('search.selectOutboundBtn') : t('search.selectReturnBtn')) : t('search.selectNow')}
                                             </Button>
                                         </Col>
                                     </Row>
@@ -546,7 +548,7 @@ const TransferSearchContent: React.FC = () => {
                             <div style={{ width: 30, height: 30, borderRadius: 8, background: 'rgba(59,130,246,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                 <SwapOutlined style={{ color: '#60a5fa', fontSize: 14 }} />
                             </div>
-                            <div style={{ color: '#fff', fontWeight: 700, fontSize: 15 }}>Aramayı Düzenle</div>
+                            <div style={{ color: '#fff', fontWeight: 700, fontSize: 15 }}>{t('search.editSearch')}</div>
                         </div>
                         <button onClick={() => setIsEditModalVisible(false)} style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', width: 26, height: 26, borderRadius: 7, cursor: 'pointer', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
                     </div>
@@ -565,7 +567,7 @@ const TransferSearchContent: React.FC = () => {
                             <Col span={16}>
                                 <Form.Item name="type" style={{ marginBottom: 0 }}>
                                     <div style={{ display: 'flex', gap: 6 }}>
-                                        {[{ val: 'ONE_WAY', label: '→ Tek Yön' }, { val: 'ROUND_TRIP', label: '⇄ Gidiş–Dönüş' }].map(opt => (
+                                        {[{ val: 'ONE_WAY', label: '→ ' + t('search.oneWay') }, { val: 'ROUND_TRIP', label: '⇄ ' + t('search.roundTrip') }].map(opt => (
                                             <button key={opt.val} type="button"
                                                 onClick={() => { form.setFieldsValue({ type: opt.val }); setEditType(opt.val); }}
                                                 style={{ flex: 1, padding: '6px 0', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 12, border: editType === opt.val ? '2px solid #3b82f6' : '2px solid #e2e8f0', background: editType === opt.val ? 'linear-gradient(135deg,#eff6ff,#dbeafe)' : '#f8fafc', color: editType === opt.val ? '#1d4ed8' : '#64748b' }}
@@ -575,7 +577,7 @@ const TransferSearchContent: React.FC = () => {
                                 </Form.Item>
                             </Col>
                             <Col span={8}>
-                                <Form.Item name="passengers" label={<span style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8' }}>YOLCU</span>} rules={[{ required: true }]} style={{ marginBottom: 0 }}>
+                                <Form.Item name="passengers" label={<span style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8' }}>{t('search.passenger').toUpperCase()}</span>} rules={[{ required: true }]} style={{ marginBottom: 0 }}>
                                     <Input type="number" min={1} max={20} style={{ borderRadius: 8 }} prefix={<UserOutlined style={{ color: '#94a3b8', fontSize: 12 }} />} />
                                 </Form.Item>
                             </Col>
@@ -583,8 +585,8 @@ const TransferSearchContent: React.FC = () => {
 
                         {/* Locations */}
                         <div style={{ background: '#f8fafc', borderRadius: 10, padding: '10px 12px 4px', border: '1px solid #e2e8f0', marginBottom: 10 }}>
-                            <Form.Item name="pickup" label={<span style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8' }}>NEREDEN</span>} rules={[{ required: true }]} style={{ marginBottom: 8 }}>
-                                <DynamicLocationSearchInput placeholder="Alış noktası" onSelect={(val, lat, lng) => { form.setFieldsValue({ pickup: val, pickupLat: lat, pickupLng: lng }); }} />
+                            <Form.Item name="pickup" label={<span style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8' }}>{t('search.from').toUpperCase()}</span>} rules={[{ required: true }]} style={{ marginBottom: 8 }}>
+                                <DynamicLocationSearchInput placeholder={t('search.pickupPlaceholder')} onSelect={(val, lat, lng) => { form.setFieldsValue({ pickup: val, pickupLat: lat, pickupLng: lng }); }} />
                             </Form.Item>
                             <div style={{ height: 1, background: '#e2e8f0', marginBottom: 8 }} />
                             <Form.Item name="dropoff" label={<span style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8' }}>NEREYE</span>} rules={[{ required: true }]} style={{ marginBottom: 8 }}>

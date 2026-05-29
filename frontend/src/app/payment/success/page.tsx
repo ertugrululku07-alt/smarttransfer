@@ -4,10 +4,11 @@ import { Result, Button, Card, Typography } from 'antd';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { CheckCircleFilled } from '@ant-design/icons';
 import { Suspense } from 'react';
+import { useLanguage } from '@/app/context/LanguageContext';
 
 const { Text } = Typography;
 
-function PaymentSuccessContent() {
+function PaymentSuccessContent({ t }: { t: (key: string) => string }) {
     const router = useRouter();
     const searchParams = useSearchParams();
     const oid = searchParams.get('oid');
@@ -18,19 +19,19 @@ function PaymentSuccessContent() {
                 <Result
                     icon={<CheckCircleFilled style={{ color: '#52c41a' }} />}
                     status="success"
-                    title="Ödeme İşlemi Başarılı!"
+                    title={t('payment.successTitle')}
                     subTitle={
                         <div>
-                            <div>Kredi kartı işleminiz başarıyla tamamlandı. Rezervasyonunuz onaylanmıştır.</div>
-                            {oid && <div style={{ marginTop: 8 }}><Text strong>Rezervasyon No: {oid}</Text></div>}
+                            <div>{t('payment.successMessage')}</div>
+                            {oid && <div style={{ marginTop: 8 }}><Text strong>{t('payment.bookingNo')}: {oid}</Text></div>}
                         </div>
                     }
                     extra={[
                         <Button type="primary" size="large" key="home" onClick={() => router.push('/')} style={{ borderRadius: 8 }}>
-                            Anasayfaya Dön
+                            {t('payment.backToHome')}
                         </Button>,
                         <Button key="account" size="large" onClick={() => router.push('/login')} style={{ borderRadius: 8 }}>
-                            Hesabıma Git
+                            {t('payment.goToAccount')}
                         </Button>,
                     ]}
                 />
@@ -40,9 +41,10 @@ function PaymentSuccessContent() {
 }
 
 export default function PaymentSuccessPage() {
+    const { t } = useLanguage();
     return (
-        <Suspense fallback={<div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Yükleniyor...</div>}>
-            <PaymentSuccessContent />
+        <Suspense fallback={<div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{t('common.loading')}</div>}>
+            <PaymentSuccessContent t={t} />
         </Suspense>
     );
 }
