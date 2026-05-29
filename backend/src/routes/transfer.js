@@ -1907,6 +1907,26 @@ router.post('/book', optionalAuthMiddleware, async (req, res) => {
             console.error('[BookingLog] Create log failed:', logErr.message);
         }
 
+        // ── Send Email Voucher (async, don't block response) ──
+        try {
+            const { sendBookingVoucher } = require('../lib/emailService');
+            sendBookingVoucher(tenantId, outboundBooking).catch(err => {
+                console.error('[EMAIL] Voucher send failed (background):', err.message);
+            });
+        } catch (emailErr) {
+            console.error('[EMAIL] Voucher setup failed:', emailErr.message);
+        }
+
+        // ── Send WhatsApp Voucher (async, don't block response) ──
+        try {
+            const { sendBookingWhatsApp } = require('../lib/whatsappService');
+            sendBookingWhatsApp(tenantId, outboundBooking).catch(err => {
+                console.error('[WHATSAPP] Voucher send failed (background):', err.message);
+            });
+        } catch (waErr) {
+            console.error('[WHATSAPP] Voucher setup failed:', waErr.message);
+        }
+
         res.status(201).json({
             success: true,
             data: {
