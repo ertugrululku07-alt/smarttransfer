@@ -901,7 +901,7 @@ const TransferBookingContent: React.FC = () => {
                                                             : <>Uçuş saatiniz <strong>{time}</strong> olarak kabul edilmiştir.<br /></>
                                                         }
                                                         Uçuştan <strong>2 saat</strong> önce havalimanında olmanız gerektiği için
-                                                        {routeDurationText ? <>, <strong>{routeDurationText}</strong> yolculuk sürenizi dikkate alarak</> : ''}
+                                                        {routeDurationText ? <>, <strong>{routeDurationText}</strong> {t('booking.journeyDuration')}</> : ''}
                                                         <br />
                                                         Aracımızın sizi alacağı {isShuttle ? '(Shuttle)' : '(Transfer)'} saati:{' '}
                                                         <strong style={{ fontSize: 16, color: '#0050b3' }}>{recommendedPickup.format('HH:mm')}</strong>
@@ -988,11 +988,11 @@ const TransferBookingContent: React.FC = () => {
                                 </div>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 20, padding: '5px 14px' }}>
                                     <UserOutlined style={{ color: '#93c5fd', fontSize: 12 }} />
-                                    <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13 }}>{passengers} Yolcu</Text>
+                                    <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13 }}>{passengers + ' ' + t('booking.passenger')}</Text>
                                 </div>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 20, padding: '5px 14px' }}>
                                     <CheckCircleOutlined style={{ color: '#4ade80', fontSize: 12 }} />
-                                    <Text style={{ color: '#4ade80', fontSize: 13, fontWeight: 600 }}>Araç Seçildi</Text>
+                                    <Text style={{ color: '#4ade80', fontSize: 13, fontWeight: 600 }}>{t('booking.vehicleSelected')}</Text>
                                 </div>
                             </div>
                         </Col>
@@ -1099,9 +1099,9 @@ const TransferBookingContent: React.FC = () => {
                                     <>
                                         <Divider />
 
-                                        <Title level={5}>Diğer Yolcular</Title>
+                                        <Title level={5}>{t('booking.otherPassengers')}</Title>
                                         <Text type="secondary" style={{ display: 'block', marginBottom: 16 }}>
-                                            Lütfen diğer {Number(passengers) - 1} yolcunun kimlik bilgilerini giriniz.
+                                            {t('booking.otherPassengersInfo', { count: Number(passengers) - 1 })}
                                         </Text>
 
                                         <Form.List name="passengerList">
@@ -1121,7 +1121,7 @@ const TransferBookingContent: React.FC = () => {
                                                             size="small"
                                                             title={
                                                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                                                    <span>{index + 2}. Yolcu</span>
+                                                                    <span>{t('booking.passengerNum', { num: index + 2 })}</span>
                                                                     <span style={{
                                                                         fontSize: 11, fontWeight: 600, padding: '1px 8px', borderRadius: 10,
                                                                         background: `${tInfo.color}18`, color: tInfo.color, border: `1px solid ${tInfo.color}40`
@@ -1234,7 +1234,7 @@ const TransferBookingContent: React.FC = () => {
                                                         )}
                                                         <div style={{ marginTop: -8, marginBottom: 24 }}>
                                                             <Checkbox onChange={(e) => setNotCitizen(e.target.checked)} checked={notCitizen}>
-                                                                T.C. Vatandaşı değilim
+                                                                {t('booking.notTCCitizen')}
                                                             </Checkbox>
                                                         </div>
                                                     </Col>
@@ -1396,7 +1396,7 @@ const TransferBookingContent: React.FC = () => {
                                         allowClear
                                     />
                                     <Button type="primary" loading={couponLoading} onClick={validateCoupon}
-                                        style={{ background: 'var(--brand-accent)', borderColor: 'var(--brand-accent)' }}>Uygula</Button>
+                                        style={{ background: 'var(--brand-accent)', borderColor: 'var(--brand-accent)' }}>{t('booking.apply')}</Button>
                                 </Space.Compact>
                                 {couponResult && (
                                     <div style={{ marginBottom: 16, padding: '8px 12px', background: '#f0fdf4', borderRadius: 8, border: '1px solid #bbf7d0' }}>
