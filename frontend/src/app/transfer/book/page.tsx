@@ -1101,7 +1101,7 @@ const TransferBookingContent: React.FC = () => {
 
                                         <Title level={5}>{t('booking.otherPassengers')}</Title>
                                         <Text type="secondary" style={{ display: 'block', marginBottom: 16 }}>
-                                            {t('booking.otherPassengersInfo', { count: Number(passengers) - 1 })}
+                                            {t('booking.otherPassengersInfo', { count: String(Number(passengers) - 1) })}
                                         </Text>
 
                                         <Form.List name="passengerList">
@@ -1121,7 +1121,7 @@ const TransferBookingContent: React.FC = () => {
                                                             size="small"
                                                             title={
                                                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                                                    <span>{t('booking.passengerNum', { num: index + 2 })}</span>
+                                                                    <span>{t('booking.passengerNum', { num: String(index + 2) })}</span>
                                                                     <span style={{
                                                                         fontSize: 11, fontWeight: 600, padding: '1px 8px', borderRadius: 10,
                                                                         background: `${tInfo.color}18`, color: tInfo.color, border: `1px solid ${tInfo.color}40`
