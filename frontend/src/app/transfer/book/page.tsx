@@ -678,11 +678,11 @@ const TransferBookingContent: React.FC = () => {
                             }
                         } else {
                             setPaymentFailed(true);
-                            setPaymentError(payRes.data.error || 't('booking.payment') başlatılamadı');
+                            setPaymentError(payRes.data.error || t('booking.payment') + ' başlatılamadı');
                         }
                     } catch (payErr: any) {
                         setPaymentFailed(true);
-                        setPaymentError(payErr.response?.data?.error || 't('booking.payment') sistemi hatası');
+                        setPaymentError(payErr.response?.data?.error || t('booking.payment') + ' sistemi hatası');
                     }
                 } else {
                     // cash or bank_transfer — show success directly
@@ -730,11 +730,11 @@ const TransferBookingContent: React.FC = () => {
                 }
             } else {
                 setPaymentFailed(true);
-                setPaymentError(payRes.data.error || 't('booking.payment') başlatılamadı');
+                setPaymentError(payRes.data.error || t('booking.payment') + ' başlatılamadı');
             }
         } catch (err: any) {
             setPaymentFailed(true);
-            setPaymentError(err.response?.data?.error || 't('booking.payment') sistemi hatası');
+            setPaymentError(err.response?.data?.error || t('booking.payment') + ' sistemi hatası');
         } finally {
             setLoading(false);
         }
@@ -750,7 +750,7 @@ const TransferBookingContent: React.FC = () => {
                     <Card style={{ borderRadius: 12 }}>
                         <Title level={4} style={{ marginBottom: 16, textAlign: 'center' }}>
                             <CreditCardOutlined style={{ marginRight: 8 }} />
-                            Online t('booking.payment')
+                            Online {t('booking.payment')}
                         </Title>
                         <Text type="secondary" style={{ display: 'block', textAlign: 'center', marginBottom: 16 }}>
                             Rezervasyon No: {bookingNumber}
@@ -770,7 +770,7 @@ const TransferBookingContent: React.FC = () => {
                 <Content style={{ padding: '48px 24px', paddingTop: 96, maxWidth: 600, margin: '0 auto' }}>
                     <Result
                         status="error"
-                        title="t('booking.payment') Alınamadı"
+                        title={t('booking.payment') + ' Alınamadı'}
                         subTitle={paymentError || 'Kredi kartınızdan çekim yapılamadı. t('common.tryAgain').'}
                         extra={[
                             <Button type="primary" key="retry" size="large" loading={loading} onClick={retryPayment}
@@ -1018,7 +1018,7 @@ const TransferBookingContent: React.FC = () => {
                 <Row gutter={24} style={{ marginTop: 24 }}>
                     {/* Booking Form */}
                     <Col xs={24} lg={16}>
-                        <Card title="t('booking.passengerInfo')" style={{ borderRadius: 8, marginBottom: 24 }}>
+                        <Card title={t('booking.passengerInfo')} style={{ borderRadius: 8, marginBottom: 24 }}>
                             <Form
                                 form={form}
                                 layout="vertical"
@@ -1029,7 +1029,7 @@ const TransferBookingContent: React.FC = () => {
                                     <Col xs={24} md={12}>
                                         <Form.Item
                                             name="fullName"
-                                            label="t('booking.fullName')"
+                                            label={t('booking.fullName')}
                                             rules={[{ required: true, message: 'Lütfen ad soyad giriniz' }]}
                                         >
                                             <Input size="large" prefix={<UserOutlined />} placeholder="Adınız Soyadınız" />
@@ -1038,7 +1038,7 @@ const TransferBookingContent: React.FC = () => {
                                     <Col xs={24} md={12}>
                                         <Form.Item
                                             name="phone"
-                                            label="t('booking.phone') Numarası"
+                                            label={t('booking.phone') + ' Numarası'}
                                             rules={[{ required: true, message: 'Lütfen telefon numarası giriniz' }]}
                                         >
                                             <Space.Compact style={{ width: '100%' }}>
@@ -1057,10 +1057,10 @@ const TransferBookingContent: React.FC = () => {
 
                                 <Form.Item
                                     name="email"
-                                    label="t('booking.email') t('booking.address')i"
+                                    label={t('booking.email') + ' ' + t('booking.address') + 'i'}
                                     rules={[
                                         { required: true, message: 'Lütfen e-posta adresi giriniz' },
-                                        { type: 'email', message: 't('common.validEmail')iz' }
+                                        { type: 'email', message: t('common.validEmail') + 'iz' }
                                     ]}
                                 >
                                     <Input size="large" placeholder="ornek@email.com" />
@@ -1080,7 +1080,7 @@ const TransferBookingContent: React.FC = () => {
                                     <Col xs={24} md={12}>
                                         <Form.Item
                                             name="flightNumber"
-                                            label="t('booking.flightNumber') (Opsiyonel)"
+                                            label={t('booking.flightNumber') + ' (Opsiyonel)'}
                                             tooltip="Havalimanı karşılaması için gereklidir"
                                         >
                                             <Input size="large" prefix={<RocketOutlined />} placeholder="TK1234" />
@@ -1089,7 +1089,7 @@ const TransferBookingContent: React.FC = () => {
                                     <Col xs={24} md={12}>
                                         <Form.Item
                                             name="notes"
-                                            label="t('booking.notes')ınız"
+                                            label={t('booking.notes') + 'ınız'}
                                         >
                                             <Input size="large" placeholder="Varsa ek istekleriniz..." />
                                         </Form.Item>
@@ -1212,7 +1212,7 @@ const TransferBookingContent: React.FC = () => {
                                                     <Col xs={24} md={12}>
                                                         <Form.Item
                                                             name="billingFullName"
-                                                            label="t('booking.fullName')"
+                                                            label={t('booking.fullName')}
                                                             rules={[{ required: true, message: 'Fatura için t('booking.fullName') zorunludur' }]}
                                                         >
                                                             <Input placeholder="Adınız Soyadınız" />
@@ -1223,7 +1223,7 @@ const TransferBookingContent: React.FC = () => {
                                                         {!notCitizen && (
                                                             <Form.Item
                                                                 name="tcNo"
-                                                                label="t('booking.tckn')"
+                                                                label={t('booking.tckn')}
                                                                 rules={[
                                                                     { required: true, message: 'TC Kimlik numarası zorunludur' },
                                                                     { len: 11, message: '11 haneli olmalıdır' }
@@ -1253,10 +1253,10 @@ const TransferBookingContent: React.FC = () => {
                                                     <Col xs={24} md={12}>
                                                         <Form.Item
                                                             name="taxOffice"
-                                                            label="t('booking.taxOffice')"
+                                                            label={t('booking.taxOffice')}
                                                             rules={[{ required: true, message: 'Vergi dairesi zorunludur' }]}
                                                         >
-                                                            <Input placeholder="t('booking.taxOffice')" />
+                                                            <Input placeholder={t('booking.taxOffice')} />
                                                         </Form.Item>
                                                     </Col>
                                                     <Col xs={24} md={12}>
@@ -1265,7 +1265,7 @@ const TransferBookingContent: React.FC = () => {
                                                             label="Vergi Numarası"
                                                             rules={[{ required: true, message: 'Vergi numarası zorunludur' }]}
                                                         >
-                                                            <Input placeholder="t('booking.taxNo')" />
+                                                            <Input placeholder={t('booking.taxNo')} />
                                                         </Form.Item>
                                                     </Col>
                                                 </Row>
