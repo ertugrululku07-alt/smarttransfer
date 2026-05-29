@@ -771,7 +771,7 @@ const TransferBookingContent: React.FC = () => {
                     <Result
                         status="error"
                         title={t('booking.payment') + ' Alınamadı'}
-                        subTitle={paymentError || 'Kredi kartınızdan çekim yapılamadı. t('common.tryAgain').'}
+                        subTitle={paymentError || 'Kredi kartınızdan çekim yapılamadı. ' + t('common.tryAgain')}
                         extra={[
                             <Button type="primary" key="retry" size="large" loading={loading} onClick={retryPayment}
                                 style={{ background: 'var(--brand-primary)', border: 'none' }}>
@@ -1213,7 +1213,7 @@ const TransferBookingContent: React.FC = () => {
                                                         <Form.Item
                                                             name="billingFullName"
                                                             label={t('booking.fullName')}
-                                                            rules={[{ required: true, message: 'Fatura için t('booking.fullName') zorunludur' }]}
+                                                            rules={[{ required: true, message: 'Fatura için ' + t('booking.fullName') + ' zorunludur' }]}
                                                         >
                                                             <Input placeholder="Adınız Soyadınız" />
                                                         </Form.Item>
