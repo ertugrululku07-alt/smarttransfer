@@ -1186,14 +1186,14 @@ const TransferBookingContent: React.FC = () => {
 
                                 <Divider />
 
-                                <Title level={5}>Fatura Bilgileri</Title>
+                                <Title level={5}>{t('booking.billingInfo')}</Title>
                                 <div style={{ marginBottom: 16 }}>
                                     <Checkbox
                                         onChange={(e) => setWantInvoice(e.target.checked)}
                                         checked={wantInvoice}
                                         style={{ fontSize: 16 }}
                                     >
-                                        Fatura İstiyorum
+                                        {t('booking.requestInvoice')}
                                     </Checkbox>
                                 </div>
 
@@ -1201,8 +1201,8 @@ const TransferBookingContent: React.FC = () => {
                                     <div style={{ background: '#fafafa', padding: 16, borderRadius: 8, border: '1px solid #f0f0f0' }}>
                                         <Form.Item name="invoiceType" initialValue="individual" style={{ marginBottom: 16 }}>
                                             <Radio.Group onChange={(e) => setInvoiceType(e.target.value)} value={invoiceType}>
-                                                <Radio.Button value="individual">t('booking.individual')</Radio.Button>
-                                                <Radio.Button value="corporate">t('booking.corporate')</Radio.Button>
+                                                <Radio.Button value="individual">{t('booking.individual')}</Radio.Button>
+                                                <Radio.Button value="corporate">{t('booking.corporate')}</Radio.Button>
                                             </Radio.Group>
                                         </Form.Item>
 
@@ -1274,8 +1274,8 @@ const TransferBookingContent: React.FC = () => {
 
                                         <Form.Item
                                             name="billingAddress"
-                                            label="Fatura t('booking.address')i"
-                                            rules={[{ required: true, message: 'Fatura adresi zorunludur' }]}
+                                            label={'Fatura ' + t('booking.address') + 'i'}
+                                            rules={[{ required: true, message: t('booking.address') + ' zorunludur' }]}
                                         >
                                             <Input.TextArea rows={2} placeholder="Tam adres" />
                                         </Form.Item>

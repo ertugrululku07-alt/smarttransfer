@@ -165,6 +165,7 @@ const en: Record<string, string> = {
   'booking.passengerInfo': 'Passenger Information',
   'booking.payment': 'Payment',
   'booking.confirmation': 'Confirmation',
+  'booking.billingInfo': 'Billing Information',
   'booking.flightTime': 'Flight Time',
   'booking.address': 'Address',
   'booking.requestInvoice': 'Request Invoice',

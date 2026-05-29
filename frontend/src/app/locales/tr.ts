@@ -165,6 +165,7 @@ const tr: Record<string, string> = {
   'booking.passengerInfo': 'Yolcu Bilgileri',
   'booking.payment': 'Ödeme',
   'booking.confirmation': 'Onay',
+  'booking.billingInfo': 'Fatura Bilgileri',
   'booking.flightTime': 'Uçuş Saati',
   'booking.address': 'Adres',
   'booking.requestInvoice': 'Fatura İste',
