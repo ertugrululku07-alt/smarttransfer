@@ -195,6 +195,8 @@ const en: Record<string, string> = {
   'booking.duration': 'DURATION',
   'booking.outbound': 'OUTBOUND',
   'booking.noExtraServices': 'No extra services available.',
+  'booking.airportTransferDetected': 'Airport Transfer Detected',
+  'booking.pickupTimeAutoCalculated': 'Your pickup time will be calculated automatically based on distance.',
   'booking.passengerCount': 'Passenger Count',
   'booking.luggageCount': 'Luggage Count',
   'booking.cardDetails': 'Card Details',

@@ -195,6 +195,8 @@ const tr: Record<string, string> = {
   'booking.duration': 'SÜRE',
   'booking.outbound': 'GİDİŞ',
   'booking.noExtraServices': 'Ekstra hizmet bulunmamaktadır.',
+  'booking.airportTransferDetected': 'Havalimanı Transferi Tespit Edildi',
+  'booking.pickupTimeAutoCalculated': 'Alınış saatiniz, bölge mesafesine göre otomatik hesaplanacaktır.',
   'booking.passengerCount': 'Yolcu Sayısı',
   'booking.luggageCount': 'Bavul Sayısı',
   'booking.cardDetails': 'Kart Bilgileri',

@@ -1071,8 +1071,8 @@ const TransferBookingContent: React.FC = () => {
                                         type="info"
                                         showIcon
                                         icon={<RocketOutlined />}
-                                        message="Havalimanı Transferi Tespit Edildi"
-                                        description="Alınış saatiniz, bölge mesafesine göre otomatik hesaplanacaktır."
+                                        message={t('booking.airportTransferDetected')}
+                                        description={t('booking.pickupTimeAutoCalculated')}
                                         style={{ marginBottom: 16 }}
                                     />
                                 )}
@@ -1454,7 +1454,7 @@ const TransferBookingContent: React.FC = () => {
                                             fontSize: 18
                                         }}
                                     >
-                                        Rezervasyonu Tamamla
+                                        {t('booking.submit')}
                                     </Button>
                                 </div>
                             </Form>
@@ -1464,7 +1464,7 @@ const TransferBookingContent: React.FC = () => {
                     {/* Trip Summary Info */}
                     <Col xs={24} lg={8}>
                         <Card
-                            title="Transfer Özeti"
+                            title={t('booking.bookingSummary')}
                             style={{ borderRadius: 8, position: 'sticky', top: 24, overflow: 'hidden' }}
                             styles={{ body: { padding: 0 } }}
                         >
@@ -1620,7 +1620,7 @@ const TransferBookingContent: React.FC = () => {
                                     loading={loading}
                                     style={{ marginTop: 16, height: 48, fontSize: 16 }}
                                 >
-                                    Rezervasyonu Tamamla
+                                    {t('booking.submit')}
                                 </Button>
                             </div>
                         </Card>
