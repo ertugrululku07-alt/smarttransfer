@@ -7,6 +7,7 @@ const en: Record<string, string> = {
   'nav.goToPanel': 'Go to Panel',
   'nav.bookingLookup': 'Check Booking',
   'nav.contact': 'Contact',
+  'nav.blog': 'Blog',
 
   // ─── Search Tabs ───
   'search.tab.transfer': 'Transfer',
@@ -232,6 +233,7 @@ const en: Record<string, string> = {
   'footer.about': 'About Us',
   'footer.contact': 'Contact Us',
   'footer.travelGuide': 'Travel Guide',
+  'footer.blog': 'Blog',
   'footer.legal': 'Legal',
   'footer.privacy': 'Privacy Policy',
   'footer.terms': 'Terms of Service',

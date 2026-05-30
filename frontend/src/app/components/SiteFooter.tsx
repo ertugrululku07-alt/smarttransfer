@@ -102,6 +102,7 @@ const SiteFooter: React.FC = () => {
                             <a href="/sayfa/hakkimizda" className="sf-footer-link">{t('footer.about')}</a>
                             <a href="/contact" className="sf-footer-link">{t('footer.contact')}</a>
                             <a href="/sayfa/seyahat-rehberi" className="sf-footer-link">{t('footer.travelGuide')}</a>
+                            <a href="/blog" className="sf-footer-link">{t('footer.blog') || 'Blog'}</a>
                         </div>
                     </Col>
                     <Col xs={12} sm={8} md={4}>

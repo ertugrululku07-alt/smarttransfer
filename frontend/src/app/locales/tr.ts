@@ -7,6 +7,7 @@ const tr: Record<string, string> = {
   'nav.goToPanel': 'Panele Git',
   'nav.bookingLookup': 'Rezervasyon Sorgula',
   'nav.contact': 'İletişim',
+  'nav.blog': 'Blog',
 
   // ─── Search Tabs ───
   'search.tab.transfer': 'Transfer',
@@ -232,6 +233,7 @@ const tr: Record<string, string> = {
   'footer.about': 'Hakkımızda',
   'footer.contact': 'Bize Ulaşın',
   'footer.travelGuide': 'Seyahat Rehberi',
+  'footer.blog': 'Blog',
   'footer.legal': 'Yasal',
   'footer.privacy': 'Gizlilik Politikası',
   'footer.terms': 'Kullanım Koşulları',

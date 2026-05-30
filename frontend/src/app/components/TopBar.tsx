@@ -200,6 +200,7 @@ const TopBar: React.FC<{ forceOpaque?: boolean }> = ({ forceOpaque = false }) =>
                 {page.title}
               </a>
             ))}
+            <a href="/blog" style={navLinkStyle}>{t('nav.blog') || 'Blog'}</a>
             <a href="/track" style={navLinkStyle}>{t('nav.bookingLookup')}</a>
             <a href="/contact" style={navLinkStyle}>{t('nav.contact')}</a>
           </nav>
@@ -348,6 +349,7 @@ const TopBar: React.FC<{ forceOpaque?: boolean }> = ({ forceOpaque = false }) =>
               {page.title}
             </a>
           ))}
+          <a href="/blog" style={{ padding: '10px 0', color: '#333', fontWeight: 500, borderBottom: '1px solid #f0f0f0' }}>{t('nav.blog') || 'Blog'}</a>
           <a href="/track" style={{ padding: '10px 0', color: '#333', fontWeight: 500, borderBottom: '1px solid #f0f0f0' }}>{t('nav.bookingLookup')}</a>
           <a href="/contact" style={{ padding: '10px 0', color: '#333', fontWeight: 500, borderBottom: '1px solid #f0f0f0' }}>{t('nav.contact')}</a>
 
