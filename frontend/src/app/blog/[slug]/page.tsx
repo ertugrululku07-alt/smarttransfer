@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import Image from 'next/image';
+import BlogShell from '@/app/components/BlogShell';
 import {
     getBlogPosts,
     getBlogPostBySlug,
@@ -91,13 +91,15 @@ export default async function BlogPostPage({ params }: { params: Promise<Params>
             <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(articleLd) }} />
             <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }} />
 
+            <BlogShell>
             <main style={{ minHeight: '100vh', background: '#fff', fontFamily: 'var(--font-outfit, system-ui, sans-serif)' }}>
                 {/* Hero */}
                 <section style={{
                     position: 'relative',
-                    background: cover ? `url(${cover}) center/cover` : 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+                    background: cover ? `url(${cover}) center/cover no-repeat` : 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
                     color: '#fff',
                     overflow: 'hidden',
+                    minHeight: 380,
                 }}>
                     {cover && <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, rgba(15,23,42,0.55), rgba(15,23,42,0.75))' }} />}
                     <div style={{ position: 'relative', zIndex: 1, maxWidth: 860, margin: '0 auto', padding: 'clamp(80px, 12vw, 140px) 24px clamp(40px, 6vw, 70px)' }}>
@@ -160,7 +162,8 @@ export default async function BlogPostPage({ params }: { params: Promise<Params>
                     {post.author?.name && (
                         <div style={{ marginTop: 40, padding: 24, background: '#f8fafc', borderRadius: 16, display: 'flex', gap: 16, alignItems: 'center' }}>
                             {post.author.image && (
-                                <Image src={buildAbsoluteUrl(post.author.image, siteUrl) || post.author.image} alt={post.author.name} width={64} height={64} style={{ borderRadius: '50%', objectFit: 'cover' }} />
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={buildAbsoluteUrl(post.author.image, siteUrl) || post.author.image} alt={post.author.name} width={64} height={64} style={{ borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
                             )}
                             <div>
                                 <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 4 }}>Yazar</div>
@@ -177,10 +180,11 @@ export default async function BlogPostPage({ params }: { params: Promise<Params>
                             <h2 style={{ textAlign: 'center', fontFamily: 'var(--font-playfair, Georgia, serif)', fontSize: 'clamp(1.5rem, 3vw, 2.2rem)', fontWeight: 700, color: '#0f172a', marginBottom: 32 }}>İlgili Yazılar</h2>
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 20 }}>
                                 {related.map(r => (
-                                    <Link key={r.slug} href={`/blog/${r.slug}`} style={{ background: '#fff', borderRadius: 12, overflow: 'hidden', border: '1px solid #e2e8f0', textDecoration: 'none', color: '#0f172a' }}>
+                                    <Link key={r.slug} href={`/blog/${r.slug}`} style={{ background: '#fff', borderRadius: 12, overflow: 'hidden', border: '1px solid #e2e8f0', textDecoration: 'none', color: '#0f172a', display: 'block' }}>
                                         {r.coverImage && (
-                                            <div style={{ position: 'relative', aspectRatio: '16 / 9' }}>
-                                                <Image src={buildAbsoluteUrl(r.coverImage, siteUrl) || r.coverImage} alt={r.title} fill sizes="(max-width: 1024px) 50vw, 33vw" style={{ objectFit: 'cover' }} />
+                                            <div style={{ position: 'relative', aspectRatio: '16 / 9', overflow: 'hidden' }}>
+                                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                                <img src={buildAbsoluteUrl(r.coverImage, siteUrl) || r.coverImage} alt={r.title} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} loading="lazy" />
                                             </div>
                                         )}
                                         <div style={{ padding: 18 }}>
@@ -194,6 +198,7 @@ export default async function BlogPostPage({ params }: { params: Promise<Params>
                     </section>
                 )}
             </main>
+            </BlogShell>
         </>
     );
 }

@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import Image from 'next/image';
+import BlogShell from '@/app/components/BlogShell';
 import {
     getBlogPosts,
     getBlogCategories,
@@ -63,12 +63,13 @@ export default async function BlogListPage({ searchParams }: { searchParams: Pro
             <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }} />
             <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(blogLd) }} />
 
+            <BlogShell>
             <main style={{ minHeight: '100vh', background: '#fff', fontFamily: 'var(--font-outfit, system-ui, sans-serif)' }}>
                 {/* Hero */}
                 <section style={{
                     background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%)',
                     color: '#fff',
-                    padding: 'clamp(80px, 12vw, 140px) 24px clamp(60px, 8vw, 100px)',
+                    padding: 'clamp(50px, 8vw, 90px) 24px clamp(50px, 6vw, 80px)',
                     textAlign: 'center',
                 }}>
                     <div style={{ maxWidth: 800, margin: '0 auto' }}>
@@ -83,7 +84,7 @@ export default async function BlogListPage({ searchParams }: { searchParams: Pro
 
                 {/* Categories */}
                 {categories.length > 0 && (
-                    <section style={{ borderBottom: '1px solid #e2e8f0', background: '#f8fafc', padding: '16px 0', position: 'sticky', top: 0, zIndex: 10 }}>
+                    <section style={{ borderBottom: '1px solid #e2e8f0', background: '#f8fafc', padding: '16px 0', position: 'sticky', top: 72, zIndex: 10 }}>
                         <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 24px', display: 'flex', gap: 12, overflowX: 'auto', alignItems: 'center' }}>
                             <Link href="/blog" style={{
                                 padding: '6px 16px', borderRadius: 100,
@@ -125,15 +126,14 @@ export default async function BlogListPage({ searchParams }: { searchParams: Pro
                                         border: '1px solid #e2e8f0', transition: 'transform 0.2s, box-shadow 0.2s',
                                         display: 'flex', flexDirection: 'column',
                                     }}>
-                                        <Link href={`/blog/${p.slug}`} style={{ display: 'block', position: 'relative', aspectRatio: '16 / 9', background: '#f1f5f9' }}>
+                                        <Link href={`/blog/${p.slug}`} style={{ display: 'block', position: 'relative', aspectRatio: '16 / 9', background: '#f1f5f9', overflow: 'hidden' }}>
                                             {cover ? (
-                                                <Image
+                                                // eslint-disable-next-line @next/next/no-img-element
+                                                <img
                                                     src={cover}
                                                     alt={p.title}
-                                                    fill
-                                                    sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                                                    style={{ objectFit: 'cover' }}
-                                                    priority={idx < 3}
+                                                    style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                                                    loading={idx < 3 ? 'eager' : 'lazy'}
                                                 />
                                             ) : (
                                                 <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#cbd5e1', fontSize: 48 }}>📄</div>
@@ -183,6 +183,7 @@ export default async function BlogListPage({ searchParams }: { searchParams: Pro
                     )}
                 </section>
             </main>
+            </BlogShell>
         </>
     );
 }
