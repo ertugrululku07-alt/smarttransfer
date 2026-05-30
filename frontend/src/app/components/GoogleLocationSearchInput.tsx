@@ -132,13 +132,13 @@ const GoogleLocationSearchInput: React.FC<GoogleLocationSearchInputProps> = ({
     if (loadError) return <div>Error loading Google Maps</div>;
 
     return (
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, width: '100%', minWidth: 0 }}>
             <AutoComplete
                 value={searchValue}
                 options={options}
                 onSelect={handleSelect}
                 onSearch={handleSearch}
-                style={{ width: '100%', ...style }}
+                style={{ flex: 1, minWidth: 0, ...style }}
                 disabled={!ready}
             >
                 <Input

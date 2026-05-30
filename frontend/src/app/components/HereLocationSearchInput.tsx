@@ -160,13 +160,13 @@ const HereLocationSearchInput: React.FC<HereLocationSearchInputProps> = ({
     };
 
     return (
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, width: '100%', minWidth: 0 }}>
             <AutoComplete
                 value={searchValue}
                 options={options}
                 onSelect={handleSelect}
                 onSearch={onSearch}
-                style={{ width: '100%', ...style }}
+                style={{ flex: 1, minWidth: 0, ...style }}
             >
                 <Input
                     size={size}

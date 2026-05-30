@@ -662,10 +662,14 @@ const HomePage: React.FC = () => {
           padding: 4px 12px 4px 0;
           min-width: 0;
         }
-        .st-ibar-field--loc { flex: 2; min-width: 160px; }
-        .st-ibar-field--dt  { flex: 1; min-width: 130px; }
-        .st-ibar-field--return { flex: 1; min-width: 130px; }
-        .st-ibar-field--pax { flex: 0.85; min-width: 110px; }
+        .st-ibar-field--loc { flex: 2.8; min-width: 150px; overflow: hidden; }
+        .st-ibar-field--dt  { flex: 0.95; min-width: 120px; }
+        .st-ibar-field--return { flex: 0.95; min-width: 120px; }
+        .st-ibar-field--pax { flex: 0.8; min-width: 100px; }
+        /* ensure location autocomplete fills the field */
+        .st-ibar-field--loc > div { width: 100%; min-width: 0; }
+        .st-ibar-field--loc .ant-select,
+        .st-ibar-field--loc .ant-autocomplete { width: 100% !important; flex: 1; min-width: 0 !important; }
         .st-ibar-label {
           font-size: 10px; font-weight: 700; color: #374151;
           text-transform: uppercase; letter-spacing: 0.06em;
