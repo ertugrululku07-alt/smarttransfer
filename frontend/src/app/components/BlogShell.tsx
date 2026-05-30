@@ -12,7 +12,7 @@ const BlogShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return (
     <>
       <TopBar forceOpaque />
-      <div style={{ paddingTop: 72 }}>
+      <div style={{ paddingTop: 65 }}>
         {children}
       </div>
       <SiteFooter />
