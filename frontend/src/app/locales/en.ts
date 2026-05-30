@@ -35,7 +35,7 @@ const en: Record<string, string> = {
   'search.returnFlightTime': 'Return Flight Time',
   'search.returnPickupTime': 'Return Pickup Time',
   'search.returnTimePlaceholder': 'Select return time',
-  'search.searchButton': 'Search Transfer',
+  'search.searchButton': 'Search',
   'search.fillRequired': 'Please fill in pickup, dropoff and date.',
   'search.selectReturnDate': 'Please select a return date for round trip.',
   'search.noRouteFound': 'No road route found for this route. Please select another destination.',

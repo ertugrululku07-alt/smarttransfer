@@ -35,7 +35,7 @@ const de: Record<string, string> = {
   'search.returnFlightTime': 'Rückflugzeit',
   'search.returnPickupTime': 'Rückfahrt Abholzeit',
   'search.returnTimePlaceholder': 'Rückfahrt Zeit wählen',
-  'search.searchButton': 'Transfer Suchen',
+  'search.searchButton': 'Suchen',
   'search.fillRequired': 'Bitte füllen Sie Abholung, Ziel und Datum aus.',
   'search.selectReturnDate': 'Bitte wählen Sie ein Rückfahrt-Datum für die Hin- und Rückfahrt.',
 

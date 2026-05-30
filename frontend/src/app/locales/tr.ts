@@ -35,7 +35,7 @@ const tr: Record<string, string> = {
   'search.returnFlightTime': 'Dönüş Uçuş Saati',
   'search.returnPickupTime': 'Dönüş Alınış Saati',
   'search.returnTimePlaceholder': 'Dönüş saati seçin',
-  'search.searchButton': 'Transfer Ara',
+  'search.searchButton': 'Ara',
   'search.fillRequired': 'Lütfen nereden, nereye ve tarihi doldurun.',
   'search.selectReturnDate': 'Gidiş-Dönüş için dönüş tarihini seçin.',
   'search.noRouteFound': 'Bu güzergah için karayolu rotası bulunamadı. Lütfen başka bir varış noktası seçin.',

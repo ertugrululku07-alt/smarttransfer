@@ -448,7 +448,6 @@ const HomePage: React.FC = () => {
             value={pickup}
             onChange={setPickup}
             onSelect={(val, lat, lng) => { setPickup(val); if (lat && lng) setPickupLocation({ lat, lng }); }}
-            onMapClick={() => openMapModal('pickup')}
             country={googleMapsSettings.country || 'tr,cy'}
             style={{ border: 'none', boxShadow: 'none' }}
           />
@@ -474,7 +473,6 @@ const HomePage: React.FC = () => {
             value={dropoff}
             onChange={setDropoff}
             onSelect={(val, lat, lng) => { setDropoff(val); if (lat && lng) setDropoffLocation({ lat, lng }); }}
-            onMapClick={() => openMapModal('dropoff')}
             country={googleMapsSettings.country || 'tr,cy'}
             style={{ border: 'none', boxShadow: 'none' }}
           />
@@ -662,7 +660,7 @@ const HomePage: React.FC = () => {
           padding: 4px 12px 4px 0;
           min-width: 0;
         }
-        .st-ibar-field--loc { flex: 2.8; min-width: 150px; overflow: hidden; }
+        .st-ibar-field--loc { flex: 3.5; min-width: 150px; overflow: hidden; }
         .st-ibar-field--dt  { flex: 0.95; min-width: 120px; }
         .st-ibar-field--return { flex: 0.95; min-width: 120px; }
         .st-ibar-field--pax { flex: 0.8; min-width: 100px; }

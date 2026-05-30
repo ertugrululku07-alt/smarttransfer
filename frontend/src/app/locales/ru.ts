@@ -35,7 +35,7 @@ const ru: Record<string, string> = {
   'search.returnFlightTime': 'Время обратного рейса',
   'search.returnPickupTime': 'Время обратной подачи',
   'search.returnTimePlaceholder': 'Выберите время возврата',
-  'search.searchButton': 'Найти трансфер',
+  'search.searchButton': 'Найти',
   'search.fillRequired': 'Пожалуйста, укажите откуда, куда и дату.',
   'search.selectReturnDate': 'Пожалуйста, выберите дату возврата.',
 
