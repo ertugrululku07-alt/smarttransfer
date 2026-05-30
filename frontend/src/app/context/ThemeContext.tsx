@@ -194,14 +194,107 @@ export const THEMES: Record<string, SiteTheme> = {
     footerBg: '#0c4a6e',
     labelColor: '#155e75',
     heroTitle: 'Kış Masalında Yolculuk',
-    heroSubtitle: 'Soğuk havalarda sıcacık ve güvenli transfer hizmeti',
+    heroSubtitle: 'Soğuk havalarda sıcacak ve güvenli transfer hizmeti',
     decorationEmoji: '❄️',
     decorationCss: `
       .theme-decoration::before { content: '❄️'; position: fixed; top: 80px; right: 30px; font-size: 40px; opacity: 0.15; pointer-events: none; z-index: 0; }
       .theme-decoration::after { content: '⛄'; position: fixed; bottom: 30px; left: 30px; font-size: 40px; opacity: 0.12; pointer-events: none; z-index: 0; }
     `,
   },
+  summer: {
+    key: 'summer',
+    name: 'Yaz',
+    heroGradient: 'linear-gradient(135deg, #0369a1 0%, #0891b2 30%, #f59e0b 75%, #ef4444 100%)',
+    heroOverlay: 'rgba(2,44,80,0.38)',
+    primaryColor: '#0891b2',
+    accentColor: '#f59e0b',
+    buttonGradient: 'linear-gradient(135deg, #0891b2 0%, #f59e0b 100%)',
+    buttonShadow: '0 8px 30px rgba(245,158,11,0.45)',
+    searchCardBg: 'rgba(255,255,255,0.96)',
+    searchCardBorder: '1px solid rgba(245,158,11,0.3)',
+    sectionAccent: '#0891b2',
+    statsGradient: 'linear-gradient(135deg, #0891b2 0%, #f59e0b 100%)',
+    ctaGradient: 'linear-gradient(135deg, #0891b2 0%, #f59e0b 100%)',
+    stepCircleGradient: 'linear-gradient(135deg, #0891b2, #f59e0b)',
+    featureBg: 'linear-gradient(135deg, #f0f9ff 0%, #fffbeb 100%)',
+    testimonialBg: 'linear-gradient(135deg, #fffbeb 0%, #ecfeff 100%)',
+    navBg: 'rgba(3,105,161,0.95)',
+    footerBg: '#0c4a6e',
+    labelColor: '#0369a1',
+    heroTitle: 'Yazın Keyfini Çıkarın',
+    heroSubtitle: 'Tatil destinasyonlarına konfol ve hızlı transfer hizmeti',
+    decorationEmoji: '☀️',
+    decorationCss: `
+      @keyframes sunray {
+        0%   { transform: rotate(0deg) scale(1);   opacity: 0.18; }
+        50%  { transform: rotate(180deg) scale(1.08); opacity: 0.28; }
+        100% { transform: rotate(360deg) scale(1);   opacity: 0.18; }
+      }
+      @keyframes sunpulse {
+        0%, 100% { transform: scale(1);    box-shadow: 0 0 0 0 rgba(245,158,11,0); }
+        50%       { transform: scale(1.06); box-shadow: 0 0 60px 30px rgba(245,158,11,0.18); }
+      }
+      @keyframes butterflydrift {
+        0%   { transform: translateY(0px) translateX(0px) rotate(0deg); opacity: 0.9; }
+        25%  { transform: translateY(-18px) translateX(14px) rotate(8deg); }
+        50%  { transform: translateY(-8px) translateX(28px) rotate(-5deg); opacity: 0.75; }
+        75%  { transform: translateY(-22px) translateX(14px) rotate(6deg); }
+        100% { transform: translateY(0px) translateX(0px) rotate(0deg); opacity: 0.9; }
+      }
+      @keyframes waveline {
+        0%   { transform: translateX(0); }
+        100% { transform: translateX(-50%); }
+      }
+      .theme-summer-sun {
+        position: fixed; top: 60px; right: 60px;
+        width: 90px; height: 90px;
+        border-radius: 50%;
+        background: radial-gradient(circle, #fde68a 30%, #f59e0b 70%, #d97706 100%);
+        animation: sunpulse 4s ease-in-out infinite;
+        pointer-events: none; z-index: 0;
+        box-shadow: 0 0 40px 20px rgba(245,158,11,0.25);
+        opacity: 0.22;
+      }
+      .theme-summer-sun::before {
+        content: '';
+        position: absolute; inset: -28px;
+        border-radius: 50%;
+        background: conic-gradient(transparent 0deg, rgba(253,230,138,0.5) 10deg, transparent 20deg, transparent 40deg, rgba(253,230,138,0.5) 50deg, transparent 60deg, transparent 80deg, rgba(253,230,138,0.5) 90deg, transparent 100deg, transparent 120deg, rgba(253,230,138,0.5) 130deg, transparent 140deg, transparent 160deg, rgba(253,230,138,0.5) 170deg, transparent 180deg, transparent 200deg, rgba(253,230,138,0.5) 210deg, transparent 220deg, transparent 240deg, rgba(253,230,138,0.5) 250deg, transparent 260deg, transparent 280deg, rgba(253,230,138,0.5) 290deg, transparent 300deg, transparent 320deg, rgba(253,230,138,0.5) 330deg, transparent 340deg, transparent 360deg);
+        animation: sunray 12s linear infinite;
+      }
+      .theme-summer-butterflies {
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        pointer-events: none; z-index: 9999; overflow: hidden;
+      }
+      .theme-summer-butterflies .bf {
+        position: absolute;
+        animation: butterflydrift ease-in-out infinite;
+        filter: drop-shadow(0 1px 2px rgba(0,0,0,0.1));
+      }
+      .theme-summer-butterflies .bf:nth-child(1)  { left: 8%;  top: 15%; font-size: 20px; animation-duration: 6s;  animation-delay: 0s; }
+      .theme-summer-butterflies .bf:nth-child(2)  { left: 22%; top: 35%; font-size: 14px; animation-duration: 8s;  animation-delay: 1s; }
+      .theme-summer-butterflies .bf:nth-child(3)  { left: 40%; top: 20%; font-size: 18px; animation-duration: 7s;  animation-delay: 2s; }
+      .theme-summer-butterflies .bf:nth-child(4)  { left: 60%; top: 40%; font-size: 12px; animation-duration: 9s;  animation-delay: 0.5s; }
+      .theme-summer-butterflies .bf:nth-child(5)  { left: 75%; top: 25%; font-size: 22px; animation-duration: 5.5s;animation-delay: 3s; }
+      .theme-summer-butterflies .bf:nth-child(6)  { left: 88%; top: 50%; font-size: 16px; animation-duration: 7.5s;animation-delay: 1.5s; }
+      .theme-summer-butterflies .bf:nth-child(7)  { left: 15%; top: 60%; font-size: 10px; animation-duration: 10s; animation-delay: 4s; }
+      .theme-summer-butterflies .bf:nth-child(8)  { left: 50%; top: 65%; font-size: 14px; animation-duration: 6.5s;animation-delay: 2.5s; }
+      .theme-summer-wave {
+        position: fixed; bottom: 0; left: 0;
+        width: 200%; height: 70px;
+        pointer-events: none; z-index: 0;
+        opacity: 0.08;
+        background: repeating-linear-gradient(90deg, transparent 0px, transparent 60px, rgba(8,145,178,0.7) 60px, rgba(8,145,178,0.7) 120px);
+        animation: waveline 6s linear infinite;
+        border-radius: 0;
+        mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 70'%3E%3Cpath d='M0,35 C150,0 350,70 600,35 S1050,0 1200,35 V70 H0Z' fill='white'/%3E%3C/svg%3E");
+        mask-size: 1200px 70px;
+        mask-repeat: repeat-x;
+      }
+    `,
+  },
 };
+
 
 interface ThemeContextType {
   theme: SiteTheme;
@@ -276,6 +369,18 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         <div className="theme-leaves" aria-hidden="true">
           {leaves.map((l, i) => <span key={i} className="lf">{l}</span>)}
         </div>
+      );
+    }
+    if (themeKey === 'summer') {
+      const butterflies = '🦋,🌼,🦋,🌸,🦋,🌼,🦋,🌸'.split(',');
+      return (
+        <>
+          <div className="theme-summer-sun" aria-hidden="true" />
+          <div className="theme-summer-wave" aria-hidden="true" />
+          <div className="theme-summer-butterflies" aria-hidden="true">
+            {butterflies.map((b, i) => <span key={i} className="bf">{b}</span>)}
+          </div>
+        </>
       );
     }
     return null;
