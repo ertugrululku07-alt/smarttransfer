@@ -246,6 +246,10 @@ app.use('/api/pages', tenantMiddleware, pagesRoutes);
 const userRoutes = require('./src/routes/users');
 app.use('/api/users', tenantMiddleware, userRoutes);
 
+// Roles & Permissions routes
+const rolesRoutes = require('./src/routes/roles');
+app.use('/api/roles', tenantMiddleware, rolesRoutes);
+
 // Audit / Activity Logs route
 app.use('/api/admin/logs', tenantMiddleware, require('./src/routes/logs'));
 
