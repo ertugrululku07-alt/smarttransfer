@@ -8,6 +8,7 @@ import { ThemeProvider } from "./context/ThemeContext";
 import { BrandingProvider } from "./context/BrandingContext";
 import { LanguageProvider } from "./context/LanguageContext";
 import LiveChatWidget from "./components/LiveChatWidget";
+import DynamicFavicon from "./components/DynamicFavicon";
 
 const outfit = Outfit({
   variable: "--font-outfit",
@@ -53,6 +54,7 @@ async function getTenantBranding() {
     email: 'info@smarttravel.com',
     phone: '+90-212-XXX-XXXX',
     logoUrl: '',
+    faviconUrl: '',
   };
 
   try {
@@ -61,7 +63,7 @@ async function getTenantBranding() {
     
     const res = await fetch(`${resolveServerApiUrl()}/api/tenant/info`, {
       headers: { 'X-Tenant-Slug': TENANT_SLUG },
-      next: { revalidate: 60 } // Cache for 60 seconds
+      next: { revalidate: 10 } // Cache for 10 seconds for faster updates
     });
     
     if (res.ok) {
@@ -96,10 +98,64 @@ function normalizeAssetUrl(url: string | undefined): string {
   return url;
 }
 
+/**
+ * Resolve an uploaded asset (logo / favicon) to an absolute URL.
+ * Uploaded files are served by the backend at `${API_URL}/uploads/...`,
+ * so relative `/uploads/...` paths must be resolved against the API URL.
+ */
+function resolveUploadUrl(url: string | undefined): string {
+  if (!url) return '';
+  if (url.startsWith('data:')) return url;
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    // Rewrite stale upload hosts to the current API host
+    if (url.includes('/uploads/')) {
+      try {
+        const u = new URL(url);
+        const apiBase = new URL(resolveServerApiUrl());
+        if (u.hostname !== apiBase.hostname) {
+          return `${apiBase.protocol}//${apiBase.host}${u.pathname}`;
+        }
+      } catch {}
+    }
+    return url;
+  }
+  if (url.startsWith('/uploads')) return `${resolveServerApiUrl()}${url}`;
+  if (url.startsWith('/')) return `${getSiteBaseUrl()}${url}`;
+  return url;
+}
+
+function faviconMimeType(url: string): string {
+  const clean = url.split('?')[0].toLowerCase();
+  if (clean.endsWith('.svg')) return 'image/svg+xml';
+  if (clean.endsWith('.ico')) return 'image/x-icon';
+  if (clean.endsWith('.jpg') || clean.endsWith('.jpeg')) return 'image/jpeg';
+  if (clean.endsWith('.webp')) return 'image/webp';
+  return 'image/png';
+}
+
 export async function generateMetadata(): Promise<Metadata> {
   const branding = await getTenantBranding();
   const fullName = `${branding.siteNameHighlight || ''}${branding.siteName || ''}` || branding.companyName;
   const logoImage = normalizeAssetUrl(branding.logoUrl);
+
+  // Dynamic favicon uploaded via Site Settings; fall back to logo, then static files.
+  const dynamicFavicon = resolveUploadUrl(branding.faviconUrl || branding.logoUrl);
+  const iconType = dynamicFavicon ? faviconMimeType(dynamicFavicon) : 'image/png';
+  const iconList = dynamicFavicon
+    ? [
+        { url: dynamicFavicon, type: iconType },
+        { url: dynamicFavicon, sizes: '16x16', type: iconType },
+        { url: dynamicFavicon, sizes: '32x32', type: iconType },
+        { url: dynamicFavicon, sizes: '48x48', type: iconType },
+      ]
+    : [
+        { url: '/favicon.ico' },
+        { url: '/icon-16x16.png', sizes: '16x16', type: 'image/png' },
+        { url: '/icon-32x32.png', sizes: '32x32', type: 'image/png' },
+      ];
+  const appleIcon = dynamicFavicon
+    ? [{ url: dynamicFavicon, sizes: '180x180', type: iconType }]
+    : [{ url: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' }];
 
   return {
     metadataBase: new URL(getSiteBaseUrl()),
@@ -134,16 +190,11 @@ export async function generateMetadata(): Promise<Metadata> {
       follow: true,
     },
     icons: {
-      icon: [
-        { url: "/favicon.ico" },
-        { url: "/icon-16x16.png", sizes: "16x16", type: "image/png" },
-        { url: "/icon-32x32.png", sizes: "32x32", type: "image/png" },
-      ],
-      apple: [
-        { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
-      ],
+      icon: iconList,
+      shortcut: dynamicFavicon ? [{ url: dynamicFavicon, type: iconType }] : ["/favicon.ico"],
+      apple: appleIcon,
     },
-    manifest: "/site.webmanifest",
+    manifest: "/manifest.webmanifest",
   };
 }
 
@@ -195,6 +246,7 @@ export default async function RootLayout({
             <CurrencyProvider>
               <ThemeProvider>
                 <BrandingProvider>
+                  <DynamicFavicon />
                   <LanguageProvider>
                     {children}
                     <LiveChatWidget />

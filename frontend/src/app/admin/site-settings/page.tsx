@@ -49,6 +49,7 @@ import { THEMES } from '@/app/context/ThemeContext';
 import AdminGuard from '../AdminGuard';
 import AdminLayout from '../AdminLayout';
 import apiClient, { getImageUrl } from '@/lib/api-client';
+import { useBranding } from '@/app/context/BrandingContext';
 import axios from 'axios';
 
 const { Title, Text, Paragraph } = Typography;
@@ -84,6 +85,7 @@ const NAV_GROUPS = [
 ];
 
 const SiteSettingsPage: React.FC = () => {
+    const { refreshBranding } = useBranding();
     const [activeTab, setActiveTab] = useState('branding');
     const [loading, setLoading] = useState(false);
     const [modules, setModules] = useState<any>({});
@@ -670,6 +672,8 @@ const SiteSettingsPage: React.FC = () => {
             const res = await apiClient.put('/api/tenant/settings', { branding: brandingData });
             if (res.data.success) {
                 message.success('Firma bilgileri güncellendi');
+                // Refresh branding context so DynamicFavicon and other consumers update
+                await refreshBranding();
             }
         } catch (error) {
             console.error('Update branding error:', error);
@@ -700,6 +704,8 @@ const SiteSettingsPage: React.FC = () => {
                 // Auto-save to backend so logo persists on refresh
                 await apiClient.put('/api/tenant/settings', { branding: newBranding });
                 message.success('Logo optimize edildi ve kaydedildi');
+                // Refresh branding context so DynamicFavicon updates immediately
+                await refreshBranding();
             }
         } catch (error) {
             console.error('Logo upload error:', error);
@@ -724,6 +730,8 @@ const SiteSettingsPage: React.FC = () => {
                 setBrandingData(newBranding);
                 await apiClient.put('/api/tenant/settings', { branding: newBranding });
                 message.success('Favicon yüklendi ve kaydedildi');
+                // Refresh branding context so DynamicFavicon updates immediately
+                await refreshBranding();
             }
         } catch {
             message.error('Favicon yüklenemedi');

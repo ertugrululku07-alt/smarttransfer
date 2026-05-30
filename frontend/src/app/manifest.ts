@@ -24,6 +24,17 @@ async function getTenantBranding() {
     }
 }
 
+/** Uploaded assets are served by the backend at `${API_URL}/uploads/...`. */
+function resolveUploadUrl(url: string | undefined): string {
+    if (!url) return '';
+    if (url.startsWith('data:') || url.startsWith('http://') || url.startsWith('https://')) return url;
+    if (url.startsWith('/uploads')) {
+        const apiUrl = resolveServerApiUrl();
+        return apiUrl ? `${apiUrl}${url}` : url;
+    }
+    return url;
+}
+
 export default async function manifest(): Promise<MetadataRoute.Manifest> {
     const settings = await getTenantBranding();
     const branding = settings?.branding || {};

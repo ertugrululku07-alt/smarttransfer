@@ -122,6 +122,9 @@ router.get('/dashboard', authMiddleware, async (req, res) => {
             maintenanceMonth,
             latestFuel,
             latestMaintenance,
+            geofenceViolationsRecent,
+            geofenceViolations7d,
+            activeGeofences,
         ] = await Promise.all([
             prisma.vehicle.count({ where: { ownerId: scope.partnerId, tenantId: scope.tenantId } }),
             prisma.vehicle.count({ where: { ownerId: scope.partnerId, tenantId: scope.tenantId, status: 'ACTIVE' } }),
@@ -175,6 +178,17 @@ router.get('/dashboard', authMiddleware, async (req, res) => {
                 orderBy: { serviceDate: 'desc' },
                 take: 8,
             }),
+            prisma.partnerFleetGeofenceViolation.findMany({
+                where: { ...baseWhere, timestamp: { gte: new Date(now.getTime() - 7 * 86400000) } },
+                orderBy: { timestamp: 'desc' },
+                take: 12,
+            }),
+            prisma.partnerFleetGeofenceViolation.count({
+                where: { ...baseWhere, timestamp: { gte: new Date(now.getTime() - 7 * 86400000) } },
+            }),
+            prisma.partnerFleetGeofence.count({
+                where: { ...baseWhere, isActive: true },
+            }),
         ]);
 
         // Resolve vehicle plates for alert lists
@@ -217,6 +231,37 @@ router.get('/dashboard', authMiddleware, async (req, res) => {
             days: r[dateField] ? daysBetween(now, r[dateField]) : null,
         }));
 
+        const gfIds = [...new Set(geofenceViolationsRecent.map((v) => v.geofenceId))];
+        const gfMap = gfIds.length
+            ? new Map((await prisma.partnerFleetGeofence.findMany({ where: { id: { in: gfIds } } })).map((g) => [g.id, g.name]))
+            : new Map();
+        geofenceViolationsRecent.forEach((v) => {
+            if (v.vehicleId && !vehMap.has(v.vehicleId)) allVids.add(v.vehicleId);
+        });
+        if (allVids.size && !vehMap.size) {
+            const vs = await prisma.vehicle.findMany({ where: { id: { in: Array.from(allVids) }, ownerId: scope.partnerId } });
+            vs.forEach((v) => vehMap.set(v.id, { plate: v.plateNumber, brand: v.brand, model: v.model }));
+        }
+        for (const v of geofenceViolationsRecent) {
+            if (v.vehicleId && !vehMap.has(v.vehicleId)) {
+                const veh = await prisma.vehicle.findFirst({ where: { id: v.vehicleId, ownerId: scope.partnerId } });
+                if (veh) vehMap.set(veh.id, { plate: veh.plateNumber, brand: veh.brand, model: veh.model });
+            }
+        }
+
+        const geofenceAlerts = geofenceViolationsRecent.map((v) => ({
+            id: v.id,
+            geofenceId: v.geofenceId,
+            geofenceName: gfMap.get(v.geofenceId) || 'Bölge',
+            vehicleId: v.vehicleId,
+            vehicle: vehMap.get(v.vehicleId) || null,
+            eventType: v.eventType,
+            speed: v.speed,
+            lat: v.lat,
+            lng: v.lng,
+            timestamp: v.timestamp,
+        }));
+
         res.json({
             success: true,
             data: {
@@ -234,6 +279,8 @@ router.get('/dashboard', authMiddleware, async (req, res) => {
                     inspectionsExpiredCount: inspectionsExpired.length,
                     upcomingMaintenanceCount: upcomingMaintenance.length,
                     kmOverdueCount: dueKmAlerts.length,
+                    geofenceViolations7d: geofenceViolations7d,
+                    activeGeofences,
                 },
                 alerts: {
                     insurancesExpiringSoon: decorate(insurancesExpiringSoon, 'endDate'),
@@ -242,6 +289,7 @@ router.get('/dashboard', authMiddleware, async (req, res) => {
                     inspectionsExpired: decorate(inspectionsExpired, 'expiryDate'),
                     upcomingMaintenance: decorate(upcomingMaintenance, 'nextDate'),
                     kmOverdue: dueKmAlerts,
+                    geofenceViolations: geofenceAlerts,
                 },
                 recent: {
                     fuel: latestFuel.map((f) => ({ ...f, vehicle: vehMap.get(f.vehicleId) || null, total: Number(f.total || 0), liters: Number(f.liters || 0) })),
