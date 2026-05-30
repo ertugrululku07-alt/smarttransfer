@@ -48,7 +48,7 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({ value, onChange, placeh
       <style jsx global>{`
         .ql-toolbar.ql-snow { border-radius: 8px 8px 0 0; border-color: #d9d9d9; }
         .ql-container.ql-snow { border-radius: 0 0 8px 8px; border-color: #d9d9d9; font-size: 14px; }
-        .ql-editor { min-height: ${height}px; }
+        .ql-editor { min-height: ${height}px; word-break: normal !important; overflow-wrap: normal !important; hyphens: none !important; }
         .ql-editor h1 { font-size: 2em; font-weight: 700; }
         .ql-editor h2 { font-size: 1.5em; font-weight: 600; }
         .ql-editor h3 { font-size: 1.17em; font-weight: 600; }
