@@ -368,7 +368,7 @@ router.get('/payment-methods', async (req, res) => {
  */
 router.put('/settings', authMiddleware, async (req, res) => {
     try {
-        const { googleMaps, heroBackground, definitions, salaryPaymentDay, hubs, siteTheme, branding, homepageSections, homepageFaq, homepageStats, homepageRoutes, homepageFeatures, homepageTestimonials, customTheme, timeDefinitions, socialMedia, emailSettings, emailTemplate, whatsappSettings, driverSettings, flightTracking, operationSettings, uetdsSettings, contactPage, tursab, trackPage, seo } = req.body;
+        const { googleMaps, heroBackground, definitions, salaryPaymentDay, hubs, siteTheme, branding, homepageSections, homepageFaq, homepageStats, homepageRoutes, homepageFeatures, homepageTestimonials, customTheme, timeDefinitions, socialMedia, emailSettings, emailTemplate, whatsappSettings, driverSettings, flightTracking, operationSettings, uetdsSettings, contactPage, tursab, trackPage, seo, supportedLanguages } = req.body;
 
         // Check permission
         if (req.user.roleType !== 'TENANT_ADMIN' && req.user.roleType !== 'SUPER_ADMIN') {
@@ -451,7 +451,8 @@ router.put('/settings', authMiddleware, async (req, res) => {
             tursab: tursab !== undefined ? tursab : currentSettings.tursab,
             trackPage: trackPage !== undefined ? trackPage : currentSettings.trackPage,
             seo: seo !== undefined ? { ...currentSettings.seo, ...seo } : currentSettings.seo,
-            homepageTestimonials: homepageTestimonials !== undefined ? homepageTestimonials : currentSettings.homepageTestimonials
+            homepageTestimonials: homepageTestimonials !== undefined ? homepageTestimonials : currentSettings.homepageTestimonials,
+            supportedLanguages: supportedLanguages !== undefined ? supportedLanguages : currentSettings.supportedLanguages
         };
 
         const updatedTenant = await prisma.tenant.update({
