@@ -924,32 +924,31 @@ const HomePage: React.FC = () => {
                 { title: t('whyUs.feature6.title'), desc: t('whyUs.feature6.desc'), color: theme.primaryColor },
               ];
               return (
-                <div key="whyUs" style={{ background: '#0f172a', padding: 'clamp(56px, 8vw, 96px) 16px', position: 'relative', overflow: 'hidden' }}>
+                <div key="whyUs" style={{ background: '#0f172a', padding: 'clamp(32px, 5vw, 56px) 16px', position: 'relative', overflow: 'hidden' }}>
                   <div style={{ position: 'absolute', top: '-30%', right: '-10%', width: 600, height: 600, borderRadius: '50%', background: `radial-gradient(circle, ${theme.primaryColor}0d 0%, transparent 70%)`, pointerEvents: 'none' }} />
                   <div style={{ maxWidth: 1200, margin: '0 auto', position: 'relative', zIndex: 1 }}>
-                    <div style={{ textAlign: 'center', marginBottom: 56 }}>
-                      <div style={{ display: 'inline-block', fontSize: 12, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase' as const, color: theme.sectionAccent, marginBottom: 14 }}>
-                        {t('whyUs.badge')}
-                        <div style={{ width: 40, height: 2, background: theme.sectionAccent, margin: '10px auto 0' }} />
-                      </div>
-                      <Title level={2} style={{ fontFamily: 'var(--font-playfair, Georgia, serif)', fontSize: 'clamp(1.8rem, 4vw, 2.8rem)', color: '#fff', marginBottom: 10, marginTop: 0 }}>{t('whyUs.title', { name: fullName })}</Title>
-                      <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 16, lineHeight: 1.7, fontWeight: 300 }}>{t('whyUs.subtitle')}</Text>
+                    <div style={{ textAlign: 'center', marginBottom: 28 }}>
+                      <Title level={2} style={{ fontFamily: 'var(--font-playfair, Georgia, serif)', fontSize: 'clamp(1.6rem, 3.5vw, 2.4rem)', color: '#fff', marginBottom: 6, marginTop: 0 }}>{t('whyUs.title', { name: fullName })}</Title>
+                      <Text style={{ color: 'rgba(255,255,255,0.55)', fontSize: 14, lineHeight: 1.6, fontWeight: 300 }}>{t('whyUs.subtitle')}</Text>
                     </div>
                     <style>{`
-                      .hp-feature-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); border-radius: 20px; padding: 2.5rem; transition: all 0.4s ease; }
-                      .hp-feature-card:hover { background: rgba(255,255,255,0.06); border-color: ${theme.primaryColor}33; transform: translateY(-5px); box-shadow: 0 20px 40px rgba(0,0,0,0.2); }
-                      .hp-feature-icon { width: 56px; height: 56px; background: linear-gradient(135deg, ${theme.primaryColor}26, ${theme.primaryColor}0d); border: 1px solid ${theme.primaryColor}33; border-radius: 16px; display: flex; align-items: center; justify-content: center; color: ${theme.sectionAccent}; font-size: 1.25rem; margin-bottom: 1.5rem; transition: all 0.3s; }
-                      .hp-feature-card:hover .hp-feature-icon { background: linear-gradient(135deg, ${theme.primaryColor}, ${theme.accentColor}); color: white; box-shadow: 0 8px 25px ${theme.primaryColor}50; border-color: transparent; }
+                      .hp-feature-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); border-radius: 14px; padding: 1rem 1.25rem; transition: all 0.4s ease; display: flex; align-items: flex-start; gap: 14px; }
+                      .hp-feature-card:hover { background: rgba(255,255,255,0.06); border-color: ${theme.primaryColor}33; transform: translateY(-3px); box-shadow: 0 12px 30px rgba(0,0,0,0.2); }
+                      .hp-feature-icon { width: 42px; height: 42px; min-width: 42px; background: linear-gradient(135deg, ${theme.primaryColor}26, ${theme.primaryColor}0d); border: 1px solid ${theme.primaryColor}33; border-radius: 12px; display: flex; align-items: center; justify-content: center; color: ${theme.sectionAccent}; font-size: 1.1rem; transition: all 0.3s; }
+                      .hp-feature-card:hover .hp-feature-icon { background: linear-gradient(135deg, ${theme.primaryColor}, ${theme.accentColor}); color: white; box-shadow: 0 6px 18px ${theme.primaryColor}50; border-color: transparent; }
+                      .hp-feature-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
                     `}</style>
-                    <Row gutter={[20, 20]}>
+                    <Row gutter={[14, 14]}>
                       {whyUsFeatures.map((item, i) => (
                         <Col xs={24} sm={12} md={8} key={i}>
                           <div className="hp-feature-card">
                             <div className="hp-feature-icon">
                               {featureIconList[i % featureIconList.length]}
                             </div>
-                            <Title level={4} style={{ fontFamily: 'var(--font-playfair, Georgia, serif)', color: '#fff', marginBottom: 10, marginTop: 0, fontSize: '1.15rem' }}>{item.title}</Title>
-                            <Text style={{ color: 'rgba(255,255,255,0.55)', fontSize: 14, lineHeight: 1.75, fontWeight: 300 }}>{item.desc}</Text>
+                            <div className="hp-feature-body">
+                              <Title level={5} style={{ fontFamily: 'var(--font-playfair, Georgia, serif)', color: '#fff', marginBottom: 0, marginTop: 0, fontSize: '0.95rem', lineHeight: 1.3 }}>{item.title}</Title>
+                              <Text style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12.5, lineHeight: 1.6, fontWeight: 300 }}>{item.desc}</Text>
+                            </div>
                           </div>
                         </Col>
                       ))}
@@ -962,7 +961,7 @@ const HomePage: React.FC = () => {
               if (statsItems.length === 0) return null;
               const statsData = statsItems;
               return (
-                <div key="stats" style={{ background: theme.statsGradient, padding: 'clamp(48px, 6vw, 72px) 16px' }}>
+                <div key="stats" style={{ background: theme.statsGradient, padding: 'clamp(20px, 3vw, 32px) 16px' }}>
                   <div style={{ maxWidth: 1000, margin: '0 auto' }}>
                     <Row gutter={[24, 32]}>
                       {statsData.map((stat, i) => (
