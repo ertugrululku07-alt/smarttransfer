@@ -9,8 +9,6 @@ import {
   Row,
   Col,
   Card,
-  DatePicker,
-  TimePicker,
   Radio,
   Button,
   Modal,
@@ -87,6 +85,7 @@ import TopBar from './components/TopBar';
 import DynamicLocationSearchInput from './components/DynamicLocationSearchInput';
 import MapPickerModal from './components/MapPickerModal';
 import PassengerSelector from './components/PassengerSelector';
+import DateTimePickerInput from './components/DateTimePickerInput';
 import { useTheme } from './context/ThemeContext';
 import { useBranding } from './context/BrandingContext';
 import { useLanguage } from './context/LanguageContext';
@@ -134,6 +133,7 @@ const HomePage: React.FC = () => {
   // Hourly state
   const [hourlyPickup, setHourlyPickup] = useState('');
   const [hourlyPickupLocation, setHourlyPickupLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [hourlyDateTime, setHourlyDateTime] = useState<Dayjs | null>(null);
   const [hourlyDate, setHourlyDate] = useState<Dayjs | null>(null);
   const [hourlyTime, setHourlyTime] = useState<Dayjs | null>(dayjs().hour(12).minute(0).second(0));
   const [hourlyHours, setHourlyHours] = useState<number>(2);
@@ -398,23 +398,12 @@ const HomePage: React.FC = () => {
           <CalendarOutlined className="st-detail-label-icon" />
           {t('search.date')}
         </div>
-        <DatePicker
-          size="middle" style={{ width: '100%', borderRadius: 10 }}
-          format="DD.MM.YYYY" placeholder={t('search.datePlaceholder')}
-          value={hourlyDate} onChange={setHourlyDate}
-          disabledDate={(c) => c && c < dayjs().startOf('day')}
-        />
-      </div>
-      <div className="st-rental-field st-rental-field-time">
-        <div className="st-detail-label">
-          <ClockCircleOutlined className="st-detail-label-icon" />
-          {t('search.pickupTime')}
-        </div>
-        <TimePicker
-          size="middle" style={{ width: '100%', borderRadius: 10 }}
-          format="HH:mm" minuteStep={5}
-          value={hourlyTime} onChange={setHourlyTime}
-          needConfirm={false} showNow={false}
+        <DateTimePickerInput
+          locale={locale}
+          placeholder={t('search.datePlaceholder')}
+          value={hourlyDateTime}
+          onChange={(dt) => { setHourlyDateTime(dt); setHourlyDate(dt); setHourlyTime(dt); }}
+          disabledDate={(d) => d < dayjs().startOf('day')}
         />
       </div>
       <div className="st-rental-field st-rental-field-duration">
@@ -496,28 +485,13 @@ const HomePage: React.FC = () => {
         {/* DATE + TIME */}
         <div className="st-ibar-field st-ibar-field--dt">
           <div className="st-ibar-label"><CalendarOutlined /> {timeLabel}</div>
-          <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-            <DatePicker
-              size="middle"
-              style={{ flex: 1, minWidth: 0, border: 'none', boxShadow: 'none', background: 'transparent', paddingLeft: 0 }}
-              format="DD.MM.YYYY"
-              placeholder={t('search.datePlaceholder')}
-              value={pickupDate}
-              onChange={(date) => setPickupDate(date)}
-              disabledDate={(current) => current && current < dayjs().startOf('day')}
-              variant="borderless"
-            />
-            <TimePicker
-              size="middle"
-              style={{ width: 76, border: 'none', boxShadow: 'none', background: 'transparent', paddingLeft: 0 }}
-              format="HH:mm" minuteStep={5}
-              value={pickupTime}
-              onChange={(time) => setPickupTime(time)}
-              placeholder="12:00"
-              needConfirm={false} showNow={false}
-              variant="borderless"
-            />
-          </div>
+          <DateTimePickerInput
+            locale={locale}
+            placeholder={t('search.datePlaceholder')}
+            value={pickupDate ? pickupDate.hour(pickupTime?.hour() ?? 12).minute(pickupTime?.minute() ?? 0) : null}
+            onChange={(dt) => { setPickupDate(dt); setPickupTime(dt); }}
+            disabledDate={(d) => d < dayjs().startOf('day')}
+          />
         </div>
 
         <div className="st-ibar-vdiv" />
@@ -535,31 +509,16 @@ const HomePage: React.FC = () => {
                 <span><CalendarOutlined /> {t('search.returnDate')}</span>
                 <button type="button" className="st-ibar-rm-return" onClick={() => setTripType('oneway')}>✕</button>
               </div>
-              <div style={{ display: 'flex', gap: 4 }}>
-                <DatePicker
-                  size="middle"
-                  style={{ flex: 1, minWidth: 0 }}
-                  format="DD.MM.YYYY"
-                  placeholder={t('search.returnDatePlaceholder')}
-                  value={returnDate}
-                  onChange={(date) => setReturnDate(date)}
-                  disabledDate={(current) => {
-                    if (!pickupDate) return current && current < dayjs().startOf('day');
-                    return current && current < pickupDate.startOf('day');
-                  }}
-                  variant="borderless"
-                />
-                <TimePicker
-                  size="middle"
-                  style={{ width: 76 }}
-                  format="HH:mm" minuteStep={5}
-                  value={returnTime}
-                  onChange={(time) => setReturnTime(time)}
-                  placeholder="12:00"
-                  needConfirm={false} showNow={false}
-                  variant="borderless"
-                />
-              </div>
+              <DateTimePickerInput
+                locale={locale}
+                placeholder={t('search.returnDatePlaceholder')}
+                value={returnDate ? returnDate.hour(returnTime?.hour() ?? 12).minute(returnTime?.minute() ?? 0) : null}
+                onChange={(dt) => { setReturnDate(dt); setReturnTime(dt); }}
+                disabledDate={(d) => {
+                  if (!pickupDate) return d < dayjs().startOf('day');
+                  return d < pickupDate.startOf('day');
+                }}
+              />
             </>
           )}
         </div>
@@ -703,14 +662,26 @@ const HomePage: React.FC = () => {
           padding: 4px 12px 4px 0;
           min-width: 0;
         }
-        .st-ibar-field--loc { flex: 1.6; }
-        .st-ibar-field--dt  { flex: 1.1; }
-        .st-ibar-field--return { flex: 1.05; }
-        .st-ibar-field--pax { flex: 0.9; }
+        .st-ibar-field--loc { flex: 2; min-width: 160px; }
+        .st-ibar-field--dt  { flex: 1; min-width: 130px; }
+        .st-ibar-field--return { flex: 1; min-width: 130px; }
+        .st-ibar-field--pax { flex: 0.85; min-width: 110px; }
         .st-ibar-label {
           font-size: 10px; font-weight: 700; color: #374151;
           text-transform: uppercase; letter-spacing: 0.06em;
-          margin-bottom: 4px; display: flex; align-items: center; gap: 4px;
+          margin-bottom: 6px; display: flex; align-items: center; gap: 4px;
+        }
+        /* Bigger, bolder input text inside bar */
+        .st-ibar .ant-input,
+        .st-ibar .ant-input-affix-wrapper input {
+          font-size: 14px !important;
+          font-weight: 500 !important;
+          color: #111827 !important;
+        }
+        .st-ibar .ant-input::placeholder,
+        .st-ibar .ant-input-affix-wrapper input::placeholder {
+          font-size: 13px !important;
+          color: #9ca3af !important;
         }
         /* make antd inputs borderless inside bar */
         .st-ibar .ant-input,
@@ -748,13 +719,13 @@ const HomePage: React.FC = () => {
         /* Add return button */
         .st-ibar-add-return {
           display: flex; align-items: center; gap: 6px;
-          background: none; border: 1.5px dashed #d1d5db;
-          border-radius: 8px; padding: 6px 14px;
+          background: #f8faff; border: 1.5px dashed #93c5fd;
+          border-radius: 10px; padding: 8px 16px;
           font-family: inherit; font-size: 12px; font-weight: 600;
-          color: #6b7280; cursor: pointer; transition: all 0.2s;
-          white-space: nowrap; margin-top: 4px;
+          color: #1d4ed8; cursor: pointer; transition: all 0.2s;
+          white-space: nowrap; margin-top: 2px;
         }
-        .st-ibar-add-return:hover { border-color: #9ca3af; color: #374151; background: #f9fafb; }
+        .st-ibar-add-return:hover { border-color: #60a5fa; color: #1e40af; background: #eff6ff; }
         /* Remove return button */
         .st-ibar-rm-return {
           background: none; border: none; cursor: pointer;
@@ -799,10 +770,10 @@ const HomePage: React.FC = () => {
             gap: 8px;
             border-radius: 16px;
           }
-          .st-ibar-field--loc { flex: 1 1 calc(50% - 30px); }
-          .st-ibar-field--dt  { flex: 1 1 calc(50% - 8px); }
-          .st-ibar-field--return { flex: 1 1 calc(50% - 8px); }
-          .st-ibar-field--pax { flex: 1 1 100%; }
+          .st-ibar-field--loc { flex: 1 1 calc(50% - 30px); min-width: 0; }
+          .st-ibar-field--dt  { flex: 1 1 calc(50% - 8px); min-width: 0; }
+          .st-ibar-field--return { flex: 1 1 calc(50% - 8px); min-width: 0; }
+          .st-ibar-field--pax { flex: 1 1 100%; min-width: 0; }
           .st-ibar-vdiv { display: none; }
           .st-ibar-swap { margin: 0 4px; }
           .st-ibar-search-btn { width: 100% !important; margin-left: 0 !important; height: 46px !important; }
