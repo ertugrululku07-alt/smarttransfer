@@ -153,8 +153,7 @@ export default async function BlogListPage({ searchParams }: { searchParams: Pro
                                             )}
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 12, color: '#94a3b8', borderTop: '1px solid #f1f5f9', paddingTop: 12, marginTop: 'auto' }}>
                                                 {p.author?.name && <span>{p.author.name}</span>}
-                                                {p.publishedAt && <span>•</span>}
-                                                {p.publishedAt && <span>{new Date(p.publishedAt).toLocaleDateString('tr-TR', { year: 'numeric', month: 'long', day: 'numeric' })}</span>}
+                                                {p.publishedAt && !isNaN(new Date(p.publishedAt).getTime()) && <span>• {new Date(p.publishedAt).toLocaleDateString('tr-TR', { year: 'numeric', month: 'long', day: 'numeric' })}</span>}
                                                 {p.readingTime && <span>• {p.readingTime} dk okuma</span>}
                                             </div>
                                         </div>

@@ -117,7 +117,7 @@ export default async function BlogPostPage({ params }: { params: Promise<Params>
                         )}
                         <div style={{ display: 'flex', alignItems: 'center', gap: 14, fontSize: 14, color: 'rgba(255,255,255,0.7)', flexWrap: 'wrap' }}>
                             {post.author?.name && <span><strong style={{ color: '#fff' }}>{post.author.name}</strong></span>}
-                            {post.publishedAt && <span>• {new Date(post.publishedAt).toLocaleDateString('tr-TR', { year: 'numeric', month: 'long', day: 'numeric' })}</span>}
+                            {post.publishedAt && !isNaN(new Date(post.publishedAt).getTime()) && <span>• {new Date(post.publishedAt).toLocaleDateString('tr-TR', { year: 'numeric', month: 'long', day: 'numeric' })}</span>}
                             <span>• {readingTime} dk okuma</span>
                         </div>
                     </div>

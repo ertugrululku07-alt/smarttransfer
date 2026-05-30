@@ -139,7 +139,8 @@ export function buildAbsoluteUrl(url: string | undefined, baseUrl: string): stri
         if (url.includes('/uploads/')) {
             try {
                 const u = new URL(url);
-                const currentHost = new URL(baseUrl).hostname;
+                const safeBase = baseUrl.startsWith('http') ? baseUrl : `https://${baseUrl}`;
+                const currentHost = new URL(safeBase).hostname;
                 if (u.hostname !== currentHost) {
                     return `${baseUrl}${u.pathname}`;
                 }
@@ -470,7 +471,15 @@ export interface BlogPost {
 export async function getBlogPosts(): Promise<BlogPost[]> {
     const { seo } = await getTenantData();
     const blog: any = (seo as any).blog;
-    const posts: BlogPost[] = Array.isArray(blog?.posts) ? blog.posts : [];
+    let posts: BlogPost[] = Array.isArray(blog?.posts) ? blog.posts : [];
+    
+    // Normalize posts to prevent crashes if strings were saved instead of arrays
+    posts = posts.map(p => ({
+        ...p,
+        tags: Array.isArray(p.tags) ? p.tags : (typeof p.tags === 'string' ? (p.tags as string).split(',').map(s=>s.trim()).filter(Boolean) : []),
+        keywords: Array.isArray(p.keywords) ? p.keywords : (typeof p.keywords === 'string' ? (p.keywords as string).split(',').map(s=>s.trim()).filter(Boolean) : [])
+    }));
+
     // Only return published posts on public site
     return posts
         .filter(p => p.status !== 'draft')
