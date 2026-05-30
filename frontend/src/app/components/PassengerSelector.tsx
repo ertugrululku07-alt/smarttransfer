@@ -46,97 +46,36 @@ const PassengerSelector: React.FC<PassengerSelectorProps> = ({
 
     const totalPassengers = counts.adults + counts.children + counts.babies;
 
+    const PaxRow = ({ label, age, type, min }: { label: string; age: string; type: keyof PassengerCounts; min: number }) => (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 0', borderBottom: '1px solid #f5f5f5' }}>
+            <div>
+                <span style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>{label}</span>
+                <span style={{ fontSize: 11, color: '#9ca3af', marginLeft: 6 }}>{age}</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Button
+                    shape="circle" icon={<MinusOutlined />} size="small"
+                    onClick={() => handleChange(type, -1)}
+                    disabled={counts[type] <= min}
+                />
+                <span style={{ display: 'inline-block', width: 20, textAlign: 'center', fontWeight: 700, fontSize: 14 }}>
+                    {counts[type]}
+                </span>
+                <Button
+                    shape="circle" icon={<PlusOutlined />} size="small"
+                    onClick={() => handleChange(type, 1)}
+                />
+            </div>
+        </div>
+    );
+
     const content = (
-        <div style={{ width: 300 }}>
-            <div style={{ padding: '12px 0', borderBottom: '1px solid #f0f0f0' }}>
-                <Row align="middle" justify="space-between">
-                    <Col>
-                        <Text strong>{t('pax.adults')}</Text>
-                        <div style={{ fontSize: 12, color: '#888' }}>13+</div>
-                    </Col>
-                    <Col>
-                        <Space>
-                            <Button
-                                shape="circle"
-                                icon={<MinusOutlined />}
-                                onClick={() => handleChange('adults', -1)}
-                                disabled={counts.adults <= 1}
-                                size="small"
-                            />
-                            <span style={{ display: 'inline-block', width: 24, textAlign: 'center', fontWeight: 'bold' }}>
-                                {counts.adults}
-                            </span>
-                            <Button
-                                shape="circle"
-                                icon={<PlusOutlined />}
-                                onClick={() => handleChange('adults', 1)}
-                                size="small"
-                            />
-                        </Space>
-                    </Col>
-                </Row>
-            </div>
-
-            <div style={{ padding: '12px 0', borderBottom: '1px solid #f0f0f0' }}>
-                <Row align="middle" justify="space-between">
-                    <Col>
-                        <Text strong>{t('pax.children')}</Text>
-                        <div style={{ fontSize: 12, color: '#888' }}>3-12</div>
-                    </Col>
-                    <Col>
-                        <Space>
-                            <Button
-                                shape="circle"
-                                icon={<MinusOutlined />}
-                                onClick={() => handleChange('children', -1)}
-                                disabled={counts.children <= 0}
-                                size="small"
-                            />
-                            <span style={{ display: 'inline-block', width: 24, textAlign: 'center', fontWeight: 'bold' }}>
-                                {counts.children}
-                            </span>
-                            <Button
-                                shape="circle"
-                                icon={<PlusOutlined />}
-                                onClick={() => handleChange('children', 1)}
-                                size="small"
-                            />
-                        </Space>
-                    </Col>
-                </Row>
-            </div>
-
-            <div style={{ padding: '12px 0', borderBottom: '1px solid #f0f0f0' }}>
-                <Row align="middle" justify="space-between">
-                    <Col>
-                        <Text strong>{t('pax.babies')}</Text>
-                        <div style={{ fontSize: 12, color: '#888' }}>0-2</div>
-                    </Col>
-                    <Col>
-                        <Space>
-                            <Button
-                                shape="circle"
-                                icon={<MinusOutlined />}
-                                onClick={() => handleChange('babies', -1)}
-                                disabled={counts.babies <= 0}
-                                size="small"
-                            />
-                            <span style={{ display: 'inline-block', width: 24, textAlign: 'center', fontWeight: 'bold' }}>
-                                {counts.babies}
-                            </span>
-                            <Button
-                                shape="circle"
-                                icon={<PlusOutlined />}
-                                onClick={() => handleChange('babies', 1)}
-                                size="small"
-                            />
-                        </Space>
-                    </Col>
-                </Row>
-            </div>
-
-            <div style={{ marginTop: 16, textAlign: 'right' }}>
-                <Button type="primary" onClick={() => setOpen(false)} style={{ width: '100%' }}>
+        <div style={{ width: 240 }}>
+            <PaxRow label={t('pax.adults')}   age="13+" type="adults"   min={1} />
+            <PaxRow label={t('pax.children')} age="3-12" type="children" min={0} />
+            <PaxRow label={t('pax.babies')}   age="0-2"  type="babies"   min={0} />
+            <div style={{ marginTop: 10 }}>
+                <Button type="primary" onClick={() => setOpen(false)} style={{ width: '100%', height: 36 }}>
                     OK
                 </Button>
             </div>
