@@ -108,6 +108,7 @@ const PAGE_TEMPLATES = [
     { key: 'kullanim-kosullari', title: 'Kullanım Koşulları', slug: 'kullanim-kosullari', category: 'legal', icon: 'FileProtectOutlined', excerpt: 'Hizmet kullanım şartları.' },
     { key: 'iptal-iade', title: 'İptal ve İade Politikası', slug: 'iptal-iade-politikasi', category: 'legal', icon: 'RollbackOutlined', excerpt: 'Rezervasyon iptal ve iade koşulları.' },
     { key: 'transfer-hizmetleri', title: 'Transfer Hizmetleri', slug: 'transfer-hizmetleri', category: 'service', icon: 'CarOutlined', excerpt: 'Sunduğumuz transfer hizmetleri.' },
+    { key: 'kvkk', title: 'KVKK Aydınlatma Metni', slug: 'kvkk-aydinlatma-metni', category: 'legal', icon: 'FileProtectOutlined', excerpt: 'Kişisel Verilerin Korunması Kanunu aydınlatma metni.' },
 ];
 
 const CATEGORY_OPTIONS = [
@@ -256,6 +257,12 @@ const PagesManagement: React.FC = () => {
     };
 
     const TEMPLATE_CONTENTS: Record<string, string> = {
+        'kvkk': `<h2>KVKK Aydınlatma Metni</h2>
+<p>Kişisel verileriniz, 6698 sayılı Kişisel Verilerin Korunması Kanunu (KVKK) kapsamında şirketimiz tarafından işlenmektedir.</p>
+<h3>Verilerin İşlenme Amacı</h3>
+<p>Kişisel verileriniz, transfer hizmetinin sağlanması, rezervasyon işlemlerinin yürütülmesi ve yasal zorunlulukların yerine getirilmesi amacıyla işlenmektedir.</p>
+<h3>Verilerin Aktarılması</h3>
+<p>Verileriniz, yalnızca yasal zorunluluklar ve hizmet ifası gereği yetkili kurum ve kuruluşlar ile hizmet sağlayıcı iş ortaklarımıza aktarılabilir.</p>`,
         'hakkimizda': `<h2>Hakkımızda</h2>
 <p>Firmamız, yılların deneyimi ile havalimanı transferi ve şehirler arası ulaşım hizmetleri sunmaktadır. Müşteri memnuniyetini en ön planda tutarak, güvenli, konforlu ve zamanında hizmet anlayışıyla çalışmaktayız.</p>
 <h3>Misyonumuz</h3>

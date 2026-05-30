@@ -1612,6 +1612,22 @@ const TransferBookingContent: React.FC = () => {
                                     </Title>
                                 </div>
 
+                                <Form.Item
+                                    name="acceptTerms"
+                                    valuePropName="checked"
+                                    rules={[
+                                        {
+                                            validator: (_, value) =>
+                                                value ? Promise.resolve() : Promise.reject(new Error('Devam etmek için sözleşmeleri onaylamanız gerekmektedir')),
+                                        },
+                                    ]}
+                                    style={{ marginTop: 24, marginBottom: 0 }}
+                                >
+                                    <Checkbox style={{ fontSize: 13, color: '#666' }}>
+                                        <a href="/sayfa/kvkk-aydinlatma-metni" target="_blank" onClick={(e) => e.stopPropagation()} style={{ color: '#1890ff', textDecoration: 'underline' }}>KVKK</a>, ön bilgilendirme ve <a href="/sayfa/kullanim-kosullari" target="_blank" onClick={(e) => e.stopPropagation()} style={{ color: '#1890ff', textDecoration: 'underline' }}>uzak mesafeli satış sözleşmesini</a> okudum ve onaylıyorum.
+                                    </Checkbox>
+                                </Form.Item>
+
                                 <Button
                                     type="primary"
                                     size="large"

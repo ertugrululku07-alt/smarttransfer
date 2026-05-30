@@ -15,7 +15,8 @@ import {
   DatePicker,
   Divider,
   message,
-  Spin
+  Spin,
+  Checkbox
 } from 'antd';
 
 const { Title, Text } = Typography;
@@ -96,7 +97,12 @@ const BookingContent: React.FC = () => {
                   <Col span={12}><Form.Item label="E-posta" name="email" rules={[{ required: true, type: 'email' }]}><Input /></Form.Item></Col>
                   <Col span={12}><Form.Item label="Telefon" name="phone" rules={[{ required: true }]}><Input /></Form.Item></Col>
                 </Row>
-                <Form.Item style={{ marginTop: 16 }}><Button type="primary" htmlType="submit" loading={loading}>Rezervasyonu Tamamla</Button></Form.Item>
+                <Form.Item name="acceptTerms" valuePropName="checked" rules={[{ validator: (_, value) => value ? Promise.resolve() : Promise.reject(new Error('Devam etmek için sözleşmeleri onaylamanız gerekmektedir')) }]} style={{ marginTop: 16, marginBottom: 0 }}>
+                    <Checkbox style={{ fontSize: 13, color: '#666' }}>
+                        <a href="/sayfa/kvkk-aydinlatma-metni" target="_blank" onClick={(e) => e.stopPropagation()}>KVKK</a>, ön bilgilendirme ve <a href="/sayfa/kullanim-kosullari" target="_blank" onClick={(e) => e.stopPropagation()}>uzak mesafeli satış sözleşmesini</a> okudum ve onaylıyorum.
+                    </Checkbox>
+                </Form.Item>
+                <Form.Item style={{ marginTop: 16 }}><Button type="primary" htmlType="submit" loading={loading} block>Rezervasyonu Tamamla</Button></Form.Item>
               </Form>
             </Card>
           </Col>

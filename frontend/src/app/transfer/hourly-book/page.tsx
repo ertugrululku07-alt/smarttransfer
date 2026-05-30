@@ -4,7 +4,7 @@ import React, { Suspense, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import {
     Layout, Card, Typography, Form, Input, Button,
-    Row, Col, Divider, Select, message, Spin, Result, Tag, Alert, Space, Radio
+    Row, Col, Divider, Select, message, Spin, Result, Tag, Alert, Space, Radio, Checkbox
 } from 'antd';
 import {
     ClockCircleOutlined, UserOutlined, EnvironmentOutlined,
@@ -416,6 +416,22 @@ function HourlyBookContent() {
                                     showIcon
                                     style={{ marginBottom: 24, borderRadius: 10 }}
                                 />
+
+                                <Form.Item
+                                    name="acceptTerms"
+                                    valuePropName="checked"
+                                    rules={[
+                                        {
+                                            validator: (_, value) =>
+                                                value ? Promise.resolve() : Promise.reject(new Error('Devam etmek için sözleşmeleri onaylamanız gerekmektedir')),
+                                        },
+                                    ]}
+                                    style={{ marginBottom: 24 }}
+                                >
+                                    <Checkbox style={{ fontSize: 13, color: '#666' }}>
+                                        <a href="/sayfa/kvkk-aydinlatma-metni" target="_blank" onClick={(e) => e.stopPropagation()} style={{ color: '#1890ff', textDecoration: 'underline' }}>KVKK</a>, ön bilgilendirme ve <a href="/sayfa/kullanim-kosullari" target="_blank" onClick={(e) => e.stopPropagation()} style={{ color: '#1890ff', textDecoration: 'underline' }}>uzak mesafeli satış sözleşmesini</a> okudum ve onaylıyorum.
+                                    </Checkbox>
+                                </Form.Item>
 
                                 <Button
                                     type="primary"
