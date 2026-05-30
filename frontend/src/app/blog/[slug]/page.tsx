@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import BlogShell from '@/app/components/BlogShell';
+import { getImageUrl } from '@/lib/api-client';
 import {
     getBlogPosts,
     getBlogPostBySlug,
@@ -68,7 +69,9 @@ export default async function BlogPostPage({ params }: { params: Promise<Params>
     const fallback = await getSiteUrl();
     const siteUrl = (seo.siteUrl || fallback).replace(/\/$/, '');
     const logoAbs = buildAbsoluteUrl(branding.logoUrl, siteUrl);
-    const cover = buildAbsoluteUrl(post.coverImage, siteUrl);
+    
+    const coverUrl = getImageUrl(post.coverImage);
+    const ogImage = buildAbsoluteUrl(post.coverImage, siteUrl);
 
     const readingTime = post.readingTime || estimateReadingTime(post.content || '');
 
@@ -96,12 +99,12 @@ export default async function BlogPostPage({ params }: { params: Promise<Params>
                 {/* Hero */}
                 <section style={{
                     position: 'relative',
-                    background: cover ? `url(${cover}) center/cover no-repeat` : 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+                    background: coverUrl ? `url(${coverUrl}) center/cover no-repeat` : 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
                     color: '#fff',
                     overflow: 'hidden',
                     minHeight: 380,
                 }}>
-                    {cover && <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, rgba(15,23,42,0.55), rgba(15,23,42,0.75))' }} />}
+                    {coverUrl && <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, rgba(15,23,42,0.55), rgba(15,23,42,0.75))' }} />}
                     <div style={{ position: 'relative', zIndex: 1, maxWidth: 860, margin: '0 auto', padding: 'clamp(80px, 12vw, 140px) 24px clamp(40px, 6vw, 70px)' }}>
                         <div style={{ marginBottom: 16, fontSize: 13 }}>
                             <Link href="/blog" style={{ color: 'rgba(255,255,255,0.7)', textDecoration: 'none' }}>← Tüm Yazılar</Link>
@@ -163,7 +166,7 @@ export default async function BlogPostPage({ params }: { params: Promise<Params>
                         <div style={{ marginTop: 40, padding: 24, background: '#f8fafc', borderRadius: 16, display: 'flex', gap: 16, alignItems: 'center' }}>
                             {post.author.image && (
                                 // eslint-disable-next-line @next/next/no-img-element
-                                <img src={buildAbsoluteUrl(post.author.image, siteUrl) || post.author.image} alt={post.author.name} width={64} height={64} style={{ borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                                <img src={getImageUrl(post.author.image) || post.author.image} alt={post.author.name} width={64} height={64} style={{ borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
                             )}
                             <div>
                                 <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 4 }}>Yazar</div>
@@ -184,7 +187,7 @@ export default async function BlogPostPage({ params }: { params: Promise<Params>
                                         {r.coverImage && (
                                             <div style={{ position: 'relative', aspectRatio: '16 / 9', overflow: 'hidden' }}>
                                                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                                                <img src={buildAbsoluteUrl(r.coverImage, siteUrl) || r.coverImage} alt={r.title} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} loading="lazy" />
+                                                <img src={getImageUrl(r.coverImage) || r.coverImage} alt={r.title} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} loading="lazy" />
                                             </div>
                                         )}
                                         <div style={{ padding: 18 }}>

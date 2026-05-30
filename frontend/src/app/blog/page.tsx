@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import BlogShell from '@/app/components/BlogShell';
+import { getImageUrl } from '@/lib/api-client';
 import {
     getBlogPosts,
     getBlogCategories,
@@ -34,7 +35,7 @@ export default async function BlogListPage({ searchParams }: { searchParams: Pro
     const fallback = await getSiteUrl();
     const siteUrl = (seo.siteUrl || fallback).replace(/\/$/, '');
     const heroImage = await getBlogHeroImage();
-    const heroUrl = heroImage ? buildAbsoluteUrl(heroImage, siteUrl) : undefined;
+    const heroUrl = getImageUrl(heroImage);
 
     const filtered = kategori ? posts.filter(p => p.category === kategori) : posts;
     const pageNum = Math.max(1, parseInt(sayfa || '1', 10));
@@ -125,9 +126,7 @@ export default async function BlogListPage({ searchParams }: { searchParams: Pro
                     ) : (
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 24 }}>
                             {currentPagePosts.map((p, idx) => {
-                                const cover = p.coverImage && !p.coverImage.startsWith('http')
-                                    ? buildAbsoluteUrl(p.coverImage, siteUrl)
-                                    : p.coverImage;
+                                const cover = getImageUrl(p.coverImage);
                                 return (
                                     <article key={p.slug} style={{
                                         background: '#fff', borderRadius: 16, overflow: 'hidden',
