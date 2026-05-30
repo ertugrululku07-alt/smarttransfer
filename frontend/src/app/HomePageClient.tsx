@@ -565,8 +565,8 @@ const HomePage: React.FC = () => {
   const heroContent = (
     <div style={{
       position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
-      display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center',
-      zIndex: 10, padding: '80px 16px 0',
+      display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', alignItems: 'center',
+      zIndex: 10, padding: '0 16px 48px',
     }}>
       <div style={{ textAlign: 'center', marginBottom: 32, maxWidth: 760 }}>
         {/* Premium badge */}
