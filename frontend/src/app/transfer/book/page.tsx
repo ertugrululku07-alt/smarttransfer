@@ -1015,16 +1015,16 @@ const TransferBookingContent: React.FC = () => {
 
             <Content style={{ maxWidth: 1200, margin: '24px auto', padding: '0 24px', width: '100%' }}>
 
-                <Row gutter={24} style={{ marginTop: 24 }}>
-                    {/* Booking Form */}
-                    <Col xs={24} lg={16}>
-                        <Card title={t('booking.passengerInfo')} style={{ borderRadius: 8, marginBottom: 24 }}>
-                            <Form
-                                form={form}
-                                layout="vertical"
-                                onFinish={onFinish}
-                                initialValues={{ paymentMethod: 'cash' }}
-                            >
+                <Form
+                    form={form}
+                    layout="vertical"
+                    onFinish={onFinish}
+                    initialValues={{ paymentMethod: 'cash' }}
+                >
+                    <Row gutter={24} style={{ marginTop: 24 }}>
+                        {/* Booking Form */}
+                        <Col xs={24} lg={16}>
+                            <Card title={t('booking.passengerInfo')} style={{ borderRadius: 8, marginBottom: 24 }}>
                                 <Row gutter={16}>
                                     <Col xs={24} md={12}>
                                         <Form.Item
@@ -1438,27 +1438,7 @@ const TransferBookingContent: React.FC = () => {
                                     </Radio.Group>
                                 </Form.Item>
 
-                                <Divider />
-
-                                <div style={{ textAlign: 'right' }}>
-                                    <Button
-                                        type="primary"
-                                        htmlType="submit"
-                                        size="large"
-                                        loading={loading}
-                                        style={{
-                                            minWidth: 200,
-                                            background: 'linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-accent) 100%)',
-                                            border: 'none',
-                                            height: 50,
-                                            fontSize: 18
-                                        }}
-                                    >
-                                        {t('booking.submit')}
-                                    </Button>
-                                </div>
-                            </Form>
-                        </Card>
+                            </Card>
                     </Col>
 
                     {/* Trip Summary Info */}
@@ -1641,7 +1621,8 @@ const TransferBookingContent: React.FC = () => {
                             </div>
                         </Card>
                     </Col>
-                </Row>
+                    </Row>
+                </Form>
             </Content>
 
             <Footer style={{ textAlign: 'center' }}>{branding.companyName} ©{new Date().getFullYear()}</Footer>
