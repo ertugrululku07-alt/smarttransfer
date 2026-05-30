@@ -30,6 +30,8 @@ import {
 import {
   CarOutlined,
   SearchOutlined,
+  PlusOutlined,
+  UserOutlined,
   ArrowRightOutlined,
   GlobalOutlined,
   EnvironmentOutlined,
@@ -431,9 +433,11 @@ const HomePage: React.FC = () => {
         onClick={handleHourlySearch}
         className="st-rental-search-btn"
         style={{
-          height: 32, fontWeight: 600, fontSize: 13,
-          background: '#111827', border: 'none', borderRadius: 10,
-          boxShadow: '0 2px 8px rgba(17,24,39,0.15)',
+          height: 52, fontWeight: 700, fontSize: 15,
+          background: theme.buttonGradient || 'linear-gradient(135deg,#10b981,#059669)',
+          border: 'none', borderRadius: 12,
+          boxShadow: theme.buttonShadow || '0 4px 15px rgba(16,185,129,0.35)',
+          alignSelf: 'flex-end',
         }}
       >
         {t('search.searchButton')}
@@ -444,166 +448,159 @@ const HomePage: React.FC = () => {
   // ─── TRANSFER SEARCH FORM ───
   const transferSearchForm = (
     <div>
-      {/* Route Section */}
-      <div style={{ marginBottom: 18 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, padding: '0 2px' }}>
-          <span className="st-detail-label">
-            <EnvironmentOutlined className="st-detail-label-icon" /> {t('search.from')}
-          </span>
-          <span className="st-detail-label">
-            <EnvironmentOutlined className="st-detail-label-icon" /> {t('search.to')}
-          </span>
+      {/* Single-row inline search bar */}
+      <div className="st-ibar">
+        {/* FROM */}
+        <div className="st-ibar-field st-ibar-field--loc">
+          <div className="st-ibar-label"><EnvironmentOutlined /> {t('search.from')}</div>
+          <DynamicLocationSearchInput
+            size="middle"
+            placeholder={t('search.fromPlaceholder')}
+            value={pickup}
+            onChange={setPickup}
+            onSelect={(val, lat, lng) => { setPickup(val); if (lat && lng) setPickupLocation({ lat, lng }); }}
+            onMapClick={() => openMapModal('pickup')}
+            country={googleMapsSettings.country || 'tr,cy'}
+            style={{ border: 'none', boxShadow: 'none' }}
+          />
         </div>
-        <div className="st-route-inputs">
-          <div style={{ flex: 1 }}>
-            <DynamicLocationSearchInput
-              size="middle"
-              placeholder={t('search.fromPlaceholder')}
-              value={pickup}
-              onChange={setPickup}
-              onSelect={(val, lat, lng) => { setPickup(val); if (lat && lng) setPickupLocation({ lat, lng }); }}
-              onMapClick={() => openMapModal('pickup')}
-              country={googleMapsSettings.country || 'tr,cy'}
-              style={{ borderRadius: 10 }}
-            />
-          </div>
-          <button
-            type="button"
-            aria-label="Yerleri değiştir"
-            title="Yerleri değiştir"
-            onClick={handleSwapLocations}
-            className="st-swap-btn"
-          >
-            <SwapOutlined style={{ fontSize: 10 }} />
-          </button>
-          <div style={{ flex: 1 }}>
-            <DynamicLocationSearchInput
-              size="middle"
-              placeholder={t('search.toPlaceholder')}
-              value={dropoff}
-              onChange={setDropoff}
-              onSelect={(val, lat, lng) => { setDropoff(val); if (lat && lng) setDropoffLocation({ lat, lng }); }}
-              onMapClick={() => openMapModal('dropoff')}
-              country={googleMapsSettings.country || 'tr,cy'}
-              style={{ borderRadius: 10 }}
-            />
-          </div>
-        </div>
-      </div>
 
-      {/* Details Grid */}
-      <div
-        className={`st-details-grid ${tripType === 'return' ? 'st-details-grid--return' : ''}`}
-      >
-        <div className="st-grid-gtarih">
-          <div className="st-detail-label">
-            <CalendarOutlined className="st-detail-label-icon" /> {t('search.date')}
-          </div>
-          <DatePicker
+        {/* SWAP */}
+        <button
+          type="button"
+          aria-label="Yerleri değiştir"
+          onClick={handleSwapLocations}
+          className="st-ibar-swap"
+          style={{ background: theme.buttonGradient || 'linear-gradient(135deg,#6366f1,#4f46e5)' }}
+        >
+          <SwapOutlined style={{ fontSize: 13, color: '#fff' }} />
+        </button>
+
+        {/* TO */}
+        <div className="st-ibar-field st-ibar-field--loc">
+          <div className="st-ibar-label"><EnvironmentOutlined /> {t('search.to')}</div>
+          <DynamicLocationSearchInput
             size="middle"
-            style={{ width: '100%', borderRadius: 10 }}
-            format="DD.MM.YYYY"
-            placeholder={t('search.datePlaceholder')}
-            value={pickupDate}
-            onChange={(date) => setPickupDate(date)}
-            disabledDate={(current) => current && current < dayjs().startOf('day')}
+            placeholder={t('search.toPlaceholder')}
+            value={dropoff}
+            onChange={setDropoff}
+            onSelect={(val, lat, lng) => { setDropoff(val); if (lat && lng) setDropoffLocation({ lat, lng }); }}
+            onMapClick={() => openMapModal('dropoff')}
+            country={googleMapsSettings.country || 'tr,cy'}
+            style={{ border: 'none', boxShadow: 'none' }}
           />
         </div>
-        <div className="st-grid-gsaat">
-          <div className="st-detail-label">
-            <ClockCircleOutlined className="st-detail-label-icon" /> {timeLabel}
+
+        <div className="st-ibar-vdiv" />
+
+        {/* DATE + TIME */}
+        <div className="st-ibar-field st-ibar-field--dt">
+          <div className="st-ibar-label"><CalendarOutlined /> {timeLabel}</div>
+          <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+            <DatePicker
+              size="middle"
+              style={{ flex: 1, minWidth: 0, border: 'none', boxShadow: 'none', background: 'transparent', paddingLeft: 0 }}
+              format="DD.MM.YYYY"
+              placeholder={t('search.datePlaceholder')}
+              value={pickupDate}
+              onChange={(date) => setPickupDate(date)}
+              disabledDate={(current) => current && current < dayjs().startOf('day')}
+              variant="borderless"
+            />
+            <TimePicker
+              size="middle"
+              style={{ width: 76, border: 'none', boxShadow: 'none', background: 'transparent', paddingLeft: 0 }}
+              format="HH:mm" minuteStep={5}
+              value={pickupTime}
+              onChange={(time) => setPickupTime(time)}
+              placeholder="12:00"
+              needConfirm={false} showNow={false}
+              variant="borderless"
+            />
           </div>
-          <TimePicker
-            size="middle"
-            style={{ width: '100%', borderRadius: 10 }}
-            format="HH:mm" minuteStep={5}
-            value={pickupTime}
-            onChange={(time) => setPickupTime(time)}
-            placeholder={t('search.timePlaceholder')}
-            needConfirm={false} showNow={false}
-          />
         </div>
-        {tripType === 'return' && (
-          <>
-            <div className="st-grid-dtarih">
-              <div className="st-detail-label">
-                <CalendarOutlined className="st-detail-label-icon" /> {t('search.returnDate')}
+
+        <div className="st-ibar-vdiv" />
+
+        {/* ADD RETURN / RETURN DATE */}
+        <div className="st-ibar-field st-ibar-field--return">
+          {tripType === 'oneway' ? (
+            <button type="button" className="st-ibar-add-return" onClick={() => setTripType('return')}>
+              <PlusOutlined style={{ fontSize: 11 }} />
+              <span>{t('search.roundTrip')}</span>
+            </button>
+          ) : (
+            <>
+              <div className="st-ibar-label" style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span><CalendarOutlined /> {t('search.returnDate')}</span>
+                <button type="button" className="st-ibar-rm-return" onClick={() => setTripType('oneway')}>✕</button>
               </div>
-              <DatePicker
-                size="middle"
-                style={{ width: '100%', borderRadius: 10 }}
-                format="DD.MM.YYYY"
-                placeholder={t('search.returnDatePlaceholder')}
-                value={returnDate}
-                onChange={(date) => setReturnDate(date)}
-                disabledDate={(current) => {
-                  if (!pickupDate) return current && current < dayjs().startOf('day');
-                  return current && current < pickupDate.startOf('day');
-                }}
-              />
-            </div>
-            <div className="st-grid-dsaat">
-              <div className="st-detail-label">
-                <ClockCircleOutlined className="st-detail-label-icon" /> {returnTimeLabel}
+              <div style={{ display: 'flex', gap: 4 }}>
+                <DatePicker
+                  size="middle"
+                  style={{ flex: 1, minWidth: 0 }}
+                  format="DD.MM.YYYY"
+                  placeholder={t('search.returnDatePlaceholder')}
+                  value={returnDate}
+                  onChange={(date) => setReturnDate(date)}
+                  disabledDate={(current) => {
+                    if (!pickupDate) return current && current < dayjs().startOf('day');
+                    return current && current < pickupDate.startOf('day');
+                  }}
+                  variant="borderless"
+                />
+                <TimePicker
+                  size="middle"
+                  style={{ width: 76 }}
+                  format="HH:mm" minuteStep={5}
+                  value={returnTime}
+                  onChange={(time) => setReturnTime(time)}
+                  placeholder="12:00"
+                  needConfirm={false} showNow={false}
+                  variant="borderless"
+                />
               </div>
-              <TimePicker
-                size="middle"
-                style={{ width: '100%', borderRadius: 10 }}
-                format="HH:mm" minuteStep={5}
-                value={returnTime}
-                onChange={(time) => setReturnTime(time)}
-                placeholder={t('search.returnTimePlaceholder')}
-                needConfirm={false} showNow={false}
-              />
-            </div>
-          </>
-        )}
-        <div className="st-grid-yolcu">
-          <div className="st-detail-label">
-            {t('search.passengers')}
-          </div>
+            </>
+          )}
+        </div>
+
+        <div className="st-ibar-vdiv" />
+
+        {/* PASSENGERS */}
+        <div className="st-ibar-field st-ibar-field--pax">
+          <div className="st-ibar-label"><UserOutlined /> {t('search.passengers')}</div>
           <PassengerSelector
             size="middle"
             value={passengerCounts}
             onChange={(counts) => { setPassengerCounts(counts); setPassengers(counts.adults + counts.children + counts.babies); }}
           />
         </div>
-        <div className="st-grid-tip">
-          <div className="st-detail-label">
-            {t('search.transferType')}
-          </div>
-          <div className="st-type-toggle">
-            <button
-              type="button"
-              onClick={() => setTripType('oneway')}
-              className={`st-type-option ${tripType === 'oneway' ? 'st-type-option--active' : ''}`}
-            >
-              {t('search.oneWay')}
-            </button>
-            <button
-              type="button"
-              onClick={() => setTripType('return')}
-              className={`st-type-option ${tripType === 'return' ? 'st-type-option--active' : ''}`}
-            >
-              {t('search.roundTrip')}
-            </button>
-          </div>
-        </div>
-      </div>
 
-      {/* Search Button */}
-      <Button
-        type="primary" block size="large" icon={<SearchOutlined />}
-        onClick={handleTransferSearch} loading={searchLoading}
-        style={{
-          height: 44, fontSize: 13, fontWeight: 600,
-          background: theme.buttonGradient || '#111827', border: 'none',
-          boxShadow: theme.buttonShadow || '0 2px 8px rgba(17,24,39,0.15)',
-          borderRadius: 10, color: '#fff', letterSpacing: 0.2,
-        }}
-      >
-        {t('search.searchButton')}
-      </Button>
+        {/* SEARCH BUTTON */}
+        <Button
+          type="primary"
+          size="large"
+          icon={<SearchOutlined />}
+          onClick={handleTransferSearch}
+          loading={searchLoading}
+          className="st-ibar-search-btn"
+          style={{
+            background: theme.buttonGradient || 'linear-gradient(135deg,#10b981,#059669)',
+            border: 'none',
+            boxShadow: theme.buttonShadow || '0 4px 15px rgba(16,185,129,0.35)',
+            borderRadius: 12,
+            height: 52,
+            padding: '0 24px',
+            fontSize: 15,
+            fontWeight: 700,
+            flexShrink: 0,
+            alignSelf: 'flex-end',
+            marginBottom: 0,
+          }}
+        >
+          {t('search.searchButton')}
+        </Button>
+      </div>
     </div>
   );
 
@@ -666,19 +663,16 @@ const HomePage: React.FC = () => {
       </div>
       {/* Search Card Styles */}
       <style>{`
+        /* ── OUTER CARD ── */
         .st-search-card {
-          width: 100%; max-width: 720px;
-          background: rgba(255,255,255,0.14);
-          backdrop-filter: blur(22px);
-          -webkit-backdrop-filter: blur(22px);
-          border-radius: 20px;
-          border: 1px solid rgba(255,255,255,0.22);
-          box-shadow: 0 8px 32px rgba(0,0,0,0.28), 0 1px 0 rgba(255,255,255,0.12) inset;
-          padding: clamp(20px, 3vw, 28px) clamp(20px, 3vw, 32px);
+          width: 100%; max-width: 980px;
+          background: transparent;
+          padding: 0;
         }
-        .st-tabs { display: flex; gap: 4px; margin-bottom: 20px; justify-content: center; }
+        /* ── TABS ── */
+        .st-tabs { display: flex; gap: 4px; margin-bottom: 16px; justify-content: center; }
         .st-tab {
-          padding: 8px 20px; border-radius: 8px; border: none;
+          padding: 8px 22px; border-radius: 9px; border: none;
           background: transparent; color: rgba(255,255,255,0.65);
           font-family: inherit; font-size: 13px; font-weight: 500;
           cursor: pointer; transition: all 0.2s ease;
@@ -690,72 +684,128 @@ const HomePage: React.FC = () => {
           box-shadow: 0 1px 4px rgba(0,0,0,0.15);
           border: 1px solid rgba(255,255,255,0.28);
         }
-        .st-detail-label {
-          font-size: 11px; font-weight: 500; color: rgba(255,255,255,0.8);
+
+        /* ── INLINE BAR ── */
+        .st-ibar {
+          display: flex;
+          align-items: center;
+          background: #fff;
+          border-radius: 16px;
+          box-shadow: 0 8px 40px rgba(0,0,0,0.22), 0 2px 8px rgba(0,0,0,0.1);
+          padding: 10px 10px 10px 20px;
+          gap: 0;
+          min-height: 76px;
+        }
+        .st-ibar-field {
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          padding: 4px 12px 4px 0;
+          min-width: 0;
+        }
+        .st-ibar-field--loc { flex: 1.6; }
+        .st-ibar-field--dt  { flex: 1.1; }
+        .st-ibar-field--return { flex: 1.05; }
+        .st-ibar-field--pax { flex: 0.9; }
+        .st-ibar-label {
+          font-size: 10px; font-weight: 700; color: #374151;
+          text-transform: uppercase; letter-spacing: 0.06em;
           margin-bottom: 4px; display: flex; align-items: center; gap: 4px;
         }
-        .st-detail-label-icon { color: rgba(255,255,255,0.55); font-size: 10px; }
-        .st-route-inputs { display: flex; align-items: center; gap: 8px; }
-        .st-swap-btn {
-          width: 28px; height: 28px; border: 1px solid #e5e7eb;
-          background: #fff; border-radius: 50%; cursor: pointer;
-          color: #9ca3af; display: flex; align-items: center;
-          justify-content: center; flex-shrink: 0; transition: all 0.2s ease;
+        /* make antd inputs borderless inside bar */
+        .st-ibar .ant-input,
+        .st-ibar .ant-input-affix-wrapper,
+        .st-ibar .ant-picker,
+        .st-ibar .ant-select-selector {
+          border: none !important;
+          box-shadow: none !important;
+          background: transparent !important;
+          padding-left: 0 !important;
         }
-        .st-swap-btn:hover { border-color: #d1d5db; color: #6b7280; transform: rotate(180deg); }
-        .st-details-grid {
-          display: grid; grid-template-columns: repeat(4, 1fr);
-          grid-template-areas: "gtarih gsaat yolcu tip";
-          gap: 12px; margin-bottom: 18px;
+        .st-ibar .ant-input:focus,
+        .st-ibar .ant-input-affix-wrapper:focus,
+        .st-ibar .ant-input-affix-wrapper-focused,
+        .st-ibar .ant-picker-focused {
+          box-shadow: none !important;
+          border: none !important;
         }
-        .st-details-grid--return {
-          grid-template-areas: "gtarih gsaat dtarih dsaat" "yolcu yolcu tip tip";
+        .st-ibar .ant-autocomplete .ant-select-selector {
+          border: none !important; box-shadow: none !important;
         }
-        .st-grid-gtarih { grid-area: gtarih; }
-        .st-grid-gsaat  { grid-area: gsaat; }
-        .st-grid-dtarih { grid-area: dtarih; animation: stFadeIn 0.25s ease; }
-        .st-grid-dsaat  { grid-area: dsaat; animation: stFadeIn 0.25s ease; }
-        .st-grid-yolcu  { grid-area: yolcu; }
-        .st-grid-tip    { grid-area: tip; }
-        @keyframes stFadeIn {
-          from { opacity: 0; transform: translateY(-6px); }
-          to   { opacity: 1; transform: translateY(0); }
+        /* Vertical divider */
+        .st-ibar-vdiv {
+          width: 1px; height: 40px; background: #e5e7eb;
+          flex-shrink: 0; margin: 0 8px;
         }
-        .st-type-toggle {
-          display: flex; background: rgba(255,255,255,0.1); border-radius: 10px;
-          padding: 3px; border: 1px solid rgba(255,255,255,0.18);
+        /* Swap button */
+        .st-ibar-swap {
+          width: 34px; height: 34px; border-radius: 50%; border: none;
+          cursor: pointer; display: flex; align-items: center; justify-content: center;
+          flex-shrink: 0; margin: 0 6px; transition: transform 0.3s ease;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.15);
         }
-        .st-type-option {
-          flex: 1; padding: 7px 4px; border: none;
-          background: transparent; border-radius: 7px;
-          font-family: inherit; font-size: 11px; font-weight: 500;
-          color: rgba(255,255,255,0.65); cursor: pointer; transition: all 0.2s ease;
-          text-align: center; white-space: nowrap;
+        .st-ibar-swap:hover { transform: rotate(180deg); }
+        /* Add return button */
+        .st-ibar-add-return {
+          display: flex; align-items: center; gap: 6px;
+          background: none; border: 1.5px dashed #d1d5db;
+          border-radius: 8px; padding: 6px 14px;
+          font-family: inherit; font-size: 12px; font-weight: 600;
+          color: #6b7280; cursor: pointer; transition: all 0.2s;
+          white-space: nowrap; margin-top: 4px;
         }
-        .st-type-option--active {
-          background: rgba(255,255,255,0.25); color: #fff;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.15);
-          border: 1px solid rgba(255,255,255,0.3);
+        .st-ibar-add-return:hover { border-color: #9ca3af; color: #374151; background: #f9fafb; }
+        /* Remove return button */
+        .st-ibar-rm-return {
+          background: none; border: none; cursor: pointer;
+          color: #9ca3af; font-size: 12px; padding: 0 2px;
+          line-height: 1; transition: color 0.15s;
         }
-        .st-rental-row { display: flex; align-items: flex-end; gap: 8px; }
+        .st-ibar-rm-return:hover { color: #ef4444; }
+        /* Search button */
+        .st-ibar-search-btn {
+          margin-left: 10px !important;
+        }
+        /* Hourly form */
+        .st-detail-label {
+          font-size: 10px; font-weight: 700; color: #374151;
+          text-transform: uppercase; letter-spacing: 0.06em;
+          margin-bottom: 4px; display: flex; align-items: center; gap: 4px;
+        }
+        .st-detail-label-icon { font-size: 10px; }
+        .st-rental-row { display: flex; align-items: flex-end; gap: 8px; background: #fff; border-radius: 16px; padding: 10px 10px 10px 20px; box-shadow: 0 8px 40px rgba(0,0,0,0.22); min-height: 76px; }
+        .st-rental-row .ant-input,
+        .st-rental-row .ant-input-affix-wrapper,
+        .st-rental-row .ant-picker,
+        .st-rental-row .ant-select-selector {
+          border: none !important; box-shadow: none !important;
+          background: transparent !important; padding-left: 0 !important;
+        }
+        .st-rental-row .ant-input-affix-wrapper-focused,
+        .st-rental-row .ant-picker-focused { box-shadow: none !important; border: none !important; }
+        .st-rental-row .ant-autocomplete .ant-select-selector { border: none !important; box-shadow: none !important; }
         .st-rental-field { display: flex; flex-direction: column; gap: 4px; }
         .st-rental-field-location { flex: 2.2; min-width: 180px; }
         .st-rental-field-date { flex: 1; min-width: 100px; }
         .st-rental-field-time { width: 85px; flex-shrink: 0; }
         .st-rental-field-duration { width: 90px; flex-shrink: 0; }
         .st-rental-search-btn { flex-shrink: 0; white-space: nowrap; margin-bottom: 1px; }
-        @media (max-width: 640px) {
-          .st-search-card { padding: 20px; }
-          .st-details-grid { grid-template-columns: repeat(2, 1fr); }
-          .st-details-grid:not(.st-details-grid--return) {
-            grid-template-areas: "gtarih gsaat" "yolcu tip";
+        /* Mobile */
+        @media (max-width: 768px) {
+          .st-search-card { max-width: 100%; }
+          .st-ibar {
+            flex-wrap: wrap;
+            padding: 16px;
+            gap: 8px;
+            border-radius: 16px;
           }
-          .st-details-grid--return {
-            grid-template-areas: "gtarih gsaat" "dtarih dsaat" "yolcu tip";
-          }
-          .st-route-inputs { flex-direction: column; }
-          .st-swap-btn { transform: rotate(90deg); margin: 4px 0; }
-          .st-swap-btn:hover { transform: rotate(270deg); }
+          .st-ibar-field--loc { flex: 1 1 calc(50% - 30px); }
+          .st-ibar-field--dt  { flex: 1 1 calc(50% - 8px); }
+          .st-ibar-field--return { flex: 1 1 calc(50% - 8px); }
+          .st-ibar-field--pax { flex: 1 1 100%; }
+          .st-ibar-vdiv { display: none; }
+          .st-ibar-swap { margin: 0 4px; }
+          .st-ibar-search-btn { width: 100% !important; margin-left: 0 !important; height: 46px !important; }
           .st-rental-row { flex-wrap: wrap; gap: 10px; }
           .st-rental-field-location { flex: 1 1 100%; min-width: auto; }
           .st-rental-field-date,
