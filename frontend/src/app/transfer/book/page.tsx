@@ -22,7 +22,8 @@ import {
     Alert,
     Checkbox,
     Collapse,
-    Select
+    Select,
+    Modal
 } from 'antd';
 import {
     CarOutlined,
@@ -129,6 +130,18 @@ const TransferBookingContent: React.FC = () => {
     const [couponResult, setCouponResult] = useState<{ discount: number; name: string; code: string; newTotal: number; campaignId: string } | null>(null);
     const [couponLoading, setCouponLoading] = useState(false);
     const [couponError, setCouponError] = useState('');
+
+    const [termsModalVisible, setTermsModalVisible] = useState(false);
+    const [termsModalUrl, setTermsModalUrl] = useState('');
+    const [termsModalTitle, setTermsModalTitle] = useState('');
+
+    const openTermsModal = (e: React.MouseEvent, url: string, title: string) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setTermsModalUrl(url);
+        setTermsModalTitle(title);
+        setTermsModalVisible(true);
+    };
 
     const validateCoupon = async () => {
         if (!couponCode.trim()) return;
@@ -1604,7 +1617,7 @@ const TransferBookingContent: React.FC = () => {
                                     style={{ marginTop: 24, marginBottom: 0 }}
                                 >
                                     <Checkbox style={{ fontSize: 13, color: '#666' }}>
-                                        <a href="/sayfa/kvkk-aydinlatma-metni" target="_blank" onClick={(e) => e.stopPropagation()} style={{ color: '#1890ff', textDecoration: 'underline' }}>KVKK</a>, ön bilgilendirme ve <a href="/sayfa/kullanim-kosullari" target="_blank" onClick={(e) => e.stopPropagation()} style={{ color: '#1890ff', textDecoration: 'underline' }}>uzak mesafeli satış sözleşmesini</a> okudum ve onaylıyorum.
+                                        <a href="#" onClick={(e) => openTermsModal(e, '/sayfa/kvkk-aydinlatma-metni', 'KVKK Aydınlatma Metni')} style={{ color: '#1890ff', textDecoration: 'underline' }}>KVKK</a>, ön bilgilendirme ve <a href="#" onClick={(e) => openTermsModal(e, '/sayfa/kullanim-kosullari', 'Mesafeli Satış Sözleşmesi')} style={{ color: '#1890ff', textDecoration: 'underline' }}>uzak mesafeli satış sözleşmesini</a> okudum ve onaylıyorum.
                                     </Checkbox>
                                 </Form.Item>
 
@@ -1626,6 +1639,18 @@ const TransferBookingContent: React.FC = () => {
             </Content>
 
             <Footer style={{ textAlign: 'center' }}>{branding.companyName} ©{new Date().getFullYear()}</Footer>
+
+            <Modal
+                title={termsModalTitle}
+                open={termsModalVisible}
+                onCancel={() => setTermsModalVisible(false)}
+                footer={null}
+                width={800}
+                style={{ top: 20 }}
+                styles={{ body: { padding: 0, height: '75vh', overflow: 'hidden' } }}
+            >
+                <iframe src={termsModalUrl} style={{ width: '100%', height: '100%', border: 'none' }} />
+            </Modal>
         </Layout >
     );
 };

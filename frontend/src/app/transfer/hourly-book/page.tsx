@@ -4,7 +4,7 @@ import React, { Suspense, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import {
     Layout, Card, Typography, Form, Input, Button,
-    Row, Col, Divider, Select, message, Spin, Result, Tag, Alert, Space, Radio, Checkbox
+    Row, Col, Divider, Select, message, Spin, Result, Tag, Alert, Space, Radio, Checkbox, Modal
 } from 'antd';
 import {
     ClockCircleOutlined, UserOutlined, EnvironmentOutlined,
@@ -57,6 +57,18 @@ function HourlyBookContent() {
     const [paymentMethod, setPaymentMethod] = useState<'PAY_IN_VEHICLE' | 'ONLINE'>('PAY_IN_VEHICLE');
 
     const pickupDateTime = time ? `${date}T${time}:00.000` : `${date}T12:00:00.000`;
+
+    const [termsModalVisible, setTermsModalVisible] = useState(false);
+    const [termsModalUrl, setTermsModalUrl] = useState('');
+    const [termsModalTitle, setTermsModalTitle] = useState('');
+
+    const openTermsModal = (e: React.MouseEvent, url: string, title: string) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setTermsModalUrl(url);
+        setTermsModalTitle(title);
+        setTermsModalVisible(true);
+    };
 
     const handleSubmit = async (values: any) => {
         setLoading(true);
@@ -429,7 +441,7 @@ function HourlyBookContent() {
                                     style={{ marginBottom: 24 }}
                                 >
                                     <Checkbox style={{ fontSize: 13, color: '#666' }}>
-                                        <a href="/sayfa/kvkk-aydinlatma-metni" target="_blank" onClick={(e) => e.stopPropagation()} style={{ color: '#1890ff', textDecoration: 'underline' }}>KVKK</a>, ön bilgilendirme ve <a href="/sayfa/kullanim-kosullari" target="_blank" onClick={(e) => e.stopPropagation()} style={{ color: '#1890ff', textDecoration: 'underline' }}>uzak mesafeli satış sözleşmesini</a> okudum ve onaylıyorum.
+                                        <a href="#" onClick={(e) => openTermsModal(e, '/sayfa/kvkk-aydinlatma-metni', 'KVKK Aydınlatma Metni')} style={{ color: '#1890ff', textDecoration: 'underline' }}>KVKK</a>, ön bilgilendirme ve <a href="#" onClick={(e) => openTermsModal(e, '/sayfa/kullanim-kosullari', 'Mesafeli Satış Sözleşmesi')} style={{ color: '#1890ff', textDecoration: 'underline' }}>uzak mesafeli satış sözleşmesini</a> okudum ve onaylıyorum.
                                     </Checkbox>
                                 </Form.Item>
 
@@ -459,6 +471,18 @@ function HourlyBookContent() {
             <Footer style={{ textAlign: 'center', background: '#fff', fontSize: 12, color: '#94a3b8', borderTop: '1px solid #e2e8f0' }}>
                 {branding.companyName} ©{new Date().getFullYear()}
             </Footer>
+
+            <Modal
+                title={termsModalTitle}
+                open={termsModalVisible}
+                onCancel={() => setTermsModalVisible(false)}
+                footer={null}
+                width={800}
+                style={{ top: 20 }}
+                styles={{ body: { padding: 0, height: '75vh', overflow: 'hidden' } }}
+            >
+                <iframe src={termsModalUrl} style={{ width: '100%', height: '100%', border: 'none' }} />
+            </Modal>
         </Layout>
     );
 }
