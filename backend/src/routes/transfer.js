@@ -1913,6 +1913,12 @@ router.post('/book', optionalAuthMiddleware, async (req, res) => {
             sendBookingVoucher(tenantId, outboundBooking).catch(err => {
                 console.error('[EMAIL] Voucher send failed (background):', err.message);
             });
+            // Send return booking email if round trip
+            if (returnBooking) {
+                sendBookingVoucher(tenantId, returnBooking).catch(err => {
+                    console.error('[EMAIL] Return voucher send failed (background):', err.message);
+                });
+            }
         } catch (emailErr) {
             console.error('[EMAIL] Voucher setup failed:', emailErr.message);
         }
@@ -1923,6 +1929,12 @@ router.post('/book', optionalAuthMiddleware, async (req, res) => {
             sendBookingWhatsApp(tenantId, outboundBooking).catch(err => {
                 console.error('[WHATSAPP] Voucher send failed (background):', err.message);
             });
+            // Send return booking WhatsApp if round trip
+            if (returnBooking) {
+                sendBookingWhatsApp(tenantId, returnBooking).catch(err => {
+                    console.error('[WHATSAPP] Return voucher send failed (background):', err.message);
+                });
+            }
         } catch (waErr) {
             console.error('[WHATSAPP] Voucher setup failed:', waErr.message);
         }
