@@ -441,7 +441,17 @@ const HomePage: React.FC = () => {
       <div className="st-ibar">
         {/* FROM */}
         <div className="st-ibar-field st-ibar-field--loc">
-          <div className="st-ibar-label"><EnvironmentOutlined /> {t('search.from')}</div>
+          <div className="st-ibar-label">
+            <button
+              type="button"
+              title="Haritadan seç"
+              onClick={() => openMapModal('pickup')}
+              className="st-ibar-map-btn"
+            >
+              <EnvironmentOutlined />
+            </button>
+            {t('search.from')}
+          </div>
           <DynamicLocationSearchInput
             size="middle"
             placeholder={t('search.fromPlaceholder')}
@@ -466,7 +476,17 @@ const HomePage: React.FC = () => {
 
         {/* TO */}
         <div className="st-ibar-field st-ibar-field--loc">
-          <div className="st-ibar-label"><EnvironmentOutlined /> {t('search.to')}</div>
+          <div className="st-ibar-label">
+            <button
+              type="button"
+              title="Haritadan seç"
+              onClick={() => openMapModal('dropoff')}
+              className="st-ibar-map-btn"
+            >
+              <EnvironmentOutlined />
+            </button>
+            {t('search.to')}
+          </div>
           <DynamicLocationSearchInput
             size="middle"
             placeholder={t('search.toPlaceholder')}
@@ -673,6 +693,14 @@ const HomePage: React.FC = () => {
           text-transform: uppercase; letter-spacing: 0.06em;
           margin-bottom: 6px; display: flex; align-items: center; gap: 4px;
         }
+        /* Clickable map icon in label */
+        .st-ibar-map-btn {
+          background: none; border: none; padding: 0; margin: 0;
+          cursor: pointer; color: #374151; font-size: 10px;
+          display: flex; align-items: center; line-height: 1;
+          transition: color 0.2s ease;
+        }
+        .st-ibar-map-btn:hover { color: #6366f1; }
         /* Bigger, bolder input text inside bar */
         .st-ibar .ant-input,
         .st-ibar .ant-input-affix-wrapper input {
