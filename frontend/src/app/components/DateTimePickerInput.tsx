@@ -281,6 +281,7 @@ const DateTimePickerInput: React.FC<DateTimePickerInputProps> = ({
       }}
       arrow={false}
       placement="bottomLeft"
+      autoAdjustOverflow={false}
     >
       <div
         className={className}

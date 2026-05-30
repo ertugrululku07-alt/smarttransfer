@@ -154,6 +154,7 @@ const PassengerSelector: React.FC<PassengerSelectorProps> = ({
             open={open}
             onOpenChange={setOpen}
             placement="bottomLeft"
+            autoAdjustOverflow={false}
         >
             <div style={{ position: 'relative', cursor: 'pointer' }}>
                 <Input
