@@ -158,7 +158,9 @@ const AdminBlogPage: React.FC = () => {
             fd.append('file', file);
             const res = await apiClient.post('/api/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
             if (res.data.success) {
-                form.setFieldsValue({ coverImage: res.data.data.url });
+                const url = res.data.data.url;
+                form.setFieldsValue({ coverImage: url });
+                setEditing(prev => prev ? { ...prev, coverImage: url } : prev);
                 message.success('Görsel yüklendi');
             }
         } catch {
@@ -285,16 +287,70 @@ const AdminBlogPage: React.FC = () => {
                                     <Input.TextArea placeholder="Yazının kısa özeti..." rows={2} maxLength={300} showCount />
                                 </Form.Item>
                             </Col>
-                            <Col xs={24} md={12}>
-                                <Form.Item label="Kapak Görseli">
-                                    <Space.Compact style={{ width: '100%' }}>
-                                        <Upload showUploadList={false} accept="image/*" beforeUpload={handleCoverUpload}>
-                                            <Button icon={<UploadOutlined />} loading={uploading}>Yükle</Button>
-                                        </Upload>
-                                        <Form.Item name="coverImage" noStyle>
-                                            <Input placeholder="/uploads/... veya URL" />
-                                        </Form.Item>
-                                    </Space.Compact>
+                            <Col xs={24}>
+                                <Form.Item label="Kapak Görseli (Hero)" extra="Blog yazısının en üstünde tam genişlikte görünecek resim. Önerilen boyut: 1200×630 piksel.">
+                                    <Form.Item name="coverImage" noStyle>
+                                        <Input style={{ display: 'none' }} />
+                                    </Form.Item>
+                                    {form.getFieldValue('coverImage') ? (
+                                        <div style={{
+                                            position: 'relative',
+                                            width: '100%',
+                                            maxHeight: 280,
+                                            borderRadius: 12,
+                                            overflow: 'hidden',
+                                            border: '2px solid #e2e8f0',
+                                            marginBottom: 12,
+                                            background: '#f1f5f9',
+                                        }}>
+                                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                                            <img
+                                                src={getImageUrl(form.getFieldValue('coverImage'))}
+                                                alt="Kapak Görseli Önizleme"
+                                                style={{ width: '100%', height: 280, objectFit: 'cover', display: 'block' }}
+                                            />
+                                            <div style={{
+                                                position: 'absolute', bottom: 0, left: 0, right: 0,
+                                                background: 'linear-gradient(transparent, rgba(0,0,0,0.7))',
+                                                padding: '24px 16px 12px',
+                                                display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end',
+                                            }}>
+                                                <Text style={{ color: '#fff', fontSize: 12 }}>
+                                                    {form.getFieldValue('coverImage')}
+                                                </Text>
+                                                <Space>
+                                                    <Upload showUploadList={false} accept="image/*" beforeUpload={handleCoverUpload}>
+                                                        <Button size="small" icon={<UploadOutlined />} loading={uploading} style={{ background: 'rgba(255,255,255,0.9)' }}>Değiştir</Button>
+                                                    </Upload>
+                                                    <Button size="small" danger icon={<DeleteOutlined />} onClick={() => { form.setFieldsValue({ coverImage: '' }); setEditing(prev => prev ? {...prev, coverImage: ''} : prev); }} style={{ background: 'rgba(255,255,255,0.9)' }}>Kaldır</Button>
+                                                </Space>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <Upload.Dragger
+                                            showUploadList={false}
+                                            accept="image/*"
+                                            beforeUpload={handleCoverUpload}
+                                            style={{ borderRadius: 12, padding: '20px 16px' }}
+                                        >
+                                            <p className="ant-upload-drag-icon" style={{ marginBottom: 8 }}>
+                                                <UploadOutlined style={{ fontSize: 36, color: '#667eea' }} />
+                                            </p>
+                                            <p style={{ fontSize: 15, fontWeight: 600, color: '#334155', marginBottom: 4 }}>
+                                                {uploading ? 'Yükleniyor...' : 'Kapak görseli yüklemek için tıklayın veya sürükleyin'}
+                                            </p>
+                                            <p style={{ fontSize: 12, color: '#94a3b8' }}>
+                                                JPG, PNG, WebP • Önerilen: 1200×630px
+                                            </p>
+                                        </Upload.Dragger>
+                                    )}
+                                    <Input
+                                        placeholder="veya direkt URL yapıştırın: https://..."
+                                        size="small"
+                                        style={{ marginTop: 8, borderRadius: 6 }}
+                                        value={form.getFieldValue('coverImage') || ''}
+                                        onChange={e => { form.setFieldsValue({ coverImage: e.target.value }); setEditing(prev => prev ? {...prev, coverImage: e.target.value} : prev); }}
+                                    />
                                 </Form.Item>
                             </Col>
                             <Col xs={24} md={6}>
