@@ -140,7 +140,7 @@ const DynamicPage: React.FC = () => {
             <Content style={{ background: '#fff', overflowX: 'hidden' }}>
                 <div style={{ maxWidth: 860, margin: '0 auto', padding: 'clamp(40px, 6vw, 72px) 24px clamp(64px, 8vw, 100px)', overflowX: 'hidden', width: '100%', boxSizing: 'border-box' }}>
                     <style>{`
-                        .st-page-content { font-size: 16px; line-height: 1.85; color: #374151; overflow-x: hidden; overflow-wrap: normal !important; word-break: normal !important; hyphens: none !important; }
+                        .st-page-content { font-size: 16px; line-height: 1.85; color: #374151; overflow-x: hidden; overflow-wrap: break-word; word-break: normal; }
                         .st-page-content h1, .st-page-content h2, .st-page-content h3,
                         .st-page-content h4, .st-page-content h5 {
                             color: #111827; font-weight: 700; margin: 2em 0 0.7em; line-height: 1.3;
@@ -171,7 +171,7 @@ const DynamicPage: React.FC = () => {
                     `}</style>
                     <div
                         className="st-page-content"
-                        dangerouslySetInnerHTML={{ __html: translatedContent || page.content }}
+                        dangerouslySetInnerHTML={{ __html: (translatedContent || page.content).replace(/&nbsp;/g, ' ') }}
                     />
                 </div>
             </Content>
