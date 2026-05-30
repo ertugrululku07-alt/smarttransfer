@@ -47,6 +47,8 @@ const AdminBlogPage: React.FC = () => {
     const [editing, setEditing] = useState<BlogPost | null>(null);
     const [editIdx, setEditIdx] = useState<number | null>(null);
     const [uploading, setUploading] = useState(false);
+    const [blogHeroImage, setBlogHeroImage] = useState('');
+    const [heroUploading, setHeroUploading] = useState(false);
     const [form] = Form.useForm();
 
     useEffect(() => { load(); }, []);
@@ -56,8 +58,10 @@ const AdminBlogPage: React.FC = () => {
             setLoading(true);
             const res = await apiClient.get('/api/tenant/info');
             const settings = res.data?.data?.tenant?.settings || {};
-            const blogPosts = Array.isArray(settings.seo?.blog?.posts) ? settings.seo.blog.posts : [];
+            const blogData = settings.seo?.blog || {};
+            const blogPosts = Array.isArray(blogData.posts) ? blogData.posts : [];
             setPosts(blogPosts);
+            setBlogHeroImage(blogData.heroImage || '');
         } catch (e) {
             console.error(e);
         } finally {
@@ -65,10 +69,11 @@ const AdminBlogPage: React.FC = () => {
         }
     };
 
-    const savePosts = async (next: BlogPost[]) => {
+    const savePosts = async (next: BlogPost[], heroImg?: string) => {
         try {
             setSaving(true);
-            const res = await apiClient.put('/api/tenant/settings', { seo: { blog: { posts: next } } });
+            const hero = heroImg !== undefined ? heroImg : blogHeroImage;
+            const res = await apiClient.put('/api/tenant/settings', { seo: { blog: { posts: next, heroImage: hero } } });
             if (res.data.success) {
                 message.success('Kaydedildi');
                 setPosts(next);
@@ -77,6 +82,37 @@ const AdminBlogPage: React.FC = () => {
             message.error('Kaydedilemedi');
         } finally {
             setSaving(false);
+        }
+    };
+
+    const handleHeroUpload = async (file: File) => {
+        try {
+            setHeroUploading(true);
+            const fd = new FormData();
+            fd.append('file', file);
+            const res = await apiClient.post('/api/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+            if (res.data.success) {
+                const url = res.data.data.url;
+                setBlogHeroImage(url);
+                // Save immediately
+                await apiClient.put('/api/tenant/settings', { seo: { blog: { posts, heroImage: url } } });
+                message.success('Blog hero görseli kaydedildi');
+            }
+        } catch {
+            message.error('Görsel yüklenemedi');
+        } finally {
+            setHeroUploading(false);
+        }
+        return false;
+    };
+
+    const removeHeroImage = async () => {
+        setBlogHeroImage('');
+        try {
+            await apiClient.put('/api/tenant/settings', { seo: { blog: { posts, heroImage: '' } } });
+            message.success('Hero görseli kaldırıldı');
+        } catch {
+            message.error('Kaydedilemedi');
         }
     };
 
@@ -232,6 +268,58 @@ const AdminBlogPage: React.FC = () => {
                     message="SEO İpucu"
                     description="Düzenli blog yazıları (haftada en az 1) Google sıralamanızı önemli ölçüde artırır. Long-tail keyword'lere odaklı, 800+ kelimelik içerikler en etkilidir."
                 />
+
+                {/* Blog Page Hero Image */}
+                <Card
+                    title="Blog Sayfası Hero Görseli"
+                    size="small"
+                    style={{ marginBottom: 16 }}
+                    extra={blogHeroImage && (
+                        <Button size="small" danger onClick={removeHeroImage}>Kaldır</Button>
+                    )}
+                >
+                    <Text type="secondary" style={{ display: 'block', marginBottom: 12, fontSize: 13 }}>
+                        Blog ana sayfasının (/blog) üst kısmındaki hero alanının arka plan görseli. Önerilen: 1920×600px yatay bir fotoğraf.
+                    </Text>
+                    {blogHeroImage ? (
+                        <div style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', maxHeight: 200, marginBottom: 8 }}>
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                                src={getImageUrl(blogHeroImage)}
+                                alt="Blog Hero"
+                                style={{ width: '100%', height: 200, objectFit: 'cover', display: 'block' }}
+                            />
+                            <div style={{
+                                position: 'absolute', inset: 0,
+                                background: 'linear-gradient(135deg, rgba(15,23,42,0.6), rgba(30,41,59,0.5))',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 4,
+                            }}>
+                                <span style={{ color: '#fff', fontSize: 28, fontWeight: 700, fontFamily: 'Georgia, serif' }}>Blog</span>
+                                <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13 }}>Transfer, seyahat ve şehir rehberleri</span>
+                            </div>
+                            <div style={{ position: 'absolute', bottom: 8, right: 8 }}>
+                                <Upload showUploadList={false} accept="image/*" beforeUpload={handleHeroUpload}>
+                                    <Button size="small" icon={<UploadOutlined />} loading={heroUploading} style={{ background: 'rgba(255,255,255,0.9)' }}>Değiştir</Button>
+                                </Upload>
+                            </div>
+                        </div>
+                    ) : (
+                        <Upload.Dragger
+                            showUploadList={false}
+                            accept="image/*"
+                            beforeUpload={handleHeroUpload}
+                            style={{ borderRadius: 12 }}
+                        >
+                            <p className="ant-upload-drag-icon" style={{ marginBottom: 8 }}>
+                                <UploadOutlined style={{ fontSize: 32, color: '#667eea' }} />
+                            </p>
+                            <p style={{ fontSize: 14, fontWeight: 600, color: '#334155', marginBottom: 4 }}>
+                                {heroUploading ? 'Yükleniyor...' : 'Blog hero görseli yüklemek için tıklayın veya sürükleyin'}
+                            </p>
+                            <p style={{ fontSize: 12, color: '#94a3b8' }}>JPG, PNG, WebP • Önerilen: 1920×600px</p>
+                        </Upload.Dragger>
+                    )}
+                </Card>
 
                 <Card>
                     <Table

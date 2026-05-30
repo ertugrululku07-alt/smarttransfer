@@ -4,6 +4,7 @@ import BlogShell from '@/app/components/BlogShell';
 import {
     getBlogPosts,
     getBlogCategories,
+    getBlogHeroImage,
     getTenantData,
     getSiteUrl,
     buildAbsoluteUrl,
@@ -32,6 +33,8 @@ export default async function BlogListPage({ searchParams }: { searchParams: Pro
     const fullName = `${branding.siteNameHighlight || ''}${branding.siteName || ''}` || branding.companyName || 'SmartTravel';
     const fallback = await getSiteUrl();
     const siteUrl = (seo.siteUrl || fallback).replace(/\/$/, '');
+    const heroImage = await getBlogHeroImage();
+    const heroUrl = heroImage ? buildAbsoluteUrl(heroImage, siteUrl) : undefined;
 
     const filtered = kategori ? posts.filter(p => p.category === kategori) : posts;
     const pageNum = Math.max(1, parseInt(sayfa || '1', 10));
@@ -67,12 +70,17 @@ export default async function BlogListPage({ searchParams }: { searchParams: Pro
             <main style={{ minHeight: '100vh', background: '#fff', fontFamily: 'var(--font-outfit, system-ui, sans-serif)' }}>
                 {/* Hero */}
                 <section style={{
-                    background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%)',
+                    position: 'relative',
+                    background: heroUrl
+                        ? `url(${heroUrl}) center/cover no-repeat`
+                        : 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%)',
                     color: '#fff',
                     padding: 'clamp(50px, 8vw, 90px) 24px clamp(50px, 6vw, 80px)',
                     textAlign: 'center',
+                    overflow: 'hidden',
                 }}>
-                    <div style={{ maxWidth: 800, margin: '0 auto' }}>
+                    {heroUrl && <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg, rgba(15,23,42,0.7), rgba(30,41,59,0.6))' }} />}
+                    <div style={{ maxWidth: 800, margin: '0 auto', position: 'relative', zIndex: 1 }}>
                         <h1 style={{ fontFamily: 'var(--font-playfair, Georgia, serif)', fontSize: 'clamp(2rem, 5vw, 3.5rem)', fontWeight: 700, marginBottom: 16 }}>
                             {kategori ? `${kategori}` : 'Blog'}
                         </h1>

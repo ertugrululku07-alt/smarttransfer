@@ -495,6 +495,12 @@ export async function getBlogPostBySlug(slug: string): Promise<BlogPost | null> 
     return posts.find(p => p.slug === slug) || null;
 }
 
+export async function getBlogHeroImage(): Promise<string | undefined> {
+    const { seo } = await getTenantData();
+    const blog: any = (seo as any).blog;
+    return blog?.heroImage || undefined;
+}
+
 export async function getBlogCategories(): Promise<string[]> {
     const posts = await getBlogPosts();
     const set = new Set<string>();
