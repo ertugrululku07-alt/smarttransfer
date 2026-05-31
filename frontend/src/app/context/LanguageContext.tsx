@@ -47,13 +47,21 @@ function setCache(storageKey: string, cache: Record<string, string>, maxEntries 
  * 4. Browser language (navigator.languages) — for first-time SPA navigation
  * 5. Default: 'tr' (site's primary language)
  */
+// App route prefixes that must NOT be treated as a language code
+const RESERVED_PREFIXES = ['admin', 'account', 'agency', 'driver', 'track', 'login', 'register', 'contact', 'sayfa', 'rate', 'transfer', 'api', 'partner', 'blog'];
+
 function detectBrowserLocale(): SupportedLocale {
   if (typeof window === 'undefined') return 'tr';
 
-  // 1. Check URL path for locale prefix
+  // 1. Check URL path for locale prefix.
+  // The middleware has already rewritten /{lang}/... → /... so the URL prefix is
+  // authoritative. We must trust ANY valid 2-letter prefix here (not just the
+  // built-in ones) because supportedLocales is loaded from the API asynchronously
+  // and is not yet populated on first paint — otherwise dynamic languages (e.g. /ar)
+  // would incorrectly fall back to 'tr'.
   const pathSegments = window.location.pathname.split('/');
   const urlLocale = pathSegments[1]; // e.g. "en" from "/en/about"
-  if (urlLocale && urlLocale.length === 2 && /^[a-z]{2}$/.test(urlLocale) && supportedLocales.includes(urlLocale as SupportedLocale)) {
+  if (urlLocale && /^[a-z]{2}$/.test(urlLocale) && !RESERVED_PREFIXES.includes(urlLocale)) {
     // Save to localStorage so it persists
     localStorage.setItem('locale', urlLocale);
     return urlLocale as SupportedLocale;
@@ -157,6 +165,15 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }).catch(() => {});
   }, []);
 
+  // Keep <html lang> and text direction in sync with the active locale.
+  // RTL languages need dir="rtl" for correct layout (Arabic, Hebrew, Farsi, Urdu).
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const RTL_LOCALES = ['ar', 'he', 'fa', 'ur'];
+    document.documentElement.lang = locale;
+    document.documentElement.dir = RTL_LOCALES.includes(locale) ? 'rtl' : 'ltr';
+  }, [locale]);
+
   const setLocale = useCallback((newLocale: SupportedLocale) => {
     setLocaleState(newLocale);
     if (typeof window !== 'undefined') {
@@ -201,13 +218,19 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
    * it will automatically translate via DeepL and cache permanently.
    */
   const t = useCallback((key: string, params?: Record<string, string>): string => {
-    const currentDict = locales[locale] || locales.tr;
     const trDict = locales.tr;
+    // A locale is "built-in" only if it has its own static dictionary (tr/en/de/ru).
+    // For dynamic languages (ar, fr, es, ...) there is NO dictionary, so we must NOT
+    // fall back to the TR dict here — otherwise value would be the Turkish string
+    // (truthy) and the DeepL auto-translate path below would be skipped, leaving the
+    // whole UI in Turkish.
+    const isBuiltIn = !!locales[locale];
+    const currentDict = isBuiltIn ? locales[locale] : {};
 
-    // 1. Key exists in current locale → use it directly
+    // 1. Key exists in current built-in locale → use it directly
     let value = currentDict[key];
 
-    // 2. Key doesn't exist in current locale but exists in TR → auto-translate
+    // 2. Key not available in current locale but exists in TR → auto-translate via DeepL
     if (!value && locale !== 'tr' && trDict[key]) {
       const trText = trDict[key];
       const cacheKey = `${locale}:${key}`;

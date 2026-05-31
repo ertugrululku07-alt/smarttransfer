@@ -44,6 +44,31 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     const baseUrl = (seo.siteUrl || fallback).replace(/\/$/, '');
     const now = new Date();
 
+    // Supported languages (tr is the default with no URL prefix; others use /{lang}/).
+    const supportedLanguages: string[] = Array.isArray(tenant?.supportedLanguages)
+        ? tenant.supportedLanguages
+        : ['tr'];
+
+    // Build hreflang alternates for a given path so Google indexes every language version.
+    const buildAlternates = (path: string) => {
+        const cleanPath = path === '/' ? '' : path;
+        const languages: Record<string, string> = {};
+        for (const lang of supportedLanguages) {
+            languages[lang] = lang === 'tr'
+                ? `${baseUrl}${cleanPath || '/'}`
+                : `${baseUrl}/${lang}${cleanPath}`;
+        }
+        // x-default points to the primary (Turkish) version
+        languages['x-default'] = `${baseUrl}${cleanPath || '/'}`;
+        return { languages };
+    };
+
+    // Attach hreflang alternates to a sitemap entry (keeps the default url as the TR version).
+    const withAlternates = (entry: MetadataRoute.Sitemap[number]): MetadataRoute.Sitemap[number] => {
+        const path = entry.url.replace(baseUrl, '') || '/';
+        return { ...entry, alternates: buildAlternates(path) };
+    };
+
     // Core public routes
     const coreRoutes: MetadataRoute.Sitemap = [
         {
@@ -157,5 +182,5 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         }
     }
 
-    return [...coreRoutes, ...blogEntries, ...landingPages, ...customPages, ...extraUrls];
+    return [...coreRoutes, ...blogEntries, ...landingPages, ...customPages, ...extraUrls].map(withAlternates);
 }

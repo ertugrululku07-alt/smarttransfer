@@ -45,6 +45,22 @@ function getSiteBaseUrl(): string {
   return 'https://jet2home.com';
 }
 
+async function getSupportedLanguages(): Promise<string[]> {
+  try {
+    const TENANT_SLUG = (process.env.NEXT_PUBLIC_TENANT_SLUG || 'smarttravel-demo').replace(/[\r\n]+/g, '').trim();
+    const res = await fetch(`${resolveServerApiUrl()}/api/tenant/info`, {
+      headers: { 'X-Tenant-Slug': TENANT_SLUG },
+      next: { revalidate: 60 },
+    });
+    if (res.ok) {
+      const data = await res.json();
+      const langs = data?.data?.tenant?.supportedLanguages;
+      if (Array.isArray(langs) && langs.length > 0) return langs;
+    }
+  } catch {}
+  return ['tr'];
+}
+
 async function getTenantBranding() {
   let branding = {
     companyName: 'SmartTravel Platform',
@@ -135,8 +151,16 @@ function faviconMimeType(url: string): string {
 
 export async function generateMetadata(): Promise<Metadata> {
   const branding = await getTenantBranding();
+  const supportedLanguages = await getSupportedLanguages();
   const fullName = `${branding.siteNameHighlight || ''}${branding.siteName || ''}` || branding.companyName;
   const logoImage = normalizeAssetUrl(branding.logoUrl);
+
+  // hreflang alternates for the homepage (tr = default, no prefix; others use /{lang}).
+  const languageAlternates: Record<string, string> = {};
+  for (const lang of supportedLanguages) {
+    languageAlternates[lang] = lang === 'tr' ? '/' : `/${lang}`;
+  }
+  languageAlternates['x-default'] = '/';
 
   // Dynamic favicon uploaded via Site Settings; fall back to logo, then static files.
   const dynamicFavicon = resolveUploadUrl(branding.faviconUrl || branding.logoUrl);
@@ -164,6 +188,10 @@ export async function generateMetadata(): Promise<Metadata> {
       template: `%s | ${fullName}`
     },
     description: branding.slogan,
+    alternates: {
+      canonical: '/',
+      languages: languageAlternates,
+    },
     keywords: [
       "transfer hizmeti", "havalimanı transferi", "VIP transfer", 
       "otel transferi", "şehir içi transfer", fullName
