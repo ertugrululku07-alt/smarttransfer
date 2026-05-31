@@ -9,6 +9,27 @@ const translationCache = new Map();
 const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
 
 /**
+ * Resolve the DeepL API key for the current tenant.
+ * NOTE: tenantMiddleware does NOT select `settings` into req.tenant, so we must
+ * read it from the DB here. Tenant-configured key takes priority over env var.
+ */
+async function resolveDeeplKey(req) {
+  // If middleware ever provides settings, use it directly
+  if (req.tenant?.settings?.deeplApiKey) return req.tenant.settings.deeplApiKey;
+  // Otherwise fetch fresh from DB
+  if (req.tenant?.id) {
+    try {
+      const t = await prisma.tenant.findUnique({
+        where: { id: req.tenant.id },
+        select: { settings: true },
+      });
+      if (t?.settings?.deeplApiKey) return t.settings.deeplApiKey;
+    } catch { /* fall through to env */ }
+  }
+  return process.env.DEEPL_API_KEY || null;
+}
+
+/**
  * POST /api/translate
  * Body: { texts: string[], targetLang: string, sourceLang?: string }
  * Uses DeepL API to translate texts
@@ -27,10 +48,8 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Maximum 50 texts per request' });
     }
 
-    // Get DeepL API key from tenant settings
-    const tenant = req.tenant;
-    const settings = tenant?.settings || {};
-    const deeplApiKey = settings.deeplApiKey || process.env.DEEPL_API_KEY;
+    // Get DeepL API key (read from DB — middleware doesn't include settings)
+    const deeplApiKey = await resolveDeeplKey(req);
 
     if (!deeplApiKey) {
       return res.status(400).json({
@@ -137,9 +156,7 @@ router.post('/batch', async (req, res) => {
       return res.status(400).json({ success: false, error: 'targetLang is required' });
     }
 
-    const tenant = req.tenant;
-    const settings = tenant?.settings || {};
-    const deeplApiKey = settings.deeplApiKey || process.env.DEEPL_API_KEY;
+    const deeplApiKey = await resolveDeeplKey(req);
 
     if (!deeplApiKey) {
       return res.status(400).json({
@@ -212,9 +229,7 @@ router.post('/batch', async (req, res) => {
  */
 router.get('/usage', async (req, res) => {
   try {
-    const tenant = req.tenant;
-    const settings = tenant?.settings || {};
-    const deeplApiKey = settings.deeplApiKey || process.env.DEEPL_API_KEY;
+    const deeplApiKey = await resolveDeeplKey(req);
 
     if (!deeplApiKey) {
       return res.status(400).json({ success: false, error: 'DeepL API key not configured.' });
@@ -270,10 +285,9 @@ router.post('/settings', async (req, res) => {
  */
 router.get('/settings', async (req, res) => {
   try {
-    const tenant = req.tenant;
-    const settings = tenant?.settings || {};
-    const hasKey = !!(settings.deeplApiKey || process.env.DEEPL_API_KEY);
-    const keySource = settings.deeplApiKey ? 'tenant' : (process.env.DEEPL_API_KEY ? 'env' : 'none');
+    const deeplApiKey = await resolveDeeplKey(req);
+    const hasKey = !!deeplApiKey;
+    const keySource = hasKey ? (process.env.DEEPL_API_KEY === deeplApiKey ? 'env' : 'tenant') : 'none';
 
     return res.json({
       success: true,
@@ -281,7 +295,7 @@ router.get('/settings', async (req, res) => {
         configured: hasKey,
         keySource,
         // Don't expose the full key, just show if it's free or pro
-        keyType: hasKey ? ((settings.deeplApiKey || process.env.DEEPL_API_KEY || '').endsWith(':fx') ? 'free' : 'pro') : null,
+        keyType: hasKey ? (deeplApiKey.endsWith(':fx') ? 'free' : 'pro') : null,
         cacheSize: translationCache.size
       }
     });
