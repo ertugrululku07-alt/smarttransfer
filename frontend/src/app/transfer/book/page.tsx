@@ -48,6 +48,7 @@ import { useCurrency } from '@/app/context/CurrencyContext';
 import { useBranding } from '@/app/context/BrandingContext';
 import { useLanguage } from '@/app/context/LanguageContext';
 import { countryList } from '@/lib/countryData';
+import TranslatedText from '@/app/components/TranslatedText';
 
 const { Content, Footer } = Layout;
 const { Title, Text, Paragraph } = Typography;
@@ -196,7 +197,7 @@ const TransferBookingContent: React.FC = () => {
     // Or re-fetch search to get the specific vehicle details
     const [vehicleDetails, setVehicleDetails] = useState<any>(null);
     const [returnVehicleDetails, setReturnVehicleDetails] = useState<any>(null);
-    const [tripStats, setTripStats] = useState({ distance: 'Calculating...', duration: 'Calculating...' });
+    const [tripStats, setTripStats] = useState({ distance: '...', duration: '...' });
     const isRoundTrip = type === 'ROUND_TRIP' && returnVehicleId;
 
     const handleDistanceCalculated = (distance: string, duration: string) => {
@@ -319,7 +320,7 @@ const TransferBookingContent: React.FC = () => {
                 if (found) {
                     setVehicleDetails(found);
                 } else {
-                    message.error('Gidiş aracı artık müsait değil.');
+                    message.error(t('booking.outboundUnavailable'));
                     router.back();
                 }
             }
@@ -372,7 +373,7 @@ const TransferBookingContent: React.FC = () => {
                 if (found) {
                     setReturnVehicleDetails(found);
                 } else {
-                    message.error('Dönüş aracı artık müsait değil.');
+                    message.error(t('booking.returnUnavailable'));
                 }
             }
         } catch (err) {
@@ -1093,8 +1094,8 @@ const TransferBookingContent: React.FC = () => {
                                     <Col xs={24} md={12}>
                                         <Form.Item
                                             name="flightNumber"
-                                            label={t('booking.flightNumber') + ' (Opsiyonel)'}
-                                            tooltip="Havalimanı karşılaması için gereklidir"
+                                            label={t('booking.flightNumber') + ' (' + t('booking.optional') + ')'}
+                                            tooltip={t('booking.flightTooltip')}
                                         >
                                             <Input size="large" prefix={<RocketOutlined />} placeholder="TK1234" />
                                         </Form.Item>
@@ -1102,9 +1103,9 @@ const TransferBookingContent: React.FC = () => {
                                     <Col xs={24} md={12}>
                                         <Form.Item
                                             name="notes"
-                                            label={t('booking.notes') + 'ınız'}
+                                            label={t('booking.notes')}
                                         >
-                                            <Input size="large" placeholder="Varsa ek istekleriniz..." />
+                                            <Input size="large" placeholder={t('booking.notesPlaceholder')} />
                                         </Form.Item>
                                     </Col>
                                 </Row>
@@ -1123,9 +1124,9 @@ const TransferBookingContent: React.FC = () => {
                                                     {fields.map((field, index) => {
                                                         const pType = form.getFieldValue(['passengerList', field.name, 'type']);
                                                         const typeLabels: Record<string, { label: string; color: string }> = {
-                                                            adult: { label: 'Yetişkin', color: '#10b981' },
-                                                            child: { label: 'Çocuk (3-12 yaş)', color: '#f59e0b' },
-                                                            infant: { label: 'Bebek (0-2 yaş)', color: '#ef4444' },
+                                                            adult: { label: t('booking.adult'), color: '#10b981' },
+                                                            child: { label: t('booking.child'), color: '#f59e0b' },
+                                                            infant: { label: t('booking.infant'), color: '#ef4444' },
                                                         };
                                                         const tInfo = typeLabels[pType] || typeLabels.adult;
                                                         return (
@@ -1346,10 +1347,10 @@ const TransferBookingContent: React.FC = () => {
                                                                                     </div>
                                                                                 )}
                                                                                 <div>
-                                                                                    <Text strong>{service.name}</Text>
+                                                                                    <Text strong><TranslatedText text={service.name} /></Text>
                                                                                     <div style={{ fontSize: 12, color: '#666' }}>
                                                                                         {formatPrice(Number(service.price), service.currency)}
-                                                                                        {service.isPerPerson ? ' / kişi başı' : ' / adet'}
+                                                                                        {service.isPerPerson ? ` / ${t('booking.perPerson')}` : ` / ${t('booking.perUnit')}`}
                                                                                     </div>
                                                                                 </div>
                                                                             </div>
@@ -1387,7 +1388,7 @@ const TransferBookingContent: React.FC = () => {
                                                                     checked={addServicesToReturn}
                                                                     onChange={(e) => setAddServicesToReturn(e.target.checked)}
                                                                 />
-                                                                <Text style={{ fontSize: 13 }}>Dönüş transferi için de aynı hizmetleri ekle</Text>
+                                                                <Text style={{ fontSize: 13 }}>{t('booking.addServicesToReturn')}</Text>
                                                             </div>
                                                         )}
                                                     </div>
@@ -1422,7 +1423,7 @@ const TransferBookingContent: React.FC = () => {
                                     <div style={{ marginBottom: 16 }}><Text type="danger" style={{ fontSize: 13 }}>{couponError}</Text></div>
                                 )}
 
-                                <Title level={5}>{t('booking.payment') + ' Yöntemi'}</Title>
+                                <Title level={5}>{t('booking.paymentMethodTitle')}</Title>
                                 <Form.Item name="paymentMethod">
                                     <Radio.Group>
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -1496,7 +1497,7 @@ const TransferBookingContent: React.FC = () => {
                                                 <div>
                                                     <div style={{ fontSize: 10, color: '#666' }}>{t('booking.distance')}</div>
                                                     <div style={{ fontWeight: 600, color: '#1890ff' }}>
-                                                        {tripStats.distance === 'Calculating...' ? '35 km' : tripStats.distance}
+                                                        {tripStats.distance}
                                                     </div>
                                                 </div>
                                             </div>
@@ -1506,7 +1507,7 @@ const TransferBookingContent: React.FC = () => {
                                                 <div>
                                                     <div style={{ fontSize: 10, color: '#666' }}>{t('booking.duration')}</div>
                                                     <div style={{ fontWeight: 600, color: '#1890ff' }}>
-                                                        {tripStats.duration === 'Calculating...' ? '45 dk' : tripStats.duration}
+                                                        {tripStats.duration}
                                                     </div>
                                                 </div>
                                             </div>
@@ -1516,7 +1517,7 @@ const TransferBookingContent: React.FC = () => {
                                         {vehicleDetails && (
                                             <div style={{ marginBottom: 16 }}>
                                                 <div style={{ background: '#f0f5ff', padding: 12, borderRadius: 8, marginBottom: 8 }}>
-                                                    <Text strong style={{ fontSize: 13, color: '#1677ff' }}>{'🚗 ' + t('booking.outbound')}</Text>
+                                                    <Text strong style={{ fontSize: 13, color: '#1677ff' }}>{'🚗 ' + t('booking.departure')}</Text>
                                                     <div style={{ marginTop: 8, textAlign: 'center' }}>
                                                         {vehicleDetails.image && (
                                                             <img
@@ -1525,7 +1526,7 @@ const TransferBookingContent: React.FC = () => {
                                                                 style={{ width: '100%', borderRadius: 8, marginBottom: 8, objectFit: 'cover', maxHeight: 120 }}
                                                             />
                                                         )}
-                                                        <Text strong style={{ fontSize: 14 }}>{vehicleDetails.vehicleType}</Text>
+                                                        <Text strong style={{ fontSize: 14 }}><TranslatedText text={vehicleDetails.vehicleType} /></Text>
                                                         <div style={{ fontSize: 12, color: '#666', marginTop: 4 }}>
                                                             {date} {time}
                                                         </div>
@@ -1538,7 +1539,7 @@ const TransferBookingContent: React.FC = () => {
                                                 {/* Return Vehicle - Only for round trips */}
                                                 {isRoundTrip && returnVehicleDetails && (
                                                     <div style={{ background: '#f6ffed', padding: 12, borderRadius: 8 }}>
-                                                        <Text strong style={{ fontSize: 13, color: '#52c41a' }}>🚙 DÖNÜŞ</Text>
+                                                        <Text strong style={{ fontSize: 13, color: '#52c41a' }}>{'🚙 ' + t('booking.return')}</Text>
                                                         <div style={{ marginTop: 8, textAlign: 'center' }}>
                                                             {returnVehicleDetails.image && (
                                                                 <img
@@ -1547,7 +1548,7 @@ const TransferBookingContent: React.FC = () => {
                                                                     style={{ width: '100%', borderRadius: 8, marginBottom: 8, objectFit: 'cover', maxHeight: 120 }}
                                                                 />
                                                             )}
-                                                            <Text strong style={{ fontSize: 14 }}>{returnVehicleDetails.vehicleType}</Text>
+                                                            <Text strong style={{ fontSize: 14 }}><TranslatedText text={returnVehicleDetails.vehicleType} /></Text>
                                                             <div style={{ fontSize: 12, color: '#666', marginTop: 4 }}>
                                                                 {returnDate} {returnTime}
                                                             </div>
@@ -1560,7 +1561,7 @@ const TransferBookingContent: React.FC = () => {
                                                 {isRoundTrip && !returnVehicleDetails && (
                                                     <div style={{ background: '#fff7e6', padding: 12, borderRadius: 8, textAlign: 'center' }}>
                                                         <Spin size="small" />
-                                                        <Text style={{ fontSize: 12, marginLeft: 8 }}>Dönüş aracı yükleniyor...</Text>
+                                                        <Text style={{ fontSize: 12, marginLeft: 8 }}>{t('booking.returnLoading')}</Text>
                                                     </div>
                                                 )}
                                             </div>
@@ -1574,7 +1575,7 @@ const TransferBookingContent: React.FC = () => {
                                                 if (!s) return null;
                                                 const multiplier = (isRoundTrip && addServicesToReturn) ? 2 : 1;
                                                 const label = (isRoundTrip && addServicesToReturn)
-                                                    ? `${s.name} x ${qty} (Gidiş+Dönüş)`
+                                                    ? `${s.name} x ${qty} (${t('booking.outboundReturn')})`
                                                     : `${s.name} x ${qty}`;
                                                 return (
                                                     <div key={id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#666', marginTop: 4 }}>
@@ -1592,7 +1593,7 @@ const TransferBookingContent: React.FC = () => {
                                 {/* Coupon Discount */}
                                 {couponResult && (
                                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                                        <Text style={{ color: '#059669', fontSize: 13 }}>Kupon ({couponResult.code})</Text>
+                                        <Text style={{ color: '#059669', fontSize: 13 }}>{t('booking.coupon')} ({couponResult.code})</Text>
                                         <Text style={{ color: '#059669', fontWeight: 700 }}>-{formatPrice(couponResult.discount, selectedCurrency)}</Text>
                                     </div>
                                 )}
@@ -1611,13 +1612,13 @@ const TransferBookingContent: React.FC = () => {
                                     rules={[
                                         {
                                             validator: (_, value) =>
-                                                value ? Promise.resolve() : Promise.reject(new Error('Devam etmek için sözleşmeleri onaylamanız gerekmektedir')),
+                                                value ? Promise.resolve() : Promise.reject(new Error(t('booking.acceptTerms'))),
                                         },
                                     ]}
                                     style={{ marginTop: 24, marginBottom: 0 }}
                                 >
                                     <Checkbox style={{ fontSize: 13, color: '#666' }}>
-                                        <a href="#" onClick={(e) => openTermsModal(e, '/sayfa/kvkk-aydinlatma-metni', 'KVKK Aydınlatma Metni')} style={{ color: '#1890ff', textDecoration: 'underline' }}>KVKK</a>, ön bilgilendirme ve <a href="#" onClick={(e) => openTermsModal(e, '/sayfa/kullanim-kosullari', 'Mesafeli Satış Sözleşmesi')} style={{ color: '#1890ff', textDecoration: 'underline' }}>uzak mesafeli satış sözleşmesini</a> okudum ve onaylıyorum.
+                                        <a href="#" onClick={(e) => openTermsModal(e, '/sayfa/kvkk-aydinlatma-metni', 'KVKK Aydınlatma Metni')} style={{ color: '#1890ff', textDecoration: 'underline' }}>{t('booking.kvkkLink')}</a>, {t('booking.contractLink')} <a href="#" onClick={(e) => openTermsModal(e, '/sayfa/kullanim-kosullari', t('booking.contractLink'))} style={{ color: '#1890ff', textDecoration: 'underline' }}>{t('booking.contractLink')}</a>
                                     </Checkbox>
                                 </Form.Item>
 
@@ -1657,7 +1658,7 @@ const TransferBookingContent: React.FC = () => {
 
 const TransferBookingPage: React.FC = () => {
     return (
-        <Suspense fallback={<div style={{ padding: '100px', textAlign: 'center' }}><Spin size="large" /><div style={{ marginTop: 16 }}>Yükleniyor...</div></div>}>
+        <Suspense fallback={<div style={{ padding: '100px', textAlign: 'center' }}><Spin size="large" /><div style={{ marginTop: 16 }}>Loading...</div></div>}>
             <TransferBookingContent />
         </Suspense>
     );

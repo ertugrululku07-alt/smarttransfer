@@ -7,6 +7,7 @@ import flexpolyline from '@here/flexpolyline';
 import 'leaflet/dist/leaflet.css';
 import { Spin } from 'antd';
 import { HERE_API_KEY } from '@/lib/config';
+import { useLanguage } from '@/app/context/LanguageContext';
 
 // Fix Leaflet's default icon paths for Next.js
 const icon = L.icon({
@@ -39,6 +40,7 @@ interface HereBookingClientProps {
 }
 
 const HereBookingClient: React.FC<HereBookingClientProps> = ({ pickup, dropoff, onDistanceCalculated }) => {
+  const { t } = useLanguage();
   const [routeCoords, setRouteCoords] = useState<[number, number][]>([]);
   const [loading, setLoading] = useState(false);
   const [markers, setMarkers] = useState<{lat: number, lng: number}[]>([]);
@@ -100,7 +102,7 @@ const HereBookingClient: React.FC<HereBookingClientProps> = ({ pickup, dropoff, 
              const distanceText = distanceM > 1000 ? `${(distanceM / 1000).toFixed(1)} km` : `${distanceM} m`;
              const hours = Math.floor(durationS / 3600);
              const mins = Math.floor((durationS % 3600) / 60);
-             const durationText = hours > 0 ? `${hours} saat ${mins} dk` : `${mins} dk`;
+             const durationText = hours > 0 ? `${hours} ${t('results.hours')} ${mins} ${t('results.minutes')}` : `${mins} ${t('results.minutes')}`;
              
              if (onDistanceCalculated) {
                 onDistanceCalculated(distanceText, durationText);
@@ -111,11 +113,11 @@ const HereBookingClient: React.FC<HereBookingClientProps> = ({ pickup, dropoff, 
              setMapBounds(bounds);
            }
         } else {
-           if (onDistanceCalculated && isMounted) onDistanceCalculated('Hesaplanamadı', 'Hesaplanamadı');
+           if (onDistanceCalculated && isMounted) onDistanceCalculated(t('common.notAvailable'), t('common.notAvailable'));
         }
       } catch (err) {
         console.error("Routing error: ", err);
-        if (onDistanceCalculated && isMounted) onDistanceCalculated('Hesaplanamadı', 'Hesaplanamadı');
+        if (onDistanceCalculated && isMounted) onDistanceCalculated(t('common.notAvailable'), t('common.notAvailable'));
       } finally {
         if (isMounted) setLoading(false);
       }

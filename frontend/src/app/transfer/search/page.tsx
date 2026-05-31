@@ -45,6 +45,7 @@ import { getRouteDetails } from '@/lib/routing';
 import { useCurrency } from '@/app/context/CurrencyContext';
 import { useBranding } from '@/app/context/BrandingContext';
 import { useLanguage } from '@/app/context/LanguageContext';
+import TranslatedText from '@/app/components/TranslatedText';
 
 const { Content, Footer } = Layout;
 const { Title, Text, Paragraph } = Typography;
@@ -461,11 +462,11 @@ const TransferSearchContent: React.FC = () => {
                                             ) : (
                                                 <CarOutlined style={{ fontSize: 80, color: '#d9d9d9' }} />
                                             )}
-                                            <div style={{ position: 'absolute', top: 12, left: 12 }}><Tag color="cyan">{result.vehicleType}</Tag></div>
+                                            <div style={{ position: 'absolute', top: 12, left: 12 }}><Tag color="cyan"><TranslatedText text={result.vehicleType} /></Tag></div>
                                         </Col>
                                         <Col xs={24} md={10} style={{ padding: 24 }}>
-                                            <Title level={4} style={{ marginTop: 0 }}>{result.vehicleType}</Title>
-                                            <Text type="secondary" style={{ display: 'block', marginBottom: 16 }}>by {result.vendor}</Text>
+                                            <Title level={4} style={{ marginTop: 0 }}><TranslatedText text={result.vehicleType} /></Title>
+                                            <Text type="secondary" style={{ display: 'block', marginBottom: 16 }}><TranslatedText text={result.vendor} /></Text>
                                             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%', marginBottom: 16 }}>
                                                 {result.isShuttle && <Tag color="purple">{t('search.sharedShuttle')}</Tag>}
                                                 {result.isShuttle && result.shuttleRouteName && <Text type="secondary" style={{ fontSize: 11 }}>{result.shuttleRouteName}</Text>}
@@ -511,7 +512,7 @@ const TransferSearchContent: React.FC = () => {
                                                 <Space><UserOutlined /> {result.capacity} {t('search.passenger')}</Space>
                                                 <Space><SafetyCertificateOutlined /> {result.luggage} {t('search.luggage')}</Space>
                                                 {result.features?.includes('WiFi') && <Space><WifiOutlined /> WiFi</Space>}
-                                                <Space><ClockCircleOutlined /> {t('search.duration')}: {result.isShuttle && typeof routeStats?.duration === 'string' ? routeStats.duration : result.estimatedDuration}</Space>
+                                                <Space><ClockCircleOutlined /> {t('search.duration')}: {result.isShuttle && typeof routeStats?.duration === 'string' ? routeStats.duration : <TranslatedText text={result.estimatedDuration} />}</Space>
                                             </div>
                                             <Tag icon={<CheckCircleOutlined />} color="green">{t('search.freeCancellation')}</Tag>
                                         </Col>
@@ -589,15 +590,15 @@ const TransferSearchContent: React.FC = () => {
                                 <DynamicLocationSearchInput placeholder={t('search.pickupPlaceholder')} onSelect={(val, lat, lng) => { form.setFieldsValue({ pickup: val, pickupLat: lat, pickupLng: lng }); }} />
                             </Form.Item>
                             <div style={{ height: 1, background: '#e2e8f0', marginBottom: 8 }} />
-                            <Form.Item name="dropoff" label={<span style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8' }}>NEREYE</span>} rules={[{ required: true }]} style={{ marginBottom: 8 }}>
-                                <DynamicLocationSearchInput placeholder="Bırakış noktası" onSelect={(val, lat, lng) => { form.setFieldsValue({ dropoff: val, dropoffLat: lat, dropoffLng: lng }); }} />
+                            <Form.Item name="dropoff" label={<span style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8' }}>{t('booking.to')}</span>} rules={[{ required: true }]} style={{ marginBottom: 8 }}>
+                                <DynamicLocationSearchInput placeholder={t('booking.dropoffPlaceholder')} onSelect={(val, lat, lng) => { form.setFieldsValue({ dropoff: val, dropoffLat: lat, dropoffLng: lng }); }} />
                             </Form.Item>
                         </div>
 
                         {/* Dates Card — gidiş + dönüş aynı kart */}
                         <div style={{ background: '#f8fafc', borderRadius: 10, padding: '10px 12px 4px', border: '1px solid #e2e8f0', marginBottom: 14 }}>
                             {/* Gidiş */}
-                            <div style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8', marginBottom: 6 }}>{editType === 'ROUND_TRIP' ? 'GİDİŞ' : 'TARİH & SAAT'}</div>
+                            <div style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8', marginBottom: 6 }}>{editType === 'ROUND_TRIP' ? t('booking.departure') : t('booking.dateAndTime')}</div>
                             <Row gutter={8} style={{ marginBottom: editType === 'ROUND_TRIP' ? 8 : 4 }}>
                                 <Col span={14}><Form.Item name="date" rules={[{ required: true }]} style={{ marginBottom: 0 }}><DatePicker style={{ width: '100%', borderRadius: 7 }} format="DD.MM.YYYY" disabledDate={(c) => c && c < dayjs().startOf('day')} /></Form.Item></Col>
                                 <Col span={10}><Form.Item name="time" rules={[{ required: true }]} style={{ marginBottom: 0 }}><TimePicker style={{ width: '100%', borderRadius: 7 }} format="HH:mm" minuteStep={15} /></Form.Item></Col>
@@ -605,9 +606,9 @@ const TransferSearchContent: React.FC = () => {
                             {/* Dönüş — sadece ROUND_TRIP */}
                             {editType === 'ROUND_TRIP' && (<>
                                 <div style={{ height: 1, background: '#bae6fd', margin: '8px 0 6px' }} />
-                                <div style={{ fontSize: 11, fontWeight: 600, color: '#0369a1', marginBottom: 6 }}>DÖNÜŞ</div>
+                                <div style={{ fontSize: 11, fontWeight: 600, color: '#0369a1', marginBottom: 6 }}>{t('booking.returnLabel')}</div>
                                 <Row gutter={8} style={{ marginBottom: 4 }}>
-                                    <Col span={14}><Form.Item name="returnDate" rules={[{ required: true, message: 'Dönüş tarihi zorunlu' }]} style={{ marginBottom: 0 }}><DatePicker style={{ width: '100%', borderRadius: 7 }} format="DD.MM.YYYY" disabledDate={(c) => { const ob = form.getFieldValue('date'); return c && c < (ob || dayjs()).startOf('day'); }} /></Form.Item></Col>
+                                    <Col span={14}><Form.Item name="returnDate" rules={[{ required: true, message: t('booking.returnDateRequired') }]} style={{ marginBottom: 0 }}><DatePicker style={{ width: '100%', borderRadius: 7 }} format="DD.MM.YYYY" disabledDate={(c) => { const ob = form.getFieldValue('date'); return c && c < (ob || dayjs()).startOf('day'); }} /></Form.Item></Col>
                                     <Col span={10}><Form.Item name="returnTime" style={{ marginBottom: 0 }}><TimePicker style={{ width: '100%', borderRadius: 7 }} format="HH:mm" minuteStep={15} /></Form.Item></Col>
                                 </Row>
                             </>)}
@@ -615,8 +616,8 @@ const TransferSearchContent: React.FC = () => {
 
                         {/* Footer Buttons */}
                         <div style={{ display: 'flex', gap: 8 }}>
-                            <Button onClick={() => setIsEditModalVisible(false)} style={{ flex: 1, height: 40, borderRadius: 9, fontWeight: 600, border: '1.5px solid #e2e8f0', color: '#64748b' }}>İptal</Button>
-                            <Button htmlType="submit" style={{ flex: 2, height: 40, borderRadius: 9, fontWeight: 700, background: 'linear-gradient(135deg,#3b82f6,#6366f1)', border: 'none', color: '#fff', boxShadow: '0 4px 12px rgba(59,130,246,0.3)' }}>Güncelle ve Ara</Button>
+                            <Button onClick={() => setIsEditModalVisible(false)} style={{ flex: 1, height: 40, borderRadius: 9, fontWeight: 600, border: '1.5px solid #e2e8f0', color: '#64748b' }}>{t('common.cancel')}</Button>
+                            <Button htmlType="submit" style={{ flex: 2, height: 40, borderRadius: 9, fontWeight: 700, background: 'linear-gradient(135deg,#3b82f6,#6366f1)', border: 'none', color: '#fff', boxShadow: '0 4px 12px rgba(59,130,246,0.3)' }}>{t('booking.updateAndSearch')}</Button>
                         </div>
                     </Form>
                 </div>
