@@ -28,7 +28,7 @@ function getCache(storageKey: string): Record<string, string> {
   } catch { return {}; }
 }
 
-function setCache(storageKey: string, cache: Record<string, string>, maxEntries = 2000) {
+function setCache(storageKey: string, cache: Record<string, string>, maxEntries = 5000) {
   if (typeof window === 'undefined') return;
   try {
     const entries = Object.entries(cache);
@@ -94,10 +94,63 @@ function detectBrowserLocale(): SupportedLocale {
   return 'tr';
 }
 
-// ─── Batch Translation Queue ───
+// ─── Full UI Translation Pre-loader ───
+let autoTranslateCache: Record<string, string> = {};
+let preloadPromise: Promise<void> | null = null;
+
+/**
+ * Pre-load ALL UI translations for a non-built-in locale.
+ * Calls /api/translate/batch with the full TR dictionary.
+ * Results are cached in localStorage so subsequent loads are instant.
+ */
+async function preloadAllTranslations(targetLang: string): Promise<void> {
+  const trDict = locales.tr;
+  const allKeys = Object.keys(trDict);
+
+  // Check which keys are already cached
+  const missingKeys: Record<string, string> = {};
+  for (const key of allKeys) {
+    const cacheKey = `${targetLang}:${key}`;
+    if (!autoTranslateCache[cacheKey]) {
+      missingKeys[key] = trDict[key];
+    }
+  }
+
+  // All cached already
+  if (Object.keys(missingKeys).length === 0) return;
+
+  try {
+    const res = await fetch(`${API_URL}/api/translate/batch`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Tenant-Slug': TENANT_SLUG,
+      },
+      body: JSON.stringify({
+        keys: missingKeys,
+        targetLang,
+        sourceLang: 'tr'
+      })
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      const translations: Record<string, string> = data?.data?.translations || {};
+      for (const [key, translated] of Object.entries(translations)) {
+        autoTranslateCache[`${targetLang}:${key}`] = translated;
+      }
+      setCache(AUTO_TRANSLATE_CACHE_KEY, autoTranslateCache);
+    } else {
+      console.warn('[i18n] preloadAllTranslations failed:', res.status, await res.text().catch(() => ''));
+    }
+  } catch (err) {
+    console.warn('[i18n] preloadAllTranslations network error:', err);
+  }
+}
+
+// ─── Batch Translation Queue (fallback for any missed keys) ───
 let batchQueue: { text: string; cacheKey: string; resolve: (v: string) => void }[] = [];
 let batchTimer: ReturnType<typeof setTimeout> | null = null;
-let autoTranslateCache: Record<string, string> = {};
 
 async function flushBatchQueue(targetLang: string) {
   const items = [...batchQueue];
@@ -151,7 +204,6 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setLocaleState(detected);
     dynamicCacheRef.current = getCache(DYNAMIC_CACHE_KEY);
     autoTranslateCache = getCache(AUTO_TRANSLATE_CACHE_KEY);
-    setReady(true);
 
     // Load dynamic languages from tenant info
     fetchTenantInfo({ lang: detected }).then(res => {
@@ -163,6 +215,18 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         setLocaleLabels(tenant.availableLanguages);
       }
     }).catch(() => {});
+
+    // Pre-load all UI translations for non-built-in locales
+    const isBuiltIn = !!locales[detected];
+    if (!isBuiltIn && detected !== 'tr') {
+      preloadPromise = preloadAllTranslations(detected).finally(() => {
+        preloadPromise = null;
+        setReady(true);
+        forceUpdate(n => n + 1);
+      });
+    } else {
+      setReady(true);
+    }
   }, []);
 
   // Keep <html lang> and text direction in sync with the active locale.
@@ -199,6 +263,14 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       if (newPath !== currentPath) {
         window.location.href = newPath;
         return;
+      }
+
+      // URL didn't change — preload translations in-place for non-built-in locales
+      const isBuiltIn = !!locales[newLocale];
+      if (!isBuiltIn && newLocale !== 'tr') {
+        preloadAllTranslations(newLocale).then(() => {
+          forceUpdate(n => n + 1);
+        });
       }
     }
     if (typeof document !== 'undefined') {

@@ -174,17 +174,31 @@ router.post('/batch', async (req, res) => {
     const deeplSourceLang = sourceLang ? mapToDeepLLang(sourceLang) : undefined;
 
     const entries = Object.entries(keys);
-    const texts = entries.map(([, v]) => v);
-    const keyNames = entries.map(([k]) => k);
+    const translated = {};
+    const toTranslate = []; // { key, text } items not in cache
+
+    // Check in-memory cache first
+    for (const [key, text] of entries) {
+      const cacheKey = `${sourceLang || 'auto'}:${targetLang}:${text}`;
+      const cached = translationCache.get(cacheKey);
+      if (cached && (Date.now() - cached.timestamp < CACHE_TTL)) {
+        translated[key] = cached.translation;
+      } else {
+        toTranslate.push({ key, text });
+      }
+    }
+
+    // If all cached, return immediately
+    if (toTranslate.length === 0) {
+      return res.json({ success: true, data: { translations: translated } });
+    }
 
     // Batch in chunks of 50
-    const translated = {};
-    for (let i = 0; i < texts.length; i += 50) {
-      const chunk = texts.slice(i, i + 50);
-      const chunkKeys = keyNames.slice(i, i + 50);
+    for (let i = 0; i < toTranslate.length; i += 50) {
+      const chunk = toTranslate.slice(i, i + 50);
 
       const params = new URLSearchParams();
-      chunk.forEach(t => params.append('text', t));
+      chunk.forEach(item => params.append('text', item.text));
       params.append('target_lang', deeplTargetLang);
       if (deeplSourceLang) params.append('source_lang', deeplSourceLang);
       params.append('preserve_formatting', '1');
@@ -206,12 +220,20 @@ router.post('/batch', async (req, res) => {
       const data = await response.json();
       const translations = data.translations || [];
 
-      for (let j = 0; j < chunkKeys.length; j++) {
-        translated[chunkKeys[j]] = translations[j]?.text || chunk[j];
+      for (let j = 0; j < chunk.length; j++) {
+        const translatedText = translations[j]?.text || chunk[j].text;
+        translated[chunk[j].key] = translatedText;
+
+        // Store in memory cache
+        const cacheKey = `${sourceLang || 'auto'}:${targetLang}:${chunk[j].text}`;
+        translationCache.set(cacheKey, {
+          translation: translatedText,
+          timestamp: Date.now()
+        });
       }
 
       // Rate limit: small delay between chunks
-      if (i + 50 < texts.length) {
+      if (i + 50 < toTranslate.length) {
         await new Promise(r => setTimeout(r, 200));
       }
     }
