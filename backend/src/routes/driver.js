@@ -7,7 +7,9 @@ const { requireTenantId, isAdminUser, findUserForTenant, adminMonitoringRoom } =
 
 // Middleware to ensure user is a driver
 const ensureDriver = (req, res, next) => {
-    if (req.user.roleCode !== 'DRIVER' && req.user.roleType !== 'DRIVER') {
+    const allowedTypes = ['DRIVER', 'PARTNER'];
+    const allowedCodes = ['DRIVER', 'PARTNER'];
+    if (!allowedTypes.includes(req.user.roleType) && !allowedCodes.includes(req.user.roleCode)) {
         return res.status(403).json({ success: false, error: 'Access denied. Drivers only.' });
     }
     next();
@@ -106,7 +108,11 @@ router.get('/bookings', authMiddleware, ensureDriver, async (req, res) => {
         const bookings = await prisma.booking.findMany({
             where: {
                 tenantId: req.user.tenantId,
-                driverId: driverId,
+                OR: [
+                    { driverId: driverId },
+                    { metadata: { path: ['driverId'], equals: driverId } },
+                    { metadata: { path: ['assignedDriverId'], equals: driverId } }
+                ],
                 status: { notIn: ['CANCELLED', 'COMPLETED', 'NO_SHOW'] },
                 ...dateFilter
             },
@@ -423,7 +429,11 @@ router.get('/bookings/:id', authMiddleware, ensureDriver, async (req, res) => {
         const booking = await prisma.booking.findFirst({
             where: {
                 id: id,
-                driverId: driverId,
+                OR: [
+                    { driverId: driverId },
+                    { metadata: { path: ['driverId'], equals: driverId } },
+                    { metadata: { path: ['assignedDriverId'], equals: driverId } }
+                ],
             },
             include: {
                 product: {
@@ -1348,15 +1358,17 @@ router.post('/sync', authMiddleware, async (req, res) => {
 // GET /api/driver/online
 // Returns list of Personnel (actual drivers) as online/reachable
 // Includes: current active booking, assigned vehicle, speed violation count
-router.get('/online', async (req, res) => {
+router.get('/online', authMiddleware, async (req, res) => {
     try {
+        const tenantId = req.user.tenantId;
         const onlineDrivers = req.app.get('onlineDrivers') || {};
         const speedViolations = req.app.get('speedViolations') || {};
 
         // Query Personnel table - these are the ACTUAL drivers/staff
         const personnel = await prisma.personnel.findMany({
             where: {
-                isActive: true
+                isActive: true,
+                tenantId: tenantId
             },
             select: {
                 id: true,
@@ -1382,8 +1394,46 @@ router.get('/online', async (req, res) => {
             }
         });
 
+        // Also find driver Users that have synced but may not have Personnel records
+        const personnelUserIds = new Set(personnel.map(p => p.userId).filter(Boolean));
+        const driverUsers = await prisma.user.findMany({
+            where: {
+                tenantId: tenantId,
+                role: { type: { in: ['DRIVER', 'PARTNER'] } },
+                status: 'ACTIVE',
+                id: { notIn: [...personnelUserIds] }
+            },
+            select: {
+                id: true,
+                fullName: true,
+                avatar: true,
+                phone: true,
+                lastSeenAt: true,
+                lastLocationLat: true,
+                lastLocationLng: true,
+                lastLocationSpeed: true,
+                lastLoginAt: true
+            }
+        });
+
+        // Merge: convert standalone driver users to personnel-like objects
+        const allDriverEntries = [
+            ...personnel,
+            ...driverUsers.map(u => ({
+                id: u.id,
+                firstName: u.fullName?.split(' ')[0] || '',
+                lastName: u.fullName?.split(' ').slice(1).join(' ') || '',
+                phone: u.phone,
+                photo: u.avatar,
+                jobTitle: 'Şoför',
+                department: null,
+                userId: u.id,
+                user: u
+            }))
+        ];
+
         // Fetch active bookings for all drivers in a single query
-        const userIds = personnel.map(p => p.userId).filter(Boolean);
+        const userIds = allDriverEntries.map(p => p.userId).filter(Boolean);
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         const tomorrow = new Date(today);
@@ -1440,7 +1490,7 @@ router.get('/online', async (req, res) => {
         // Map personnel to the driver format the frontend expects
         const DB_ONLINE_THRESHOLD_MS = 2 * 60 * 1000; // 2 min — if no sync in 2 min, driver is offline
         const connectionLogs = req.app.get('driverConnectionLogs') || {};
-        const result = personnel.map(p => {
+        const result = allDriverEntries.map(p => {
             const userId = p.userId || p.id;
             const inMemory = onlineDrivers[userId];
 
