@@ -15,6 +15,7 @@ const env = require('./src/config/env');
 
 // Middleware
 const tenantMiddleware = require('./src/middleware/tenant');
+const { optionalTenantMiddleware } = require('./src/middleware/tenant');
 
 // Routes
 const authRoutes = require('./src/routes/auth');
@@ -108,7 +109,7 @@ app.get('/api/debug/error-log', (req, res) => {
 // ============================================================================
 
 // Public routes (no tenant needed, but tenant is resolved if available)
-app.use('/api/auth', tenantMiddleware, authRoutes);
+app.use('/api/auth', optionalTenantMiddleware, authRoutes);
 
 // Tenant-specific routes
 app.use('/api/tenant', tenantMiddleware, tenantRoutes);

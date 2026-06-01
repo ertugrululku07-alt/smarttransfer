@@ -11,7 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as SecureStore from 'expo-secure-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Brand } from '../constants/theme';
-import { API_URL } from '../config';
+import { API_URL, apiHeaders } from '../config';
 const { width, height } = Dimensions.get('window');
 const LOGIN_TIMEOUT_MS = 12000;
 
@@ -67,7 +67,7 @@ export default function LoginScreen() {
             try {
                 response = await fetch(`${API_URL}/auth/login`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: apiHeaders(),
                     body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
                     signal: controller.signal,
                 });

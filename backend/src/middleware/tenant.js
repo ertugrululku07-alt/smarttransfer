@@ -129,6 +129,23 @@ async function tenantMiddleware(req, res, next) {
     }
 }
 
+async function optionalTenantMiddleware(req, res, next) {
+    try {
+        if (req.user?.tenant) {
+            req.tenant = req.user.tenant;
+            return next();
+        }
+
+        const tenant = await resolveTenantFromRequest(req);
+        req.tenant = tenant || null;
+        next();
+    } catch (error) {
+        console.error('Optional tenant middleware error:', error);
+        req.tenant = null;
+        next();
+    }
+}
+
 function clearTenantCache(tenantId, tenantSlug) {
     // Clear all possible cache keys for this tenant
     for (const [key, entry] of tenantCache.entries()) {
@@ -139,4 +156,5 @@ function clearTenantCache(tenantId, tenantSlug) {
 }
 
 module.exports = tenantMiddleware;
+module.exports.optionalTenantMiddleware = optionalTenantMiddleware;
 module.exports.clearTenantCache = clearTenantCache;
