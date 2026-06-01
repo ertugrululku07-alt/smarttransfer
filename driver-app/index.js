@@ -35,7 +35,7 @@ const LOCATION_UPDATES_OPTIONS = {
   activityType: Location.ActivityType.AutomotiveNavigation,
   pausesUpdatesAutomatically: false,
   foregroundService: {
-    notificationTitle: 'SmartTransfer Sürücü',
+    notificationTitle: 'Sürücü Takip',
     notificationBody: 'Arka planda konum takip ediliyor.',
     notificationColor: '#4361ee',
     killServiceOnDestroy: false,

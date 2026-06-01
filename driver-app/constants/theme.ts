@@ -1,5 +1,5 @@
 /**
- * SmartTransfer Driver App — Centralized Theme
+ * Driver App — Centralized Theme
  */
 
 import { Platform } from 'react-native';

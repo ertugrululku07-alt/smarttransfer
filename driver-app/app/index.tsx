@@ -12,6 +12,7 @@ import * as SecureStore from 'expo-secure-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Brand } from '../constants/theme';
 import { API_URL, apiHeaders } from '../config';
+import { saveBrand, loadBrand, getAppName } from '../constants/brand';
 const { width, height } = Dimensions.get('window');
 const LOGIN_TIMEOUT_MS = 12000;
 
@@ -24,6 +25,7 @@ export default function LoginScreen() {
     const [showPassword, setShowPassword] = useState(false);
     const [emailFocused, setEmailFocused] = useState(false);
     const [passFocused, setPassFocused] = useState(false);
+    const [brandName, setBrandName] = useState('');
 
     const fadeAnim = useRef(new Animated.Value(0)).current;
     const slideAnim = useRef(new Animated.Value(50)).current;
@@ -34,6 +36,7 @@ export default function LoginScreen() {
         if (isLoading) return;
         if (token) { router.replace('/(tabs)'); return; }
         loadRemembered();
+        loadBrand().then(b => setBrandName(b.name));
         Animated.stagger(150, [
             Animated.parallel([
                 Animated.spring(logoScale, { toValue: 1, friction: 8, tension: 40, useNativeDriver: true }),
@@ -91,8 +94,19 @@ export default function LoginScreen() {
                 const isDriver = user.role?.code === 'DRIVER' || user.role?.type === 'DRIVER';
                 if (!isDriver) {
                     const isPartner = user.role?.code === 'PARTNER' || user.role?.type === 'PARTNER';
-                    Alert.alert('Yetkisiz Giriş', isPartner ? 'Partnerler için SmartTransfer Partner uygulamasını kullanın.' : 'Bu uygulama yalnızca sürücüler içindir.');
+                    Alert.alert('Yetkisiz Giriş', isPartner ? 'Partnerler için Partner uygulamasını kullanın.' : 'Bu uygulama yalnızca sürücüler içindir.');
                     return;
+                }
+                // Save tenant brand info dynamically
+                if (user.tenant) {
+                    await saveBrand({
+                        name: user.tenant.name || 'Sürücü',
+                        slug: user.tenant.slug || '',
+                        primaryColor: user.tenant.primaryColor,
+                        secondaryColor: user.tenant.secondaryColor,
+                        accentColor: user.tenant.accentColor,
+                    });
+                    setBrandName(user.tenant.name || 'Sürücü');
                 }
                 if (rememberMe) {
                     await SecureStore.setItemAsync('remembered_email', email.trim());
@@ -121,7 +135,7 @@ export default function LoginScreen() {
                         <Ionicons name="navigate" size={40} color="#fff" />
                     </View>
                 </View>
-                <Text style={s.splashTitle}>SmartTransfer</Text>
+                <Text style={s.splashTitle}>{brandName || 'Sürücü'}</Text>
                 <Text style={s.splashSub}>Sürücü Platformu</Text>
                 <ActivityIndicator color="rgba(255,255,255,0.7)" size="small" style={{ marginTop: 32 }} />
             </View>
@@ -155,7 +169,7 @@ export default function LoginScreen() {
                                     <Ionicons name="navigate" size={36} color="#fff" />
                                 </View>
                             </View>
-                            <Text style={s.brandName}>SmartTransfer</Text>
+                            <Text style={s.brandName}>{brandName || 'Sürücü'}</Text>
                             <View style={s.taglineRow}>
                                 <View style={s.taglineLine} />
                                 <Text style={s.tagline}>SÜRÜCÜ PLATFORMU</Text>
@@ -248,7 +262,7 @@ export default function LoginScreen() {
                         {/* Footer */}
                         <View style={s.footerRow}>
                             <View style={s.footerDot} />
-                            <Text style={s.footerText}>SmartTransfer v1.1</Text>
+                            <Text style={s.footerText}>{brandName || 'Sürücü'} v1.1</Text>
                             <View style={s.footerDot} />
                         </View>
                     </ScrollView>

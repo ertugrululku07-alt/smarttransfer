@@ -59,7 +59,7 @@ export default function ShuttleMapScreen() {
     try {
       const res = await fetch(
         `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=1&countrycodes=tr`,
-        { headers: { 'User-Agent': 'SmartTransfer-DriverApp/1.0' } }
+        { headers: { 'User-Agent': 'DriverApp/1.0' } }
       );
       const json = await res.json();
       if (json.length > 0) {

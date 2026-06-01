@@ -15,6 +15,7 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Brand } from '../../constants/theme';
 import { API_URL, BASE_URL, apiHeaders } from '../../config';
+import { getAppName, loadBrand } from '../../constants/brand';
 
 const { NativeLocation } = NativeModules;
 const LOCATION_TASK_NAME = 'background-location-task';
@@ -152,7 +153,7 @@ export default function DashboardScreen() {
       if (fgStatus !== 'granted') {
         Alert.alert(
           'Konum İzni Zorunlu',
-          'SmartTransfer Sürücü uygulaması konum izni olmadan çalışamaz. Lütfen ayarlardan izin verin.',
+          'Sürücü uygulaması konum izni olmadan çalışamaz. Lütfen ayarlardan izin verin.',
           [
             { text: 'Ayarlara Git', onPress: () => Linking.openSettings() },
             { text: 'Tamam' }
@@ -187,7 +188,7 @@ export default function DashboardScreen() {
         activityType: Location.ActivityType.AutomotiveNavigation,
         pausesUpdatesAutomatically: false,  // CRITICAL: prevents iOS/Android from pausing
         foregroundService: {
-          notificationTitle: 'SmartTransfer Sürücü',
+          notificationTitle: `${getAppName()} Sürücü`,
           notificationBody: 'Arka planda konum takip ediliyor.',
           notificationColor: '#4361ee',
           killServiceOnDestroy: false,
@@ -460,7 +461,7 @@ export default function DashboardScreen() {
 
       {/* ─── FOOTER ─── */}
       <View style={st.footerRow}>
-        <Text style={st.footerText}>SmartTransfer Sürücü v1.1</Text>
+        <Text style={st.footerText}>{getAppName()} Sürücü v1.1</Text>
       </View>
 
       {/* ─── EMERGENCY MODAL ─── */}

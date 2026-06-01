@@ -112,9 +112,6 @@
     },
     "extra": {
       "router": {},
-      "apiUrl": "https://api.jet2home.com/api",
-      "socketUrl": "https://api.jet2home.com",
-      "tenantSlug": "Jet2Home",
       "eas": {
         "projectId": "dc142bc2-db32-45b9-ae2c-add69f2d6ae3"
       }

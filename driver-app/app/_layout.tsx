@@ -4,6 +4,7 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 import * as Updates from 'expo-updates';
+import { getAppName } from '../constants/brand';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
@@ -93,12 +94,12 @@ const MANUFACTURER_SETTINGS: Record<string, { name: string; intents: string[]; i
       'huawei.intent.action.HSM_BOOTAPP_MANAGER',      // EMUI auto-launch
     ],
     instructions:
-      '1. Ayarlar > Pil > Uygulama başlatma yöneticisi\n' +
-      '2. SmartTransfer Sürücü uygulamasını bulun\n' +
-      '3. Otomatik yönetimi KAPATIN (toggle)\n' +
-      '4. Açılan pencerede: Otomatik başlatma ✓, Arka plan ✓, Pil yoğun ✓ yapın\n' +
-      '5. Ayarlar > Pil > Pil optimizasyonu > SmartTransfer > "Optimize etme" seçin\n' +
-      '6. Son uygulamalar ekranında SmartTransfer\'e basılı tutun > "Kilitle" seçin'
+      `1. Ayarlar > Pil > Uygulama başlatma yöneticisi\n` +
+      `2. ${getAppName()} Sürücü uygulamasını bulun\n` +
+      `3. Otomatik yönetimi KAPATIN (toggle)\n` +
+      `4. Açılan pencerede: Otomatik başlatma ✓, Arka plan ✓, Pil yoğun ✓ yapın\n` +
+      `5. Ayarlar > Pil > Pil optimizasyonu > ${getAppName()} > "Optimize etme" seçin\n` +
+      `6. Son uygulamalar ekranında ${getAppName()}'e basılı tutun > "Kilitle" seçin`
   },
   xiaomi: {
     name: 'Xiaomi / Redmi / POCO',
@@ -107,18 +108,18 @@ const MANUFACTURER_SETTINGS: Record<string, { name: string; intents: string[]; i
       'miui.intent.action.OP_AUTO_START',               // Auto-start
     ],
     instructions:
-      '1. Ayarlar > Uygulamalar > Uygulamaları yönet > SmartTransfer\n' +
-      '2. Otomatik başlatma: AÇIK\n' +
-      '3. Pil tasarrufu: Kısıtlama yok\n' +
-      '4. Ayarlar > Pil > Arka plan pil kullanımı: SmartTransfer için izin ver'
+      `1. Ayarlar > Uygulamalar > Uygulamaları yönet > ${getAppName()}\n` +
+      `2. Otomatik başlatma: AÇIK\n` +
+      `3. Pil tasarrufu: Kısıtlama yok\n` +
+      `4. Ayarlar > Pil > Arka plan pil kullanımı: ${getAppName()} için izin ver`
   },
   samsung: {
     name: 'Samsung',
     intents: [],
     instructions:
-      '1. Ayarlar > Pil > Arka plan kullanım sınırları\n' +
-      '2. SmartTransfer uygulamasını "Hiçbir zaman uyutma" listesine ekleyin\n' +
-      '3. Ayarlar > Uygulamalar > SmartTransfer > Pil > Sınırsız seçin'
+      `1. Ayarlar > Pil > Arka plan kullanım sınırları\n` +
+      `2. ${getAppName()} uygulamasını "Hiçbir zaman uyutma" listesine ekleyin\n` +
+      `3. Ayarlar > Uygulamalar > ${getAppName()} > Pil > Sınırsız seçin`
   },
   oppo: {
     name: 'Oppo / Realme / OnePlus',
@@ -126,17 +127,17 @@ const MANUFACTURER_SETTINGS: Record<string, { name: string; intents: string[]; i
       'com.coloros.safecenter',
     ],
     instructions:
-      '1. Ayarlar > Pil > Arka plan optimizasyonu\n' +
-      '2. SmartTransfer için "Kısıtlama yok" seçin\n' +
-      '3. Güvenlik > Otomatik başlatma yöneticisi > SmartTransfer: AÇIK'
+      `1. Ayarlar > Pil > Arka plan optimizasyonu\n` +
+      `2. ${getAppName()} için "Kısıtlama yok" seçin\n` +
+      `3. Güvenlik > Otomatik başlatma yöneticisi > ${getAppName()}: AÇIK`
   },
   vivo: {
     name: 'Vivo',
     intents: [],
     instructions:
-      '1. Ayarlar > Pil > Yüksek arka plan güç tüketimi\n' +
-      '2. SmartTransfer uygulamasını listede etkinleştirin\n' +
-      '3. i Manager > Uygulama Yöneticisi > Otomatik başlatma: AÇIK'
+      `1. Ayarlar > Pil > Yüksek arka plan güç tüketimi\n` +
+      `2. ${getAppName()} uygulamasını listede etkinleştirin\n` +
+      `3. i Manager > Uygulama Yöneticisi > Otomatik başlatma: AÇIK`
   }
 };
 
@@ -191,7 +192,7 @@ async function promptBatteryOptimization() {
       'Aksi halde 10-15 dakika sonra uygulama uyku moduna geçer ve konumunuz güncellenmez.\n\n' +
       '── Telefonunuza göre ayarlar ──\n\n' +
       allInstructions +
-      '\n\n📌 Genel: Ayarlar > Pil > Pil Optimizasyonu > SmartTransfer > Optimize etme',
+      `\n\n📌 Genel: Ayarlar > Pil > Pil Optimizasyonu > ${getAppName()} > Optimize etme`,
       [
         {
           text: 'Bir Daha Gösterme',

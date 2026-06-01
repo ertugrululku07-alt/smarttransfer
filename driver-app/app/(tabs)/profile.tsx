@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
 import { useRouter } from 'expo-router';
 import { Brand } from '../../constants/theme';
+import { getAppName } from '../../constants/brand';
 import { API_URL, BASE_URL } from '../../config';
 
 export default function ProfileScreen() {
@@ -172,7 +173,7 @@ export default function ProfileScreen() {
                     <Text style={styles.logoutText}>Çıkış Yap</Text>
                 </TouchableOpacity>
 
-                <Text style={styles.version}>SmartTransfer Sürücü v1.1</Text>
+                <Text style={styles.version}>{getAppName()} Sürücü v1.1</Text>
             </ScrollView>
         </SafeAreaView>
     );
