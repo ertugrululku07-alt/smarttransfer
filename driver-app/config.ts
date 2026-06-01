@@ -15,14 +15,10 @@ function requireConfig(envKey: string, extraKey: keyof ExtraConfig): string {
   const value = (process.env[envKey] || extra[extraKey] || '').trim();
   if (value) return value.replace(/\/$/, '');
 
-  if (__DEV__) {
-    console.warn(
-      `[config] Missing ${envKey}. Set it in .env or run 'node setup.js' from the project root.`
-    );
-    return '';
-  }
-
-  throw new Error(`Missing required mobile config: ${envKey}`);
+  console.warn(
+    `[config] Missing ${envKey}. Set it in .env or run 'node setup.js' from the project root.`
+  );
+  return '';
 }
 
 const rawApiUrl = requireConfig('EXPO_PUBLIC_API_URL', 'apiUrl');
