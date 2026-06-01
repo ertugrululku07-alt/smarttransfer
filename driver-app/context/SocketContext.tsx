@@ -6,7 +6,7 @@ import Toast from 'react-native-toast-message';
 import { Audio } from 'expo-av';
 import * as Notifications from 'expo-notifications';
 import { SOCKET_URL } from '../config';
-const SOCKET_DISABLED = true;
+const SOCKET_DISABLED = false;
 
 interface SocketContextType {
     socket: Socket | null;

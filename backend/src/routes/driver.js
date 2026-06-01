@@ -3,7 +3,7 @@ const router = express.Router();
 
 const prisma = require('../lib/prisma');
 const { authMiddleware } = require('../middleware/auth');
-const { requireTenantId, isAdminUser, findUserForTenant } = require('../utils/tenantScope');
+const { requireTenantId, isAdminUser, findUserForTenant, adminMonitoringRoom } = require('../utils/tenantScope');
 
 // Middleware to ensure user is a driver
 const ensureDriver = (req, res, next) => {
@@ -578,7 +578,7 @@ router.put('/bookings/:id/status', authMiddleware, ensureDriver, async (req, res
 
         const io = req.app.get('io');
         if (io) {
-            io.to('admin_monitoring').emit('booking_status_update', { 
+            io.to(adminMonitoringRoom(req.user.tenantId)).emit('booking_status_update', { 
                 bookingId: id, 
                 status, 
                 driverId: req.user.id,
@@ -788,7 +788,7 @@ router.put('/bookings/:id/payment-received', authMiddleware, ensureDriver, async
 
         const io = req.app.get('io');
         if (io) {
-            io.to('admin_monitoring').emit('booking_payment_update', {
+            io.to(adminMonitoringRoom(req.user.tenantId)).emit('booking_payment_update', {
                 bookingId: id,
                 paymentStatus: newPaymentStatus,
                 driverId: req.user.id,
@@ -1247,7 +1247,7 @@ router.post('/sync', authMiddleware, async (req, res) => {
         // 1d. Update Location via Socket to Admin (real-time)
         const io = req.app.get('io');
         if (io && req.body.lat && req.body.lng) {
-            io.to('admin_monitoring').emit('driver_location', {
+            io.to(adminMonitoringRoom(req.user.tenantId)).emit('driver_location', {
                 driverId: driverId,
                 driverName: req.user.fullName,
                 lat: req.body.lat, 
@@ -1284,7 +1284,7 @@ router.post('/sync', authMiddleware, async (req, res) => {
                         },
                         name: req.user.fullName
                     };
-                    io.to('admin_monitoring').emit('driver_online', {
+                    io.to(adminMonitoringRoom(req.user.tenantId)).emit('driver_online', {
                         driverId, name: req.user.fullName
                     });
                 }
@@ -1294,7 +1294,7 @@ router.post('/sync', authMiddleware, async (req, res) => {
         // Reset the in-memory offline timer
         const resetDriverTimeout = req.app.get('resetDriverTimeout');
         if (typeof resetDriverTimeout === 'function') {
-            resetDriverTimeout(driverId, req.user.fullName);
+            resetDriverTimeout(driverId, req.user.fullName, req.user.tenantId);
         }
 
         let pendingAssignedBookings = [];
@@ -1637,7 +1637,7 @@ router.put('/bookings/:id/acknowledge', authMiddleware, ensureDriver, async (req
         });
         const io = req.app.get('io');
         if (io) {
-            io.to('admin_monitoring').emit('booking_acknowledged', {
+            io.to(adminMonitoringRoom(req.user.tenantId)).emit('booking_acknowledged', {
                 bookingId: id,
                 driverId: req.user.id,
                 driverName: req.user.fullName,
@@ -1681,7 +1681,7 @@ router.put('/bookings/:id/no-show', authMiddleware, ensureDriver, async (req, re
         });
         const io = req.app.get('io');
         if (io) {
-            io.to('admin_monitoring').emit('booking_no_show', {
+            io.to(adminMonitoringRoom(req.user.tenantId)).emit('booking_no_show', {
                 bookingId: id,
                 driverId: req.user.id,
                 driverName: req.user.fullName,
@@ -1724,7 +1724,7 @@ router.post('/emergency', authMiddleware, ensureDriver, async (req, res) => {
         });
         const io = req.app.get('io');
         if (io) {
-            io.to('admin_monitoring').emit('driver_emergency', {
+            io.to(adminMonitoringRoom(req.user.tenantId)).emit('driver_emergency', {
                 driverId: req.user.id,
                 driverName: req.user.fullName,
                 reason,
@@ -1759,7 +1759,7 @@ router.delete('/emergency', authMiddleware, ensureDriver, async (req, res) => {
         });
         const io = req.app.get('io');
         if (io) {
-            io.to('admin_monitoring').emit('driver_emergency_resolved', {
+            io.to(adminMonitoringRoom(req.user.tenantId)).emit('driver_emergency_resolved', {
                 driverId: req.user.id,
                 driverName: req.user.fullName,
                 resolvedAt: new Date().toISOString()
@@ -2537,7 +2537,7 @@ router.post('/sos', authMiddleware, ensureDriver, async (req, res) => {
         // Real-time broadcast to admin room
         const io = req.app.get('io');
         if (io) {
-            io.to('admin_monitoring').emit('sos:new', newAlert);
+            io.to(adminMonitoringRoom(req.user.tenantId)).emit('sos:new', newAlert);
         }
 
         res.json({ success: true, data: newAlert });
@@ -2601,7 +2601,7 @@ router.put('/admin-sos/:id/resolve', authMiddleware, async (req, res) => {
 
         const io = req.app.get('io');
         if (io) {
-            io.to('admin_monitoring').emit('sos:resolved', alerts[idx]);
+            io.to(adminMonitoringRoom(req.user.tenantId)).emit('sos:resolved', alerts[idx]);
         }
 
         res.json({ success: true, data: alerts[idx] });
@@ -2832,7 +2832,7 @@ router.post('/admin-sos/:id/reassign', authMiddleware, async (req, res) => {
 
         // 10. Emit admin refresh
         if (io) {
-            io.to('admin_monitoring').emit('booking_status_update', { action: 'sos_reassign' });
+            io.to(adminMonitoringRoom(req.user.tenantId)).emit('booking_status_update', { action: 'sos_reassign' });
         }
 
         res.json({

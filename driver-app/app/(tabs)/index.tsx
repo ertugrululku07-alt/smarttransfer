@@ -200,6 +200,8 @@ export default function DashboardScreen() {
   };
 
   // Foreground HTTP sync: send location every 10s via REST API (no socket dependency)
+  const lastKnownBookingIdsRef = useRef<Set<string>>(new Set());
+
   useEffect(() => {
     if (!locationActive || !token) return;
     let active = true;
@@ -209,7 +211,7 @@ export default function DashboardScreen() {
         try {
           const loc = await Location.getLastKnownPositionAsync({ maxAge: 30000 });
           if (loc && token) {
-            await fetch(`${API_URL}/driver/sync`, {
+            const res = await fetch(`${API_URL}/driver/sync`, {
               method: 'POST',
               headers: apiHeaders(token),
               body: JSON.stringify({
@@ -223,6 +225,27 @@ export default function DashboardScreen() {
                 lastSyncTime: new Date(Date.now() - 60000).toISOString()
               })
             });
+            const json = await res.json();
+            // Check for new assigned bookings from server response
+            if (json?.data?.notifications?.bookings?.length > 0) {
+              const newBookings = json.data.notifications.bookings;
+              for (const b of newBookings) {
+                if (!lastKnownBookingIdsRef.current.has(b.id)) {
+                  lastKnownBookingIdsRef.current.add(b.id);
+                  // New job assigned — notify
+                  playAlertSound();
+                  await Notifications.scheduleNotificationAsync({
+                    content: {
+                      title: '🚗 Yeni İş Atandı!',
+                      body: `${b.metadata?.pickup || 'Yeni transfer'} • ${b.startDate ? new Date(b.startDate).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }) : ''}`,
+                      sound: true,
+                      data: { type: 'operationAssigned', bookingId: b.id },
+                    },
+                    trigger: null,
+                  });
+                }
+              }
+            }
           }
         } catch (e) {
           // Silent fail — background service is fallback
